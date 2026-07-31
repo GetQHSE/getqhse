@@ -1,0 +1,12 @@
+[
+  {
+    "id": "org-atlas",
+    "name": "Atlas Manufacturing",
+    "slug": "atlas-manufacturing"
+  },
+  {
+    "id": "org-rif",
+    "name": "Rif Logistics",
+    "slug": "rif-logistics"
+  }
+]

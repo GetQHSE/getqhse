@@ -1,0 +1,10 @@
+.git
+node_modules
+**/node_modules
+**/dist
+**/coverage
+.turbo
+.env
+playwright-report
+test-results
+infrastructure/terraform/**/.terraform

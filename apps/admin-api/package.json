@@ -1,0 +1,44 @@
+{
+  "name": "@qhse/admin-api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/main.ts",
+    "build": "tsc -p tsconfig.build.json",
+    "start": "node dist/main.js",
+    "lint": "eslint src",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run --passWithNoTests",
+    "test:unit": "vitest run --passWithNoTests",
+    "test:coverage": "vitest run --coverage --passWithNoTests",
+    "openapi:generate": "tsx src/openapi.ts && prettier --write openapi.json"
+  },
+  "dependencies": {
+    "@nestjs/common": "^11.1.28",
+    "@nestjs/core": "^11.1.28",
+    "@nestjs/platform-express": "^11.1.28",
+    "@nestjs/swagger": "^11.4.6",
+    "@nestjs/throttler": "^6.5.0",
+    "@qhse/auth": "workspace:*",
+    "@qhse/config": "workspace:*",
+    "@qhse/contracts": "workspace:*",
+    "@qhse/database": "workspace:*",
+    "@qhse/domain": "workspace:*",
+    "@qhse/observability": "workspace:*",
+    "better-auth": "^1.6.25",
+    "express": "^5.1.0",
+    "helmet": "^8.3.0",
+    "nestjs-pino": "^4.6.1",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.2"
+  },
+  "devDependencies": {
+    "@nestjs/testing": "^11.1.28",
+    "@types/express": "^5.0.6",
+    "prettier": "^3.9.6",
+    "tsx": "^4.23.1",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.10"
+  }
+}

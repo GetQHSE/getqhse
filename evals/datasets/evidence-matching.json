@@ -1,0 +1,14 @@
+[
+  {
+    "id": "inspection-positive-001",
+    "requirement": "Document completed workplace inspections.",
+    "evidence": "Monthly workplace inspection completed on 2026-01-15.",
+    "expectedMatch": true
+  },
+  {
+    "id": "inspection-negative-001",
+    "requirement": "Document completed workplace inspections.",
+    "evidence": "The annual picnic is planned for June.",
+    "expectedMatch": false
+  }
+]

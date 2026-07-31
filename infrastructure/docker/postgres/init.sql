@@ -1,0 +1,21 @@
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'qhse_app') THEN
+    CREATE ROLE qhse_app LOGIN PASSWORD 'change-me';
+  END IF;
+  IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'qhse_migrator') THEN
+    CREATE ROLE qhse_migrator LOGIN PASSWORD 'change-me';
+  END IF;
+END
+$$;
+
+GRANT CONNECT ON DATABASE qhse TO qhse_app, qhse_migrator;
+GRANT CREATE ON DATABASE qhse TO qhse_migrator;
+GRANT USAGE, CREATE ON SCHEMA public TO qhse_migrator;
+GRANT USAGE ON SCHEMA public TO qhse_app;
+CREATE EXTENSION IF NOT EXISTS vector;
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+ALTER DEFAULT PRIVILEGES FOR ROLE qhse_migrator IN SCHEMA public
+  GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO qhse_app;
+ALTER DEFAULT PRIVILEGES FOR ROLE qhse_migrator IN SCHEMA public
+  GRANT USAGE, SELECT ON SEQUENCES TO qhse_app;

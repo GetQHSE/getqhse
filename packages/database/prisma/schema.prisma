@@ -1,0 +1,461 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/client"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum AuditStatus {
+  DRAFT
+  PLANNED
+  IN_PROGRESS
+  IN_REVIEW
+  COMPLETED
+  CANCELLED
+}
+
+enum AssessmentResult {
+  CONFORMING
+  PARTIAL
+  NON_CONFORMING
+  NOT_ASSESSED
+}
+
+enum EvidenceKind {
+  DOCUMENT
+  PHOTO
+  NOTE
+  LINK
+}
+
+enum FindingSeverity {
+  OBSERVATION
+  MINOR
+  MAJOR
+  CRITICAL
+}
+
+enum FindingStatus {
+  OPEN
+  IN_PROGRESS
+  VERIFIED
+  CLOSED
+}
+
+enum CorrectiveActionStatus {
+  OPEN
+  IN_PROGRESS
+  BLOCKED
+  DONE
+  VERIFIED
+}
+
+enum JobStatus {
+  QUEUED
+  ACTIVE
+  COMPLETED
+  FAILED
+}
+
+model User {
+  id            String   @id @default(uuid())
+  name          String
+  email         String   @unique
+  emailVerified Boolean  @default(false) @map("email_verified")
+  image         String?
+  firstName     String?  @map("first_name")
+  lastName      String?  @map("last_name")
+  status        String   @default("active")
+  locale        String   @default("fr-MA")
+  timezone      String   @default("Africa/Casablanca")
+  platformRole  String   @default("user") @map("platform_role")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  accounts        Account[]
+  sessions        Session[]
+  members         Member[]
+  invitations     Invitation[]       @relation("InvitationInviter")
+  assignedActions CorrectiveAction[] @relation("ActionAssignee")
+
+  @@map("users")
+}
+
+model Session {
+  id                   String   @id @default(uuid())
+  token                String   @unique
+  expiresAt            DateTime @map("expires_at")
+  ipAddress            String?  @map("ip_address")
+  userAgent            String?  @map("user_agent")
+  userId               String   @map("user_id")
+  activeOrganizationId String?  @map("active_organization_id")
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("sessions")
+}
+
+model Account {
+  id                    String    @id @default(uuid())
+  accountId             String    @map("account_id")
+  providerId            String    @map("provider_id")
+  userId                String    @map("user_id")
+  accessToken           String?   @map("access_token")
+  refreshToken          String?   @map("refresh_token")
+  idToken               String?   @map("id_token")
+  accessTokenExpiresAt  DateTime? @map("access_token_expires_at")
+  refreshTokenExpiresAt DateTime? @map("refresh_token_expires_at")
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([providerId, accountId])
+  @@index([userId])
+  @@map("accounts")
+}
+
+model Verification {
+  id         String   @id @default(uuid())
+  identifier String
+  value      String
+  expiresAt  DateTime @map("expires_at")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@index([identifier])
+  @@map("verifications")
+}
+
+model Organization {
+  id          String   @id @default(uuid())
+  name        String
+  slug        String   @unique
+  logo        String?
+  metadata    String?
+  status      String   @default("active")
+  countryCode String   @default("MA") @map("country_code")
+  locale      String   @default("fr-MA")
+  timezone    String   @default("Africa/Casablanca")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  members           Member[]
+  invitations       Invitation[]
+  sites             Site[]
+  auditCampaigns    AuditCampaign[]
+  audits            Audit[]
+  standardDocuments StandardDocument[]
+  standardVersions  StandardVersion[]
+  clauses           Clause[]
+  requirements      Requirement[]
+  evidence          Evidence[]
+  findings          Finding[]
+  correctiveActions CorrectiveAction[]
+  files             FileObject[]
+  backgroundJobs    BackgroundJob[]
+  auditLogEntries   AuditLogEntry[]
+
+  @@map("organizations")
+}
+
+model Member {
+  id             String   @id @default(uuid())
+  organizationId String   @map("organization_id")
+  userId         String   @map("user_id")
+  role           String   @default("member")
+  status         String   @default("active")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, userId])
+  @@index([userId])
+  @@map("members")
+}
+
+model Invitation {
+  id             String   @id @default(uuid())
+  email          String
+  inviterId      String   @map("inviter_id")
+  organizationId String   @map("organization_id")
+  role           String?
+  status         String
+  expiresAt      DateTime @map("expires_at")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  inviter      User         @relation("InvitationInviter", fields: [inviterId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([email])
+  @@index([organizationId])
+  @@map("invitations")
+}
+
+model Site {
+  id             String    @id @default(cuid())
+  organizationId String
+  name           String
+  code           String
+  address        String?
+  tags           String[]  @default([])
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  audits       Audit[]
+
+  @@unique([organizationId, code])
+  @@index([organizationId, name])
+  @@index([organizationId, deletedAt])
+  @@map("sites")
+}
+
+model AuditCampaign {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  startsAt       DateTime
+  endsAt         DateTime
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  audits       Audit[]
+
+  @@unique([organizationId, name, startsAt])
+  @@index([organizationId, startsAt])
+  @@map("audit_campaigns")
+}
+
+model Audit {
+  id             String      @id @default(cuid())
+  organizationId String
+  siteId         String
+  campaignId     String?
+  title          String
+  status         AuditStatus @default(DRAFT)
+  startsAt       DateTime?
+  endsAt         DateTime?
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  organization Organization   @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  site         Site           @relation(fields: [siteId], references: [id], onDelete: Restrict)
+  campaign     AuditCampaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  evidence     Evidence[]
+  findings     Finding[]
+
+  @@index([organizationId, status])
+  @@index([organizationId, siteId])
+  @@map("audits")
+}
+
+model StandardDocument {
+  id             String   @id @default(cuid())
+  organizationId String
+  code           String
+  title          String
+  publisher      String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  versions     StandardVersion[]
+
+  @@unique([organizationId, code])
+  @@map("standard_documents")
+}
+
+model StandardVersion {
+  id                 String    @id @default(cuid())
+  organizationId     String
+  standardDocumentId String
+  version            String
+  publishedAt        DateTime?
+  effectiveAt        DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  organization     Organization     @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  standardDocument StandardDocument @relation(fields: [standardDocumentId], references: [id], onDelete: Restrict)
+  clauses          Clause[]
+
+  @@unique([organizationId, standardDocumentId, version])
+  @@index([organizationId])
+  @@map("standard_versions")
+}
+
+model Clause {
+  id                String                       @id @default(cuid())
+  organizationId    String
+  standardVersionId String
+  reference         String
+  title             String?
+  content           String
+  embedding         Unsupported("vector(1536)")?
+  createdAt         DateTime                     @default(now())
+  updatedAt         DateTime                     @updatedAt
+
+  organization    Organization    @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  standardVersion StandardVersion @relation(fields: [standardVersionId], references: [id], onDelete: Cascade)
+  requirements    Requirement[]
+
+  @@unique([organizationId, standardVersionId, reference])
+  @@index([organizationId])
+  @@map("clauses")
+}
+
+model Requirement {
+  id             String   @id @default(cuid())
+  organizationId String
+  clauseId       String
+  code           String
+  text           String
+  activities     String[] @default([])
+  weight         Decimal  @default(1) @db.Decimal(8, 2)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  clause       Clause       @relation(fields: [clauseId], references: [id], onDelete: Cascade)
+  evidence     Evidence[]
+  findings     Finding[]
+
+  @@unique([organizationId, clauseId, code])
+  @@index([organizationId])
+  @@map("requirements")
+}
+
+model Evidence {
+  id               String                       @id @default(cuid())
+  organizationId   String
+  auditId          String
+  requirementId    String?
+  fileId           String?
+  kind             EvidenceKind
+  summary          String?
+  assessmentResult AssessmentResult             @default(NOT_ASSESSED)
+  embedding        Unsupported("vector(1536)")?
+  createdAt        DateTime                     @default(now())
+  updatedAt        DateTime                     @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  audit        Audit        @relation(fields: [auditId], references: [id], onDelete: Cascade)
+  requirement  Requirement? @relation(fields: [requirementId], references: [id], onDelete: SetNull)
+  file         FileObject?  @relation(fields: [fileId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, auditId])
+  @@index([organizationId, requirementId])
+  @@map("evidence")
+}
+
+model Finding {
+  id             String          @id @default(cuid())
+  organizationId String
+  auditId        String
+  requirementId  String?
+  title          String
+  description    String
+  severity       FindingSeverity
+  status         FindingStatus   @default(OPEN)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  organization      Organization       @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  audit             Audit              @relation(fields: [auditId], references: [id], onDelete: Cascade)
+  requirement       Requirement?       @relation(fields: [requirementId], references: [id], onDelete: SetNull)
+  correctiveActions CorrectiveAction[]
+
+  @@index([organizationId, auditId])
+  @@index([organizationId, severity, status])
+  @@map("findings")
+}
+
+model CorrectiveAction {
+  id             String                 @id @default(cuid())
+  organizationId String
+  findingId      String
+  title          String
+  assigneeId     String?
+  dueAt          DateTime
+  status         CorrectiveActionStatus @default(OPEN)
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  finding      Finding      @relation(fields: [findingId], references: [id], onDelete: Cascade)
+  assignee     User?        @relation("ActionAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, status, dueAt])
+  @@index([organizationId, findingId])
+  @@map("corrective_actions")
+}
+
+model FileObject {
+  id             String    @id @default(cuid())
+  organizationId String
+  objectKey      String
+  originalName   String
+  contentType    String
+  sizeBytes      BigInt
+  checksum       String
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  evidence     Evidence[]
+
+  @@unique([organizationId, objectKey])
+  @@index([organizationId, deletedAt])
+  @@map("files")
+}
+
+model BackgroundJob {
+  id             String    @id @default(cuid())
+  organizationId String
+  queue          String
+  jobName        String
+  externalJobId  String?
+  correlationId  String
+  idempotencyKey String
+  status         JobStatus @default(QUEUED)
+  attempts       Int       @default(0)
+  lastErrorCode  String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+
+  @@unique([organizationId, queue, idempotencyKey])
+  @@index([organizationId, status])
+  @@map("background_jobs")
+}
+
+model AuditLogEntry {
+  id             String   @id @default(cuid())
+  organizationId String
+  actorUserId    String?
+  action         String
+  entityType     String
+  entityId       String?
+  requestId      String?
+  ipAddress      String?
+  metadata       Json?
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+
+  @@index([organizationId, createdAt])
+  @@index([organizationId, entityType, entityId])
+  @@map("audit_log_entries")
+}
