@@ -59,6 +59,63 @@ enum JobStatus {
   FAILED
 }
 
+enum DocumentStatus {
+  DRAFT
+  UPLOADED
+  PROCESSING
+  REVIEW_REQUIRED
+  VALIDATED
+  PUBLISHED
+  PROCESSING_FAILED
+  ARCHIVED
+}
+
+enum DocumentVisibility {
+  PLATFORM_INTERNAL
+  ORGANIZATION_AVAILABLE
+  PUBLIC_REFERENCE
+  RESTRICTED
+}
+
+enum VersionChangeType {
+  INITIAL
+  MINOR_REVISION
+  MAJOR_REVISION
+  AMENDMENT
+  CORRECTION
+  REPLACEMENT
+  TRANSLATION
+}
+
+enum ProcessingJobStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+  SKIPPED
+}
+
+enum ReviewStatus {
+  NOT_STARTED
+  IN_REVIEW
+  CHANGES_REQUESTED
+  APPROVED
+  REJECTED
+}
+
+enum ReviewIssueSeverity {
+  LOW
+  MEDIUM
+  HIGH
+  BLOCKING
+}
+
+enum ReviewIssueStatus {
+  OPEN
+  RESOLVED
+  DISMISSED
+}
+
 model User {
   id            String   @id @default(uuid())
   name          String
@@ -74,13 +131,405 @@ model User {
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")
 
-  accounts        Account[]
-  sessions        Session[]
-  members         Member[]
-  invitations     Invitation[]       @relation("InvitationInviter")
-  assignedActions CorrectiveAction[] @relation("ActionAssignee")
+  accounts                            Account[]
+  sessions                            Session[]
+  members                             Member[]
+  invitations                         Invitation[]                 @relation("InvitationInviter")
+  assignedActions                     CorrectiveAction[]           @relation("ActionAssignee")
+  documentsCreated                    Document[]                   @relation("DocumentCreator")
+  documentsUpdated                    Document[]                   @relation("DocumentUpdater")
+  documentsPublished                  Document[]                   @relation("DocumentPublisher")
+  documentVersionsCreated             DocumentVersion[]            @relation("DocumentVersionCreator")
+  documentVersionsValidated           DocumentVersion[]            @relation("DocumentVersionValidator")
+  documentVersionsPublished           DocumentVersion[]            @relation("DocumentVersionPublisher")
+  documentFilesUploaded               DocumentFile[]               @relation("DocumentFileUploader")
+  documentRelationshipsCreated        DocumentRelationship[]       @relation("DocumentRelationshipCreator")
+  documentClassificationsValidated    DocumentTaxonomyTerm[]       @relation("DocumentTaxonomyValidator")
+  documentMetadataSuggestionsReviewed DocumentMetadataSuggestion[] @relation("DocumentMetadataSuggestionReviewer")
+  documentReviewsAssigned             DocumentReview[]             @relation("DocumentReviewAssignee")
+  documentReviewsCreated              DocumentReview[]             @relation("DocumentReviewCreator")
+  documentReviewIssuesAssigned        DocumentReviewIssue[]        @relation("DocumentReviewIssueAssignee")
+  documentReviewIssuesCreated         DocumentReviewIssue[]        @relation("DocumentReviewIssueCreator")
+  documentReviewIssuesResolved        DocumentReviewIssue[]        @relation("DocumentReviewIssueResolver")
+  documentActivities                  DocumentActivity[]           @relation("DocumentActivityActor")
 
   @@map("users")
+}
+
+model Document {
+  id                   String             @id @default(cuid())
+  title                String
+  shortTitle           String?            @map("short_title")
+  description          String?
+  documentType         String             @map("document_type")
+  sourceType           String             @map("source_type")
+  jurisdiction         String?
+  countryCode          String?            @map("country_code")
+  language             String
+  issuingAuthority     String?            @map("issuing_authority")
+  referenceNumber      String?            @map("reference_number")
+  publicationDate      DateTime?          @map("publication_date") @db.Date
+  effectiveDate        DateTime?          @map("effective_date") @db.Date
+  expirationDate       DateTime?          @map("expiration_date") @db.Date
+  status               DocumentStatus     @default(DRAFT)
+  visibility           DocumentVisibility @default(PLATFORM_INTERNAL)
+  currentVersionId     String?            @unique @map("current_version_id")
+  supersedesDocumentId String?            @map("supersedes_document_id")
+  replacedByDocumentId String?            @map("replaced_by_document_id")
+  createdByUserId      String             @map("created_by_user_id")
+  updatedByUserId      String             @map("updated_by_user_id")
+  publishedByUserId    String?            @map("published_by_user_id")
+  publishedAt          DateTime?          @map("published_at")
+  archivedAt           DateTime?          @map("archived_at")
+  deletedAt            DateTime?          @map("deleted_at")
+  createdAt            DateTime           @default(now()) @map("created_at")
+  updatedAt            DateTime           @updatedAt @map("updated_at")
+
+  currentVersion        DocumentVersion?       @relation("CurrentDocumentVersion", fields: [currentVersionId], references: [id], onDelete: SetNull)
+  supersedesDocument    Document?              @relation("DocumentSupersession", fields: [supersedesDocumentId], references: [id], onDelete: SetNull)
+  supersededByDocuments Document[]             @relation("DocumentSupersession")
+  replacedByDocument    Document?              @relation("DocumentReplacement", fields: [replacedByDocumentId], references: [id], onDelete: SetNull)
+  replacementDocuments  Document[]             @relation("DocumentReplacement")
+  createdBy             User                   @relation("DocumentCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  updatedBy             User                   @relation("DocumentUpdater", fields: [updatedByUserId], references: [id], onDelete: Restrict)
+  publishedBy           User?                  @relation("DocumentPublisher", fields: [publishedByUserId], references: [id], onDelete: SetNull)
+  versions              DocumentVersion[]      @relation("DocumentVersions")
+  sourceRelationships   DocumentRelationship[] @relation("RelationshipSourceDocument")
+  targetRelationships   DocumentRelationship[] @relation("RelationshipTargetDocument")
+  taxonomyTerms         DocumentTaxonomyTerm[]
+  activity              DocumentActivity[]
+
+  @@index([status, updatedAt])
+  @@index([documentType, countryCode])
+  @@index([referenceNumber])
+  @@map("documents")
+}
+
+model DocumentVersion {
+  id                       String              @id @default(cuid())
+  documentId               String              @map("document_id")
+  versionNumber            Int                 @map("version_number")
+  versionLabel             String              @map("version_label")
+  revisionDate             DateTime?           @map("revision_date") @db.Date
+  effectiveDate            DateTime?           @map("effective_date") @db.Date
+  expirationDate           DateTime?           @map("expiration_date") @db.Date
+  changeSummary            String?             @map("change_summary")
+  changeType               VersionChangeType   @map("change_type")
+  status                   DocumentStatus      @default(UPLOADED)
+  originalFileName         String              @map("original_file_name")
+  mimeType                 String              @map("mime_type")
+  fileExtension            String              @map("file_extension")
+  fileSize                 BigInt              @map("file_size")
+  storageKey               String              @unique @map("storage_key")
+  fileHash                 String              @map("file_hash")
+  pageCount                Int?                @map("page_count")
+  wordCount                Int?                @map("word_count")
+  characterCount           Int?                @map("character_count")
+  extractionMethod         String?             @map("extraction_method")
+  ocrUsed                  Boolean             @default(false) @map("ocr_used")
+  ocrConfidence            Decimal?            @map("ocr_confidence") @db.Decimal(5, 4)
+  processingStatus         ProcessingJobStatus @default(PENDING) @map("processing_status")
+  processingError          String?             @map("processing_error")
+  rawExtractedTextLocation String?             @map("raw_extracted_text_location")
+  normalizedTextLocation   String?             @map("normalized_text_location")
+  reviewStatus             ReviewStatus        @default(NOT_STARTED) @map("review_status")
+  supersedesVersionId      String?             @map("supersedes_version_id")
+  chunkingVersion          String?             @map("chunking_version")
+  createdByUserId          String              @map("created_by_user_id")
+  validatedByUserId        String?             @map("validated_by_user_id")
+  validatedAt              DateTime?           @map("validated_at")
+  publishedByUserId        String?             @map("published_by_user_id")
+  publishedAt              DateTime?           @map("published_at")
+  archivedAt               DateTime?           @map("archived_at")
+  createdAt                DateTime            @default(now()) @map("created_at")
+  updatedAt                DateTime            @updatedAt @map("updated_at")
+
+  document             Document                     @relation("DocumentVersions", fields: [documentId], references: [id], onDelete: Restrict)
+  currentFor           Document?                    @relation("CurrentDocumentVersion")
+  supersedesVersion    DocumentVersion?             @relation("VersionSupersession", fields: [supersedesVersionId], references: [id], onDelete: SetNull)
+  supersededByVersions DocumentVersion[]            @relation("VersionSupersession")
+  createdBy            User                         @relation("DocumentVersionCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  validatedBy          User?                        @relation("DocumentVersionValidator", fields: [validatedByUserId], references: [id], onDelete: SetNull)
+  publishedBy          User?                        @relation("DocumentVersionPublisher", fields: [publishedByUserId], references: [id], onDelete: SetNull)
+  files                DocumentFile[]
+  processingJobs       DocumentProcessingJob[]
+  sections             DocumentSection[]
+  chunks               DocumentChunk[]
+  metadataSuggestions  DocumentMetadataSuggestion[]
+  reviews              DocumentReview[]
+  reviewIssues         DocumentReviewIssue[]
+  sourceRelationships  DocumentRelationship[]       @relation("RelationshipSourceVersion")
+  targetRelationships  DocumentRelationship[]       @relation("RelationshipTargetVersion")
+  activity             DocumentActivity[]
+
+  @@unique([documentId, versionNumber])
+  @@unique([documentId, versionLabel])
+  @@index([fileHash])
+  @@index([status, processingStatus])
+  @@map("document_versions")
+}
+
+model DocumentFile {
+  id                String   @id @default(cuid())
+  documentVersionId String   @map("document_version_id")
+  fileRole          String   @map("file_role")
+  originalFileName  String   @map("original_file_name")
+  storageKey        String   @unique @map("storage_key")
+  mimeType          String   @map("mime_type")
+  fileExtension     String   @map("file_extension")
+  fileSize          BigInt   @map("file_size")
+  fileHash          String   @map("file_hash")
+  uploadedByUserId  String   @map("uploaded_by_user_id")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  version    DocumentVersion @relation(fields: [documentVersionId], references: [id], onDelete: Restrict)
+  uploadedBy User            @relation("DocumentFileUploader", fields: [uploadedByUserId], references: [id], onDelete: Restrict)
+
+  @@unique([documentVersionId, fileHash, fileRole])
+  @@index([fileHash])
+  @@map("document_files")
+}
+
+model DocumentRelationship {
+  id               String   @id @default(cuid())
+  sourceDocumentId String   @map("source_document_id")
+  sourceVersionId  String?  @map("source_version_id")
+  targetDocumentId String   @map("target_document_id")
+  targetVersionId  String?  @map("target_version_id")
+  relationshipType String   @map("relationship_type")
+  description      String?
+  createdByUserId  String   @map("created_by_user_id")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  sourceDocument Document         @relation("RelationshipSourceDocument", fields: [sourceDocumentId], references: [id], onDelete: Restrict)
+  sourceVersion  DocumentVersion? @relation("RelationshipSourceVersion", fields: [sourceVersionId], references: [id], onDelete: SetNull)
+  targetDocument Document         @relation("RelationshipTargetDocument", fields: [targetDocumentId], references: [id], onDelete: Restrict)
+  targetVersion  DocumentVersion? @relation("RelationshipTargetVersion", fields: [targetVersionId], references: [id], onDelete: SetNull)
+  createdBy      User             @relation("DocumentRelationshipCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+
+  @@unique([sourceDocumentId, sourceVersionId, targetDocumentId, targetVersionId, relationshipType])
+  @@map("document_relationships")
+}
+
+model DocumentProcessingJob {
+  id                      String              @id @default(cuid())
+  documentVersionId       String              @map("document_version_id")
+  jobType                 String              @map("job_type")
+  status                  ProcessingJobStatus @default(PENDING)
+  attemptCount            Int                 @default(0) @map("attempt_count")
+  startedAt               DateTime?           @map("started_at")
+  completedAt             DateTime?           @map("completed_at")
+  errorCode               String?             @map("error_code")
+  errorMessage            String?             @map("error_message")
+  inputMetadata           Json?               @map("input_metadata")
+  outputMetadata          Json?               @map("output_metadata")
+  outputLocation          String?             @map("output_location")
+  qualityScore            Decimal?            @map("quality_score") @db.Decimal(5, 4)
+  workerVersion           String?             @map("worker_version")
+  processingConfiguration Json?               @map("processing_configuration")
+  idempotencyKey          String              @unique @map("idempotency_key")
+  createdAt               DateTime            @default(now()) @map("created_at")
+  updatedAt               DateTime            @updatedAt @map("updated_at")
+
+  version      DocumentVersion       @relation(fields: [documentVersionId], references: [id], onDelete: Cascade)
+  reviewIssues DocumentReviewIssue[]
+
+  @@index([status, jobType])
+  @@index([documentVersionId, createdAt])
+  @@map("document_processing_jobs")
+}
+
+model DocumentSection {
+  id                String   @id @default(cuid())
+  documentVersionId String   @map("document_version_id")
+  parentSectionId   String?  @map("parent_section_id")
+  sectionType       String   @map("section_type")
+  sectionNumber     String?  @map("section_number")
+  title             String?
+  normalizedTitle   String?  @map("normalized_title")
+  content           String
+  pageStart         Int?     @map("page_start")
+  pageEnd           Int?     @map("page_end")
+  orderIndex        Int      @map("order_index")
+  sourceLocation    Json?    @map("source_location")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  version  DocumentVersion   @relation(fields: [documentVersionId], references: [id], onDelete: Cascade)
+  parent   DocumentSection?  @relation("SectionTree", fields: [parentSectionId], references: [id], onDelete: Cascade)
+  children DocumentSection[] @relation("SectionTree")
+  chunks   DocumentChunk[]
+
+  @@unique([documentVersionId, orderIndex])
+  @@index([parentSectionId])
+  @@map("document_sections")
+}
+
+model DocumentChunk {
+  id                String              @id @default(cuid())
+  documentVersionId String              @map("document_version_id")
+  documentSectionId String?             @map("document_section_id")
+  chunkIndex        Int                 @map("chunk_index")
+  content           String
+  tokenCount        Int                 @map("token_count")
+  pageStart         Int?                @map("page_start")
+  pageEnd           Int?                @map("page_end")
+  sourceLocation    Json?               @map("source_location")
+  contentHash       String              @map("content_hash")
+  chunkingVersion   String              @map("chunking_version")
+  embeddingStatus   ProcessingJobStatus @default(PENDING) @map("embedding_status")
+  createdAt         DateTime            @default(now()) @map("created_at")
+  updatedAt         DateTime            @updatedAt @map("updated_at")
+
+  version DocumentVersion  @relation(fields: [documentVersionId], references: [id], onDelete: Cascade)
+  section DocumentSection? @relation(fields: [documentSectionId], references: [id], onDelete: SetNull)
+
+  @@unique([documentVersionId, chunkingVersion, chunkIndex])
+  @@unique([documentVersionId, chunkingVersion, contentHash])
+  @@map("document_chunks")
+}
+
+model Taxonomy {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  name        String
+  description String?
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  terms TaxonomyTerm[]
+
+  @@map("taxonomies")
+}
+
+model TaxonomyTerm {
+  id           String   @id @default(cuid())
+  taxonomyId   String   @map("taxonomy_id")
+  parentTermId String?  @map("parent_term_id")
+  key          String
+  label        String
+  description  String?
+  metadata     Json?
+  isActive     Boolean  @default(true) @map("is_active")
+  sortOrder    Int      @default(0) @map("sort_order")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  taxonomy  Taxonomy               @relation(fields: [taxonomyId], references: [id], onDelete: Cascade)
+  parent    TaxonomyTerm?          @relation("TaxonomyTree", fields: [parentTermId], references: [id], onDelete: SetNull)
+  children  TaxonomyTerm[]         @relation("TaxonomyTree")
+  documents DocumentTaxonomyTerm[]
+
+  @@unique([taxonomyId, key])
+  @@map("taxonomy_terms")
+}
+
+model DocumentTaxonomyTerm {
+  id                String    @id @default(cuid())
+  documentId        String    @map("document_id")
+  taxonomyTermId    String    @map("taxonomy_term_id")
+  source            String
+  confidenceScore   Decimal?  @map("confidence_score") @db.Decimal(5, 4)
+  isValidated       Boolean   @default(false) @map("is_validated")
+  validatedByUserId String?   @map("validated_by_user_id")
+  validatedAt       DateTime? @map("validated_at")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  document    Document     @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  term        TaxonomyTerm @relation(fields: [taxonomyTermId], references: [id], onDelete: Restrict)
+  validatedBy User?        @relation("DocumentTaxonomyValidator", fields: [validatedByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([documentId, taxonomyTermId, source])
+  @@map("document_taxonomy_terms")
+}
+
+model DocumentMetadataSuggestion {
+  id                String    @id @default(cuid())
+  documentVersionId String    @map("document_version_id")
+  fieldName         String    @map("field_name")
+  suggestedValue    Json      @map("suggested_value")
+  confidenceScore   Decimal   @map("confidence_score") @db.Decimal(5, 4)
+  sourcePage        Int?      @map("source_page")
+  sourceText        String?   @map("source_text")
+  decision          String    @default("pending")
+  reviewedByUserId  String?   @map("reviewed_by_user_id")
+  reviewedAt        DateTime? @map("reviewed_at")
+  createdAt         DateTime  @default(now()) @map("created_at")
+
+  version    DocumentVersion @relation(fields: [documentVersionId], references: [id], onDelete: Cascade)
+  reviewedBy User?           @relation("DocumentMetadataSuggestionReviewer", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([documentVersionId, fieldName])
+  @@map("document_metadata_suggestions")
+}
+
+model DocumentReview {
+  id                String       @id @default(cuid())
+  documentVersionId String       @map("document_version_id")
+  status            ReviewStatus @default(NOT_STARTED)
+  assignedToUserId  String?      @map("assigned_to_user_id")
+  createdByUserId   String       @map("created_by_user_id")
+  notes             String?
+  startedAt         DateTime?    @map("started_at")
+  completedAt       DateTime?    @map("completed_at")
+  createdAt         DateTime     @default(now()) @map("created_at")
+  updatedAt         DateTime     @updatedAt @map("updated_at")
+
+  version    DocumentVersion @relation(fields: [documentVersionId], references: [id], onDelete: Cascade)
+  assignedTo User?           @relation("DocumentReviewAssignee", fields: [assignedToUserId], references: [id], onDelete: SetNull)
+  createdBy  User            @relation("DocumentReviewCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+
+  @@index([status, assignedToUserId])
+  @@map("document_reviews")
+}
+
+model DocumentReviewIssue {
+  id                String              @id @default(cuid())
+  documentVersionId String              @map("document_version_id")
+  processingJobId   String?             @map("processing_job_id")
+  issueType         String              @map("issue_type")
+  severity          ReviewIssueSeverity
+  status            ReviewIssueStatus   @default(OPEN)
+  title             String
+  description       String
+  sourceLocation    Json?               @map("source_location")
+  assignedToUserId  String?             @map("assigned_to_user_id")
+  createdByUserId   String              @map("created_by_user_id")
+  resolvedByUserId  String?             @map("resolved_by_user_id")
+  resolvedAt        DateTime?           @map("resolved_at")
+  createdAt         DateTime            @default(now()) @map("created_at")
+  updatedAt         DateTime            @updatedAt @map("updated_at")
+
+  version       DocumentVersion        @relation(fields: [documentVersionId], references: [id], onDelete: Cascade)
+  processingJob DocumentProcessingJob? @relation(fields: [processingJobId], references: [id], onDelete: SetNull)
+  assignedTo    User?                  @relation("DocumentReviewIssueAssignee", fields: [assignedToUserId], references: [id], onDelete: SetNull)
+  createdBy     User                   @relation("DocumentReviewIssueCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  resolvedBy    User?                  @relation("DocumentReviewIssueResolver", fields: [resolvedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([documentVersionId, status, severity])
+  @@map("document_review_issues")
+}
+
+model DocumentActivity {
+  id                String   @id @default(cuid())
+  documentId        String   @map("document_id")
+  documentVersionId String?  @map("document_version_id")
+  actorUserId       String?  @map("actor_user_id")
+  organizationId    String?  @map("organization_id")
+  action            String
+  ipAddress         String?  @map("ip_address")
+  metadata          Json?
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  document Document         @relation(fields: [documentId], references: [id], onDelete: Restrict)
+  version  DocumentVersion? @relation(fields: [documentVersionId], references: [id], onDelete: SetNull)
+  actor    User?            @relation("DocumentActivityActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([documentId, createdAt])
+  @@index([action, createdAt])
+  @@map("document_activity_log")
 }
 
 model Session {

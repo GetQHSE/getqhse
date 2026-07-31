@@ -47,7 +47,7 @@ const data = {
         },
         {
           title: "Documents",
-          url: "#",
+          url: "/documents",
         },
         {
           title: "Versions",
@@ -101,7 +101,7 @@ const data = {
   projects: [
     {
       name: "Source library",
-      url: "#",
+      url: "/documents",
       icon: <FilesIcon />,
     },
     {

@@ -5,6 +5,10 @@ import { DashboardPage } from "./dashboard-page.js";
 import { ForbiddenPage } from "./forbidden-page.js";
 import { LoginPage } from "./login-page.js";
 import { AdminRoute, GuestRoute } from "./route-guards.js";
+import { DocumentDetailPage } from "./features/documents/document-detail-page.js";
+import { DocumentsPage } from "./features/documents/documents-page.js";
+import { UploadDocumentPage } from "./features/documents/upload-document-page.js";
+import { VersionComparisonPage } from "./features/documents/version-comparison-page.js";
 
 export const router = createBrowserRouter([
   {
@@ -23,6 +27,15 @@ export const router = createBrowserRouter([
         <AdminLayout />
       </AdminRoute>
     ),
-    children: [{ index: true, element: <DashboardPage /> }],
+    children: [
+      { index: true, element: <DashboardPage /> },
+      { path: "documents", element: <DocumentsPage /> },
+      { path: "documents/upload", element: <UploadDocumentPage /> },
+      { path: "documents/:documentId", element: <DocumentDetailPage /> },
+      {
+        path: "documents/:documentId/compare/:beforeId/:afterId",
+        element: <VersionComparisonPage />,
+      },
+    ],
   },
 ]);

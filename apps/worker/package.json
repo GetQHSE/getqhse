@@ -21,6 +21,7 @@
     "@qhse/contracts": "workspace:*",
     "@qhse/database": "workspace:*",
     "@qhse/domain": "workspace:*",
+    "@qhse/documents": "workspace:*",
     "@qhse/observability": "workspace:*",
     "bullmq": "^5.81.3",
     "ioredis": "^5.11.1",

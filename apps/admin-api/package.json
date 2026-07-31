@@ -15,6 +15,9 @@
     "openapi:generate": "tsx src/openapi.ts && prettier --write openapi.json"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1098.0",
+    "@aws-sdk/s3-request-presigner": "^3.1098.0",
+    "@nestjs/bullmq": "^11.0.4",
     "@nestjs/common": "^11.1.28",
     "@nestjs/core": "^11.1.28",
     "@nestjs/platform-express": "^11.1.28",
@@ -25,13 +28,16 @@
     "@qhse/contracts": "workspace:*",
     "@qhse/database": "workspace:*",
     "@qhse/domain": "workspace:*",
+    "@qhse/documents": "workspace:*",
     "@qhse/observability": "workspace:*",
     "better-auth": "^1.6.25",
+    "bullmq": "^5.81.3",
     "express": "^5.1.0",
     "helmet": "^8.3.0",
     "nestjs-pino": "^4.6.1",
     "reflect-metadata": "^0.2.2",
-    "rxjs": "^7.8.2"
+    "rxjs": "^7.8.2",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@nestjs/testing": "^11.1.28",
