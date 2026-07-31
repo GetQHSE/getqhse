@@ -4,6 +4,7 @@ import { InjectQueue } from "@nestjs/bullmq";
 import {
   ConflictException,
   ForbiddenException,
+  Inject,
   Injectable,
   NotFoundException,
   UnprocessableEntityException,
@@ -51,6 +52,7 @@ export class DocumentsService {
   private readonly database: DatabaseClient;
 
   constructor(
+    @Inject(DocumentStorageService)
     private readonly storage: DocumentStorageService,
     @InjectQueue("document-processing") private readonly queue: Queue,
   ) {
