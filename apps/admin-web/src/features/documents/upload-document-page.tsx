@@ -10,7 +10,7 @@ import { Input } from "@qhse/ui/components/input";
 import { NativeSelect, NativeSelectOption } from "@qhse/ui/components/native-select";
 import { Progress } from "@qhse/ui/components/progress";
 import { Textarea } from "@qhse/ui/components/textarea";
-import { CheckCircle2Icon, FileUpIcon, Loader2Icon } from "lucide-react";
+import { FileUpIcon, Loader2Icon } from "lucide-react";
 import { type DragEvent, type FormEvent, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
@@ -21,9 +21,6 @@ const steps = [
   "Detected metadata",
   "Classification",
   "Version",
-  "Processing",
-  "Review content",
-  "Validate & publish",
 ];
 const accepted = ".pdf,.docx,.txt,.md,.markdown,.csv,.xlsx,.png,.jpg,.jpeg,.tif,.tiff";
 
@@ -116,7 +113,6 @@ export function UploadDocumentPage() {
         method: "POST",
         body: "{}",
       });
-      setStep(4);
       await adminApi(`/v1/documents/${document.id}/versions/${version.id}/process`, {
         method: "POST",
         body: JSON.stringify({ force: false }),
@@ -140,7 +136,7 @@ export function UploadDocumentPage() {
           The document remains unavailable downstream until validation and publication.
         </p>
       </div>
-      <ol className="grid grid-cols-2 gap-2 md:grid-cols-7">
+      <ol className="grid grid-cols-2 gap-2 md:grid-cols-4">
         {steps.map((label, index) => (
           <li
             key={label}
@@ -325,23 +321,6 @@ export function UploadDocumentPage() {
                 <p className="text-muted-foreground">
                   Publishing locks this version. Content or legal-meaning changes require a new
                   version.
-                </p>
-              </div>
-            </div>
-          ) : null}
-          {step >= 4 ? (
-            <div className="grid min-h-48 place-items-center text-center">
-              <div>
-                {busy ? (
-                  <Loader2Icon className="mx-auto size-10 animate-spin text-primary" />
-                ) : (
-                  <CheckCircle2Icon className="mx-auto size-10 text-primary" />
-                )}
-                <p className="mt-3 font-medium">
-                  {busy ? "Uploading and creating processing jobs…" : "Processing queued"}
-                </p>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Security validation runs before extraction, OCR and classification.
                 </p>
               </div>
             </div>
