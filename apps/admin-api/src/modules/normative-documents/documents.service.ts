@@ -353,8 +353,23 @@ export class DocumentsService {
     if (!document) throw new NotFoundException("Document not found");
     if (document.status === "ARCHIVED")
       throw new ConflictException("Archived documents cannot receive new versions");
+
+    const resumable = await this.database.documentVersion.findFirst({
+      where: {
+        documentId,
+        versionLabel: input.versionLabel,
+        fileHash: input.fileHash,
+        status: "UPLOADED",
+        files: { none: { fileRole: "primary" } },
+      },
+    });
+    if (resumable) return jsonSafe(resumable);
+
     const duplicate = await this.database.documentVersion.findFirst({
-      where: { fileHash: input.fileHash },
+      where: {
+        fileHash: input.fileHash,
+        files: { some: { fileRole: "primary" } },
+      },
       include: { document: { select: { id: true, title: true } } },
     });
     if (duplicate && !input.allowDuplicate)

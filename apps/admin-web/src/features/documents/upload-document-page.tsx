@@ -109,7 +109,7 @@ export function UploadDocumentPage() {
       const upload = await fetch(signed.url, {
         method: "PUT",
         body: file,
-        headers: { "content-type": file.type || mimeFor(file.name), "x-amz-meta-sha256": checksum },
+        headers: { "content-type": file.type || mimeFor(file.name) },
       });
       if (!upload.ok) throw new Error("Object storage rejected the upload.");
       await adminApi(`/v1/documents/${document.id}/versions/${version.id}/confirm-upload`, {

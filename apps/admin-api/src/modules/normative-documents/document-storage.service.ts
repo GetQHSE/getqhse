@@ -22,6 +22,7 @@ export class DocumentStorageService implements DocumentStorage {
     ...(process.env["S3_ENDPOINT"] ? { endpoint: process.env["S3_ENDPOINT"] } : {}),
     region: process.env["S3_REGION"] ?? "us-east-1",
     forcePathStyle: process.env["S3_FORCE_PATH_STYLE"] === "true",
+    requestChecksumCalculation: "WHEN_REQUIRED",
     ...(process.env["S3_ACCESS_KEY"] && process.env["S3_SECRET_KEY"]
       ? {
           credentials: {
