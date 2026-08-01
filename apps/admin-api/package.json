@@ -12,6 +12,7 @@
     "test": "vitest run --passWithNoTests",
     "test:unit": "vitest run --passWithNoTests",
     "test:coverage": "vitest run --coverage --passWithNoTests",
+    "documents:reset": "tsx src/scripts/reset-documents.ts",
     "openapi:generate": "tsx src/openapi.ts && prettier --write openapi.json"
   },
   "dependencies": {

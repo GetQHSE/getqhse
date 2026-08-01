@@ -12,8 +12,19 @@ pnpm infra:up
 pnpm exec dotenv -e .env -- pnpm db:deploy
 pnpm exec dotenv -e .env -- pnpm db:seed
 pnpm dev:apps
-pnpm --filter @qhse/worker dev
 ```
+
+`dev:apps` starts both APIs, both web applications, and the processing worker.
+
+Reset all local document-management state before retesting uploads and processing:
+
+```bash
+pnpm dev:reset-documents:dry # show database, queue, and object counts
+pnpm dev:reset-documents     # clear document records, BullMQ jobs, and MinIO documents/
+```
+
+The reset preserves users, organizations, authentication data, and non-document objects. It refuses
+to run in production or against non-local database, Redis, or S3 hosts.
 
 Open `http://localhost:5174/documents`. MinIO receives immutable originals below
 `documents/{documentId}/versions/{versionId}/original/`; signed URLs keep storage keys out of the

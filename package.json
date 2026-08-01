@@ -12,6 +12,8 @@
   "scripts": {
     "dev": "dotenv -e .env -- turbo dev",
     "dev:apps": "dotenv -e .env -- turbo dev --filter=@qhse/client-api --filter=@qhse/admin-api --filter=@qhse/worker --filter=@qhse/client-web --filter=@qhse/admin-web",
+    "dev:reset-documents": "dotenv -e .env -- pnpm --filter @qhse/admin-api documents:reset --confirm",
+    "dev:reset-documents:dry": "dotenv -e .env -- pnpm --filter @qhse/admin-api documents:reset",
     "build": "turbo build",
     "lint": "turbo lint && dependency-cruiser --config .dependency-cruiser.cjs apps packages",
     "typecheck": "turbo typecheck",
