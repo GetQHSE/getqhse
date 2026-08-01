@@ -2,8 +2,6 @@ import type * as React from "react";
 import { Link } from "react-router-dom";
 
 import { NavMain } from "#components/nav-main";
-import { NavProjects } from "#components/nav-projects";
-import { NavSecondary } from "#components/nav-secondary";
 import { NavUser } from "#components/nav-user";
 import type { AdminUser } from "../auth.js";
 import {
@@ -16,15 +14,8 @@ import {
   SidebarMenuItem,
 } from "@qhse/ui/components/sidebar";
 import {
-  BookOpenIcon,
-  BotIcon,
-  FileCheck2Icon,
   FilesIcon,
-  FrameIcon,
   LayoutDashboardIcon,
-  LifeBuoyIcon,
-  SendIcon,
-  Settings2Icon,
   ShieldCheckIcon,
 } from "lucide-react";
 
@@ -37,82 +28,9 @@ const data = {
       isActive: true,
     },
     {
-      title: "Normative content",
-      url: "#",
-      icon: <BookOpenIcon />,
-      items: [
-        {
-          title: "Sources",
-          url: "#",
-        },
-        {
-          title: "Documents",
-          url: "/documents",
-        },
-        {
-          title: "Versions",
-          url: "#",
-        },
-      ],
-    },
-    {
-      title: "Processing",
-      url: "#",
-      icon: <BotIcon />,
-      items: [
-        {
-          title: "Review queue",
-          url: "#",
-        },
-        {
-          title: "Publications",
-          url: "#",
-        },
-      ],
-    },
-    {
-      title: "Settings",
-      url: "#",
-      icon: <Settings2Icon />,
-      items: [
-        {
-          title: "Entitlements",
-          url: "#",
-        },
-        {
-          title: "Licensing",
-          url: "#",
-        },
-      ],
-    },
-  ],
-  navSecondary: [
-    {
-      title: "Support",
-      url: "#",
-      icon: <LifeBuoyIcon />,
-    },
-    {
-      title: "Feedback",
-      url: "#",
-      icon: <SendIcon />,
-    },
-  ],
-  projects: [
-    {
-      name: "Source library",
+      title: "Documents",
       url: "/documents",
       icon: <FilesIcon />,
-    },
-    {
-      name: "Review workspace",
-      url: "#",
-      icon: <FileCheck2Icon />,
-    },
-    {
-      name: "Search testing",
-      url: "#",
-      icon: <FrameIcon />,
     },
   ],
 };
@@ -142,8 +60,6 @@ export function AppSidebar({ user, onLogout, ...props }: AppSidebarProps) {
       </SidebarHeader>
       <SidebarContent>
         <NavMain items={data.navMain} />
-        <NavProjects projects={data.projects} />
-        <NavSecondary items={data.navSecondary} className="mt-auto" />
       </SidebarContent>
       <SidebarFooter>
         <NavUser user={user} onLogout={onLogout} />
