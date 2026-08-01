@@ -2,6 +2,7 @@ import {
   type CanActivate,
   type ExecutionContext,
   ForbiddenException,
+  Inject,
   Injectable,
   UnauthorizedException,
 } from "@nestjs/common";
@@ -15,7 +16,9 @@ import { AuthService } from "./auth.service.js";
 @Injectable()
 export class PlatformAdminGuard implements CanActivate {
   constructor(
+    @Inject(Reflector)
     private readonly reflector: Reflector,
+    @Inject(AuthService)
     private readonly auth: AuthService,
   ) {}
 

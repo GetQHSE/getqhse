@@ -1,8 +1,10 @@
 import { ForbiddenException, UnauthorizedException } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
+import { Test } from "@nestjs/testing";
 import { ServerAuthError } from "@qhse/auth";
 import { describe, expect, it, vi } from "vitest";
 
+import { AuthService } from "./auth.service.js";
 import { PlatformAdminGuard } from "./platform-admin.guard.js";
 
 function context(request = { headers: {} }) {
@@ -14,6 +16,21 @@ function context(request = { headers: {} }) {
 }
 
 describe("PlatformAdminGuard", () => {
+  it("resolves its dependencies through the Nest container", async () => {
+    const auth = { requirePlatformAdmin: vi.fn().mockResolvedValue({ id: "user-1" }) };
+    const module = await Test.createTestingModule({
+      providers: [
+        Reflector,
+        PlatformAdminGuard,
+        { provide: AuthService, useValue: auth },
+      ],
+    }).compile();
+    const guard = module.get(PlatformAdminGuard);
+
+    await expect(guard.canActivate(context())).resolves.toBe(true);
+    expect(auth.requirePlatformAdmin).toHaveBeenCalledWith({});
+  });
+
   it("returns 401 for requests without a session", async () => {
     const auth = {
       requirePlatformAdmin: vi
