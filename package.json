@@ -11,7 +11,7 @@
   },
   "scripts": {
     "dev": "dotenv -e .env -- turbo dev",
-    "dev:apps": "dotenv -e .env -- turbo dev --filter=@qhse/client-api --filter=@qhse/admin-api --filter=@qhse/client-web --filter=@qhse/admin-web",
+    "dev:apps": "dotenv -e .env -- turbo dev --filter=@qhse/client-api --filter=@qhse/admin-api --filter=@qhse/worker --filter=@qhse/client-web --filter=@qhse/admin-web",
     "build": "turbo build",
     "lint": "turbo lint && dependency-cruiser --config .dependency-cruiser.cjs apps packages",
     "typecheck": "turbo typecheck",
