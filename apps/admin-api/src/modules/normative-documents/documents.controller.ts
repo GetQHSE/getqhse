@@ -3,6 +3,7 @@ import {
   Controller,
   Delete,
   Get,
+  Inject,
   Param,
   Patch,
   Post,
@@ -32,7 +33,10 @@ import { DocumentsService } from "./documents.service.js";
 @ApiCookieAuth()
 @Controller("v1/documents")
 export class DocumentsController {
-  constructor(private readonly documents: DocumentsService) {}
+  constructor(
+    @Inject(DocumentsService)
+    private readonly documents: DocumentsService,
+  ) {}
 
   @Get("dashboard")
   dashboard(@Req() request: AdminRequest) {
