@@ -41,10 +41,10 @@ describe("DocumentsService dependency injection", () => {
 });
 
 describe("DocumentsService upload retries", () => {
-  function serviceWith(database: object) {
+  function serviceWith(database: object, queue: object = { add: vi.fn() }) {
     process.env["DATABASE_URL"] ??=
       "postgresql://postgres:postgres@localhost:5432/qhse_test";
-    const service = new DocumentsService({} as never, { add: vi.fn() } as never);
+    const service = new DocumentsService({} as never, queue as never);
     (service as unknown as { database: object }).database = database;
     return service;
   }
@@ -80,6 +80,27 @@ describe("DocumentsService upload retries", () => {
         files: { none: { fileRole: "primary" } },
       },
     });
+  });
+
+  it("returns active jobs when processing is already underway", async () => {
+    const jobs = [{ id: "job-1", status: "PENDING" }];
+    const queue = { add: vi.fn() };
+    const database = {
+      documentVersion: {
+        findFirst: vi.fn().mockResolvedValue({ id: "version-1", status: "PROCESSING" }),
+      },
+      documentProcessingJob: { findMany: vi.fn().mockResolvedValue(jobs) },
+    };
+    const service = serviceWith(database, queue);
+
+    await expect(
+      service.startProcessing(user, "document-1", "version-1", { force: false }),
+    ).resolves.toEqual({ versionId: "version-1", jobs, alreadyProcessing: true });
+    expect(database.documentProcessingJob.findMany).toHaveBeenCalledWith({
+      where: { documentVersionId: "version-1" },
+      orderBy: { createdAt: "asc" },
+    });
+    expect(queue.add).not.toHaveBeenCalled();
   });
 
   it("detects duplicates only after a primary file is confirmed", async () => {

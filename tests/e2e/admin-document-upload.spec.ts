@@ -49,6 +49,7 @@ test.describe("admin document upload", () => {
 
     await expect(page.getByRole("alert")).toHaveCount(0);
     const documentId = new URL(page.url()).pathname.split("/").at(-1)!;
+    await expect(page.getByRole("button", { name: "Processing…" })).toBeDisabled();
     await page.getByRole("tab", { name: "files" }).click();
     await expect(page.getByText(file.name)).toBeVisible();
 

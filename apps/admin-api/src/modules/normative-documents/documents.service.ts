@@ -540,6 +540,13 @@ export class DocumentsService {
   ) {
     this.authorize(user, "process");
     const version = await this.findVersion(documentId, versionId);
+    if (version.status === "PROCESSING") {
+      const jobs = await this.database.documentProcessingJob.findMany({
+        where: { documentVersionId: versionId },
+        orderBy: { createdAt: "asc" },
+      });
+      return { versionId, jobs, alreadyProcessing: true };
+    }
     this.transition(version.status, "processing");
     const primaryFile = await this.database.documentFile.findFirst({
       where: { documentVersionId: versionId, fileRole: "primary" },

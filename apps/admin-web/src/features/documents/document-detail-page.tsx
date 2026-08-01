@@ -140,6 +140,10 @@ export function DocumentDetailPage() {
     );
   const latest = document.versions[0];
   const canMutate = user?.platformRole !== "support";
+  const canStartProcessing =
+    latest !== undefined &&
+    ["UPLOADED", "PROCESSING_FAILED", "REVIEW_REQUIRED"].includes(latest.status);
+  const isProcessing = latest?.status === "PROCESSING";
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -168,10 +172,10 @@ export function DocumentDetailPage() {
           >
             <UploadIcon /> New version
           </Button>
-          {latest ? (
+          {latest && (canStartProcessing || isProcessing) ? (
             <Button
               variant="outline"
-              disabled={!canMutate || busy !== null}
+              disabled={!canMutate || busy !== null || isProcessing}
               onClick={() =>
                 void action(
                   "process",
@@ -180,7 +184,7 @@ export function DocumentDetailPage() {
                 )
               }
             >
-              <PlayIcon /> Process
+              <PlayIcon /> {isProcessing ? "Processing…" : "Process"}
             </Button>
           ) : null}
           {latest?.status === "VALIDATED" ? (
