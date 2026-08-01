@@ -53,6 +53,26 @@ test.describe("admin document upload", () => {
     await page.getByRole("tab", { name: "files" }).click();
     await expect(page.getByText(file.name)).toBeVisible();
 
+    await expect
+      .poll(
+        async () => {
+          await page.reload();
+          return page.getByRole("button", { name: "Reprocess" }).isVisible();
+        },
+        { timeout: 60_000 },
+      )
+      .toBe(true);
+    await page.getByRole("tab", { name: "extracted" }).click();
+    await expect(page.getByText(`QHSE document upload E2E ${runId}`)).toBeVisible();
+    await page.getByRole("tab", { name: "structure" }).click();
+    await expect(page.getByText("Section 1")).toBeVisible();
+    await page.getByRole("tab", { name: "classification" }).click();
+    await expect(page.getByText(/suggestion$/).first()).toBeVisible();
+    await page.getByRole("tab", { name: "relationships" }).click();
+    await expect(
+      page.getByText("No references to another indexed document were detected"),
+    ).toBeVisible();
+
     await page.goto(`${adminBaseUrl}/documents/upload?document=${documentId}`);
     await page.locator('input[type="file"]').setInputFiles(file);
     await completeUploadWizard(page, "2");
@@ -61,8 +81,6 @@ test.describe("admin document upload", () => {
     await duplicateUpload.dispatchEvent("click");
 
     await expect(page.getByRole("alert")).toContainText("Duplicate file detected");
-    await expect(page).toHaveURL(
-      `${adminBaseUrl}/documents/upload?document=${documentId}`,
-    );
+    await expect(page).toHaveURL(`${adminBaseUrl}/documents/upload?document=${documentId}`);
   });
 });

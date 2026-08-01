@@ -60,6 +60,14 @@ type Version = {
     title: string;
     description: string;
   }>;
+  sections: Array<{
+    id: string;
+    title: string | null;
+    sectionType: string;
+    content: string;
+    orderIndex: number;
+  }>;
+  chunks: Array<{ id: string; content: string; chunkIndex: number; tokenCount: number }>;
   _count: { sections: number; chunks: number };
 };
 type Detail = {
@@ -180,11 +188,19 @@ export function DocumentDetailPage() {
                 void action(
                   "process",
                   `/v1/documents/${document.id}/versions/${latest.id}/process`,
-                  { force: latest.processingStatus === "FAILED" },
+                  {
+                    force:
+                      latest.processingStatus === "FAILED" || latest.status === "REVIEW_REQUIRED",
+                  },
                 )
               }
             >
-              <PlayIcon /> {isProcessing ? "Processing…" : "Process"}
+              <PlayIcon />
+              {isProcessing
+                ? "Processing…"
+                : latest.status === "REVIEW_REQUIRED"
+                  ? "Reprocess"
+                  : "Process"}
             </Button>
           ) : null}
           {latest?.status === "VALIDATED" ? (
@@ -446,24 +462,51 @@ export function DocumentDetailPage() {
           </Card>
         </TabsContent>
         <TabsContent value="extracted">
-          <EmptySection
-            title="Extracted content"
-            text={
-              latest
-                ? `${latest._count.chunks} traceable chunks generated. Text remains in protected object storage.`
-                : "No version uploaded."
-            }
-          />
+          <Card>
+            <CardHeader>
+              <CardTitle>Extracted content</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {latest?.chunks.length ? (
+                latest.chunks.map((chunk) => (
+                  <div key={chunk.id} className="rounded-xl border p-4">
+                    <p className="mb-2 text-xs text-muted-foreground">
+                      Chunk {chunk.chunkIndex + 1} · approximately {chunk.tokenCount} tokens
+                    </p>
+                    <p className="whitespace-pre-wrap text-sm">{chunk.content}</p>
+                  </div>
+                ))
+              ) : (
+                <p className="text-sm text-muted-foreground">No extracted content is available.</p>
+              )}
+            </CardContent>
+          </Card>
         </TabsContent>
         <TabsContent value="structure">
-          <EmptySection
-            title="Detected structure"
-            text={
-              latest
-                ? `${latest._count.sections} sections detected for the latest version.`
-                : "No structure available."
-            }
-          />
+          <Card>
+            <CardHeader>
+              <CardTitle>Detected structure</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {latest?.sections.length ? (
+                latest.sections.map((section) => (
+                  <div key={section.id} className="rounded-xl border p-4">
+                    <div className="mb-2 flex items-center gap-2">
+                      <Badge variant="outline">{section.sectionType}</Badge>
+                      <p className="font-medium">
+                        {section.title ?? `Section ${section.orderIndex + 1}`}
+                      </p>
+                    </div>
+                    <p className="line-clamp-4 whitespace-pre-wrap text-sm text-muted-foreground">
+                      {section.content}
+                    </p>
+                  </div>
+                ))
+              ) : (
+                <p className="text-sm text-muted-foreground">No structure has been detected.</p>
+              )}
+            </CardContent>
+          </Card>
         </TabsContent>
         <TabsContent value="classification">
           <Card>
@@ -545,7 +588,8 @@ export function DocumentDetailPage() {
                 ))
               ) : (
                 <p className="text-sm text-muted-foreground">
-                  No related documents have been linked.
+                  No references to another indexed document were detected. Relationships can only be
+                  created when the referenced document already exists in the library.
                 </p>
               )}
             </CardContent>
@@ -642,18 +686,5 @@ export function DocumentDetailPage() {
         </TabsContent>
       </Tabs>
     </div>
-  );
-}
-
-function EmptySection({ title, text }: { title: string; text: string }) {
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{title}</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <p className="text-sm text-muted-foreground">{text}</p>
-      </CardContent>
-    </Card>
   );
 }

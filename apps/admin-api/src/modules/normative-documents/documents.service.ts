@@ -233,6 +233,16 @@ export class DocumentsService {
             processingJobs: { orderBy: { createdAt: "asc" } },
             metadataSuggestions: true,
             reviewIssues: { orderBy: { createdAt: "desc" } },
+            sections: {
+              orderBy: { orderIndex: "asc" },
+              take: 100,
+              select: { id: true, title: true, sectionType: true, content: true, orderIndex: true },
+            },
+            chunks: {
+              orderBy: { chunkIndex: "asc" },
+              take: 100,
+              select: { id: true, content: true, chunkIndex: true, tokenCount: true },
+            },
             _count: { select: { sections: true, chunks: true } },
             createdBy: { select: { id: true, name: true } },
             validatedBy: { select: { id: true, name: true } },

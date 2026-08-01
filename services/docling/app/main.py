@@ -1,8 +1,11 @@
 import os
+import subprocess
 import tempfile
 from pathlib import Path
 
-from docling.document_converter import DocumentConverter
+from docling.datamodel.base_models import InputFormat
+from docling.datamodel.pipeline_options import PdfPipelineOptions
+from docling.document_converter import DocumentConverter, PdfFormatOption
 from fastapi import FastAPI, File, Header, HTTPException, UploadFile
 from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field
@@ -10,7 +13,11 @@ from pydantic import BaseModel, Field
 from .config import settings
 
 app = FastAPI(title="QHSE Document Extractor", version="0.1.0")
-converter = DocumentConverter()
+pdf_options = PdfPipelineOptions()
+pdf_options.do_ocr = False
+converter = DocumentConverter(
+    format_options={InputFormat.PDF: PdfFormatOption(pipeline_options=pdf_options)}
+)
 
 
 class ExtractedPage(BaseModel):
@@ -34,7 +41,43 @@ def ready() -> dict[str, str]:
     return {"status": "ok", "converter": "ready"}
 
 
+def extract_pdf_text(path: Path) -> str:
+    text_result = subprocess.run(
+        ["pdftotext", "-layout", str(path), "-"],
+        capture_output=True,
+        check=True,
+        text=True,
+        timeout=120,
+    )
+    text = text_result.stdout.strip()
+    if len(text) >= 80:
+        return text
+
+    with tempfile.TemporaryDirectory() as image_directory:
+        prefix = Path(image_directory) / "page"
+        subprocess.run(
+            ["pdftoppm", "-jpeg", "-r", "120", str(path), str(prefix)],
+            capture_output=True,
+            check=True,
+            timeout=180,
+        )
+        pages = []
+        for image in sorted(Path(image_directory).glob("page-*.jpg")):
+            ocr = subprocess.run(
+                ["tesseract", str(image), "stdout", "--psm", "3"],
+                capture_output=True,
+                check=True,
+                text=True,
+                timeout=120,
+            )
+            if ocr.stdout.strip():
+                pages.append(ocr.stdout.strip())
+        return "\n\n".join(pages)
+
+
 def convert_document(path: Path) -> str:
+    if path.suffix.lower() == ".pdf":
+        return extract_pdf_text(path)
     result = converter.convert(path)
     return result.document.export_to_markdown()
 
