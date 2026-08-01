@@ -1,5 +1,5 @@
 import { getQueueToken } from "@nestjs/bullmq";
-import { ConflictException } from "@nestjs/common";
+import { ConflictException, UnprocessableEntityException } from "@nestjs/common";
 import { Test } from "@nestjs/testing";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
@@ -10,8 +10,7 @@ describe("DocumentsService dependency injection", () => {
   const previousDatabaseUrl = process.env["DATABASE_URL"];
 
   beforeAll(() => {
-    process.env["DATABASE_URL"] ??=
-      "postgresql://postgres:postgres@localhost:5432/qhse_test";
+    process.env["DATABASE_URL"] ??= "postgresql://postgres:postgres@localhost:5432/qhse_test";
   });
 
   afterAll(() => {
@@ -42,8 +41,7 @@ describe("DocumentsService dependency injection", () => {
 
 describe("DocumentsService upload retries", () => {
   function serviceWith(database: object, queue: object = { add: vi.fn() }) {
-    process.env["DATABASE_URL"] ??=
-      "postgresql://postgres:postgres@localhost:5432/qhse_test";
+    process.env["DATABASE_URL"] ??= "postgresql://postgres:postgres@localhost:5432/qhse_test";
     const service = new DocumentsService({} as never, queue as never);
     (service as unknown as { database: object }).database = database;
     return service;
@@ -126,5 +124,57 @@ describe("DocumentsService upload retries", () => {
       where: { fileHash: input.fileHash, files: { some: { fileRole: "primary" } } },
       include: { document: { select: { id: true, title: true } } },
     });
+  });
+
+  it("reports the exact incomplete validation checklist items and uses latest jobs", async () => {
+    const database = {
+      documentVersion: {
+        findFirst: vi.fn().mockResolvedValue({
+          id: "version-1",
+          documentId: "document-1",
+          status: "REVIEW_REQUIRED",
+          files: [{ id: "file-1" }],
+          sections: [{ id: "section-1" }],
+          metadataSuggestions: [{ id: "suggestion-1" }],
+          reviewIssues: [],
+          processingJobs: [
+            { jobType: "text_extraction", status: "COMPLETED" },
+            { jobType: "security_scan", status: "COMPLETED" },
+            { jobType: "file_validation", status: "COMPLETED" },
+            { jobType: "ocr", status: "SKIPPED" },
+          ],
+          document: { taxonomyTerms: [] },
+          ocrUsed: false,
+          ocrConfidence: null,
+        }),
+      },
+    };
+    const service = serviceWith(database);
+
+    const error = await service
+      .validateVersion(
+        { id: "admin-1", platformRole: "super_admin" } as never,
+        "document-1",
+        "version-1",
+        true,
+      )
+      .catch((reason: unknown) => reason);
+
+    expect(error).toBeInstanceOf(UnprocessableEntityException);
+    expect((error as UnprocessableEntityException).getResponse()).toMatchObject({
+      message:
+        "Publication checklist is incomplete: review detected metadata, approve at least one classification",
+      details: {
+        missing: [
+          { key: "metadataValidated", label: "review detected metadata" },
+          { key: "classificationApproved", label: "approve at least one classification" },
+        ],
+      },
+    });
+    expect(database.documentVersion.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        include: expect.objectContaining({ processingJobs: { orderBy: { createdAt: "desc" } } }),
+      }),
+    );
   });
 });

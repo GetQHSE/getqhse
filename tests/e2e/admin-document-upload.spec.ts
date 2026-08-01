@@ -82,5 +82,15 @@ test.describe("admin document upload", () => {
 
     await expect(page.getByRole("alert")).toContainText("Duplicate file detected");
     await expect(page).toHaveURL(`${adminBaseUrl}/documents/upload?document=${documentId}`);
+
+    await page.goto(`${adminBaseUrl}/documents/${documentId}`);
+    await page.getByRole("button", { name: "Accept" }).click();
+    await expect(page.getByRole("button", { name: "Accept" })).toHaveCount(0);
+    await page.getByRole("tab", { name: "classification" }).click();
+    await page.getByRole("button", { name: "Approve", exact: true }).first().click();
+    await expect(page.getByText("Approved").first()).toBeVisible();
+    page.once("dialog", (dialog) => dialog.accept());
+    await page.getByRole("button", { name: "Validate" }).click();
+    await expect(page.getByRole("button", { name: "Publish" })).toBeVisible();
   });
 });

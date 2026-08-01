@@ -727,7 +727,7 @@ export class DocumentsService {
         sections: { take: 1 },
         metadataSuggestions: { where: { decision: "pending" }, take: 1 },
         reviewIssues: { where: { status: "OPEN", severity: "BLOCKING" } },
-        processingJobs: true,
+        processingJobs: { orderBy: { createdAt: "desc" } },
         document: { include: { taxonomyTerms: { where: { isValidated: true }, take: 1 } } },
       },
     });
@@ -753,11 +753,25 @@ export class DocumentsService {
       relationshipConfirmed,
       blockingIssueCount: version.reviewIssues.length,
     });
-    if (!checklistIsComplete(checklist))
+    if (!checklistIsComplete(checklist)) {
+      const checklistLabels: Record<keyof typeof checklist, string> = {
+        metadataValidated: "review detected metadata",
+        filesVerified: "verify the uploaded file",
+        extractionCompleted: "complete text extraction",
+        ocrReviewed: "review low-confidence OCR",
+        structureValidated: "generate document structure",
+        classificationApproved: "approve at least one classification",
+        relationshipConfirmed: "confirm relationship review",
+        noBlockingIssues: "resolve blocking review issues",
+      };
+      const missing = Object.entries(checklist)
+        .filter(([, complete]) => !complete)
+        .map(([key]) => ({ key, label: checklistLabels[key as keyof typeof checklist] }));
       throw new UnprocessableEntityException({
-        message: "Publication checklist is incomplete",
-        checklist,
+        message: `Publication checklist is incomplete: ${missing.map(({ label }) => label).join(", ")}`,
+        details: { checklist, missing },
       });
+    }
     const validated = await this.database.$transaction(async (tx) => {
       const result = await tx.documentVersion.update({
         where: { id: versionId },

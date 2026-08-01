@@ -83,6 +83,7 @@ type Detail = {
   versions: Version[];
   taxonomyTerms: Array<{
     id: string;
+    taxonomyTermId: string;
     source: string;
     confidenceScore: number | null;
     isValidated: boolean;
@@ -557,11 +558,33 @@ export function DocumentDetailPage() {
                         {item.term.taxonomy.name} · {item.source}
                       </p>
                     </div>
-                    <Badge variant={item.isValidated ? "default" : "secondary"}>
-                      {item.isValidated
-                        ? "Approved"
-                        : `${Math.round((item.confidenceScore ?? 0) * 100)}% suggestion`}
-                    </Badge>
+                    <div className="flex items-center gap-2">
+                      <Badge variant={item.isValidated ? "default" : "secondary"}>
+                        {item.isValidated
+                          ? "Approved"
+                          : `${Math.round((item.confidenceScore ?? 0) * 100)}% suggestion`}
+                      </Badge>
+                      {!item.isValidated && canMutate ? (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={busy !== null}
+                          onClick={() =>
+                            void action(
+                              `approve-classification-${item.id}`,
+                              `/v1/documents/${document.id}/classifications`,
+                              {
+                                taxonomyTermIds: [item.taxonomyTermId],
+                                source: "manual",
+                                validated: true,
+                              },
+                            )
+                          }
+                        >
+                          Approve
+                        </Button>
+                      ) : null}
+                    </div>
                   </div>
                 ))
               ) : (
