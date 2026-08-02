@@ -13,17 +13,15 @@ function harness(projectCount: number) {
   } as unknown as AuthenticationPort;
   const database = {
     member: {
-      findFirst: vi
-        .fn()
-        .mockResolvedValue({
-          organization: {
-            id: "org_1",
-            name: "Acme",
-            slug: "acme",
-            icon: "building",
-            countryCode: "MA",
-          },
-        }),
+      findFirst: vi.fn().mockResolvedValue({
+        organization: {
+          id: "org_1",
+          name: "Acme",
+          slug: "acme",
+          icon: "building",
+          countryCode: "MA",
+        },
+      }),
     },
     project: { count: vi.fn().mockResolvedValue(projectCount) },
   };

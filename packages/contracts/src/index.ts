@@ -97,7 +97,10 @@ export const projectSchema = tenantEntitySchema.extend({
 });
 export const createProjectSchema = z.object({
   name: z.string().trim().min(2).max(160),
-  logoUrl: z.preprocess((value) => (value === "" ? undefined : value), z.url().nullable().optional()),
+  logoUrl: z.preprocess(
+    (value) => (value === "" ? undefined : value),
+    z.url().nullable().optional(),
+  ),
   entityType: projectEntityTypeSchema,
   countryCode: supportedCountryCodeSchema.default("MA"),
   activities: z.array(projectActivityInputSchema).min(1).max(30),
