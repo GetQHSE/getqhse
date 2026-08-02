@@ -13,6 +13,7 @@ import {
 import { createPrismaClient, type DatabaseClient } from "@qhse/database";
 import { toNodeHandler } from "better-auth/node";
 
+import { parseCorsOrigins } from "../../../common/cors.js";
 import { AuthenticationPort } from "../application/auth.port.js";
 
 @Injectable()
@@ -28,9 +29,7 @@ export class BetterAuthAdapter extends AuthenticationPort {
     this.auth = createQhseAuth({
       database: this.database,
       baseURL: process.env["BETTER_AUTH_URL"] ?? "http://localhost:3000",
-      trustedOrigins: (process.env["CORS_ORIGINS"] ?? "http://localhost:5173")
-        .split(",")
-        .map((origin) => origin.trim()),
+      trustedOrigins: parseCorsOrigins(),
       secureCookies: process.env["COOKIE_SECURE"] === "true",
     });
     this.nodeHandler = toNodeHandler(this.auth);

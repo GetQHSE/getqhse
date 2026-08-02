@@ -7,8 +7,10 @@ import type { OnboardingStatus, Project } from "@qhse/contracts";
 
 import { clientApi } from "./client-api.js";
 
+import { API_BASE_URL, apiUrl } from "./api-url.js";
+
 export const authClient = createAuthClient({
-  baseURL: import.meta.env["VITE_API_URL"] ?? "http://localhost:3000",
+  baseURL: API_BASE_URL,
   fetchOptions: { credentials: "include" },
   plugins: [
     organizationClient({
@@ -58,10 +60,9 @@ export function AuthProvider({ children }: PropsWithChildren) {
     queryKey: ["auth", "organizations", session.data?.user.id],
     enabled: Boolean(session.data?.user),
     queryFn: async (): Promise<ClientOrganization[]> => {
-      const response = await fetch(
-        `${import.meta.env["VITE_API_URL"] ?? "http://localhost:3000"}/api/auth-context/organizations`,
-        { credentials: "include" },
-      );
+      const response = await fetch(apiUrl("/api/auth-context/organizations"), {
+        credentials: "include",
+      });
       if (!response.ok) throw new Error("Unable to load active organizations");
       return (await response.json()) as ClientOrganization[];
     },

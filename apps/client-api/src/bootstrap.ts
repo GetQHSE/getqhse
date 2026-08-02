@@ -6,6 +6,7 @@ import type { NextFunction, Request, Response } from "express";
 import helmet from "helmet";
 import { Logger } from "nestjs-pino";
 
+import { corsAllowedHeaders, corsMethods, parseCorsOrigins } from "./common/cors.js";
 import { ApiExceptionFilter } from "./common/api-exception.filter.js";
 import { ZodValidationPipe } from "./common/zod-validation.pipe.js";
 import { AppModule } from "./app.module.js";
@@ -17,11 +18,10 @@ export async function createApplication(): Promise<INestApplication> {
     bodyParser: false,
   });
   app.enableCors({
-    origin: (process.env["CORS_ORIGINS"] ?? "http://localhost:5173")
-      .split(",")
-      .map((origin) => origin.trim()),
+    origin: parseCorsOrigins(),
     credentials: true,
-    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    methods: [...corsMethods],
+    allowedHeaders: [...corsAllowedHeaders],
   });
   const auth = app.get(BetterAuthAdapter);
   app.use((request: Request, response: Response, next: NextFunction) => {

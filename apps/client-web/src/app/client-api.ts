@@ -7,14 +7,14 @@ import {
   type Project,
 } from "@qhse/contracts";
 
-const API_BASE_URL = import.meta.env["VITE_API_URL"] ?? "http://localhost:3000";
+import { apiUrl } from "./api-url.js";
 
 async function request<T>(
   path: string,
   parse: (value: unknown) => T,
   init?: RequestInit,
 ): Promise<T> {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
+  const response = await fetch(apiUrl(path), {
     ...init,
     credentials: "include",
     headers: { "content-type": "application/json", ...init?.headers },

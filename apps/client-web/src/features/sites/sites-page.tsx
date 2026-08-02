@@ -5,8 +5,10 @@ import { Button } from "@qhse/ui";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 
+import { API_BASE_URL } from "../../app/api-url.js";
+
 const api = new QhseApiClient({
-  baseUrl: import.meta.env["VITE_API_URL"] ?? "http://localhost:3000",
+  baseUrl: API_BASE_URL,
 });
 
 export function SitesPage({
