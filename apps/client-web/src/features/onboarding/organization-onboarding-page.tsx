@@ -6,6 +6,7 @@ import { useNavigate } from "react-router-dom";
 import { z } from "zod";
 
 import { authClient } from "../../app/auth.js";
+import { Onboarding06 } from "../../components/onboarding-06.js";
 
 const icons = ["building", "briefcase", "layers", "folder", "sparkles"] as const;
 const schema = z.object({
@@ -60,8 +61,9 @@ export function OrganizationOnboardingPage() {
 
   return (
     <main className="grid min-h-screen place-items-center bg-slate-50 p-6">
+      <div className="grid w-full max-w-5xl gap-6 lg:grid-cols-[1fr_22rem]">
       <form
-        className="w-full max-w-xl space-y-6 rounded-xl border bg-white p-8 shadow-sm"
+        className="w-full space-y-6 rounded-xl border bg-white p-8 shadow-sm"
         onSubmit={(event) => void form.handleSubmit(submit)(event)}
       >
         <div>
@@ -110,6 +112,15 @@ export function OrganizationOnboardingPage() {
           {form.formState.isSubmitting ? "Création…" : "Continuer"}
         </Button>
       </form>
+      <Onboarding06
+        title="Configuration de l’espace"
+        steps={[
+          { id: "account", type: "done", title: "Compte créé", description: "Votre accès Better Auth est conservé.", activityTime: "Terminé" },
+          { id: "organization", type: "in progress", title: "Organisation", description: "Définissez l’espace de travail actif.", activityTime: "Maintenant" },
+          { id: "project", type: "open", title: "Premier projet", description: "Ajoutez ensuite l’entité suivie en ISO 9001.", activityTime: "Étape suivante" },
+        ]}
+      />
+      </div>
     </main>
   );
 }

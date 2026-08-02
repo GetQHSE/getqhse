@@ -8,6 +8,7 @@ import { useNavigate } from "react-router-dom";
 import type { z } from "zod";
 
 import { clientApi } from "../../app/client-api.js";
+import { Onboarding05 } from "../../components/onboarding-05.js";
 
 const suggestions = [
   "Manufacturing",
@@ -66,8 +67,9 @@ export function ProjectOnboardingPage() {
 
   return (
     <main className="grid min-h-screen place-items-center bg-slate-50 p-6">
+      <div className="grid w-full max-w-6xl gap-6 lg:grid-cols-[1fr_22rem]">
       <form
-        className="w-full max-w-3xl space-y-6 rounded-xl border bg-white p-8 shadow-sm"
+        className="w-full space-y-6 rounded-xl border bg-white p-8 shadow-sm"
         onSubmit={(event) => void form.handleSubmit(submit)(event)}
       >
         <div>
@@ -203,6 +205,16 @@ export function ProjectOnboardingPage() {
           {form.formState.isSubmitting ? "Création…" : "Créer le projet"}
         </Button>
       </form>
+      <Onboarding05
+        title="Résumé du projet"
+        description="Les données saisies alimentent directement l’API projet existante."
+        steps={[
+          { id: "name", type: "created", description: "renseigne l’identité de l’entité", user: { name: "Projet", initial: "P", bgColor: "bg-teal-600" }, activityTime: "Requis" },
+          { id: "activities", type: "in progress", description: "décrit les activités métier", user: { name: "Activités", initial: "A", bgColor: "bg-emerald-600" }, activityTime: "À compléter" },
+          { id: "standard", type: "created", description: "prépare le référentiel ISO 9001", user: { name: "QHSE", initial: "Q", bgColor: "bg-sky-600" }, activityTime: "Automatique" },
+        ]}
+      />
+      </div>
     </main>
   );
 }
