@@ -9,8 +9,11 @@ import { ProjectsService } from "../application/projects.service.js";
 export class CreateProjectDto implements CreateProject {
   static readonly schema = createProjectSchema;
   name!: string;
-  key!: string;
-  description!: string | null;
+  logoUrl?: string | null;
+  entityType!: CreateProject["entityType"];
+  countryCode!: CreateProject["countryCode"];
+  activities!: CreateProject["activities"];
+  description?: string | null;
 }
 
 @ApiTags("projects")
@@ -32,8 +35,8 @@ export class ProjectsController {
     return this.projects.create(request.tenant!, createProjectSchema.parse(body));
   }
 
-  @Get(":projectId")
-  get(@Req() request: QhseRequest, @Param("projectId") projectId: string) {
-    return this.projects.get(request.tenant!, projectId);
+  @Get(":projectIdOrSlug")
+  get(@Req() request: QhseRequest, @Param("projectIdOrSlug") projectIdOrSlug: string) {
+    return this.projects.get(request.tenant!, projectIdOrSlug);
   }
 }

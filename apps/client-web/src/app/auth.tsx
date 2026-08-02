@@ -3,7 +3,9 @@ import { useQuery } from "@tanstack/react-query";
 import { createAuthClient } from "better-auth/react";
 import { organizationClient } from "better-auth/client/plugins";
 
-import { clientApi, type OnboardingStatus, type ProjectSummary } from "./client-api.js";
+import type { OnboardingStatus, Project } from "@qhse/contracts";
+
+import { clientApi } from "./client-api.js";
 
 export const authClient = createAuthClient({
   baseURL: import.meta.env["VITE_API_URL"] ?? "http://localhost:3000",
@@ -17,6 +19,7 @@ export const authClient = createAuthClient({
             countryCode: { type: "string" },
             locale: { type: "string" },
             timezone: { type: "string" },
+            icon: { type: "string" },
           },
         },
         member: {
@@ -40,7 +43,7 @@ type AuthContextValue = {
   organizations: ClientOrganization[];
   activeOrganization: ClientOrganization | null;
   onboarding: OnboardingStatus | null;
-  projects: ProjectSummary[];
+  projects: Project[];
   isPending: boolean;
   selectOrganization: (organizationId: string) => Promise<void>;
   logout: () => Promise<void>;
@@ -64,13 +67,18 @@ export function AuthProvider({ children }: PropsWithChildren) {
     },
   });
   const onboardingQuery = useQuery({
-    queryKey: ["client", "onboarding-status", session.data?.user.id, activeOrganizationQuery.data?.id],
+    queryKey: [
+      "client",
+      "onboarding-status",
+      session.data?.user.id,
+      activeOrganizationQuery.data?.id,
+    ],
     enabled: Boolean(session.data?.user),
     queryFn: clientApi.onboardingStatus,
   });
   const projectsQuery = useQuery({
     queryKey: ["client", "projects", session.data?.user.id, activeOrganizationQuery.data?.id],
-    enabled: Boolean(session.data?.user && onboardingQuery.data?.hasOrganization),
+    enabled: Boolean(session.data?.user && activeOrganizationQuery.data?.id),
     queryFn: clientApi.projects,
   });
   const organizations = useMemo(() => activeMemberships.data ?? [], [activeMemberships.data]);
@@ -89,6 +97,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
       session.data?.user &&
       !activeOrganizationQuery.isPending &&
       !activeOrganizationQuery.data &&
+      organizations.length === 1 &&
       organizations[0]
     ) {
       void authClient.organization.setActive({ organizationId: organizations[0].id });
@@ -112,10 +121,12 @@ export function AuthProvider({ children }: PropsWithChildren) {
         (activeMemberships.isPending ||
           activeOrganizationQuery.isPending ||
           onboardingQuery.isPending ||
-          (Boolean(onboardingQuery.data?.hasOrganization) && projectsQuery.isPending))),
+          (Boolean(activeOrganizationQuery.data?.id) && projectsQuery.isPending))),
     selectOrganization: async (organizationId) => {
       const result = await authClient.organization.setActive({ organizationId });
       if (result.error) throw new Error(result.error.message);
+      await Promise.all([activeOrganizationQuery.refetch(), onboardingQuery.refetch()]);
+      await projectsQuery.refetch();
     },
     logout: async () => {
       await authClient.signOut();

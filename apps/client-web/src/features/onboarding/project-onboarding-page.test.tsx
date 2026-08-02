@@ -6,14 +6,10 @@ import { describe, expect, it, vi } from "vitest";
 
 import { ProjectOnboardingPage } from "./project-onboarding-page.js";
 
-vi.mock("../../app/client-api.js", () => ({
-  clientApi: {
-    createProject: vi.fn(),
-  },
-}));
+vi.mock("../../app/client-api.js", () => ({ clientApi: { createProject: vi.fn() } }));
 
 describe("ProjectOnboardingPage", () => {
-  it("exposes accessible multi-select activities and validates a selection", async () => {
+  it("supports suggested and custom activities without duplicates", async () => {
     render(
       <QueryClientProvider client={new QueryClient()}>
         <MemoryRouter>
@@ -21,13 +17,10 @@ describe("ProjectOnboardingPage", () => {
         </MemoryRouter>
       </QueryClientProvider>,
     );
-
-    const audit = screen.getByRole("checkbox", { name: "Audit interne" });
-    const documents = screen.getByRole("checkbox", { name: "Gestion documentaire" });
-    await userEvent.click(audit);
-    await userEvent.click(documents);
-
-    expect(audit).toBeChecked();
-    expect(documents).toBeChecked();
+    await userEvent.click(screen.getByRole("button", { name: "Manufacturing" }));
+    const custom = screen.getByRole("textbox", { name: "Activité personnalisée" });
+    await userEvent.type(custom, "Conseil spécialisé{enter}");
+    expect(screen.getByRole("button", { name: "Retirer Manufacturing" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Retirer Conseil spécialisé" })).toBeInTheDocument();
   });
 });

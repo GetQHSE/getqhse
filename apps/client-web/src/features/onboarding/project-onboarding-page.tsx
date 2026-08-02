@@ -1,84 +1,206 @@
 import { zodResolver } from "@hookform/resolvers/zod";
+import { createProjectSchema } from "@qhse/contracts";
 import { Button } from "@qhse/ui";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { useNavigate } from "react-router-dom";
-import { z } from "zod";
+import type { z } from "zod";
 
 import { clientApi } from "../../app/client-api.js";
 
-const activities = [
-  "Audit interne",
-  "Gestion des incidents",
-  "Actions correctives",
-  "Suivi réglementaire",
-  "Formation sécurité",
-  "Gestion documentaire",
+const suggestions = [
+  "Manufacturing",
+  "Distribution",
+  "Import/export",
+  "Installation",
+  "Maintenance",
+  "Consulting",
+  "Training",
+  "Education",
+  "Construction",
+  "Logistics",
+  "Software services",
+  "Healthcare services",
+  "Other",
+];
+const entityTypes = [
+  ["COMPANY", "Entreprise"],
+  ["SCHOOL", "École"],
+  ["UNIVERSITY", "Université"],
+  ["INSTITUTION", "Institution"],
+  ["ASSOCIATION", "Association"],
+  ["PUBLIC_ADMINISTRATION", "Administration publique"],
+  ["INDUSTRIAL_SITE", "Site industriel"],
+  ["OTHER", "Autre"],
 ] as const;
 
-const schema = z.object({
-  name: z.string().min(2, "Le nom du projet est requis"),
-  description: z.string().optional(),
-  activities: z.array(z.string()).min(1, "Sélectionnez au moins une activité"),
-});
-
-type FormValues = z.infer<typeof schema>;
+type FormValues = z.input<typeof createProjectSchema>;
 
 export function ProjectOnboardingPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const [customActivity, setCustomActivity] = useState("");
   const form = useForm<FormValues>({
-    resolver: zodResolver(schema),
-    defaultValues: { activities: [] },
+    resolver: zodResolver(createProjectSchema),
+    defaultValues: { countryCode: "MA", entityType: "COMPANY", activities: [] },
   });
-  const mutation = useMutation({
-    mutationFn: clientApi.createProject,
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["client"] });
-      await navigate("/projects", { replace: true });
-    },
-  });
+  const selected = form.watch("activities");
+  const addActivity = (name: string) => {
+    const cleaned = name.trim().replace(/\s+/g, " ");
+    if (!cleaned || selected.some((item) => item.name.toLowerCase() === cleaned.toLowerCase()))
+      return;
+    form.setValue("activities", [...selected, { name: cleaned }], { shouldValidate: true });
+    setCustomActivity("");
+  };
+
+  async function submit(values: FormValues) {
+    try {
+      const project = await clientApi.createProject(createProjectSchema.parse(values));
+      await queryClient.invalidateQueries();
+      await navigate(`/projects/${project.slug}/chat`, { replace: true });
+    } catch {
+      form.setError("root", { message: "Impossible de créer le projet pour le moment." });
+    }
+  }
 
   return (
     <main className="grid min-h-screen place-items-center bg-slate-50 p-6">
       <form
-        aria-labelledby="project-title"
-        className="w-full max-w-2xl space-y-6 rounded-xl border border-slate-200 bg-white p-8 shadow-sm"
-        onSubmit={(event) => void form.handleSubmit((values) => mutation.mutate(values))(event)}
+        className="w-full max-w-3xl space-y-6 rounded-xl border bg-white p-8 shadow-sm"
+        onSubmit={(event) => void form.handleSubmit(submit)(event)}
       >
         <div>
-          <p className="text-sm font-medium text-teal-700">Configuration initiale</p>
-          <h1 id="project-title" className="mt-2 text-2xl font-semibold text-slate-900">
-            Créer votre premier projet
-          </h1>
+          <p className="text-sm font-medium text-teal-700">Étape 3 sur 3</p>
+          <h1 className="mt-2 text-2xl font-semibold">Créer votre premier projet</h1>
           <p className="mt-2 text-slate-600">
-            Choisissez les activités QHSE à suivre. La sélection multiple est accessible au clavier.
+            Un projet représente la vraie entreprise, école, institution ou entité qui suivra le
+            processus ISO 9001.
+          </p>
+          <p className="mt-2 text-sm">
+            <strong>Espace de travail actif</strong> : le projet métier sera créé séparément dans
+            cet espace.
           </p>
         </div>
         <label className="block">
-          <span className="mb-1 block text-sm font-medium">Nom du projet</span>
-          <input className="w-full rounded-md border border-slate-300 px-3 py-2" {...form.register("name")} />
-          {form.formState.errors.name && <span className="text-sm text-red-700">{form.formState.errors.name.message}</span>}
+          <span className="mb-1 block text-sm font-medium">
+            Nom de l’entreprise ou de l’établissement
+          </span>
+          <input className="w-full rounded-md border px-3 py-2" {...form.register("name")} />
+          {form.formState.errors.name && (
+            <span className="text-sm text-red-700">{form.formState.errors.name.message}</span>
+          )}
+        </label>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <label>
+            <span className="mb-1 block text-sm font-medium">Type d’entité</span>
+            <select className="w-full rounded-md border px-3 py-2" {...form.register("entityType")}>
+              {entityTypes.map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            <span className="mb-1 block text-sm font-medium">Pays principal</span>
+            <select
+              className="w-full rounded-md border px-3 py-2"
+              {...form.register("countryCode")}
+            >
+              <option value="MA">Maroc</option>
+              <option value="FR">France</option>
+              <option value="DZ">Algérie</option>
+              <option value="TN">Tunisie</option>
+              <option value="SN">Sénégal</option>
+              <option value="CI">Côte d’Ivoire</option>
+            </select>
+          </label>
+        </div>
+        <div>
+          <span className="mb-2 block text-sm font-medium">Activités</span>
+          <div className="flex flex-wrap gap-2">
+            {suggestions.map((name) => (
+              <button
+                key={name}
+                type="button"
+                className="rounded-full border px-3 py-1 text-sm"
+                onClick={() => addActivity(name)}
+              >
+                {name}
+              </button>
+            ))}
+          </div>
+          <div className="mt-3 flex gap-2">
+            <input
+              aria-label="Activité personnalisée"
+              className="flex-1 rounded-md border px-3 py-2"
+              value={customActivity}
+              onChange={(event) => setCustomActivity(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  addActivity(customActivity);
+                }
+              }}
+            />
+            <Button type="button" onClick={() => addActivity(customActivity)}>
+              Ajouter
+            </Button>
+          </div>
+          <ul className="mt-3 flex flex-wrap gap-2">
+            {selected.map((activity, index) => (
+              <li key={activity.name} className="rounded-full bg-teal-50 px-3 py-1 text-sm">
+                {activity.name}
+                <button
+                  type="button"
+                  aria-label={`Retirer ${activity.name}`}
+                  className="ml-2"
+                  onClick={() =>
+                    form.setValue(
+                      "activities",
+                      selected.filter((_, itemIndex) => itemIndex !== index),
+                      { shouldValidate: true },
+                    )
+                  }
+                >
+                  ×
+                </button>
+              </li>
+            ))}
+          </ul>
+          {form.formState.errors.activities && (
+            <p className="text-sm text-red-700">Sélectionnez au moins une activité</p>
+          )}
+        </div>
+        <div>
+          <span className="text-sm font-medium">Référentiel</span>
+          <p className="mt-1 inline-block rounded-full bg-teal-50 px-3 py-1 text-sm font-medium text-teal-800">
+            ISO 9001
+          </p>
+        </div>
+        <label className="block">
+          <span className="mb-1 block text-sm font-medium">URL du logo (facultatif)</span>
+          <input
+            type="url"
+            className="w-full rounded-md border px-3 py-2"
+            {...form.register("logoUrl")}
+          />
         </label>
         <label className="block">
           <span className="mb-1 block text-sm font-medium">Description</span>
-          <textarea className="min-h-24 w-full rounded-md border border-slate-300 px-3 py-2" {...form.register("description")} />
+          <textarea
+            className="min-h-24 w-full rounded-md border px-3 py-2"
+            {...form.register("description")}
+          />
         </label>
-        <fieldset className="space-y-3">
-          <legend className="text-sm font-medium">Activités</legend>
-          <div className="grid gap-3 sm:grid-cols-2">
-            {activities.map((activity) => (
-              <label key={activity} className="flex items-start gap-3 rounded-lg border border-slate-200 p-3 focus-within:ring-2 focus-within:ring-teal-600">
-                <input type="checkbox" value={activity} className="mt-1" {...form.register("activities")} />
-                <span>{activity}</span>
-              </label>
-            ))}
-          </div>
-          {form.formState.errors.activities && <p className="text-sm text-red-700">{form.formState.errors.activities.message}</p>}
-        </fieldset>
-        {mutation.isError && <p role="alert" className="text-sm text-red-700">Impossible de créer le projet pour le moment.</p>}
-        <Button type="submit" disabled={mutation.isPending} className="w-full">
-          Terminer l’onboarding
+        {form.formState.errors.root && (
+          <p role="alert" className="text-sm text-red-700">
+            {form.formState.errors.root.message}
+          </p>
+        )}
+        <Button type="submit" disabled={form.formState.isSubmitting} className="w-full">
+          {form.formState.isSubmitting ? "Création…" : "Créer le projet"}
         </Button>
       </form>
     </main>

@@ -53,24 +53,60 @@ export const createSiteSchema = siteSchema.pick({ name: true, code: true, addres
 export type Site = z.infer<typeof siteSchema>;
 export type CreateSite = z.infer<typeof createSiteSchema>;
 
-export const projectStatusSchema = z.enum(["ACTIVE", "ARCHIVED"]);
+export const supportedCountryCodeSchema = z.enum(["MA", "FR", "DZ", "TN", "SN", "CI"]);
+export const projectEntityTypeSchema = z.enum([
+  "COMPANY",
+  "SCHOOL",
+  "UNIVERSITY",
+  "INSTITUTION",
+  "ASSOCIATION",
+  "PUBLIC_ADMINISTRATION",
+  "INDUSTRIAL_SITE",
+  "OTHER",
+]);
+export const projectStatusSchema = z.enum([
+  "EMPTY",
+  "PROFILE_IN_PROGRESS",
+  "PROFILE_REVIEW",
+  "READY_FOR_ANALYSIS",
+  "ANALYSIS_IN_PROGRESS",
+  "REVIEW_REQUIRED",
+  "COMPLETED",
+  "ARCHIVED",
+]);
+export const projectActivityInputSchema = z.object({
+  name: z.string().trim().min(1).max(120),
+  isPrimary: z.boolean().optional(),
+});
+export const projectActivitySchema = z.object({
+  id: idSchema,
+  name: z.string(),
+  isPrimary: z.boolean(),
+});
 export const projectSchema = tenantEntitySchema.extend({
+  createdById: idSchema,
   name: z.string().min(2).max(160),
-  key: z.string().regex(/^[A-Z0-9][A-Z0-9_-]{1,31}$/),
+  slug: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
+  logoUrl: z.url().nullable(),
+  entityType: projectEntityTypeSchema,
+  countryCode: supportedCountryCodeSchema,
+  standardCode: z.literal("ISO_9001"),
   description: z.string().max(2_000).nullable(),
   status: projectStatusSchema,
+  activities: z.array(projectActivitySchema),
 });
-export const createProjectSchema = projectSchema.pick({ name: true, key: true, description: true });
+export const createProjectSchema = z.object({
+  name: z.string().trim().min(2).max(160),
+  logoUrl: z.preprocess((value) => (value === "" ? undefined : value), z.url().nullable().optional()),
+  entityType: projectEntityTypeSchema,
+  countryCode: supportedCountryCodeSchema.default("MA"),
+  activities: z.array(projectActivityInputSchema).min(1).max(30),
+  description: z.string().trim().max(2_000).nullable().optional(),
+});
 export type ProjectStatus = z.infer<typeof projectStatusSchema>;
+export type ProjectEntityType = z.infer<typeof projectEntityTypeSchema>;
 export type Project = z.infer<typeof projectSchema>;
 export type CreateProject = z.infer<typeof createProjectSchema>;
-
-export const projectActivitySchema = tenantEntitySchema.extend({
-  projectId: idSchema,
-  actorUserId: idSchema.nullable(),
-  action: z.string().min(1).max(120),
-  metadata: z.record(z.string(), z.unknown()).nullable(),
-});
 export type ProjectActivity = z.infer<typeof projectActivitySchema>;
 
 export const paginatedProjectsSchema = z.object({
@@ -80,18 +116,25 @@ export const paginatedProjectsSchema = z.object({
 export type PaginatedProjects = z.infer<typeof paginatedProjectsSchema>;
 
 export const onboardingStatusSchema = z.object({
-  organization: z.object({
-    id: idSchema,
-    name: z.string().min(1),
-    slug: z.string().min(1),
-    icon: z.string().nullable(),
-  }),
-  projects: z.object({
-    count: z.number().int().nonnegative(),
-    hasProjects: z.boolean(),
-  }),
-  nextStep: z.enum(["CREATE_PROJECT", "COMPLETE"]),
-  isComplete: z.boolean(),
+  authenticated: z.boolean(),
+  organizationsCount: z.number().int().nonnegative(),
+  activeOrganization: z
+    .object({
+      id: idSchema,
+      name: z.string().min(1),
+      slug: z.string().min(1),
+      icon: z.string().nullable(),
+      countryCode: supportedCountryCodeSchema,
+    })
+    .nullable(),
+  activeOrganizationProjectCount: z.number().int().nonnegative(),
+  nextStep: z.enum([
+    "SIGN_IN",
+    "CREATE_ORGANIZATION",
+    "SELECT_ORGANIZATION",
+    "CREATE_PROJECT",
+    "OPEN_PROJECTS",
+  ]),
 });
 export type OnboardingStatus = z.infer<typeof onboardingStatusSchema>;
 

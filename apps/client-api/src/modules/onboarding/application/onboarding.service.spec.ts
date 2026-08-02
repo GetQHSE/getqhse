@@ -1,50 +1,66 @@
+/* eslint-disable @typescript-eslint/unbound-method */
 import { describe, expect, it, vi } from "vitest";
 
-import type { TenantContext } from "../../../common/request-context.js";
+import type { AuthenticationPort } from "../../auth/application/auth.port.js";
 import { OnboardingService } from "./onboarding.service.js";
 
-const tenant: TenantContext = { organizationId: "org_1", userId: "user_1", role: "member" };
-
-function databaseMock(projectCount: number) {
+function harness(projectCount: number) {
+  const authentication = {
+    getCurrentUser: vi.fn().mockResolvedValue({ id: "user_1", activeOrganizationId: "org_1" }),
+    listActiveOrganizations: vi
+      .fn()
+      .mockResolvedValue([{ id: "org_1", name: "Acme", slug: "acme" }]),
+  } as unknown as AuthenticationPort;
+  const database = {
+    member: {
+      findFirst: vi
+        .fn()
+        .mockResolvedValue({
+          organization: {
+            id: "org_1",
+            name: "Acme",
+            slug: "acme",
+            icon: "building",
+            countryCode: "MA",
+          },
+        }),
+    },
+    project: { count: vi.fn().mockResolvedValue(projectCount) },
+  };
   return {
-    organization: {
-      findUniqueOrThrow: vi.fn().mockResolvedValue({
-        id: tenant.organizationId,
-        name: "Acme QHSE",
-        slug: "acme-qhse",
-        icon: "shield",
-      }),
-    },
-    project: {
-      count: vi.fn().mockResolvedValue(projectCount),
-    },
+    service: new OnboardingService(authentication, database as never),
+    database,
+    authentication,
   };
 }
 
 describe("OnboardingService", () => {
-  it("returns create project as the next step when no project exists", async () => {
-    const database = databaseMock(0);
-    const service = new OnboardingService(database as never);
-
-    await expect(service.getStatus(tenant)).resolves.toMatchObject({
-      organization: { id: tenant.organizationId, icon: "shield" },
-      projects: { count: 0, hasProjects: false },
-      nextStep: "CREATE_PROJECT",
-      isComplete: false,
-    });
-    expect(database.project.count).toHaveBeenCalledWith({
-      where: { organizationId: tenant.organizationId, deletedAt: null, status: "ACTIVE" },
+  it("returns sign in without a session", async () => {
+    const { service, authentication } = harness(0);
+    vi.mocked(authentication.getCurrentUser).mockResolvedValue(null);
+    await expect(service.getStatus({})).resolves.toMatchObject({
+      authenticated: false,
+      nextStep: "SIGN_IN",
     });
   });
 
-  it("marks onboarding complete when active projects exist", async () => {
-    const database = databaseMock(2);
-    const service = new OnboardingService(database as never);
+  it("returns create project when the active organization is empty", async () => {
+    const { service, database } = harness(0);
+    await expect(service.getStatus({})).resolves.toMatchObject({
+      authenticated: true,
+      activeOrganizationProjectCount: 0,
+      nextStep: "CREATE_PROJECT",
+    });
+    expect(database.project.count).toHaveBeenCalledWith({
+      where: { organizationId: "org_1", archivedAt: null },
+    });
+  });
 
-    await expect(service.getStatus(tenant)).resolves.toMatchObject({
-      projects: { count: 2, hasProjects: true },
-      nextStep: "COMPLETE",
-      isComplete: true,
+  it("opens projects when the active organization has projects", async () => {
+    const { service } = harness(2);
+    await expect(service.getStatus({})).resolves.toMatchObject({
+      activeOrganizationProjectCount: 2,
+      nextStep: "OPEN_PROJECTS",
     });
   });
 });

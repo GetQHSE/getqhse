@@ -184,16 +184,17 @@ suite("Better Auth with PostgreSQL and Prisma", () => {
     );
   });
 
-  it("does not expose public email registration", async () => {
+  it("creates an email registration with a valid session", async () => {
     const registration = await authRequest("/sign-up/email", {
-      name: "Uninvited User",
-      email: "uninvited@example.test",
+      name: "New User",
+      email: "new-user@example.test",
       password: "correct-horse-battery-staple",
     });
-    expect(registration.status).toBe(404);
+    expect(registration.status).toBe(200);
+    expect(mergeCookies(registration)).toContain("better-auth.session_token");
     await expect(
-      database.user.findUnique({ where: { email: "uninvited@example.test" } }),
-    ).resolves.toBeNull();
+      database.user.findUnique({ where: { email: "new-user@example.test" } }),
+    ).resolves.toMatchObject({ email: "new-user@example.test" });
   });
 
   it("bootstraps one super admin with a working Better Auth credential", async () => {

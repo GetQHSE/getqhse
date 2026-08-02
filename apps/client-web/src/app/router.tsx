@@ -19,6 +19,14 @@ export const router = createBrowserRouter([
   { path: "/login", element: <LoginPage /> },
   { path: "/sign-up", element: <LoginPage /> },
   {
+    path: "/onboarding/organization",
+    element: (
+      <AuthenticatedRoute>
+        <OrganizationOnboardingPage />
+      </AuthenticatedRoute>
+    ),
+  },
+  {
     path: "/accept-invitation/:invitationId",
     element: (
       <AuthenticatedRoute>
@@ -37,7 +45,6 @@ export const router = createBrowserRouter([
     ),
     children: [
       { index: true, element: <DashboardPage /> },
-      { path: "onboarding/organization", element: <OrganizationOnboardingPage /> },
       { path: "onboarding/project", element: <ProjectOnboardingPage /> },
       { path: "projects", element: <ProjectsPage /> },
       { path: "projects/:projectId/chat", element: <ProjectChatPage /> },

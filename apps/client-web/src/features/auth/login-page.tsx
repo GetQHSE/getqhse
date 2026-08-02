@@ -43,7 +43,9 @@ export function LoginPage() {
       setError("root", { message: isSignUp ? "Inscription impossible" : "Identifiants invalides" });
       return;
     }
-    const destination = isSignUp ? "/onboarding/organization" : destinationFromState(location.state as unknown);
+    const destination = isSignUp
+      ? "/onboarding/organization"
+      : destinationFromState(location.state as unknown);
     await navigate(destination, { replace: true });
   }
 
@@ -105,7 +107,10 @@ export function LoginPage() {
         </Button>
         <p className="text-center text-sm text-slate-600">
           {isSignUp ? "Vous avez déjà un compte ? " : "Pas encore de compte ? "}
-          <a className="font-medium text-teal-700 underline" href={isSignUp ? "/login" : "/sign-up"}>
+          <a
+            className="font-medium text-teal-700 underline"
+            href={isSignUp ? "/login" : "/sign-up"}
+          >
             {isSignUp ? "Se connecter" : "Créer un compte"}
           </a>
         </p>

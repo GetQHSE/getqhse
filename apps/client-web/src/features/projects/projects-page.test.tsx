@@ -10,10 +10,19 @@ vi.mock("../../app/auth.js", () => ({
     projects: [
       {
         id: "project_1",
+        slug: "usine-casablanca",
         name: "Usine Casablanca",
         organizationId: "org_1",
+        createdById: "user_1",
+        logoUrl: null,
+        entityType: "INDUSTRIAL_SITE",
+        countryCode: "MA",
+        standardCode: "ISO_9001",
+        status: "EMPTY",
+        createdAt: "2026-08-02T00:00:00.000Z",
+        updatedAt: "2026-08-02T00:00:00.000Z",
         description: "Suivi QHSE industriel",
-        activities: ["Audit interne", "Gestion documentaire"],
+        activities: [{ id: "activity_1", name: "Manufacturing", isPrimary: true }],
       },
     ],
   }),
@@ -31,7 +40,7 @@ describe("ProjectsPage", () => {
     expect(screen.getByRole("heading", { name: "Usine Casablanca" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Ouvrir le chat projet" })).toHaveAttribute(
       "href",
-      "/projects/project_1/chat",
+      "/projects/usine-casablanca/chat",
     );
   });
 });

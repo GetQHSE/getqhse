@@ -16,19 +16,13 @@ export function OrganizationRoute({ children }: PropsWithChildren) {
   const { activeOrganization, onboarding, isPending } = useAuth();
   const location = useLocation();
   if (isPending) return <p role="status">Chargement…</p>;
-  if (onboarding && !onboarding.hasOrganization && location.pathname !== "/onboarding/organization") {
+  if (onboarding?.nextStep === "CREATE_ORGANIZATION") {
     return <Navigate to="/onboarding/organization" replace />;
   }
-  if (location.pathname === "/onboarding/organization" && onboarding && !onboarding.hasOrganization) {
-    return children;
-  }
-  if (onboarding?.hasOrganization && !onboarding.hasProject && location.pathname !== "/onboarding/project") {
+  if (onboarding?.nextStep === "CREATE_PROJECT" && location.pathname !== "/onboarding/project") {
     return <Navigate to="/onboarding/project" replace />;
   }
-  if (location.pathname === "/onboarding/project" && onboarding?.hasOrganization && !onboarding.hasProject) {
-    return children;
-  }
-  if (location.pathname.startsWith("/onboarding") && onboarding?.hasOrganization && onboarding.hasProject) {
+  if (location.pathname.startsWith("/onboarding") && onboarding?.nextStep === "OPEN_PROJECTS") {
     return <Navigate to="/projects" replace />;
   }
   if (!activeOrganization) {

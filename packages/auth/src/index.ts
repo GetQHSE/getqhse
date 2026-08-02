@@ -4,7 +4,32 @@ import type { DatabaseClient } from "@qhse/database";
 import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import { fromNodeHeaders } from "better-auth/node";
-import { organization } from "better-auth/plugins";
+import { createAccessControl, organization } from "better-auth/plugins";
+import {
+  adminAc,
+  defaultStatements,
+  memberAc,
+  ownerAc,
+} from "better-auth/plugins/organization/access";
+
+const organizationAccessControl = createAccessControl({
+  ...defaultStatements,
+  project: ["create", "read", "update", "delete"],
+} as const);
+const organizationRoleDefinitions = {
+  owner: organizationAccessControl.newRole({
+    ...ownerAc.statements,
+    project: ["create", "read", "update", "delete"],
+  }),
+  admin: organizationAccessControl.newRole({
+    ...adminAc.statements,
+    project: ["create", "read", "update", "delete"],
+  }),
+  member: organizationAccessControl.newRole({
+    ...memberAc.statements,
+    project: ["read"],
+  }),
+};
 
 export const userStatuses = ["active", "suspended", "deleted"] as const;
 export type UserStatus = (typeof userStatuses)[number];
@@ -112,8 +137,10 @@ export function createQhseAuth({
     },
     plugins: [
       organization({
-        allowUserToCreateOrganization: false,
+        allowUserToCreateOrganization: true,
         disableOrganizationDeletion: true,
+        ac: organizationAccessControl,
+        roles: organizationRoleDefinitions,
         schema: {
           organization: {
             additionalFields: {
@@ -155,7 +182,6 @@ export function createQhseAuth({
         secure: secureCookies,
       },
     },
-    disabledPaths: ["/sign-up/email"],
   });
 }
 

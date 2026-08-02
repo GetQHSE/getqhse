@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
+import { ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
 import type { CreateProject, PaginationQuery } from "@qhse/contracts";
 
 import type { TenantContext } from "../../../common/request-context.js";
@@ -17,6 +17,9 @@ export class ProjectsService {
   }
 
   create(tenant: TenantContext, input: CreateProject) {
+    if (tenant.role !== "owner" && tenant.role !== "admin") {
+      throw new ForbiddenException("Project creation is not allowed");
+    }
     return this.repository.create(tenant.organizationId, tenant.userId, input);
   }
 
