@@ -15,6 +15,8 @@ import { FindingsModule } from "./modules/findings/findings.module.js";
 import { HealthModule } from "./modules/health/health.module.js";
 import { NormativeRepositoryModule } from "./modules/normative-repository/normative-repository.module.js";
 import { OrganizationsModule } from "./modules/organizations/organizations.module.js";
+import { OnboardingModule } from "./modules/onboarding/onboarding.module.js";
+import { ProjectsModule } from "./modules/projects/projects.module.js";
 import { SitesModule } from "./modules/sites/sites.module.js";
 
 @Module({
@@ -29,6 +31,8 @@ import { SitesModule } from "./modules/sites/sites.module.js";
     ThrottlerModule.forRoot([{ ttl: 60_000, limit: 100 }]),
     AuthModule,
     OrganizationsModule,
+    OnboardingModule,
+    ProjectsModule,
     SitesModule,
     NormativeRepositoryModule,
     AuditsModule,

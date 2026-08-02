@@ -53,6 +53,48 @@ export const createSiteSchema = siteSchema.pick({ name: true, code: true, addres
 export type Site = z.infer<typeof siteSchema>;
 export type CreateSite = z.infer<typeof createSiteSchema>;
 
+export const projectStatusSchema = z.enum(["ACTIVE", "ARCHIVED"]);
+export const projectSchema = tenantEntitySchema.extend({
+  name: z.string().min(2).max(160),
+  key: z.string().regex(/^[A-Z0-9][A-Z0-9_-]{1,31}$/),
+  description: z.string().max(2_000).nullable(),
+  status: projectStatusSchema,
+});
+export const createProjectSchema = projectSchema.pick({ name: true, key: true, description: true });
+export type ProjectStatus = z.infer<typeof projectStatusSchema>;
+export type Project = z.infer<typeof projectSchema>;
+export type CreateProject = z.infer<typeof createProjectSchema>;
+
+export const projectActivitySchema = tenantEntitySchema.extend({
+  projectId: idSchema,
+  actorUserId: idSchema.nullable(),
+  action: z.string().min(1).max(120),
+  metadata: z.record(z.string(), z.unknown()).nullable(),
+});
+export type ProjectActivity = z.infer<typeof projectActivitySchema>;
+
+export const paginatedProjectsSchema = z.object({
+  data: z.array(projectSchema),
+  meta: paginationMetaSchema,
+});
+export type PaginatedProjects = z.infer<typeof paginatedProjectsSchema>;
+
+export const onboardingStatusSchema = z.object({
+  organization: z.object({
+    id: idSchema,
+    name: z.string().min(1),
+    slug: z.string().min(1),
+    icon: z.string().nullable(),
+  }),
+  projects: z.object({
+    count: z.number().int().nonnegative(),
+    hasProjects: z.boolean(),
+  }),
+  nextStep: z.enum(["CREATE_PROJECT", "COMPLETE"]),
+  isComplete: z.boolean(),
+});
+export type OnboardingStatus = z.infer<typeof onboardingStatusSchema>;
+
 export const auditStatusSchema = z.enum([
   "DRAFT",
   "PLANNED",

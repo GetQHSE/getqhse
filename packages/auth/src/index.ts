@@ -130,6 +130,7 @@ export function createQhseAuth({
                 required: true,
                 defaultValue: "Africa/Casablanca",
               },
+              icon: { type: "string", required: false },
             },
           },
           member: {
@@ -173,6 +174,10 @@ export type OrganizationAccess = {
   organizationId: string;
   userId: string;
   role: OrganizationRole;
+};
+
+export type ProjectAccess = OrganizationAccess & {
+  projectId: string;
 };
 
 export type ActiveOrganization = {
@@ -274,6 +279,24 @@ export class ServerAuth {
       },
     });
     return memberships.map(({ organization }) => organization);
+  }
+
+  async requireProject(
+    headers: IncomingHttpHeaders,
+    projectId: string,
+    requestedOrganizationId?: string,
+  ): Promise<ProjectAccess> {
+    const access = await this.requireOrganization(headers, requestedOrganizationId);
+    const project = await this.database.project.findFirst({
+      where: {
+        id: projectId,
+        organizationId: access.organizationId,
+        deletedAt: null,
+      },
+      select: { id: true },
+    });
+    if (!project) throw new ServerAuthError(403, "Project access is not allowed");
+    return { ...access, projectId: project.id };
   }
 
   async requireOrganizationRole(

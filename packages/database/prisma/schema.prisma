@@ -95,6 +95,11 @@ enum ProcessingJobStatus {
   SKIPPED
 }
 
+enum ProjectStatus {
+  ACTIVE
+  ARCHIVED
+}
+
 enum ReviewStatus {
   NOT_STARTED
   IN_REVIEW
@@ -152,6 +157,7 @@ model User {
   documentReviewIssuesCreated         DocumentReviewIssue[]        @relation("DocumentReviewIssueCreator")
   documentReviewIssuesResolved        DocumentReviewIssue[]        @relation("DocumentReviewIssueResolver")
   documentActivities                  DocumentActivity[]           @relation("DocumentActivityActor")
+  projectActivities                   ProjectActivity[]            @relation("ProjectActivityActor")
 
   @@map("users")
 }
@@ -588,6 +594,7 @@ model Organization {
   name        String
   slug        String   @unique
   logo        String?
+  icon        String?
   metadata    String?
   status      String   @default("active")
   countryCode String   @default("MA") @map("country_code")
@@ -598,6 +605,8 @@ model Organization {
   members           Member[]
   invitations       Invitation[]
   sites             Site[]
+  projects          Project[]
+  projectActivities ProjectActivity[]
   auditCampaigns    AuditCampaign[]
   audits            Audit[]
   standardDocuments StandardDocument[]
@@ -666,6 +675,45 @@ model Site {
   @@index([organizationId, name])
   @@index([organizationId, deletedAt])
   @@map("sites")
+}
+
+model Project {
+  id             String        @id @default(cuid())
+  organizationId String
+  name           String
+  key            String
+  description    String?
+  status         ProjectStatus @default(ACTIVE)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  deletedAt      DateTime?
+
+  organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  activities   ProjectActivity[]
+
+  @@unique([organizationId, key])
+  @@index([organizationId, status])
+  @@index([organizationId, deletedAt])
+  @@map("projects")
+}
+
+model ProjectActivity {
+  id             String   @id @default(cuid())
+  organizationId String
+  projectId      String
+  actorUserId    String?
+  action         String
+  metadata       Json?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  project      Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  actor        User?        @relation("ProjectActivityActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, projectId, createdAt])
+  @@index([organizationId, action, createdAt])
+  @@map("project_activities")
 }
 
 model AuditCampaign {
