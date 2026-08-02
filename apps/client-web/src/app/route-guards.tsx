@@ -13,8 +13,24 @@ export function AuthenticatedRoute({ children }: PropsWithChildren) {
 }
 
 export function OrganizationRoute({ children }: PropsWithChildren) {
-  const { activeOrganization, isPending } = useAuth();
+  const { activeOrganization, onboarding, isPending } = useAuth();
+  const location = useLocation();
   if (isPending) return <p role="status">Chargement…</p>;
+  if (onboarding && !onboarding.hasOrganization && location.pathname !== "/onboarding/organization") {
+    return <Navigate to="/onboarding/organization" replace />;
+  }
+  if (location.pathname === "/onboarding/organization" && onboarding && !onboarding.hasOrganization) {
+    return children;
+  }
+  if (onboarding?.hasOrganization && !onboarding.hasProject && location.pathname !== "/onboarding/project") {
+    return <Navigate to="/onboarding/project" replace />;
+  }
+  if (location.pathname === "/onboarding/project" && onboarding?.hasOrganization && !onboarding.hasProject) {
+    return children;
+  }
+  if (location.pathname.startsWith("/onboarding") && onboarding?.hasOrganization && onboarding.hasProject) {
+    return <Navigate to="/projects" replace />;
+  }
   if (!activeOrganization) {
     return (
       <main className="grid min-h-screen place-items-center p-6">

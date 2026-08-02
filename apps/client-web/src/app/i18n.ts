@@ -6,6 +6,7 @@ const resources = {
     translation: {
       appName: "Pilotage QHSE",
       dashboard: "Tableau de bord",
+      projects: "Projets",
       sites: "Sites",
       signIn: "Se connecter",
       email: "Adresse e-mail",
@@ -17,6 +18,7 @@ const resources = {
     translation: {
       appName: "منصة إدارة الجودة والصحة والسلامة والبيئة",
       dashboard: "لوحة القيادة",
+      projects: "المشاريع",
       sites: "المواقع",
       signIn: "تسجيل الدخول",
       email: "البريد الإلكتروني",

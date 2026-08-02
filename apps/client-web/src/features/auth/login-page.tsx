@@ -8,6 +8,7 @@ import { z } from "zod";
 import { authClient } from "../../app/auth.js";
 
 const loginSchema = z.object({
+  name: z.string().optional(),
   email: z.email(),
   password: z.string().min(8),
 });
@@ -22,6 +23,7 @@ export function LoginPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
+  const isSignUp = location.pathname === "/sign-up";
   const {
     register,
     handleSubmit,
@@ -30,12 +32,18 @@ export function LoginPage() {
   } = useForm<LoginInput>({ resolver: zodResolver(loginSchema) });
 
   async function submit(input: LoginInput) {
-    const result = await authClient.signIn.email(input);
+    const result = isSignUp
+      ? await authClient.signUp.email({
+          email: input.email,
+          password: input.password,
+          name: input.name || input.email,
+        })
+      : await authClient.signIn.email(input);
     if (result.error) {
-      setError("root", { message: "Identifiants invalides" });
+      setError("root", { message: isSignUp ? "Inscription impossible" : "Identifiants invalides" });
       return;
     }
-    const destination = destinationFromState(location.state as unknown);
+    const destination = isSignUp ? "/onboarding/organization" : destinationFromState(location.state as unknown);
     await navigate(destination, { replace: true });
   }
 
@@ -45,7 +53,27 @@ export function LoginPage() {
         className="w-full max-w-md space-y-5 rounded-xl border border-slate-200 bg-white p-8 shadow-sm"
         onSubmit={(event) => void handleSubmit(submit)(event)}
       >
-        <h1 className="text-2xl font-semibold text-slate-900">{t("signIn")}</h1>
+        <div>
+          <h1 className="text-2xl font-semibold text-slate-900">
+            {isSignUp ? "Créer un compte" : t("signIn")}
+          </h1>
+          <p className="mt-2 text-sm text-slate-600">
+            {isSignUp
+              ? "Démarrez votre espace QHSE en quelques étapes."
+              : "Accédez à votre espace QHSE sécurisé."}
+          </p>
+        </div>
+        {isSignUp && (
+          <label className="block">
+            <span className="mb-1 block text-sm font-medium">Nom complet</span>
+            <input
+              className="w-full rounded-md border border-slate-300 px-3 py-2"
+              type="text"
+              autoComplete="name"
+              {...register("name")}
+            />
+          </label>
+        )}
         <label className="block">
           <span className="mb-1 block text-sm font-medium">{t("email")}</span>
           <input
@@ -73,8 +101,14 @@ export function LoginPage() {
           </p>
         )}
         <Button className="w-full" disabled={isSubmitting} type="submit">
-          {t("signIn")}
+          {isSignUp ? "S’inscrire" : t("signIn")}
         </Button>
+        <p className="text-center text-sm text-slate-600">
+          {isSignUp ? "Vous avez déjà un compte ? " : "Pas encore de compte ? "}
+          <a className="font-medium text-teal-700 underline" href={isSignUp ? "/login" : "/sign-up"}>
+            {isSignUp ? "Se connecter" : "Créer un compte"}
+          </a>
+        </p>
       </form>
     </main>
   );

@@ -1,4 +1,4 @@
-import { Bell, Building2, ClipboardCheck, Gauge } from "lucide-react";
+import { Bell, Building2, ClipboardCheck, FolderKanban, Gauge } from "lucide-react";
 import { NavLink, Outlet } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
@@ -6,6 +6,7 @@ import { useAuth } from "./auth.js";
 
 const links = [
   { to: "/", label: "dashboard", icon: Gauge },
+  { to: "/projects", label: "projects", icon: FolderKanban },
   { to: "/sites", label: "sites", icon: Building2 },
   { to: "/audits", label: "Audits", icon: ClipboardCheck },
   { to: "/notifications", label: "Notifications", icon: Bell },
