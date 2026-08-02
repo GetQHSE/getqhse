@@ -24,15 +24,31 @@ export function Onboarding05({
       <ul className="mt-6 space-y-6 pb-2">
         {steps.map((step, stepIdx) => (
           <li className="relative flex gap-x-3" key={step.id}>
-            <div className={cn("absolute top-0 left-0 flex w-6 justify-center", stepIdx === steps.length - 1 ? "h-6" : "-bottom-6")}>
+            <div
+              className={cn(
+                "absolute top-0 left-0 flex w-6 justify-center",
+                stepIdx === steps.length - 1 ? "h-6" : "-bottom-6",
+              )}
+            >
               <span aria-hidden className="w-px bg-border" />
             </div>
             <div className="flex items-start space-x-2">
               <div className="flex items-center space-x-2">
                 <div className="relative flex size-6 flex-none items-center justify-center bg-background">
-                  <div className={cn("size-3 rounded-full border border-gray-300 ring-4 ring-background", step.type === "in progress" ? "bg-background" : "bg-muted/50")} />
+                  <div
+                    className={cn(
+                      "size-3 rounded-full border border-gray-300 ring-4 ring-background",
+                      step.type === "in progress" ? "bg-background" : "bg-muted/50",
+                    )}
+                  />
                 </div>
-                <span aria-hidden className={cn(step.user.bgColor, "inline-flex size-6 flex-none items-center justify-center rounded-full text-primary-foreground text-xs")}>
+                <span
+                  aria-hidden
+                  className={cn(
+                    step.user.bgColor,
+                    "inline-flex size-6 flex-none items-center justify-center rounded-full text-primary-foreground text-xs",
+                  )}
+                >
                   {step.user.initial}
                 </span>
               </div>

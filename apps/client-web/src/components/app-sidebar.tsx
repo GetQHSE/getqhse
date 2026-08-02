@@ -4,8 +4,20 @@ import { NavMain, type MainNavItem } from "#components/nav-main";
 import { NavProjects } from "#components/nav-projects";
 import { NavUser, type SidebarUser } from "#components/nav-user";
 import { TeamSwitcher, type SidebarTeam } from "#components/team-switcher";
-import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarRail } from "@qhse/ui/components/sidebar";
-import { BellIcon, Building2Icon, ClipboardCheckIcon, FolderKanbanIcon, GaugeIcon } from "lucide-react";
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarHeader,
+  SidebarRail,
+} from "@qhse/ui/components/sidebar";
+import {
+  BellIcon,
+  Building2Icon,
+  ClipboardCheckIcon,
+  FolderKanbanIcon,
+  GaugeIcon,
+} from "lucide-react";
 
 export type AppSidebarProject = { name: string; slug: string };
 
@@ -40,7 +52,12 @@ export function AppSidebar({
       </SidebarHeader>
       <SidebarContent>
         <NavMain items={mainNav} />
-        <NavProjects projects={projects.map((project) => ({ name: project.name, url: `/projects/${project.slug}/chat` }))} />
+        <NavProjects
+          projects={projects.map((project) => ({
+            name: project.name,
+            url: `/projects/${project.slug}/chat`,
+          }))}
+        />
       </SidebarContent>
       <SidebarFooter>
         <NavUser user={user} onLogout={onLogout} />

@@ -23,7 +23,10 @@ export function NavMain({ items }: { items: MainNavItem[] }) {
       <SidebarMenu>
         {items.map((item) => (
           <SidebarMenuItem key={item.url}>
-            <SidebarMenuButton tooltip={item.title} render={<NavLink to={item.url} end={item.end ?? false} />}>
+            <SidebarMenuButton
+              tooltip={item.title}
+              render={<NavLink to={item.url} end={item.end ?? false} />}
+            >
               {item.icon}
               <span>{item.title}</span>
             </SidebarMenuButton>

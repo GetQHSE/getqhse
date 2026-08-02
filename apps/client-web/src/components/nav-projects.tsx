@@ -25,7 +25,10 @@ export function NavProjects({ projects }: { projects: SidebarProject[] }) {
           </SidebarMenuItem>
         ))}
         <SidebarMenuItem>
-          <SidebarMenuButton className="text-sidebar-foreground/70" render={<Link to="/onboarding/project" />}>
+          <SidebarMenuButton
+            className="text-sidebar-foreground/70"
+            render={<Link to="/onboarding/project" />}
+          >
             <PlusIcon className="text-sidebar-foreground/70" />
             <span>Nouveau projet</span>
           </SidebarMenuButton>

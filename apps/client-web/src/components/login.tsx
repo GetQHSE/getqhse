@@ -48,7 +48,10 @@ export function Login({ mode, isSubmitting = false, error, onSubmit }: LoginProp
               : "Accédez à votre espace QHSE sécurisé."}
           </p>
 
-          <form className="mt-8 w-full space-y-4" onSubmit={(event) => void form.handleSubmit(onSubmit)(event)}>
+          <form
+            className="mt-8 w-full space-y-4"
+            onSubmit={(event) => void form.handleSubmit(onSubmit)(event)}
+          >
             {isSignUp && (
               <Controller
                 control={form.control}
@@ -56,7 +59,12 @@ export function Login({ mode, isSubmitting = false, error, onSubmit }: LoginProp
                 render={({ field, fieldState }) => (
                   <Field data-invalid={fieldState.invalid}>
                     <FieldLabel>Nom complet</FieldLabel>
-                    <Input aria-invalid={fieldState.invalid} autoComplete="name" className="w-full" {...field} />
+                    <Input
+                      aria-invalid={fieldState.invalid}
+                      autoComplete="name"
+                      className="w-full"
+                      {...field}
+                    />
                     <FieldError errors={[fieldState.error]} />
                   </Field>
                 )}
@@ -68,7 +76,13 @@ export function Login({ mode, isSubmitting = false, error, onSubmit }: LoginProp
               render={({ field, fieldState }) => (
                 <Field data-invalid={fieldState.invalid}>
                   <FieldLabel>Adresse e-mail</FieldLabel>
-                  <Input aria-invalid={fieldState.invalid} autoComplete="email" className="w-full" type="email" {...field} />
+                  <Input
+                    aria-invalid={fieldState.invalid}
+                    autoComplete="email"
+                    className="w-full"
+                    type="email"
+                    {...field}
+                  />
                   <FieldError errors={[fieldState.error]} />
                 </Field>
               )}
@@ -90,7 +104,11 @@ export function Login({ mode, isSubmitting = false, error, onSubmit }: LoginProp
                 </Field>
               )}
             />
-            {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
+            {error && (
+              <p role="alert" className="text-sm text-destructive">
+                {error}
+              </p>
+            )}
             <Button className="mt-4 w-full" disabled={isSubmitting} type="submit">
               {isSubmitting ? "Veuillez patienter…" : isSignUp ? "S’inscrire" : "Se connecter"}
             </Button>
@@ -108,7 +126,8 @@ export function Login({ mode, isSubmitting = false, error, onSubmit }: LoginProp
           <div className="relative flex h-full flex-col justify-end p-10 text-white">
             <p className="text-3xl font-semibold">Pilotez votre conformité ISO 9001.</p>
             <p className="mt-3 max-w-md text-sm text-white/80">
-              Centralisez organisations, projets, audits et actions QHSE sans modifier les flux d’authentification existants.
+              Centralisez organisations, projets, audits et actions QHSE sans modifier les flux
+              d’authentification existants.
             </p>
           </div>
         </div>

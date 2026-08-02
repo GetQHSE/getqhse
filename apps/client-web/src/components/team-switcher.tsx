@@ -39,7 +39,14 @@ export function TeamSwitcher({
     <SidebarMenu>
       <SidebarMenuItem>
         <DropdownMenu>
-          <DropdownMenuTrigger render={<SidebarMenuButton size="lg" className="data-open:bg-sidebar-accent data-open:text-sidebar-accent-foreground" />}>
+          <DropdownMenuTrigger
+            render={
+              <SidebarMenuButton
+                size="lg"
+                className="data-open:bg-sidebar-accent data-open:text-sidebar-accent-foreground"
+              />
+            }
+          >
             <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
               <Building2Icon className="size-4" />
             </div>
@@ -49,19 +56,34 @@ export function TeamSwitcher({
             </div>
             <ChevronsUpDownIcon className="ml-auto" />
           </DropdownMenuTrigger>
-          <DropdownMenuContent className="w-fit" align="start" side={isMobile ? "bottom" : "right"} sideOffset={4}>
+          <DropdownMenuContent
+            className="w-fit"
+            align="start"
+            side={isMobile ? "bottom" : "right"}
+            sideOffset={4}
+          >
             <DropdownMenuGroup>
-              <DropdownMenuLabel className="text-xs text-muted-foreground">Organisations</DropdownMenuLabel>
+              <DropdownMenuLabel className="text-xs text-muted-foreground">
+                Organisations
+              </DropdownMenuLabel>
               {teams.map((team) => (
-                <DropdownMenuItem key={team.id} onClick={() => void onSelectTeam(team.id)} className="gap-2 p-2">
-                  <div className="flex size-6 items-center justify-center rounded-md border"><Building2Icon className="size-4" /></div>
+                <DropdownMenuItem
+                  key={team.id}
+                  onClick={() => void onSelectTeam(team.id)}
+                  className="gap-2 p-2"
+                >
+                  <div className="flex size-6 items-center justify-center rounded-md border">
+                    <Building2Icon className="size-4" />
+                  </div>
                   {team.name}
                 </DropdownMenuItem>
               ))}
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
             <DropdownMenuItem className="gap-2 p-2" render={<Link to="/onboarding/organization" />}>
-              <div className="flex size-6 items-center justify-center rounded-md border bg-transparent"><PlusIcon className="size-4" /></div>
+              <div className="flex size-6 items-center justify-center rounded-md border bg-transparent">
+                <PlusIcon className="size-4" />
+              </div>
               <span className="font-medium text-muted-foreground">Nouvelle organisation</span>
             </DropdownMenuItem>
           </DropdownMenuContent>

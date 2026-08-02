@@ -62,64 +62,85 @@ export function OrganizationOnboardingPage() {
   return (
     <main className="grid min-h-screen place-items-center bg-slate-50 p-6">
       <div className="grid w-full max-w-5xl gap-6 lg:grid-cols-[1fr_22rem]">
-      <form
-        className="w-full space-y-6 rounded-xl border bg-white p-8 shadow-sm"
-        onSubmit={(event) => void form.handleSubmit(submit)(event)}
-      >
-        <div>
-          <p className="text-sm font-medium text-teal-700">Étape 2 sur 3</p>
-          <h1 className="mt-2 text-2xl font-semibold">Créer votre espace</h1>
-          <p className="mt-2 text-slate-600">
-            Votre espace regroupe vos utilisateurs et vos projets. Il ne représente pas
-            nécessairement votre entreprise.
-          </p>
-        </div>
-        <label className="block">
-          <span className="mb-1 block text-sm font-medium">Nom de l’espace</span>
-          <input className="w-full rounded-md border px-3 py-2" {...form.register("name")} />
-          {form.formState.errors.name && (
-            <span className="text-sm text-red-700">{form.formState.errors.name.message}</span>
-          )}
-        </label>
-        <fieldset>
-          <legend className="mb-2 text-sm font-medium">Icône</legend>
-          <div className="flex flex-wrap gap-2">
-            {icons.map((icon) => (
-              <label key={icon} className="rounded-md border px-3 py-2">
-                <input className="mr-2" type="radio" value={icon} {...form.register("icon")} />
-                {icon}
-              </label>
-            ))}
+        <form
+          className="w-full space-y-6 rounded-xl border bg-white p-8 shadow-sm"
+          onSubmit={(event) => void form.handleSubmit(submit)(event)}
+        >
+          <div>
+            <p className="text-sm font-medium text-teal-700">Étape 2 sur 3</p>
+            <h1 className="mt-2 text-2xl font-semibold">Créer votre espace</h1>
+            <p className="mt-2 text-slate-600">
+              Votre espace regroupe vos utilisateurs et vos projets. Il ne représente pas
+              nécessairement votre entreprise.
+            </p>
           </div>
-        </fieldset>
-        <label className="block">
-          <span className="mb-1 block text-sm font-medium">Pays</span>
-          <select className="w-full rounded-md border px-3 py-2" {...form.register("countryCode")}>
-            <option value="MA">Maroc</option>
-            <option value="FR">France</option>
-            <option value="DZ">Algérie</option>
-            <option value="TN">Tunisie</option>
-            <option value="SN">Sénégal</option>
-            <option value="CI">Côte d’Ivoire</option>
-          </select>
-        </label>
-        {form.formState.errors.root && (
-          <p role="alert" className="text-sm text-red-700">
-            {form.formState.errors.root.message}
-          </p>
-        )}
-        <Button type="submit" disabled={form.formState.isSubmitting} className="w-full">
-          {form.formState.isSubmitting ? "Création…" : "Continuer"}
-        </Button>
-      </form>
-      <Onboarding06
-        title="Configuration de l’espace"
-        steps={[
-          { id: "account", type: "done", title: "Compte créé", description: "Votre accès Better Auth est conservé.", activityTime: "Terminé" },
-          { id: "organization", type: "in progress", title: "Organisation", description: "Définissez l’espace de travail actif.", activityTime: "Maintenant" },
-          { id: "project", type: "open", title: "Premier projet", description: "Ajoutez ensuite l’entité suivie en ISO 9001.", activityTime: "Étape suivante" },
-        ]}
-      />
+          <label className="block">
+            <span className="mb-1 block text-sm font-medium">Nom de l’espace</span>
+            <input className="w-full rounded-md border px-3 py-2" {...form.register("name")} />
+            {form.formState.errors.name && (
+              <span className="text-sm text-red-700">{form.formState.errors.name.message}</span>
+            )}
+          </label>
+          <fieldset>
+            <legend className="mb-2 text-sm font-medium">Icône</legend>
+            <div className="flex flex-wrap gap-2">
+              {icons.map((icon) => (
+                <label key={icon} className="rounded-md border px-3 py-2">
+                  <input className="mr-2" type="radio" value={icon} {...form.register("icon")} />
+                  {icon}
+                </label>
+              ))}
+            </div>
+          </fieldset>
+          <label className="block">
+            <span className="mb-1 block text-sm font-medium">Pays</span>
+            <select
+              className="w-full rounded-md border px-3 py-2"
+              {...form.register("countryCode")}
+            >
+              <option value="MA">Maroc</option>
+              <option value="FR">France</option>
+              <option value="DZ">Algérie</option>
+              <option value="TN">Tunisie</option>
+              <option value="SN">Sénégal</option>
+              <option value="CI">Côte d’Ivoire</option>
+            </select>
+          </label>
+          {form.formState.errors.root && (
+            <p role="alert" className="text-sm text-red-700">
+              {form.formState.errors.root.message}
+            </p>
+          )}
+          <Button type="submit" disabled={form.formState.isSubmitting} className="w-full">
+            {form.formState.isSubmitting ? "Création…" : "Continuer"}
+          </Button>
+        </form>
+        <Onboarding06
+          title="Configuration de l’espace"
+          steps={[
+            {
+              id: "account",
+              type: "done",
+              title: "Compte créé",
+              description: "Votre accès Better Auth est conservé.",
+              activityTime: "Terminé",
+            },
+            {
+              id: "organization",
+              type: "in progress",
+              title: "Organisation",
+              description: "Définissez l’espace de travail actif.",
+              activityTime: "Maintenant",
+            },
+            {
+              id: "project",
+              type: "open",
+              title: "Premier projet",
+              description: "Ajoutez ensuite l’entité suivie en ISO 9001.",
+              activityTime: "Étape suivante",
+            },
+          ]}
+        />
       </div>
     </main>
   );

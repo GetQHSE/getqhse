@@ -5,7 +5,8 @@ import { AppSidebar } from "#components/app-sidebar";
 import { useAuth } from "./auth.js";
 
 export function AppLayout() {
-  const { activeOrganization, organizations, projects, user, logout, selectOrganization } = useAuth();
+  const { activeOrganization, organizations, projects, user, logout, selectOrganization } =
+    useAuth();
   const displayName = user?.email.split("@")[0] ?? "Utilisateur";
 
   return (
