@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { NavLink } from "react-router-dom";
+import { NavLink, useLocation } from "react-router-dom";
 
 import {
   SidebarGroup,
@@ -17,6 +17,8 @@ export type MainNavItem = {
 };
 
 export function NavMain({ items }: { items: MainNavItem[] }) {
+  const location = useLocation();
+
   return (
     <SidebarGroup>
       <SidebarGroupLabel>Plateforme</SidebarGroupLabel>
@@ -24,6 +26,9 @@ export function NavMain({ items }: { items: MainNavItem[] }) {
         {items.map((item) => (
           <SidebarMenuItem key={item.url}>
             <SidebarMenuButton
+              isActive={
+                item.end ? location.pathname === item.url : location.pathname.startsWith(item.url)
+              }
               tooltip={item.title}
               render={<NavLink to={item.url} end={item.end ?? false} />}
             >

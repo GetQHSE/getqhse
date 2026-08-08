@@ -48,6 +48,13 @@ export const router = createBrowserRouter([
       { path: "onboarding/project", element: <ProjectOnboardingPage /> },
       { path: "projects", element: <ProjectsPage /> },
       { path: "projects/:projectId/chat", element: <ProjectChatPage /> },
+      { path: "projects/:projectId/profile", element: <Placeholder title="Profil du projet" /> },
+      {
+        path: "projects/:projectId/regulatory-watch",
+        element: <Placeholder title="Veille réglementaire" />,
+      },
+      { path: "projects/:projectId/settings", element: <Placeholder title="Paramètres du projet" /> },
+      { path: "team", element: <Placeholder title="Équipe" /> },
       {
         path: "sites",
         element: (
