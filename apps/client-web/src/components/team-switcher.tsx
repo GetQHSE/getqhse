@@ -43,18 +43,18 @@ export function TeamSwitcher({
             render={
               <SidebarMenuButton
                 size="lg"
-                className="data-open:bg-sidebar-accent data-open:text-sidebar-accent-foreground"
+                className="border border-white/10 bg-white/[0.04] data-open:bg-white/10 data-open:text-white"
               />
             }
           >
-            <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
+            <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-cyan-400/15 text-cyan-300">
               <Building2Icon className="size-4" />
             </div>
             <div className="grid flex-1 text-left text-sm leading-tight">
               <span className="truncate font-medium">{activeTeam.name}</span>
-              <span className="truncate text-xs">Organisation active</span>
+              <span className="truncate text-xs text-slate-400">Organisation active</span>
             </div>
-            <ChevronsUpDownIcon className="ml-auto" />
+            <ChevronsUpDownIcon className="ml-auto size-4 text-slate-500" />
           </DropdownMenuTrigger>
           <DropdownMenuContent
             className="w-fit"

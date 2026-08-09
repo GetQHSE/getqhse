@@ -1,14 +1,29 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@qhse/ui";
 import { useQueryClient } from "@tanstack/react-query";
+import {
+  BriefcaseBusinessIcon,
+  Building2Icon,
+  FolderKanbanIcon,
+  Layers3Icon,
+  MapPinIcon,
+  SparklesIcon,
+} from "lucide-react";
 import { useForm } from "react-hook-form";
 import { useNavigate } from "react-router-dom";
 import { z } from "zod";
 
 import { authClient } from "../../app/auth.js";
-import { Onboarding06 } from "../../components/onboarding-06.js";
+import { OnboardingShell } from "./onboarding-shell.js";
 
 const icons = ["building", "briefcase", "layers", "folder", "sparkles"] as const;
+const iconOptions = [
+  { value: "building", label: "Entreprise", icon: Building2Icon },
+  { value: "briefcase", label: "Cabinet", icon: BriefcaseBusinessIcon },
+  { value: "layers", label: "Groupe", icon: Layers3Icon },
+  { value: "folder", label: "Portefeuille", icon: FolderKanbanIcon },
+  { value: "sparkles", label: "Autre", icon: SparklesIcon },
+] as const;
 const schema = z.object({
   name: z.string().trim().min(2, "Le nom de l’espace est requis").max(160),
   icon: z.enum(icons),
@@ -34,6 +49,7 @@ export function OrganizationOnboardingPage() {
     resolver: zodResolver(schema),
     defaultValues: { icon: "building", countryCode: "MA" },
   });
+  const selectedIcon = form.watch("icon");
 
   async function submit(values: FormValues) {
     const baseSlug = slugify(values.name);
@@ -60,88 +76,116 @@ export function OrganizationOnboardingPage() {
   }
 
   return (
-    <main className="grid min-h-screen place-items-center bg-slate-50 p-6">
-      <div className="grid w-full max-w-5xl gap-6 lg:grid-cols-[1fr_22rem]">
-        <form
-          className="w-full space-y-6 rounded-xl border bg-white p-8 shadow-sm"
-          onSubmit={(event) => void form.handleSubmit(submit)(event)}
-        >
-          <div>
-            <p className="text-sm font-medium text-teal-700">Étape 2 sur 3</p>
-            <h1 className="mt-2 text-2xl font-semibold">Créer votre espace</h1>
-            <p className="mt-2 text-slate-600">
-              Votre espace regroupe vos utilisateurs et vos projets. Il ne représente pas
-              nécessairement votre entreprise.
-            </p>
+    <OnboardingShell
+      currentStep={2}
+      eyebrow="Étape 2 sur 3 · Organisation"
+      title="Créez votre espace de travail"
+      description="Une organisation rassemble vos collaborateurs et vos projets. Vous pourrez en créer d’autres et passer de l’une à l’autre à tout moment."
+      aside={
+        <aside className="h-fit rounded-2xl border border-violet-100 bg-violet-50/70 p-5">
+          <span className="grid size-9 place-items-center rounded-xl bg-violet-600 text-white">
+            <Building2Icon className="size-4" />
+          </span>
+          <h2 className="mt-4 font-semibold">Pourquoi une organisation ?</h2>
+          <p className="mt-2 text-sm leading-6 text-slate-600">
+            Elle définit votre équipe, vos droits d’accès et le périmètre partagé entre plusieurs
+            projets.
+          </p>
+          <div className="mt-5 border-t border-violet-100 pt-4 text-xs leading-5 text-slate-500">
+            Exemple : « Groupe Atlas » peut contenir les projets « Usine Casablanca » et « Siège
+            Rabat ».
           </div>
-          <label className="block">
-            <span className="mb-1 block text-sm font-medium">Nom de l’espace</span>
-            <input className="w-full rounded-md border px-3 py-2" {...form.register("name")} />
-            {form.formState.errors.name && (
-              <span className="text-sm text-red-700">{form.formState.errors.name.message}</span>
-            )}
-          </label>
-          <fieldset>
-            <legend className="mb-2 text-sm font-medium">Icône</legend>
-            <div className="flex flex-wrap gap-2">
-              {icons.map((icon) => (
-                <label key={icon} className="rounded-md border px-3 py-2">
-                  <input className="mr-2" type="radio" value={icon} {...form.register("icon")} />
-                  {icon}
-                </label>
-              ))}
-            </div>
-          </fieldset>
-          <label className="block">
-            <span className="mb-1 block text-sm font-medium">Pays</span>
-            <select
-              className="w-full rounded-md border px-3 py-2"
-              {...form.register("countryCode")}
-            >
-              <option value="MA">Maroc</option>
-              <option value="FR">France</option>
-              <option value="DZ">Algérie</option>
-              <option value="TN">Tunisie</option>
-              <option value="SN">Sénégal</option>
-              <option value="CI">Côte d’Ivoire</option>
-            </select>
-          </label>
-          {form.formState.errors.root && (
-            <p role="alert" className="text-sm text-red-700">
-              {form.formState.errors.root.message}
-            </p>
+        </aside>
+      }
+    >
+      <form
+        className="space-y-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7"
+        onSubmit={(event) => void form.handleSubmit(submit)(event)}
+      >
+        <label className="block">
+          <span className="mb-2 block text-sm font-semibold text-slate-800">
+            Nom de l’organisation
+          </span>
+          <input
+            className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50/70 px-3 text-sm outline-none transition focus:border-violet-400 focus:bg-white focus:ring-4 focus:ring-violet-100"
+            placeholder="Ex. Groupe Atlas"
+            autoFocus
+            {...form.register("name")}
+          />
+          <span className="mt-2 block text-xs text-slate-500">
+            Utilisez le nom reconnu par votre équipe. Vous pourrez le modifier plus tard.
+          </span>
+          {form.formState.errors.name && (
+            <span className="mt-1 block text-sm text-red-700">
+              {form.formState.errors.name.message}
+            </span>
           )}
-          <Button type="submit" disabled={form.formState.isSubmitting} className="w-full">
-            {form.formState.isSubmitting ? "Création…" : "Continuer"}
-          </Button>
-        </form>
-        <Onboarding06
-          title="Configuration de l’espace"
-          steps={[
-            {
-              id: "account",
-              type: "done",
-              title: "Compte créé",
-              description: "Votre accès Better Auth est conservé.",
-              activityTime: "Terminé",
-            },
-            {
-              id: "organization",
-              type: "in progress",
-              title: "Organisation",
-              description: "Définissez l’espace de travail actif.",
-              activityTime: "Maintenant",
-            },
-            {
-              id: "project",
-              type: "open",
-              title: "Premier projet",
-              description: "Ajoutez ensuite l’entité suivie en ISO 9001.",
-              activityTime: "Étape suivante",
-            },
-          ]}
-        />
-      </div>
-    </main>
+        </label>
+
+        <fieldset>
+          <legend className="mb-3 text-sm font-semibold text-slate-800">Icône de l’espace</legend>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+            {iconOptions.map((option) => {
+              const Icon = option.icon;
+              const isSelected = selectedIcon === option.value;
+              return (
+                <label
+                  key={option.value}
+                  className={`cursor-pointer rounded-xl border p-3 text-center transition ${
+                    isSelected
+                      ? "border-violet-500 bg-violet-50 text-violet-800 ring-2 ring-violet-100"
+                      : "border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50"
+                  }`}
+                >
+                  <input
+                    className="sr-only"
+                    type="radio"
+                    value={option.value}
+                    {...form.register("icon")}
+                  />
+                  <Icon className="mx-auto size-5" />
+                  <span className="mt-2 block truncate text-[11px] font-medium">
+                    {option.label}
+                  </span>
+                </label>
+              );
+            })}
+          </div>
+        </fieldset>
+
+        <label className="block">
+          <span className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-800">
+            <MapPinIcon className="size-4 text-slate-400" /> Pays principal
+          </span>
+          <select
+            className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50/70 px-3 text-sm outline-none transition focus:border-violet-400 focus:bg-white focus:ring-4 focus:ring-violet-100"
+            {...form.register("countryCode")}
+          >
+            <option value="MA">Maroc</option>
+            <option value="FR">France</option>
+            <option value="DZ">Algérie</option>
+            <option value="TN">Tunisie</option>
+            <option value="SN">Sénégal</option>
+            <option value="CI">Côte d’Ivoire</option>
+          </select>
+          <span className="mt-2 block text-xs text-slate-500">
+            Ce choix aide à préparer la veille réglementaire adaptée.
+          </span>
+        </label>
+
+        {form.formState.errors.root && (
+          <p role="alert" className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700">
+            {form.formState.errors.root.message}
+          </p>
+        )}
+        <Button
+          type="submit"
+          disabled={form.formState.isSubmitting}
+          className="h-11 w-full bg-violet-600 hover:bg-violet-700"
+        >
+          {form.formState.isSubmitting ? "Création…" : "Créer et continuer"}
+        </Button>
+      </form>
+    </OnboardingShell>
   );
 }

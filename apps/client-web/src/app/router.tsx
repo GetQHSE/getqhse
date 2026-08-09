@@ -8,6 +8,7 @@ import { DashboardPage } from "../features/dashboard/dashboard-page.js";
 import { OrganizationOnboardingPage } from "../features/onboarding/organization-onboarding-page.js";
 import { ProjectOnboardingPage } from "../features/onboarding/project-onboarding-page.js";
 import { ProjectChatPage } from "../features/projects/project-chat-page.js";
+import { ProjectProfilePage } from "../features/projects/project-profile-page.js";
 import { ProjectsPage } from "../features/projects/projects-page.js";
 import { SitesPage } from "../features/sites/sites-page.js";
 import { TestAiChatPage } from "../features/ai-chat/test-ai-chat-page.js";
@@ -38,6 +39,26 @@ export const router = createBrowserRouter([
     ),
   },
   {
+    path: "/onboarding/project",
+    element: (
+      <AuthenticatedRoute>
+        <OrganizationRoute>
+          <ProjectOnboardingPage />
+        </OrganizationRoute>
+      </AuthenticatedRoute>
+    ),
+  },
+  {
+    path: "/projects/new",
+    element: (
+      <AuthenticatedRoute>
+        <OrganizationRoute>
+          <ProjectOnboardingPage mode="create" />
+        </OrganizationRoute>
+      </AuthenticatedRoute>
+    ),
+  },
+  {
     path: "/",
     element: (
       <AuthenticatedRoute>
@@ -51,10 +72,9 @@ export const router = createBrowserRouter([
       { path: "test-ai-chat", element: <TestAiChatPage /> },
       { path: "test-ai-chat-2", element: <TestAiChatPage2 /> },
       { path: "test-ai-chat-3", element: <TestAiChatPage3 /> },
-      { path: "onboarding/project", element: <ProjectOnboardingPage /> },
       { path: "projects", element: <ProjectsPage /> },
       { path: "projects/:projectId/chat", element: <ProjectChatPage /> },
-      { path: "projects/:projectId/profile", element: <Placeholder title="Profil du projet" /> },
+      { path: "projects/:projectId/profile", element: <ProjectProfilePage /> },
       {
         path: "projects/:projectId/regulatory-watch",
         element: <Placeholder title="Veille réglementaire" />,

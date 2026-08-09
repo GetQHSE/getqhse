@@ -3,6 +3,7 @@ import * as React from "react";
 import { NavMain, type MainNavItem } from "#components/nav-main";
 import { NavUser, type SidebarUser } from "#components/nav-user";
 import { TeamSwitcher, type SidebarTeam } from "#components/team-switcher";
+import { ProjectSwitcher, type SidebarProject } from "#components/project-switcher";
 import {
   Sidebar,
   SidebarContent,
@@ -14,7 +15,7 @@ import {
   SidebarRail,
 } from "@qhse/ui/components/sidebar";
 import {
-  ArrowLeftIcon,
+  LayoutDashboardIcon,
   FolderKanbanIcon,
   MessageSquareTextIcon,
   ScaleIcon,
@@ -27,6 +28,7 @@ import { Link, useLocation } from "react-router-dom";
 export type AppSidebarProject = { name: string; slug: string };
 
 const organizationNav: MainNavItem[] = [
+  { title: "Vue d’ensemble", url: "/", icon: <LayoutDashboardIcon />, end: true },
   { title: "Projets", url: "/projects", icon: <FolderKanbanIcon /> },
   { title: "Équipe", url: "/team", icon: <UsersIcon /> },
 ];
@@ -49,6 +51,7 @@ export function AppSidebar({
   teams,
   activeTeamId,
   activeProject,
+  projects = [],
   onSelectTeam,
   onLogout,
   ...props
@@ -57,6 +60,7 @@ export function AppSidebar({
   teams: SidebarTeam[];
   activeTeamId?: string | undefined;
   activeProject?: AppSidebarProject | undefined;
+  projects?: SidebarProject[] | undefined;
   onSelectTeam: (teamId: string) => void | Promise<void>;
   onLogout: () => void | Promise<void>;
 }) {
@@ -64,36 +68,41 @@ export function AppSidebar({
   const settingsUrl = activeProject ? `/projects/${activeProject.slug}/settings` : null;
 
   return (
-    <Sidebar collapsible="icon" {...props}>
-      <SidebarHeader>
-        {activeProject ? (
-          <SidebarMenu>
-            <SidebarMenuItem>
-              <SidebarMenuButton
-                size="lg"
-                tooltip="Retour aux projets"
-                render={<Link to="/projects" />}
-              >
-                <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
-                  <FolderKanbanIcon className="size-4" />
-                </div>
-                <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="truncate font-medium">{activeProject.name}</span>
-                  <span className="flex items-center gap-1 truncate text-xs">
-                    <ArrowLeftIcon className="size-3" /> Organisation
-                  </span>
-                </div>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          </SidebarMenu>
-        ) : (
-          <TeamSwitcher teams={teams} activeTeamId={activeTeamId} onSelectTeam={onSelectTeam} />
-        )}
+    <Sidebar collapsible="icon" className="border-slate-800" {...props}>
+      <SidebarHeader className="gap-3 border-b border-white/10 p-3">
+        <Link
+          to="/"
+          className="flex h-10 items-center gap-3 px-2 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0"
+        >
+          <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-violet-600 text-sm font-bold text-white">
+            Q
+          </span>
+          <div className="min-w-0 group-data-[collapsible=icon]:hidden">
+            <p className="font-semibold tracking-tight text-white">GetQHSE</p>
+            <p className="text-[10px] uppercase tracking-[0.14em] text-slate-500">Workspace</p>
+          </div>
+        </Link>
+        <TeamSwitcher teams={teams} activeTeamId={activeTeamId} onSelectTeam={onSelectTeam} />
+        {activeProject || projects.length > 0 ? (
+          <ProjectSwitcher
+            projects={
+              projects.length > 0
+                ? projects
+                : activeProject
+                  ? [{ id: activeProject.slug, ...activeProject }]
+                  : []
+            }
+            activeProject={
+              projects.find((project) => project.slug === activeProject?.slug) ??
+              (activeProject ? { id: activeProject.slug, ...activeProject } : undefined)
+            }
+          />
+        ) : null}
       </SidebarHeader>
       <SidebarContent>
         <NavMain items={activeProject ? projectNav(activeProject.slug) : organizationNav} />
       </SidebarContent>
-      <SidebarFooter>
+      <SidebarFooter className="border-t border-white/10 p-3">
         {settingsUrl ? (
           <SidebarMenu>
             <SidebarMenuItem>

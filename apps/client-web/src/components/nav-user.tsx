@@ -36,14 +36,18 @@ export function NavUser({
       <SidebarMenuItem>
         <DropdownMenu>
           <DropdownMenuTrigger
-            render={<SidebarMenuButton size="lg" className="aria-expanded:bg-muted" />}
+            render={
+              <SidebarMenuButton size="lg" className="text-slate-300 aria-expanded:bg-white/10" />
+            }
           >
             <Avatar>
-              <AvatarFallback>{initials(user.name, user.email)}</AvatarFallback>
+              <AvatarFallback className="bg-violet-500/20 text-violet-200">
+                {initials(user.name, user.email)}
+              </AvatarFallback>
             </Avatar>
             <div className="grid flex-1 text-left text-sm leading-tight">
               <span className="truncate font-medium">{user.name}</span>
-              <span className="truncate text-xs">{user.email}</span>
+              <span className="truncate text-xs text-slate-500">{user.email}</span>
             </div>
             <ChevronsUpDownIcon className="ml-auto size-4" />
           </DropdownMenuTrigger>

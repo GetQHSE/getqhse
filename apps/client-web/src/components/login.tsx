@@ -5,6 +5,7 @@ import { Input } from "@qhse/ui/components/input";
 import { Controller, useForm } from "react-hook-form";
 import { Link } from "react-router-dom";
 import { z } from "zod";
+import { ArrowRightIcon, CheckCircle2Icon, ShieldCheckIcon, SparklesIcon } from "lucide-react";
 
 import { Logo } from "#components/logo";
 
@@ -31,25 +32,69 @@ export function Login({ mode, isSubmitting = false, error, onSubmit }: LoginProp
   });
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-background">
-      <div className="flex min-h-screen w-full">
-        <div className="relative m-auto flex w-full max-w-sm flex-col items-center p-8 outline-0 outline-border/40 outline-offset-0.5 sm:outline-2 dark:outline-border/80">
-          <div className="absolute inset-x-0 top-0 w-[calc(100%+4rem)] -translate-x-8 border-t max-sm:hidden" />
-          <div className="absolute inset-x-0 bottom-0 w-[calc(100%+4rem)] -translate-x-8 border-b max-sm:hidden" />
-          <div className="absolute inset-y-0 left-0 h-[calc(100%+4rem)] -translate-y-8 border-s max-sm:hidden" />
-          <div className="absolute inset-y-0 right-0 h-[calc(100%+4rem)] -translate-y-8 border-e max-sm:hidden" />
-          <Logo className="h-9 w-9 text-teal-800" />
-          <h1 className="mt-4 text-center font-medium text-xl">
-            {isSignUp ? "Créer un compte QHSE" : "Connexion à QHSE Platform"}
+    <main className="min-h-screen bg-[#f7f7f9] text-slate-950 lg:grid lg:grid-cols-[minmax(28rem,0.9fr)_minmax(32rem,1.1fr)]">
+      <section className="relative hidden min-h-screen overflow-hidden bg-[#080c16] px-12 py-10 text-white lg:flex lg:flex-col">
+        <div className="absolute -left-32 top-40 size-96 rounded-full bg-violet-600/25 blur-3xl" />
+        <div className="absolute -right-24 bottom-10 size-80 rounded-full bg-cyan-400/10 blur-3xl" />
+        <div className="relative flex items-center gap-3">
+          <span className="grid size-11 place-items-center rounded-xl bg-violet-600 shadow-xl shadow-violet-950/50">
+            <Logo className="size-6 text-white" />
+          </span>
+          <div>
+            <p className="font-semibold tracking-tight">GetQHSE</p>
+            <p className="text-xs text-slate-400">Intelligence conformité</p>
+          </div>
+        </div>
+        <div className="relative my-auto max-w-lg py-12">
+          <div className="inline-flex items-center gap-2 rounded-full border border-violet-400/20 bg-violet-400/10 px-3 py-1.5 text-xs font-medium text-violet-200">
+            <SparklesIcon className="size-3.5" /> Conçu pour vos démarches ISO et réglementaires
+          </div>
+          <h2 className="mt-7 text-4xl font-semibold leading-[1.12] tracking-tight xl:text-5xl">
+            La conformité devient un travail d’équipe, guidé par l’IA.
+          </h2>
+          <p className="mt-5 max-w-md text-base leading-7 text-slate-400">
+            Structurez le profil de vos projets, identifiez les exigences applicables et avancez
+            avec des réponses sourcées.
+          </p>
+          <ul className="mt-8 space-y-4 text-sm text-slate-300">
+            {[
+              "Profil projet guidé",
+              "Veille réglementaire contextualisée",
+              "Réponses traçables et sécurisées",
+            ].map((item) => (
+              <li key={item} className="flex items-center gap-3">
+                <CheckCircle2Icon className="size-5 text-emerald-400" /> {item}
+              </li>
+            ))}
+          </ul>
+        </div>
+        <div className="relative flex items-center gap-2 text-xs text-slate-500">
+          <ShieldCheckIcon className="size-4" /> Accès sécurisé et données isolées par organisation
+        </div>
+      </section>
+
+      <section className="flex min-h-screen items-center justify-center px-5 py-10 sm:px-10">
+        <div className="w-full max-w-md">
+          <div className="mb-10 flex items-center gap-3 lg:hidden">
+            <span className="grid size-10 place-items-center rounded-xl bg-violet-600">
+              <Logo className="size-5 text-white" />
+            </span>
+            <span className="font-semibold">GetQHSE</span>
+          </div>
+          <p className="text-sm font-semibold text-violet-700">
+            {isSignUp ? "Commencez votre démarche" : "Heureux de vous revoir"}
+          </p>
+          <h1 className="mt-2 text-3xl font-semibold tracking-tight">
+            {isSignUp ? "Créez votre compte" : "Connectez-vous à votre espace"}
           </h1>
-          <p className="mt-2 text-center text-muted-foreground text-sm">
+          <p className="mt-3 text-sm leading-6 text-slate-600">
             {isSignUp
-              ? "Démarrez votre espace QHSE en quelques étapes."
-              : "Accédez à votre espace QHSE sécurisé."}
+              ? "Quelques minutes suffisent pour configurer votre organisation et votre premier projet."
+              : "Retrouvez vos projets, votre profil et votre veille réglementaire."}
           </p>
 
           <form
-            className="mt-8 w-full space-y-4"
+            className="mt-8 w-full space-y-5"
             onSubmit={(event) => void form.handleSubmit(onSubmit)(event)}
           >
             {isSignUp && (
@@ -62,7 +107,8 @@ export function Login({ mode, isSubmitting = false, error, onSubmit }: LoginProp
                     <Input
                       aria-invalid={fieldState.invalid}
                       autoComplete="name"
-                      className="w-full"
+                      className="h-11 w-full bg-white"
+                      placeholder="Prénom et nom"
                       {...field}
                     />
                     <FieldError errors={[fieldState.error]} />
@@ -79,7 +125,8 @@ export function Login({ mode, isSubmitting = false, error, onSubmit }: LoginProp
                   <Input
                     aria-invalid={fieldState.invalid}
                     autoComplete="email"
-                    className="w-full"
+                    className="h-11 w-full bg-white"
+                    placeholder="nom@entreprise.com"
                     type="email"
                     {...field}
                   />
@@ -96,7 +143,8 @@ export function Login({ mode, isSubmitting = false, error, onSubmit }: LoginProp
                   <Input
                     aria-invalid={fieldState.invalid}
                     autoComplete={isSignUp ? "new-password" : "current-password"}
-                    className="w-full"
+                    className="h-11 w-full bg-white"
+                    placeholder="8 caractères minimum"
                     type="password"
                     {...field}
                   />
@@ -109,29 +157,27 @@ export function Login({ mode, isSubmitting = false, error, onSubmit }: LoginProp
                 {error}
               </p>
             )}
-            <Button className="mt-4 w-full" disabled={isSubmitting} type="submit">
+            <Button
+              className="mt-3 h-11 w-full bg-violet-600 hover:bg-violet-700"
+              disabled={isSubmitting}
+              type="submit"
+            >
               {isSubmitting ? "Veuillez patienter…" : isSignUp ? "S’inscrire" : "Se connecter"}
+              {!isSubmitting && <ArrowRightIcon className="size-4" />}
             </Button>
           </form>
 
           <p className="mt-5 text-center text-sm text-muted-foreground">
             {isSignUp ? "Vous avez déjà un compte ? " : "Pas encore de compte ? "}
-            <Link className="font-medium underline" to={isSignUp ? "/login" : "/sign-up"}>
+            <Link
+              className="font-semibold text-violet-700 hover:text-violet-800"
+              to={isSignUp ? "/login" : "/sign-up"}
+            >
               {isSignUp ? "Se connecter" : "Créer un compte"}
             </Link>
           </p>
         </div>
-        <div className="relative hidden w-full max-w-2xl grow border-l bg-muted lg:block">
-          <div className="absolute inset-0 bg-gradient-to-br from-teal-950 via-teal-800 to-emerald-700" />
-          <div className="relative flex h-full flex-col justify-end p-10 text-white">
-            <p className="text-3xl font-semibold">Pilotez votre conformité ISO 9001.</p>
-            <p className="mt-3 max-w-md text-sm text-white/80">
-              Centralisez organisations, projets, audits et actions QHSE sans modifier les flux
-              d’authentification existants.
-            </p>
-          </div>
-        </div>
-      </div>
+      </section>
     </main>
   );
 }

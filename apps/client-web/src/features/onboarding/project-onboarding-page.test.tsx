@@ -7,6 +7,9 @@ import { describe, expect, it, vi } from "vitest";
 import { ProjectOnboardingPage } from "./project-onboarding-page.js";
 
 vi.mock("../../app/client-api.js", () => ({ clientApi: { createProject: vi.fn() } }));
+vi.mock("../../app/auth.js", () => ({
+  useAuth: () => ({ activeOrganization: { id: "org-1", name: "Acme", slug: "acme" } }),
+}));
 
 describe("ProjectOnboardingPage", () => {
   it("supports suggested and custom activities without duplicates", async () => {
@@ -17,10 +20,10 @@ describe("ProjectOnboardingPage", () => {
         </MemoryRouter>
       </QueryClientProvider>,
     );
-    await userEvent.click(screen.getByRole("button", { name: "Manufacturing" }));
+    await userEvent.click(screen.getByRole("button", { name: "Fabrication" }));
     const custom = screen.getByRole("textbox", { name: "Activité personnalisée" });
     await userEvent.type(custom, "Conseil spécialisé{enter}");
-    expect(screen.getByRole("button", { name: "Retirer Manufacturing" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Retirer Fabrication" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Retirer Conseil spécialisé" })).toBeInTheDocument();
   });
 });

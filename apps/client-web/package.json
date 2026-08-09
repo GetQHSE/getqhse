@@ -19,12 +19,15 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
+    "@ai-sdk/react": "^4.0.61",
     "@hookform/resolvers": "^5.5.7",
     "@qhse/api-client": "workspace:*",
     "@qhse/config": "workspace:*",
     "@qhse/contracts": "workspace:*",
+    "@qhse/profile": "workspace:*",
     "@qhse/ui": "workspace:*",
     "@tanstack/react-query": "^5.101.4",
+    "ai": "^7.0.58",
     "better-auth": "^1.6.25",
     "i18next": "^26.3.6",
     "lucide-react": "^1.28.0",
