@@ -32,25 +32,24 @@ export const updateDocumentSchema = createDocumentSchema
 export type UpdateDocumentInput = z.infer<typeof updateDocumentSchema>;
 
 export const createVersionSchema = z.object({
-  versionLabel: z.string().trim().min(1).max(160),
   revisionDate: z.iso.date().optional(),
+  sourceEdition: z.string().trim().max(160).optional(),
+  sourceUrl: z.url().max(2_000).optional(),
   effectiveDate: z.iso.date().optional(),
   expirationDate: z.iso.date().optional(),
   changeSummary: z.string().trim().max(10_000).optional(),
-  changeType: z.enum([
-    "initial",
-    "minor_revision",
-    "major_revision",
-    "amendment",
-    "correction",
-    "replacement",
-    "translation",
-  ]),
   originalFileName: z.string().trim().min(1).max(255),
   mimeType: z.string().trim().min(1).max(160),
   fileSize: z.number().int().positive(),
   fileHash: z.string().regex(/^[a-f0-9]{64}$/i),
-  supersedesVersionId: z.string().min(1).optional(),
+  rights: z.object({
+    storage: z.literal(true),
+    extraction: z.literal(true),
+    embedding: z.literal(true),
+    aiProcessing: z.literal(true),
+    externalProviderProcessing: z.literal(true),
+    excerptDisplay: z.literal(true),
+  }),
   allowDuplicate: z.boolean().default(false),
 });
 export type CreateVersionInput = z.infer<typeof createVersionSchema>;

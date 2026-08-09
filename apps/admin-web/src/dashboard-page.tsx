@@ -33,7 +33,7 @@ export function DashboardPage() {
         <p className="text-sm text-muted-foreground">Knowledge operations</p>
         <h1 className="text-2xl font-semibold tracking-tight">Document processing</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Review ingestion health and move trusted versions through controlled publication.
+          Review ingestion health and move trusted revisions through controlled publication.
         </p>
       </div>
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -88,7 +88,7 @@ export function DashboardPage() {
                 </Link>
               ))
             ) : (
-              <p className="text-sm text-muted-foreground">No versions have been published yet.</p>
+              <p className="text-sm text-muted-foreground">No revisions have been published yet.</p>
             )}
           </CardContent>
         </Card>

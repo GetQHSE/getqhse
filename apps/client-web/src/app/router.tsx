@@ -10,6 +10,9 @@ import { ProjectOnboardingPage } from "../features/onboarding/project-onboarding
 import { ProjectChatPage } from "../features/projects/project-chat-page.js";
 import { ProjectsPage } from "../features/projects/projects-page.js";
 import { SitesPage } from "../features/sites/sites-page.js";
+import { TestAiChatPage } from "../features/ai-chat/test-ai-chat-page.js";
+import { TestAiChatPage2 } from "../features/ai-chat/test-ai-chat-page-2.js";
+import { TestAiChatPage3 } from "../features/ai-chat/test-ai-chat-page-3.js";
 
 function Placeholder({ title }: { title: string }) {
   return <h1 className="text-2xl font-semibold">{title}</h1>;
@@ -45,6 +48,9 @@ export const router = createBrowserRouter([
     ),
     children: [
       { index: true, element: <DashboardPage /> },
+      { path: "test-ai-chat", element: <TestAiChatPage /> },
+      { path: "test-ai-chat-2", element: <TestAiChatPage2 /> },
+      { path: "test-ai-chat-3", element: <TestAiChatPage3 /> },
       { path: "onboarding/project", element: <ProjectOnboardingPage /> },
       { path: "projects", element: <ProjectsPage /> },
       { path: "projects/:projectId/chat", element: <ProjectChatPage /> },
@@ -53,7 +59,10 @@ export const router = createBrowserRouter([
         path: "projects/:projectId/regulatory-watch",
         element: <Placeholder title="Veille réglementaire" />,
       },
-      { path: "projects/:projectId/settings", element: <Placeholder title="Paramètres du projet" /> },
+      {
+        path: "projects/:projectId/settings",
+        element: <Placeholder title="Paramètres du projet" />,
+      },
       { path: "team", element: <Placeholder title="Équipe" /> },
       {
         path: "sites",

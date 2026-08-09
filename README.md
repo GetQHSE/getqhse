@@ -102,10 +102,8 @@ See `docs/decisions` and `docs/security/tenant-isolation.md` for the complete ra
 - Database-backed tenant tests for resources that do not yet have implementations.
 - Full object-storage upload/signing and file malware scanning.
 - Production report rendering and notification delivery.
-- Exact per-page Docling normalization (the boundary currently returns normalized whole-document
-  Markdown as one page).
 - Provider-specific Terraform, RLS policies, backup/restore automation, and SLO dashboards.
-- Real AI providers, prompt versioning, and large quality datasets.
+- Chat generation, tenant-private RAG, prompt versioning, and production-scale quality datasets.
 - Load, stress, and soak profiles beyond the k6 smoke test.
 - Route-level frontend code splitting; the initial representative shell currently emits a 534 kB
   minified JavaScript bundle.

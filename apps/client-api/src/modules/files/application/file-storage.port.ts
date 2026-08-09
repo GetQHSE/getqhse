@@ -12,7 +12,15 @@ export type SignedUpload = {
   expiresAt: Date;
 };
 
+export type StoredObjectInfo = {
+  contentType: string | null;
+  sizeBytes: number;
+  checksum: string | null;
+};
+
 export abstract class FileStorage {
   abstract createUploadUrl(request: UploadRequest): Promise<SignedUpload>;
   abstract createDownloadUrl(organizationId: string, objectKey: string): Promise<string>;
+  abstract inspectObject(organizationId: string, objectKey: string): Promise<StoredObjectInfo>;
+  abstract readObject(organizationId: string, objectKey: string): Promise<Uint8Array>;
 }

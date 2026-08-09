@@ -1,4 +1,4 @@
-import { Controller, Get, Req } from "@nestjs/common";
+import { Controller, Get, Inject, Req } from "@nestjs/common";
 import { ApiCookieAuth, ApiOkResponse, ApiTags } from "@nestjs/swagger";
 import type { Request } from "express";
 
@@ -8,7 +8,7 @@ import { OnboardingService } from "../application/onboarding.service.js";
 @ApiCookieAuth()
 @Controller("v1/onboarding")
 export class OnboardingController {
-  constructor(private readonly onboarding: OnboardingService) {}
+  constructor(@Inject(OnboardingService) private readonly onboarding: OnboardingService) {}
 
   @Get("status")
   @ApiOkResponse({ description: "Authentication and onboarding routing status" })

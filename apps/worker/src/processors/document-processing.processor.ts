@@ -1,16 +1,77 @@
 import { Processor, WorkerHost } from "@nestjs/bullmq";
 import { GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
-import { createPrismaClient, type DatabaseClient } from "@qhse/database";
+import { createPrismaClient, type DatabaseClient, type Prisma } from "@qhse/database";
 import type { ProcessingJobType } from "@qhse/documents";
+import {
+  assertRevisionRight,
+  chunkNormativeProvisions,
+  detectNormativeProvisions,
+  normalizeExtractedText,
+  type ExtractedPage,
+  type NormativeLanguage,
+  type ProvisionType,
+  type RevisionRights,
+} from "@qhse/knowledge";
 import type { Job } from "bullmq";
-import { createHash } from "node:crypto";
 
 type PipelinePayload = { documentId: string; versionId: string; jobIds: string[] };
 
 type ExtractedDocument = {
   text: string;
   pages: Array<{ pageNumber: number; text: string }>;
+  blocks: Array<{
+    blockType: string;
+    text: string;
+    pageNumber: number;
+    boundingBox?: number[];
+  }>;
+  provider: "docling" | "native_text";
+  metadata: Record<string, string>;
 };
+
+function revisionRights(version: {
+  storageAllowed: boolean;
+  extractionAllowed: boolean;
+  embeddingAllowed: boolean;
+  aiProcessingAllowed: boolean;
+  externalProviderAllowed: boolean;
+  excerptDisplayAllowed: boolean;
+}): RevisionRights {
+  return {
+    storage: version.storageAllowed,
+    extraction: version.extractionAllowed,
+    embedding: version.embeddingAllowed,
+    aiProcessing: version.aiProcessingAllowed,
+    externalProviderProcessing: version.externalProviderAllowed,
+    excerptDisplay: version.excerptDisplayAllowed,
+  };
+}
+
+function normativeLanguage(language: string): NormativeLanguage {
+  return language.toLowerCase().startsWith("ar") ? "ar" : "fr";
+}
+
+const MAX_PROVIDER_ERROR_LENGTH = 1_000;
+
+async function doclingError(response: Response) {
+  let detail = "";
+  try {
+    const body = (await response.text()).trim();
+    if (body) {
+      try {
+        const parsed = JSON.parse(body) as { detail?: unknown };
+        detail = typeof parsed.detail === "string" ? parsed.detail : body;
+      } catch {
+        detail = body;
+      }
+    }
+  } catch {
+    // The HTTP status is still useful when the response body cannot be read.
+  }
+  const status = [response.status, response.statusText].filter(Boolean).join(" ");
+  const suffix = detail ? `: ${detail.slice(0, MAX_PROVIDER_ERROR_LENGTH)}` : "";
+  return new Error(`Docling extraction failed (${status})${suffix}`);
+}
 
 export function detectSections(text: string) {
   const paragraphs = text
@@ -107,7 +168,7 @@ export class DocumentProcessingProcessor extends WorkerHost {
             workerVersion: this.workerVersion,
           },
         });
-        const result = await this.runStage(stage.jobType as ProcessingJobType, versionId);
+        const result = await this.runStage(stage.jobType as ProcessingJobType, versionId, stage.id);
         await this.database.documentProcessingJob.update({
           where: { id: stage.id },
           data: {
@@ -188,10 +249,11 @@ export class DocumentProcessingProcessor extends WorkerHost {
   private async runStage(
     jobType: ProcessingJobType,
     versionId: string,
+    processingJobId: string,
   ): Promise<{
     skipped?: boolean;
     outputLocation?: string;
-    metadata?: Record<string, string | boolean>;
+    metadata?: Prisma.InputJsonObject;
     quality?: number;
   }> {
     const version = await this.database.documentVersion.findUniqueOrThrow({
@@ -213,23 +275,38 @@ export class DocumentProcessingProcessor extends WorkerHost {
           quality: 0.8,
         };
       case "text_extraction": {
+        assertRevisionRight(revisionRights(version), "extract");
+        assertRevisionRight(revisionRights(version), "external-process");
         const raw = `documents/${version.documentId}/versions/${version.id}/extracted/raw.txt`;
         const normalized = `documents/${version.documentId}/versions/${version.id}/extracted/normalized.txt`;
+        const pagesLocation = `documents/${version.documentId}/versions/${version.id}/extracted/pages.json`;
+        const blocksLocation = `documents/${version.documentId}/versions/${version.id}/extracted/blocks.json`;
         const extracted = await this.extract(
           version.storageKey,
           version.originalFileName,
           version.mimeType,
+          processingJobId,
         );
-        const normalizedText = extracted.text.replaceAll("\r\n", "\n").trim();
+        const normalizedPages = extracted.pages.map((page) => ({
+          pageNumber: page.pageNumber,
+          text: normalizeExtractedText(page.text),
+        }));
+        const normalizedText = normalizeExtractedText(
+          normalizedPages.length
+            ? normalizedPages.map(({ text }) => text).join("\n\n")
+            : extracted.text,
+        );
         if (!normalizedText) throw new Error("Document extraction returned no text");
         await Promise.all([
           this.putText(raw, extracted.text),
           this.putText(normalized, normalizedText),
+          this.putJson(pagesLocation, normalizedPages),
+          this.putJson(blocksLocation, extracted.blocks),
         ]);
         await this.database.documentVersion.update({
           where: { id: versionId },
           data: {
-            extractionMethod: process.env["DOCUMENT_EXTRACTION_PROVIDER"] ?? "mock",
+            extractionMethod: extracted.provider,
             rawExtractedTextLocation: raw,
             normalizedTextLocation: normalized,
             pageCount: extracted.pages.length || 1,
@@ -240,8 +317,12 @@ export class DocumentProcessingProcessor extends WorkerHost {
         return {
           outputLocation: normalized,
           metadata: {
-            provider: process.env["DOCUMENT_EXTRACTION_PROVIDER"] ?? "docling",
-            characters: String(normalizedText.length),
+            provider: extracted.provider,
+            characters: normalizedText.length,
+            pages: extracted.pages.length || 1,
+            ...(Object.keys(extracted.metadata).length
+              ? { providerMetadata: extracted.metadata }
+              : {}),
           },
           quality: 0.9,
         };
@@ -262,23 +343,14 @@ export class DocumentProcessingProcessor extends WorkerHost {
         };
       }
       case "metadata_detection":
-        await this.database.documentMetadataSuggestion.upsert({
-          where: {
-            documentVersionId_fieldName: {
-              documentVersionId: versionId,
-              fieldName: "versionLabel",
-            },
+        return {
+          metadata: {
+            provider: "rules",
+            revisionLabel: "platform_derived",
+            reviewRequired: false,
           },
-          update: {},
-          create: {
-            documentVersionId: versionId,
-            fieldName: "versionLabel",
-            suggestedValue: version.versionLabel,
-            confidenceScore: 1,
-            sourceText: version.versionLabel,
-          },
-        });
-        return { metadata: { provider: "rules", reviewRequired: true }, quality: 0.7 };
+          quality: 1,
+        };
       case "language_detection":
         return {
           metadata: { language: version.document.language, provider: "document_metadata" },
@@ -286,8 +358,15 @@ export class DocumentProcessingProcessor extends WorkerHost {
         };
       case "structure_detection": {
         const text = await this.getText(version.normalizedTextLocation);
+        const pages = await this.getExtractedPages(version.documentId, version.id, text);
         const sections = detectSections(text);
+        const provisions = detectNormativeProvisions(
+          pages,
+          normativeLanguage(version.document.language),
+        );
         await this.database.$transaction([
+          this.database.documentChunk.deleteMany({ where: { documentVersionId: versionId } }),
+          this.database.documentProvision.deleteMany({ where: { documentVersionId: versionId } }),
           this.database.documentSection.deleteMany({ where: { documentVersionId: versionId } }),
           this.database.documentSection.createMany({
             data: sections.map((section) => ({
@@ -300,8 +379,36 @@ export class DocumentProcessingProcessor extends WorkerHost {
               sourceLocation: { method: "text_structure" },
             })),
           }),
+          this.database.documentProvision.createMany({
+            data: provisions.map((provision) => ({
+              documentVersionId: versionId,
+              provisionType: provision.type.toUpperCase() as
+                "CLAUSE" | "ARTICLE" | "DEFINITION" | "ANNEX" | "TABLE" | "NOTE" | "SECTION",
+              sourceIdentifier: provision.sourceIdentifier,
+              title: provision.title,
+              headingPath: provision.headingPath,
+              language: provision.language,
+              content: provision.content,
+              contentHash: provision.contentHash,
+              pageStart: provision.pageStart,
+              pageEnd: provision.pageEnd,
+              orderIndex: provision.orderIndex,
+              sourceLocation: {
+                pageStart: provision.pageStart,
+                pageEnd: provision.pageEnd,
+                method: "normative-structure-v1",
+              },
+            })),
+          }),
         ]);
-        return { metadata: { provider: "rules", sections: String(sections.length) }, quality: 0.7 };
+        return {
+          metadata: {
+            provider: "normative-structure-v1",
+            sections: String(sections.length),
+            provisions: String(provisions.length),
+          },
+          quality: provisions.length ? 0.9 : 0.5,
+        };
       }
       case "classification": {
         const text = (await this.getText(version.normalizedTextLocation)).toLowerCase();
@@ -337,35 +444,64 @@ export class DocumentProcessingProcessor extends WorkerHost {
         };
       }
       case "chunking": {
-        const text = await this.getText(version.normalizedTextLocation);
-        const chunks = chunkText(text);
-        const sections = await this.database.documentSection.findMany({
+        const provisions = await this.database.documentProvision.findMany({
           where: { documentVersionId: versionId },
           orderBy: { orderIndex: "asc" },
         });
+        const chunks = chunkNormativeProvisions(
+          provisions.map((provision) => ({
+            type: provision.provisionType.toLowerCase() as ProvisionType,
+            sourceIdentifier: provision.sourceIdentifier,
+            title: provision.title,
+            headingPath: provision.headingPath,
+            language: normativeLanguage(provision.language),
+            content: provision.content,
+            contentHash: provision.contentHash,
+            pageStart: provision.pageStart ?? 1,
+            pageEnd: provision.pageEnd ?? provision.pageStart ?? 1,
+            orderIndex: provision.orderIndex,
+          })),
+          {
+            documentTitle: version.document.title,
+            referenceNumber: version.document.referenceNumber,
+            sourceEdition: version.sourceEdition,
+          },
+        );
+        const provisionIds = new Map(
+          provisions.map((provision) => [provision.orderIndex, provision.id]),
+        );
         await this.database.$transaction([
           this.database.documentChunk.deleteMany({ where: { documentVersionId: versionId } }),
           this.database.documentChunk.createMany({
-            data: chunks.map((content, chunkIndex) => ({
+            data: chunks.map((content) => ({
               documentVersionId: versionId,
-              documentSectionId: sections[Math.min(chunkIndex, sections.length - 1)]?.id ?? null,
-              chunkIndex,
-              content,
-              tokenCount: Math.ceil(content.length / 4),
-              contentHash: createHash("sha256").update(content).digest("hex"),
-              chunkingVersion: "paragraph-v1",
+              documentProvisionId: provisionIds.get(content.provisionOrderIndex) ?? null,
+              chunkIndex: content.chunkIndex,
+              content: content.content,
+              searchText: content.searchText,
+              language: content.language,
+              headingPath: content.headingPath,
+              tokenCount: content.tokenCount,
+              pageStart: content.pageStart,
+              pageEnd: content.pageEnd,
+              contentHash: content.contentHash,
+              chunkingVersion: "normative-v1",
               embeddingStatus: "PENDING",
-              sourceLocation: { chunkIndex },
+              sourceLocation: {
+                provisionOrderIndex: content.provisionOrderIndex,
+                pageStart: content.pageStart,
+                pageEnd: content.pageEnd,
+              },
             })),
           }),
           this.database.documentVersion.update({
             where: { id: versionId },
-            data: { chunkingVersion: "paragraph-v1" },
+            data: { chunkingVersion: "normative-v1" },
           }),
         ]);
         return {
-          metadata: { provider: "paragraph-v1", chunks: String(chunks.length) },
-          quality: 0.8,
+          metadata: { provider: "normative-v1", chunks: String(chunks.length) },
+          quality: 0.9,
         };
       }
       case "quality_checks": {
@@ -418,8 +554,11 @@ export class DocumentProcessingProcessor extends WorkerHost {
         };
       }
       case "embedding_preparation":
-        return process.env["DOCUMENT_EMBEDDINGS_ENABLED"] === "true"
-          ? { metadata: { configured: true } }
+        assertRevisionRight(revisionRights(version), "embed");
+        assertRevisionRight(revisionRights(version), "ai-process");
+        assertRevisionRight(revisionRights(version), "external-process");
+        return process.env["NORMATIVE_RAG_ENABLED"] === "true"
+          ? { metadata: { configured: true, queue: "embedding-generation" } }
           : { skipped: true, metadata: { reason: "disabled" } };
       default:
         return { metadata: { provider: "mock", reviewRequired: true }, quality: 0.5 };
@@ -430,6 +569,7 @@ export class DocumentProcessingProcessor extends WorkerHost {
     storageKey: string,
     fileName: string,
     mimeType: string,
+    correlationId: string,
   ): Promise<ExtractedDocument> {
     const object = await this.storage.send(
       new GetObjectCommand({ Bucket: this.bucket, Key: storageKey }),
@@ -438,19 +578,33 @@ export class DocumentProcessingProcessor extends WorkerHost {
     const bytes = await object.Body.transformToByteArray();
     if (mimeType.startsWith("text/") || mimeType === "application/json") {
       const text = new TextDecoder().decode(bytes);
-      return { text, pages: [{ pageNumber: 1, text }] };
+      return {
+        text,
+        pages: [{ pageNumber: 1, text }],
+        blocks: [{ blockType: "paragraph", pageNumber: 1, text }],
+        provider: "native_text",
+        metadata: {},
+      };
     }
     const form = new FormData();
     form.append("file", new Blob([bytes.slice().buffer], { type: mimeType }), fileName);
     const response = await fetch(`${process.env["DOCLING_URL"]}/v1/extract`, {
       method: "POST",
       body: form,
+      headers: { "x-correlation-id": correlationId },
       signal: AbortSignal.timeout(10 * 60 * 1_000),
     });
-    if (!response.ok) throw new Error(`Docling extraction failed: ${response.status}`);
+    if (!response.ok) throw await doclingError(response);
     const result = (await response.json()) as {
       text: string;
       pages?: Array<{ page_number: number; text: string }>;
+      blocks?: Array<{
+        block_type: string;
+        text: string;
+        page_number: number;
+        bounding_box?: number[];
+      }>;
+      metadata?: Record<string, string>;
     };
     return {
       text: result.text,
@@ -458,6 +612,14 @@ export class DocumentProcessingProcessor extends WorkerHost {
         pageNumber: page.page_number,
         text: page.text,
       })),
+      blocks: (result.blocks ?? []).map((block) => ({
+        blockType: block.block_type,
+        text: block.text,
+        pageNumber: block.page_number,
+        ...(block.bounding_box ? { boundingBox: block.bounding_box } : {}),
+      })),
+      provider: "docling",
+      metadata: result.metadata ?? {},
     };
   }
 
@@ -470,6 +632,35 @@ export class DocumentProcessingProcessor extends WorkerHost {
         ContentType: "text/plain; charset=utf-8",
       }),
     );
+  }
+
+  private async putJson(key: string, value: unknown) {
+    await this.storage.send(
+      new PutObjectCommand({
+        Bucket: this.bucket,
+        Key: key,
+        Body: JSON.stringify(value),
+        ContentType: "application/json; charset=utf-8",
+      }),
+    );
+  }
+
+  private async getExtractedPages(
+    documentId: string,
+    versionId: string,
+    fallbackText: string,
+  ): Promise<ExtractedPage[]> {
+    const key = `documents/${documentId}/versions/${versionId}/extracted/pages.json`;
+    try {
+      const object = await this.storage.send(
+        new GetObjectCommand({ Bucket: this.bucket, Key: key }),
+      );
+      if (!object.Body) return [{ pageNumber: 1, text: fallbackText }];
+      const parsed = JSON.parse(await object.Body.transformToString()) as ExtractedPage[];
+      return parsed.length ? parsed : [{ pageNumber: 1, text: fallbackText }];
+    } catch {
+      return [{ pageNumber: 1, text: fallbackText }];
+    }
   }
 
   private async getText(key: string | null) {

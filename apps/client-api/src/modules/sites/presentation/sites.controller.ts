@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Query, Req, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, Inject, Post, Query, Req, UseGuards } from "@nestjs/common";
 import { ApiCookieAuth, ApiHeader, ApiOkResponse, ApiTags } from "@nestjs/swagger";
 import { createSiteSchema, paginationQuerySchema, type CreateSite } from "@qhse/contracts";
 
@@ -19,7 +19,7 @@ export class CreateSiteDto implements CreateSite {
 @UseGuards(TenantContextGuard)
 @Controller("v1/sites")
 export class SitesController {
-  constructor(private readonly sites: SitesService) {}
+  constructor(@Inject(SitesService) private readonly sites: SitesService) {}
 
   @Get()
   @ApiOkResponse({ description: "Tenant-scoped site page" })

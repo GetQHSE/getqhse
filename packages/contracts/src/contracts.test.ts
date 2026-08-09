@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 
-import { apiErrorSchema, createSiteSchema } from "./index.js";
+import {
+  apiErrorSchema,
+  createSiteSchema,
+  createFileUploadSchema,
+  projectProfileAnswerInputSchema,
+  projectProfileStreamRequestSchema,
+  updateProjectProfileSchema,
+} from "./index.js";
 
 describe("public contracts", () => {
   it("rejects an empty site code", () => {
@@ -17,6 +24,55 @@ describe("public contracts", () => {
         message: "Missing",
         timestamp: new Date().toISOString(),
         path: "/sites/1",
+      }).success,
+    ).toBe(false);
+  });
+
+  it("requires profile revision control and valid not-applicable reasons", () => {
+    expect(
+      updateProjectProfileSchema.safeParse({
+        revision: 2,
+        answers: [{ key: "organization.mission", value: "Servir nos clients" }],
+      }).success,
+    ).toBe(true);
+    expect(
+      projectProfileAnswerInputSchema.safeParse({
+        key: "operations.recurrentIssues",
+        status: "NOT_APPLICABLE",
+      }).success,
+    ).toBe(false);
+  });
+
+  it("accepts AI SDK UI messages and rejects unsupported attachment counts", () => {
+    expect(
+      projectProfileStreamRequestSchema.safeParse({
+        messages: [{ id: "user-1", role: "user", parts: [{ type: "text", text: "Bonjour" }] }],
+      }).success,
+    ).toBe(true);
+    expect(
+      projectProfileStreamRequestSchema.safeParse({
+        messages: [{ id: "user-1", role: "user", parts: [{ type: "text", text: "Bonjour" }] }],
+        attachmentIds: Array.from({ length: 11 }, (_, index) => `file-${index}`),
+      }).success,
+    ).toBe(false);
+  });
+
+  it("requires a SHA-256 checksum for durable uploads", () => {
+    expect(
+      createFileUploadSchema.safeParse({
+        fileName: "voice.webm",
+        contentType: "audio/webm",
+        sizeBytes: 1_024,
+        checksum: "a".repeat(64),
+        purpose: "VOICE_NOTE",
+      }).success,
+    ).toBe(true);
+    expect(
+      createFileUploadSchema.safeParse({
+        fileName: "voice.webm",
+        contentType: "audio/webm",
+        sizeBytes: 1_024,
+        checksum: "not-a-checksum",
       }).success,
     ).toBe(false);
   });

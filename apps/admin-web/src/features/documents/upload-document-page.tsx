@@ -16,12 +16,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 
 import { adminApi, sha256 } from "../../lib/admin-api.js";
 
-const steps = [
-  "Select files",
-  "Detected metadata",
-  "Classification",
-  "Version",
-];
+const steps = ["Select files", "Detected metadata", "Classification", "Rights & source"];
 const accepted = ".pdf,.docx,.txt,.md,.markdown,.csv,.xlsx,.png,.jpg,.jpeg,.tif,.tiff";
 
 export function UploadDocumentPage() {
@@ -41,9 +36,20 @@ export function UploadDocumentPage() {
     sourceType: "official",
     language: "fr",
     countryCode: "MA",
-    versionLabel: "1",
-    changeType: "initial",
+    sourceEdition: "",
+    effectiveDate: "",
+    sourceUrl: "",
+    changeSummary: "",
   });
+  const [rights, setRights] = useState({
+    storage: false,
+    extraction: false,
+    embedding: false,
+    aiProcessing: false,
+    externalProviderProcessing: false,
+    excerptDisplay: false,
+  });
+  const allRightsConfirmed = Object.values(rights).every(Boolean);
   const set = (key: keyof typeof form, value: string) =>
     setForm((current) => ({ ...current, [key]: value }));
   const choose = (files: FileList | null) => {
@@ -76,18 +82,22 @@ export function UploadDocumentPage() {
               sourceType: form.sourceType,
               language: form.language,
               countryCode: form.countryCode,
-              visibility: "platform_internal",
+              visibility:
+                form.sourceType === "licensed" ? "organization_available" : "public_reference",
             }),
           });
       const version = await adminApi<{ id: string }>(`/v1/documents/${document.id}/versions`, {
         method: "POST",
         body: JSON.stringify({
-          versionLabel: form.versionLabel,
-          changeType: form.changeType,
+          sourceEdition: form.sourceEdition || undefined,
+          effectiveDate: form.effectiveDate || undefined,
+          sourceUrl: form.sourceUrl || undefined,
+          changeSummary: form.changeSummary || undefined,
           originalFileName: file.name,
           mimeType: file.type || mimeFor(file.name),
           fileSize: file.size,
           fileHash: checksum,
+          rights,
           allowDuplicate: false,
         }),
       });
@@ -130,7 +140,7 @@ export function UploadDocumentPage() {
       <div>
         <p className="text-sm text-muted-foreground">Knowledge sources / Upload</p>
         <h1 className="text-2xl font-semibold tracking-tight">
-          {existingDocumentId ? "Upload a new version" : "Ingest a document"}
+          {existingDocumentId ? "Replace document" : "Upload document"}
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
           The document remains unavailable downstream until validation and publication.
@@ -288,39 +298,73 @@ export function UploadDocumentPage() {
           ) : null}
           {step === 3 ? (
             <div className="grid gap-4 md:grid-cols-2">
-              <Field label="Version label">
+              <Field label="Official edition">
                 <Input
-                  required
-                  value={form.versionLabel}
-                  onChange={(event) => set("versionLabel", event.target.value)}
+                  value={form.sourceEdition}
+                  onChange={(event) => set("sourceEdition", event.target.value)}
+                  placeholder="e.g. ISO 9001:2015"
                 />
               </Field>
-              <Field label="Change type">
-                <NativeSelect
-                  className="w-full"
-                  value={form.changeType}
-                  onChange={(event) => set("changeType", event.target.value)}
-                >
-                  {[
-                    "initial",
-                    "minor_revision",
-                    "major_revision",
-                    "amendment",
-                    "correction",
-                    "replacement",
-                    "translation",
-                  ].map((value) => (
-                    <NativeSelectOption key={value} value={value}>
-                      {value.replaceAll("_", " ")}
-                    </NativeSelectOption>
-                  ))}
-                </NativeSelect>
+              <Field label="Effective date">
+                <Input
+                  type="date"
+                  value={form.effectiveDate}
+                  onChange={(event) => set("effectiveDate", event.target.value)}
+                />
               </Field>
-              <div className="md:col-span-2 rounded-xl border p-4 text-sm">
-                <p className="font-medium">Immutable source</p>
+              <Field label="Official source URL" wide>
+                <Input
+                  type="url"
+                  value={form.sourceUrl}
+                  onChange={(event) => set("sourceUrl", event.target.value)}
+                  placeholder="https://…"
+                />
+              </Field>
+              <Field label="Change summary" wide>
+                <Textarea
+                  value={form.changeSummary}
+                  onChange={(event) => set("changeSummary", event.target.value)}
+                  placeholder={
+                    existingDocumentId
+                      ? "What changed in this replacement?"
+                      : "Optional source notes"
+                  }
+                />
+              </Field>
+              <div className="md:col-span-2 space-y-3 rounded-xl border p-4 text-sm">
+                <div>
+                  <p className="font-medium">Rights confirmation</p>
+                  <p className="text-muted-foreground">
+                    Confirm each permitted use for this source. Nothing is enabled by default.
+                  </p>
+                </div>
+                <div className="grid gap-2 md:grid-cols-2">
+                  {(
+                    [
+                      ["storage", "Store the immutable source"],
+                      ["extraction", "Extract and structure its text"],
+                      ["embedding", "Create search embeddings"],
+                      ["aiProcessing", "Process it with AI"],
+                      ["externalProviderProcessing", "Send derived text to OpenAI"],
+                      ["excerptDisplay", "Display bounded source excerpts"],
+                    ] as const
+                  ).map(([key, label]) => (
+                    <label key={key} className="flex items-start gap-2 rounded-lg border p-3">
+                      <input
+                        type="checkbox"
+                        className="mt-0.5 size-4"
+                        checked={rights[key]}
+                        onChange={(event) =>
+                          setRights((current) => ({ ...current, [key]: event.target.checked }))
+                        }
+                      />
+                      <span>{label}</span>
+                    </label>
+                  ))}
+                </div>
                 <p className="text-muted-foreground">
-                  Publishing locks this version. Content or legal-meaning changes require a new
-                  version.
+                  The platform assigns the internal revision automatically. Replacements never
+                  overwrite a published source or its citations.
                 </p>
               </div>
             </div>
@@ -348,7 +392,7 @@ export function UploadDocumentPage() {
                 Continue
               </Button>
             ) : (
-              <Button type="submit" disabled={busy || !file}>
+              <Button type="submit" disabled={busy || !file || !allRightsConfirmed}>
                 {busy ? <Loader2Icon className="animate-spin" /> : <FileUpIcon />} Upload and
                 process
               </Button>

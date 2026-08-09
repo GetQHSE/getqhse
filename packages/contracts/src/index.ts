@@ -1,3 +1,9 @@
+import {
+  profileFieldKeySchema,
+  profileFieldSourceSchema,
+  profileFieldStatusSchema,
+  profileStatusSchema,
+} from "@qhse/profile";
 import { z } from "zod";
 
 export const idSchema = z.string().min(1).max(64);
@@ -118,6 +124,235 @@ export const paginatedProjectsSchema = z.object({
 });
 export type PaginatedProjects = z.infer<typeof paginatedProjectsSchema>;
 
+export const projectProfileFieldSchema = z.object({
+  id: idSchema.nullable(),
+  key: profileFieldKeySchema,
+  value: z.unknown().nullable(),
+  status: profileFieldStatusSchema,
+  source: profileFieldSourceSchema.nullable(),
+  confidence: z.number().min(0).max(1).nullable(),
+  notApplicableReason: z.string().nullable(),
+  confirmedAt: isoDateTimeSchema.nullable(),
+  updatedAt: isoDateTimeSchema.nullable(),
+});
+export type ProjectProfileField = z.infer<typeof projectProfileFieldSchema>;
+
+export const projectProfileQuestionSchema = z.object({
+  key: profileFieldKeySchema,
+  section: z.enum([
+    "IDENTITY_ACTIVITY",
+    "SCOPE_GEOGRAPHY",
+    "OPERATIONS_RESOURCES",
+    "EXTERNAL_CONTEXT",
+    "INTERESTED_PARTIES",
+    "STRATEGY_OBJECTIVES",
+  ]),
+  prompt: z.string(),
+  required: z.boolean(),
+  regulatoryCritical: z.boolean(),
+  allowNotApplicable: z.boolean(),
+});
+export type ProjectProfileQuestion = z.infer<typeof projectProfileQuestionSchema>;
+
+export const profileCompletionSchema = z.object({
+  answeredRequired: z.number().int().nonnegative(),
+  totalRequired: z.number().int().positive(),
+  completenessPercent: z.number().int().min(0).max(100),
+  answeredRegulatory: z.number().int().nonnegative(),
+  totalRegulatory: z.number().int().positive(),
+  regulatoryReadiness: z.number().int().min(0).max(100),
+  missingRequiredKeys: z.array(profileFieldKeySchema),
+  missingRegulatoryKeys: z.array(profileFieldKeySchema),
+});
+
+export const projectProfileSchema = z.object({
+  project: projectSchema,
+  profile: z.object({
+    id: idSchema,
+    schemaVersion: z.number().int().positive(),
+    revision: z.number().int().positive(),
+    status: profileStatusSchema,
+    completedAt: isoDateTimeSchema.nullable(),
+    lastReviewedAt: isoDateTimeSchema.nullable(),
+    nextReviewAt: isoDateTimeSchema.nullable(),
+    createdAt: isoDateTimeSchema,
+    updatedAt: isoDateTimeSchema,
+  }),
+  fields: z.array(projectProfileFieldSchema),
+  completion: profileCompletionSchema,
+  nextQuestion: projectProfileQuestionSchema.nullable(),
+});
+export type ProjectProfile = z.infer<typeof projectProfileSchema>;
+
+export const projectProfileAnswerInputSchema = z
+  .object({
+    key: profileFieldKeySchema,
+    value: z.unknown().optional(),
+    status: z.enum(["ANSWERED", "NOT_APPLICABLE"]).default("ANSWERED"),
+    notApplicableReason: z.string().trim().min(3).max(1_000).optional(),
+  })
+  .superRefine((answer, context) => {
+    if (answer.status === "ANSWERED" && answer.value === undefined) {
+      context.addIssue({ code: "custom", path: ["value"], message: "value is required" });
+    }
+    if (answer.status === "NOT_APPLICABLE" && !answer.notApplicableReason) {
+      context.addIssue({
+        code: "custom",
+        path: ["notApplicableReason"],
+        message: "notApplicableReason is required",
+      });
+    }
+  });
+
+export const updateProjectProfileSchema = z.object({
+  revision: z.number().int().positive(),
+  answers: z.array(projectProfileAnswerInputSchema).min(1).max(33),
+  changeReason: z.string().trim().max(1_000).optional(),
+});
+export type UpdateProjectProfile = z.infer<typeof updateProjectProfileSchema>;
+
+export const aiModuleSchema = z.enum(["PROFILE_COMPLETION", "NORMATIVE_WATCH"]);
+export type AiModule = z.infer<typeof aiModuleSchema>;
+
+export const projectProfileChatRequestSchema = z.object({
+  message: z.string().trim().min(1).max(4_000),
+  messageId: z.string().trim().min(1).max(128).optional(),
+  conversationId: idSchema.optional(),
+  language: z.enum(["fr", "ar"]).default("fr"),
+  module: aiModuleSchema.default("PROFILE_COMPLETION"),
+  attachmentIds: z.array(idSchema).max(10).default([]),
+});
+export type ProjectProfileChatRequest = z.infer<typeof projectProfileChatRequestSchema>;
+
+export const projectProfileMessageSchema = z.object({
+  id: idSchema,
+  role: z.enum(["USER", "ASSISTANT", "SYSTEM", "TOOL"]),
+  content: z.string(),
+  clientMessageId: z.string().nullable().optional(),
+  replyToMessageId: idSchema.nullable().optional(),
+  attachments: z
+    .array(
+      z.object({
+        id: idSchema,
+        fileName: z.string(),
+        contentType: z.string(),
+        sizeBytes: z.number().int().nonnegative(),
+        purpose: z.enum(["CHAT_ATTACHMENT", "VOICE_NOTE", "EVIDENCE"]),
+      }),
+    )
+    .optional(),
+  createdAt: isoDateTimeSchema,
+});
+export type ProjectProfileMessage = z.infer<typeof projectProfileMessageSchema>;
+
+export const projectProfileConversationSchema = z.object({
+  id: idSchema,
+  status: z.enum(["ACTIVE", "COMPLETED", "ABANDONED"]),
+  language: z.enum(["fr", "ar"]),
+  currentQuestionKey: profileFieldKeySchema.nullable(),
+  messages: z.array(projectProfileMessageSchema),
+  createdAt: isoDateTimeSchema,
+  updatedAt: isoDateTimeSchema,
+});
+export type ProjectProfileConversation = z.infer<typeof projectProfileConversationSchema>;
+
+export const projectProfileChatResponseSchema = z.object({
+  conversationId: idSchema,
+  message: projectProfileMessageSchema,
+  acceptedKeys: z.array(profileFieldKeySchema),
+  rejectedAnswers: z.array(z.object({ key: profileFieldKeySchema, reason: z.string() })),
+  profile: projectProfileSchema,
+});
+export type ProjectProfileChatResponse = z.infer<typeof projectProfileChatResponseSchema>;
+
+const uiTextPartSchema = z.object({
+  type: z.literal("text"),
+  text: z.string().max(4_000),
+});
+
+const uiFilePartSchema = z.object({
+  type: z.literal("file"),
+  mediaType: z.string().max(200),
+  filename: z.string().max(500).optional(),
+  url: z.string().max(2_000).optional(),
+});
+
+export const projectProfileUiMessageSchema = z.object({
+  id: z.string().trim().min(1).max(128),
+  role: z.enum(["user", "assistant", "system"]),
+  parts: z.array(z.union([uiTextPartSchema, uiFilePartSchema])).max(50),
+});
+
+export const projectProfileStreamRequestSchema = z.object({
+  id: idSchema.optional(),
+  conversationId: idSchema.optional(),
+  messages: z.array(projectProfileUiMessageSchema).min(1).max(100),
+  trigger: z.enum(["submit-message", "regenerate-message"]).optional(),
+  messageId: z.string().max(128).optional(),
+  language: z.enum(["fr", "ar"]).default("fr"),
+  module: aiModuleSchema.default("PROFILE_COMPLETION"),
+  attachmentIds: z.array(idSchema).max(10).default([]),
+});
+export type ProjectProfileStreamRequest = z.infer<typeof projectProfileStreamRequestSchema>;
+
+export const filePurposeSchema = z.enum(["CHAT_ATTACHMENT", "VOICE_NOTE", "EVIDENCE"]);
+export const fileUploadStatusSchema = z.enum(["PENDING", "READY", "REJECTED"]);
+
+export const createFileUploadSchema = z.object({
+  fileName: z.string().trim().min(1).max(500),
+  contentType: z.string().trim().min(3).max(200),
+  sizeBytes: z.number().int().positive().max(100_000_000),
+  checksum: z.string().regex(/^[a-fA-F0-9]{64}$/),
+  purpose: filePurposeSchema.default("CHAT_ATTACHMENT"),
+});
+export type CreateFileUpload = z.infer<typeof createFileUploadSchema>;
+
+export const fileObjectSchema = z.object({
+  id: idSchema,
+  originalName: z.string(),
+  contentType: z.string(),
+  sizeBytes: z.number().int().nonnegative(),
+  checksum: z.string(),
+  purpose: filePurposeSchema,
+  uploadStatus: fileUploadStatusSchema,
+  verifiedAt: isoDateTimeSchema.nullable(),
+  createdAt: isoDateTimeSchema,
+});
+
+export const fileUploadResponseSchema = z.object({
+  file: fileObjectSchema,
+  upload: z.object({ url: z.url(), expiresAt: isoDateTimeSchema }),
+});
+export type FileUploadResponse = z.infer<typeof fileUploadResponseSchema>;
+
+export const fileTranscriptionSchema = z.object({
+  id: idSchema,
+  fileId: idSchema,
+  model: z.string(),
+  language: z.string().nullable(),
+  text: z.string().nullable(),
+  durationMs: z.number().int().nonnegative().nullable(),
+  status: z.enum(["PENDING", "COMPLETED", "FAILED"]),
+  createdAt: isoDateTimeSchema,
+  completedAt: isoDateTimeSchema.nullable(),
+});
+export type FileTranscription = z.infer<typeof fileTranscriptionSchema>;
+
+export const completeProjectProfileSchema = z.object({
+  revision: z.number().int().positive(),
+});
+
+export const projectProfileSnapshotSchema = z.object({
+  id: idSchema,
+  sequence: z.number().int().positive(),
+  schemaVersion: z.number().int().positive(),
+  contentHash: z.string().length(64),
+  completenessPercent: z.number().int().min(0).max(100),
+  regulatoryReadiness: z.number().int().min(0).max(100),
+  createdAt: isoDateTimeSchema,
+});
+export type ProjectProfileSnapshot = z.infer<typeof projectProfileSnapshotSchema>;
+
 export const onboardingStatusSchema = z.object({
   authenticated: z.boolean(),
   organizationsCount: z.number().int().nonnegative(),
@@ -169,14 +404,12 @@ export type CreateAudit = z.infer<typeof createAuditSchema>;
 
 export const evidenceSchema = tenantEntitySchema.extend({
   auditId: idSchema,
-  requirementId: idSchema.nullable(),
   fileId: idSchema.nullable(),
   kind: z.enum(["DOCUMENT", "PHOTO", "NOTE", "LINK"]),
   summary: z.string().max(2_000).nullable(),
 });
 export const createEvidenceSchema = evidenceSchema.pick({
   auditId: true,
-  requirementId: true,
   fileId: true,
   kind: true,
   summary: true,
@@ -187,7 +420,6 @@ export type CreateEvidence = z.infer<typeof createEvidenceSchema>;
 export const findingSeveritySchema = z.enum(["OBSERVATION", "MINOR", "MAJOR", "CRITICAL"]);
 export const findingSchema = tenantEntitySchema.extend({
   auditId: idSchema,
-  requirementId: idSchema.nullable(),
   title: z.string().min(2).max(200),
   description: z.string().min(1).max(10_000),
   severity: findingSeveritySchema,
@@ -195,13 +427,64 @@ export const findingSchema = tenantEntitySchema.extend({
 });
 export const createFindingSchema = findingSchema.pick({
   auditId: true,
-  requirementId: true,
   title: true,
   description: true,
   severity: true,
 });
 export type Finding = z.infer<typeof findingSchema>;
 export type CreateFinding = z.infer<typeof createFindingSchema>;
+
+export const normativeSearchRequestSchema = z.object({
+  query: z.string().trim().min(3).max(1_000),
+  asOf: z.iso.date().optional(),
+  languages: z
+    .array(z.enum(["fr", "ar"]))
+    .min(1)
+    .max(2)
+    .default(["fr", "ar"]),
+  documentFamilies: z
+    .array(z.enum(["standard", "regulation"]))
+    .min(1)
+    .max(2)
+    .optional(),
+  limit: z.number().int().min(1).max(20).default(10),
+});
+export type NormativeSearchRequest = z.infer<typeof normativeSearchRequestSchema>;
+
+export const normativeSearchResultSchema = z.object({
+  sourceId: idSchema,
+  documentId: idSchema,
+  revisionId: idSchema,
+  chunkId: idSchema,
+  documentTitle: z.string(),
+  referenceNumber: z.string().nullable(),
+  revisionLabel: z.string(),
+  sourceEdition: z.string().nullable(),
+  jurisdiction: z.string().nullable(),
+  countryCode: z.string().nullable(),
+  language: z.enum(["fr", "ar"]),
+  documentFamily: z.enum(["standard", "regulation"]),
+  provisionType: z.enum(["clause", "article", "definition", "annex", "table", "note", "section"]),
+  provisionIdentifier: z.string().nullable(),
+  headingPath: z.array(z.string()),
+  pageStart: z.number().int().positive().nullable(),
+  pageEnd: z.number().int().positive().nullable(),
+  excerpt: z.string().max(1_201),
+  scores: z.object({
+    keyword: z.number().nullable(),
+    semantic: z.number().nullable(),
+    fusion: z.number(),
+  }),
+  citationLabel: z.string(),
+});
+export type NormativeSearchResult = z.infer<typeof normativeSearchResultSchema>;
+
+export const normativeSearchResponseSchema = z.object({
+  results: z.array(normativeSearchResultSchema),
+  asOf: z.iso.date(),
+  embeddingProfile: z.object({ id: idSchema, key: z.string(), model: z.string() }),
+});
+export type NormativeSearchResponse = z.infer<typeof normativeSearchResponseSchema>;
 
 export const correctiveActionSchema = tenantEntitySchema.extend({
   findingId: idSchema,

@@ -1,6 +1,11 @@
 import { randomUUID } from "node:crypto";
 
-import { GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import {
+  GetObjectCommand,
+  HeadObjectCommand,
+  PutObjectCommand,
+  S3Client,
+} from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { BadRequestException, Injectable } from "@nestjs/common";
 
@@ -15,6 +20,15 @@ const permittedTypes = new Set([
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
   "image/jpeg",
   "image/png",
+  "image/webp",
+  "text/plain",
+  "text/csv",
+  "audio/mpeg",
+  "audio/mp4",
+  "audio/wav",
+  "audio/webm",
+  "audio/x-m4a",
+  "audio/m4a",
 ]);
 const s3Endpoint = process.env["S3_ENDPOINT"];
 const s3AccessKey = process.env["S3_ACCESS_KEY"];
@@ -62,8 +76,8 @@ export class S3FileStorageAdapter extends FileStorage {
         Key: objectKey,
         ContentType: request.contentType,
         ContentLength: request.sizeBytes,
-        ChecksumSHA256: request.checksum,
-        Metadata: { organizationId: request.organizationId },
+        ChecksumSHA256: Buffer.from(request.checksum, "hex").toString("base64"),
+        Metadata: { organizationId: request.organizationId, checksumHex: request.checksum },
       }),
       { expiresIn },
     );
@@ -71,13 +85,38 @@ export class S3FileStorageAdapter extends FileStorage {
   }
 
   async createDownloadUrl(organizationId: string, objectKey: string): Promise<string> {
-    if (!objectKey.startsWith(`${organizationId}/`)) {
-      throw new BadRequestException("The object does not belong to this organization");
-    }
+    this.assertOwnership(organizationId, objectKey);
     return getSignedUrl(
       this.client,
       new GetObjectCommand({ Bucket: this.bucket, Key: objectKey }),
       { expiresIn: 300 },
     );
+  }
+
+  async inspectObject(organizationId: string, objectKey: string) {
+    this.assertOwnership(organizationId, objectKey);
+    const object = await this.client.send(
+      new HeadObjectCommand({ Bucket: this.bucket, Key: objectKey }),
+    );
+    return {
+      contentType: object.ContentType ?? null,
+      sizeBytes: object.ContentLength ?? 0,
+      checksum: object.Metadata?.["checksumhex"] ?? null,
+    };
+  }
+
+  async readObject(organizationId: string, objectKey: string): Promise<Uint8Array> {
+    this.assertOwnership(organizationId, objectKey);
+    const object = await this.client.send(
+      new GetObjectCommand({ Bucket: this.bucket, Key: objectKey }),
+    );
+    if (!object.Body) throw new BadRequestException("Stored file is empty");
+    return object.Body.transformToByteArray();
+  }
+
+  private assertOwnership(organizationId: string, objectKey: string): void {
+    if (!objectKey.startsWith(`${organizationId}/`)) {
+      throw new BadRequestException("The object does not belong to this organization");
+    }
   }
 }

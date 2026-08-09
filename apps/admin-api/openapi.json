@@ -1,6 +1,457 @@
 {
   "openapi": "3.0.0",
   "paths": {
+    "/v1/documents/dashboard": {
+      "get": {
+        "operationId": "DocumentsController_dashboard",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["documents"]
+      }
+    },
+    "/v1/documents": {
+      "get": {
+        "operationId": "DocumentsController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["documents"]
+      },
+      "post": {
+        "operationId": "DocumentsController_create",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["documents"]
+      }
+    },
+    "/v1/documents/{documentId}": {
+      "get": {
+        "operationId": "DocumentsController_get",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["documents"]
+      },
+      "patch": {
+        "operationId": "DocumentsController_update",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["documents"]
+      },
+      "delete": {
+        "operationId": "DocumentsController_remove",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["documents"]
+      }
+    },
+    "/v1/documents/{documentId}/versions": {
+      "post": {
+        "operationId": "DocumentsController_createVersion",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["documents"]
+      },
+      "get": {
+        "operationId": "DocumentsController_versions",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["documents"]
+      }
+    },
+    "/v1/documents/{documentId}/versions/{versionId}/upload-url": {
+      "post": {
+        "operationId": "DocumentsController_uploadUrl",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["documents"]
+      }
+    },
+    "/v1/documents/{documentId}/versions/{versionId}/confirm-upload": {
+      "post": {
+        "operationId": "DocumentsController_confirmUpload",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["documents"]
+      }
+    },
+    "/v1/documents/{documentId}/versions/{versionId}/process": {
+      "post": {
+        "operationId": "DocumentsController_process",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["documents"]
+      }
+    },
+    "/v1/documents/{documentId}/versions/{versionId}/jobs/{jobId}/retry": {
+      "post": {
+        "operationId": "DocumentsController_retry",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["documents"]
+      }
+    },
+    "/v1/documents/{documentId}/versions/{versionId}/issues": {
+      "post": {
+        "operationId": "DocumentsController_createIssue",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["documents"]
+      }
+    },
+    "/v1/documents/{documentId}/versions/{versionId}/issues/{issueId}/resolve": {
+      "post": {
+        "operationId": "DocumentsController_resolveIssue",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["documents"]
+      }
+    },
+    "/v1/documents/{documentId}/versions/{versionId}/validate": {
+      "post": {
+        "operationId": "DocumentsController_validate",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["documents"]
+      }
+    },
+    "/v1/documents/{documentId}/versions/{versionId}/publish": {
+      "post": {
+        "operationId": "DocumentsController_publish",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["documents"]
+      }
+    },
+    "/v1/documents/{documentId}/versions/{versionId}/reindex": {
+      "post": {
+        "operationId": "DocumentsController_reindex",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["documents"]
+      }
+    },
+    "/v1/documents/embedding-profiles": {
+      "post": {
+        "operationId": "DocumentsController_createProfile",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["documents"]
+      }
+    },
+    "/v1/documents/embedding-profiles/{profileId}/activate": {
+      "post": {
+        "operationId": "DocumentsController_activateProfile",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["documents"]
+      }
+    },
+    "/v1/documents/{documentId}/archive": {
+      "post": {
+        "operationId": "DocumentsController_archive",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["documents"]
+      }
+    },
+    "/v1/documents/{documentId}/versions/{versionId}/compare/{otherVersionId}": {
+      "get": {
+        "operationId": "DocumentsController_compare",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["documents"]
+      }
+    },
+    "/v1/documents/{documentId}/files/{fileId}/download": {
+      "get": {
+        "operationId": "DocumentsController_download",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["documents"]
+      }
+    },
+    "/v1/documents/{documentId}/versions/{versionId}": {
+      "get": {
+        "operationId": "DocumentsController_version",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["documents"]
+      }
+    },
+    "/v1/documents/taxonomies/all": {
+      "get": {
+        "operationId": "DocumentsController_taxonomies",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["documents"]
+      }
+    },
+    "/v1/documents/{documentId}/classifications": {
+      "post": {
+        "operationId": "DocumentsController_classify",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["documents"]
+      }
+    },
+    "/v1/documents/{documentId}/versions/{versionId}/metadata/{suggestionId}": {
+      "post": {
+        "operationId": "DocumentsController_decideMetadata",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["documents"]
+      }
+    },
+    "/v1/documents/{documentId}/relationships": {
+      "post": {
+        "operationId": "DocumentsController_relationship",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["documents"]
+      }
+    },
     "/health/live": {
       "get": {
         "operationId": "HealthController_live",

@@ -5,9 +5,11 @@ import { organizationClient } from "better-auth/client/plugins";
 
 import type { OnboardingStatus, Project } from "@qhse/contracts";
 
-import { clientApi } from "./client-api.js";
+import { apiRequest } from "@qhse/api-client";
 
-import { API_BASE_URL, apiUrl } from "./api-url.js";
+import { clientApi, clientHttp } from "./client-api.js";
+
+import { API_BASE_URL } from "./api-url.js";
 
 export const authClient = createAuthClient({
   baseURL: API_BASE_URL,
@@ -59,13 +61,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
   const activeMemberships = useQuery({
     queryKey: ["auth", "organizations", session.data?.user.id],
     enabled: Boolean(session.data?.user),
-    queryFn: async (): Promise<ClientOrganization[]> => {
-      const response = await fetch(apiUrl("/api/auth-context/organizations"), {
-        credentials: "include",
-      });
-      if (!response.ok) throw new Error("Unable to load active organizations");
-      return (await response.json()) as ClientOrganization[];
-    },
+    queryFn: () => apiRequest<ClientOrganization[]>(clientHttp, "/api/auth-context/organizations"),
   });
   const onboardingQuery = useQuery({
     queryKey: [

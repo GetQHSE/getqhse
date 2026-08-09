@@ -17,6 +17,7 @@ import { NormativeRepositoryModule } from "./modules/normative-repository/normat
 import { OrganizationsModule } from "./modules/organizations/organizations.module.js";
 import { OnboardingModule } from "./modules/onboarding/onboarding.module.js";
 import { ProjectsModule } from "./modules/projects/projects.module.js";
+import { ProjectProfileModule } from "./modules/project-profile/project-profile.module.js";
 import { SitesModule } from "./modules/sites/sites.module.js";
 
 @Module({
@@ -33,6 +34,7 @@ import { SitesModule } from "./modules/sites/sites.module.js";
     OrganizationsModule,
     OnboardingModule,
     ProjectsModule,
+    ProjectProfileModule,
     SitesModule,
     NormativeRepositoryModule,
     AuditsModule,

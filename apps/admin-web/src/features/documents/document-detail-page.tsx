@@ -179,7 +179,7 @@ export function DocumentDetailPage() {
             variant="outline"
             render={<Link to={`/documents/upload?document=${document.id}`} />}
           >
-            <UploadIcon /> New version
+            <UploadIcon /> Replace document
           </Button>
           {latest && (canStartProcessing || isProcessing) ? (
             <Button
@@ -208,7 +208,7 @@ export function DocumentDetailPage() {
             <Button
               disabled={!canMutate || busy !== null}
               onClick={() => {
-                if (window.confirm("Publish this validated version to downstream QHSE services?"))
+                if (window.confirm("Publish this validated revision to downstream QHSE services?"))
                   void action(
                     "publish",
                     `/v1/documents/${document.id}/versions/${latest.id}/publish`,
@@ -223,7 +223,7 @@ export function DocumentDetailPage() {
             <Button
               disabled={!canMutate || busy !== null}
               onClick={() => {
-                if (window.confirm("Confirm the relationship review and validate this version?"))
+                if (window.confirm("Confirm the relationship review and validate this revision?"))
                   void action(
                     "validate",
                     `/v1/documents/${document.id}/versions/${latest.id}/validate`,
@@ -254,11 +254,11 @@ export function DocumentDetailPage() {
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {[
           [
-            "Current version",
+            "Current revision",
             document.versions.find((version) => version.id === document.currentVersionId)
               ?.versionLabel ?? "Not published",
           ],
-          ["Versions", String(document.versions.length)],
+          ["Revisions", String(document.versions.length)],
           ["Processing", latest?.processingStatus.replaceAll("_", " ") ?? "Not started"],
           [
             "Review issues",
@@ -368,7 +368,7 @@ export function DocumentDetailPage() {
         <TabsContent value="versions">
           <Card>
             <CardHeader>
-              <CardTitle>Version timeline</CardTitle>
+              <CardTitle>Revision timeline</CardTitle>
             </CardHeader>
             <CardContent className="space-y-0">
               {document.versions.map((version, index) => (
@@ -442,7 +442,7 @@ export function DocumentDetailPage() {
                     <div>
                       <p className="font-medium">{file.originalFileName}</p>
                       <p className="text-xs text-muted-foreground">
-                        {file.fileRole} · version {version.versionLabel}
+                        {file.fileRole} · revision {version.versionLabel}
                       </p>
                     </div>
                     <Button

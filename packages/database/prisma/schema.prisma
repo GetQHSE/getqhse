@@ -79,12 +79,25 @@ enum DocumentVisibility {
 
 enum VersionChangeType {
   INITIAL
-  MINOR_REVISION
-  MAJOR_REVISION
-  AMENDMENT
-  CORRECTION
   REPLACEMENT
-  TRANSLATION
+}
+
+enum DocumentProvisionType {
+  CLAUSE
+  ARTICLE
+  DEFINITION
+  ANNEX
+  TABLE
+  NOTE
+  SECTION
+}
+
+enum EmbeddingProfileStatus {
+  BUILDING
+  READY
+  ACTIVE
+  RETIRED
+  FAILED
 }
 
 enum ProcessingJobStatus {
@@ -115,6 +128,67 @@ enum ProjectStatus {
   REVIEW_REQUIRED
   COMPLETED
   ARCHIVED
+}
+
+enum ProfileStatus {
+  IN_PROGRESS
+  REVIEW_REQUIRED
+  COMPLETE
+  STALE
+}
+
+enum ProfileFieldStatus {
+  UNANSWERED
+  ANSWERED
+  NEEDS_CLARIFICATION
+  NOT_APPLICABLE
+  CONFIRMED
+}
+
+enum ProfileFieldSource {
+  ONBOARDING
+  USER_CHAT
+  USER_EDIT
+  AI_INFERRED
+  IMPORTED
+  SYSTEM
+}
+
+enum ProfileConversationStatus {
+  ACTIVE
+  COMPLETED
+  ABANDONED
+}
+
+enum ProfileMessageRole {
+  USER
+  ASSISTANT
+  SYSTEM
+  TOOL
+}
+
+enum AiInvocationStatus {
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+enum FileUploadStatus {
+  PENDING
+  READY
+  REJECTED
+}
+
+enum FilePurpose {
+  CHAT_ATTACHMENT
+  VOICE_NOTE
+  EVIDENCE
+}
+
+enum TranscriptionStatus {
+  PENDING
+  COMPLETED
+  FAILED
 }
 
 enum ReviewStatus {
@@ -156,25 +230,30 @@ model User {
   accounts                            Account[]
   sessions                            Session[]
   members                             Member[]
-  invitations                         Invitation[]                 @relation("InvitationInviter")
-  assignedActions                     CorrectiveAction[]           @relation("ActionAssignee")
-  documentsCreated                    Document[]                   @relation("DocumentCreator")
-  documentsUpdated                    Document[]                   @relation("DocumentUpdater")
-  documentsPublished                  Document[]                   @relation("DocumentPublisher")
-  documentVersionsCreated             DocumentVersion[]            @relation("DocumentVersionCreator")
-  documentVersionsValidated           DocumentVersion[]            @relation("DocumentVersionValidator")
-  documentVersionsPublished           DocumentVersion[]            @relation("DocumentVersionPublisher")
-  documentFilesUploaded               DocumentFile[]               @relation("DocumentFileUploader")
-  documentRelationshipsCreated        DocumentRelationship[]       @relation("DocumentRelationshipCreator")
-  documentClassificationsValidated    DocumentTaxonomyTerm[]       @relation("DocumentTaxonomyValidator")
-  documentMetadataSuggestionsReviewed DocumentMetadataSuggestion[] @relation("DocumentMetadataSuggestionReviewer")
-  documentReviewsAssigned             DocumentReview[]             @relation("DocumentReviewAssignee")
-  documentReviewsCreated              DocumentReview[]             @relation("DocumentReviewCreator")
-  documentReviewIssuesAssigned        DocumentReviewIssue[]        @relation("DocumentReviewIssueAssignee")
-  documentReviewIssuesCreated         DocumentReviewIssue[]        @relation("DocumentReviewIssueCreator")
-  documentReviewIssuesResolved        DocumentReviewIssue[]        @relation("DocumentReviewIssueResolver")
-  documentActivities                  DocumentActivity[]           @relation("DocumentActivityActor")
-  createdProjects                    Project[]                    @relation("ProjectCreator")
+  invitations                         Invitation[]                  @relation("InvitationInviter")
+  assignedActions                     CorrectiveAction[]            @relation("ActionAssignee")
+  documentsCreated                    Document[]                    @relation("DocumentCreator")
+  documentsUpdated                    Document[]                    @relation("DocumentUpdater")
+  documentsPublished                  Document[]                    @relation("DocumentPublisher")
+  documentVersionsCreated             DocumentVersion[]             @relation("DocumentVersionCreator")
+  documentVersionsValidated           DocumentVersion[]             @relation("DocumentVersionValidator")
+  documentVersionsPublished           DocumentVersion[]             @relation("DocumentVersionPublisher")
+  documentFilesUploaded               DocumentFile[]                @relation("DocumentFileUploader")
+  profileFieldsConfirmed              ProjectProfileField[]         @relation("ProfileFieldConfirmer")
+  profileFieldRevisions               ProjectProfileFieldRevision[] @relation("ProfileFieldRevisionActor")
+  profileSnapshotsCreated             ProjectProfileSnapshot[]      @relation("ProfileSnapshotCreator")
+  profileConversationsCreated         ProjectProfileConversation[]  @relation("ProfileConversationCreator")
+  filesUploaded                       FileObject[]                  @relation("FileUploader")
+  documentRelationshipsCreated        DocumentRelationship[]        @relation("DocumentRelationshipCreator")
+  documentClassificationsValidated    DocumentTaxonomyTerm[]        @relation("DocumentTaxonomyValidator")
+  documentMetadataSuggestionsReviewed DocumentMetadataSuggestion[]  @relation("DocumentMetadataSuggestionReviewer")
+  documentReviewsAssigned             DocumentReview[]              @relation("DocumentReviewAssignee")
+  documentReviewsCreated              DocumentReview[]              @relation("DocumentReviewCreator")
+  documentReviewIssuesAssigned        DocumentReviewIssue[]         @relation("DocumentReviewIssueAssignee")
+  documentReviewIssuesCreated         DocumentReviewIssue[]         @relation("DocumentReviewIssueCreator")
+  documentReviewIssuesResolved        DocumentReviewIssue[]         @relation("DocumentReviewIssueResolver")
+  documentActivities                  DocumentActivity[]            @relation("DocumentActivityActor")
+  createdProjects                     Project[]                     @relation("ProjectCreator")
 
   @@map("users")
 }
@@ -234,6 +313,8 @@ model DocumentVersion {
   versionNumber            Int                 @map("version_number")
   versionLabel             String              @map("version_label")
   revisionDate             DateTime?           @map("revision_date") @db.Date
+  sourceEdition            String?             @map("source_edition")
+  sourceUrl                String?             @map("source_url")
   effectiveDate            DateTime?           @map("effective_date") @db.Date
   expirationDate           DateTime?           @map("expiration_date") @db.Date
   changeSummary            String?             @map("change_summary")
@@ -256,6 +337,13 @@ model DocumentVersion {
   rawExtractedTextLocation String?             @map("raw_extracted_text_location")
   normalizedTextLocation   String?             @map("normalized_text_location")
   reviewStatus             ReviewStatus        @default(NOT_STARTED) @map("review_status")
+  storageAllowed           Boolean             @default(false) @map("storage_allowed")
+  extractionAllowed        Boolean             @default(false) @map("extraction_allowed")
+  embeddingAllowed         Boolean             @default(false) @map("embedding_allowed")
+  aiProcessingAllowed      Boolean             @default(false) @map("ai_processing_allowed")
+  externalProviderAllowed  Boolean             @default(false) @map("external_provider_allowed")
+  excerptDisplayAllowed    Boolean             @default(false) @map("excerpt_display_allowed")
+  rightsReviewedAt         DateTime?           @map("rights_reviewed_at")
   supersedesVersionId      String?             @map("supersedes_version_id")
   chunkingVersion          String?             @map("chunking_version")
   createdByUserId          String              @map("created_by_user_id")
@@ -277,6 +365,7 @@ model DocumentVersion {
   files                DocumentFile[]
   processingJobs       DocumentProcessingJob[]
   sections             DocumentSection[]
+  provisions           DocumentProvision[]
   chunks               DocumentChunk[]
   metadataSuggestions  DocumentMetadataSuggestion[]
   reviews              DocumentReview[]
@@ -378,38 +467,134 @@ model DocumentSection {
   createdAt         DateTime @default(now()) @map("created_at")
   updatedAt         DateTime @updatedAt @map("updated_at")
 
-  version  DocumentVersion   @relation(fields: [documentVersionId], references: [id], onDelete: Cascade)
-  parent   DocumentSection?  @relation("SectionTree", fields: [parentSectionId], references: [id], onDelete: Cascade)
-  children DocumentSection[] @relation("SectionTree")
-  chunks   DocumentChunk[]
+  version    DocumentVersion     @relation(fields: [documentVersionId], references: [id], onDelete: Cascade)
+  parent     DocumentSection?    @relation("SectionTree", fields: [parentSectionId], references: [id], onDelete: Cascade)
+  children   DocumentSection[]   @relation("SectionTree")
+  chunks     DocumentChunk[]
+  provisions DocumentProvision[]
 
   @@unique([documentVersionId, orderIndex])
   @@index([parentSectionId])
   @@map("document_sections")
 }
 
-model DocumentChunk {
-  id                String              @id @default(cuid())
-  documentVersionId String              @map("document_version_id")
-  documentSectionId String?             @map("document_section_id")
-  chunkIndex        Int                 @map("chunk_index")
+model DocumentProvision {
+  id                String                @id @default(cuid())
+  documentVersionId String                @map("document_version_id")
+  documentSectionId String?               @map("document_section_id")
+  provisionType     DocumentProvisionType @map("provision_type")
+  sourceIdentifier  String?               @map("source_identifier")
+  title             String?
+  headingPath       String[]              @default([]) @map("heading_path")
+  language          String
   content           String
-  tokenCount        Int                 @map("token_count")
-  pageStart         Int?                @map("page_start")
-  pageEnd           Int?                @map("page_end")
-  sourceLocation    Json?               @map("source_location")
-  contentHash       String              @map("content_hash")
-  chunkingVersion   String              @map("chunking_version")
-  embeddingStatus   ProcessingJobStatus @default(PENDING) @map("embedding_status")
-  createdAt         DateTime            @default(now()) @map("created_at")
-  updatedAt         DateTime            @updatedAt @map("updated_at")
+  contentHash       String                @map("content_hash")
+  pageStart         Int?                  @map("page_start")
+  pageEnd           Int?                  @map("page_end")
+  sourceLocation    Json?                 @map("source_location")
+  orderIndex        Int                   @map("order_index")
+  createdAt         DateTime              @default(now()) @map("created_at")
+  updatedAt         DateTime              @updatedAt @map("updated_at")
 
   version DocumentVersion  @relation(fields: [documentVersionId], references: [id], onDelete: Cascade)
   section DocumentSection? @relation(fields: [documentSectionId], references: [id], onDelete: SetNull)
+  chunks  DocumentChunk[]
+
+  @@unique([documentVersionId, orderIndex])
+  @@index([documentVersionId, sourceIdentifier])
+  @@index([language, provisionType])
+  @@map("document_provisions")
+}
+
+model DocumentChunk {
+  id                  String              @id @default(cuid())
+  documentVersionId   String              @map("document_version_id")
+  documentSectionId   String?             @map("document_section_id")
+  documentProvisionId String?             @map("document_provision_id")
+  chunkIndex          Int                 @map("chunk_index")
+  content             String
+  searchText          String              @map("search_text")
+  language            String
+  headingPath         String[]            @default([]) @map("heading_path")
+  tokenCount          Int                 @map("token_count")
+  pageStart           Int?                @map("page_start")
+  pageEnd             Int?                @map("page_end")
+  sourceLocation      Json?               @map("source_location")
+  contentHash         String              @map("content_hash")
+  chunkingVersion     String              @map("chunking_version")
+  embeddingStatus     ProcessingJobStatus @default(PENDING) @map("embedding_status")
+  createdAt           DateTime            @default(now()) @map("created_at")
+  updatedAt           DateTime            @updatedAt @map("updated_at")
+
+  version    DocumentVersion     @relation(fields: [documentVersionId], references: [id], onDelete: Cascade)
+  section    DocumentSection?    @relation(fields: [documentSectionId], references: [id], onDelete: SetNull)
+  provision  DocumentProvision?  @relation(fields: [documentProvisionId], references: [id], onDelete: SetNull)
+  embeddings DocumentEmbedding[]
 
   @@unique([documentVersionId, chunkingVersion, chunkIndex])
   @@unique([documentVersionId, chunkingVersion, contentHash])
+  @@index([documentProvisionId])
   @@map("document_chunks")
+}
+
+model EmbeddingProfile {
+  id          String                 @id @default(cuid())
+  key         String                 @unique
+  provider    String
+  model       String
+  dimensions  Int                    @default(768)
+  version     Int
+  status      EmbeddingProfileStatus @default(BUILDING)
+  activatedAt DateTime?              @map("activated_at")
+  retiredAt   DateTime?              @map("retired_at")
+  createdAt   DateTime               @default(now()) @map("created_at")
+  updatedAt   DateTime               @updatedAt @map("updated_at")
+
+  embeddings    DocumentEmbedding[]
+  retrievalLogs RetrievalLog[]
+
+  @@unique([provider, model, dimensions, version])
+  @@index([status])
+  @@map("embedding_profiles")
+}
+
+model DocumentEmbedding {
+  id                 String                     @id @default(cuid())
+  documentChunkId    String                     @map("document_chunk_id")
+  embeddingProfileId String                     @map("embedding_profile_id")
+  inputHash          String                     @map("input_hash")
+  embedding          Unsupported("vector(768)")
+  tokenCount         Int?                       @map("token_count")
+  generatedAt        DateTime                   @default(now()) @map("generated_at")
+  createdAt          DateTime                   @default(now()) @map("created_at")
+  updatedAt          DateTime                   @updatedAt @map("updated_at")
+
+  chunk   DocumentChunk    @relation(fields: [documentChunkId], references: [id], onDelete: Cascade)
+  profile EmbeddingProfile @relation(fields: [embeddingProfileId], references: [id], onDelete: Cascade)
+
+  @@unique([documentChunkId, embeddingProfileId])
+  @@index([embeddingProfileId])
+  @@map("document_embeddings")
+}
+
+model RetrievalLog {
+  id                 String   @id @default(cuid())
+  organizationId     String   @map("organization_id")
+  queryHash          String   @map("query_hash")
+  filters            Json
+  returnedSourceIds  String[] @default([]) @map("returned_source_ids")
+  embeddingProfileId String?  @map("embedding_profile_id")
+  resultCount        Int      @default(0) @map("result_count")
+  latencyMs          Int      @map("latency_ms")
+  errorCode          String?  @map("error_code")
+  createdAt          DateTime @default(now()) @map("created_at")
+
+  organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  profile      EmbeddingProfile? @relation(fields: [embeddingProfileId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, createdAt])
+  @@index([embeddingProfileId, createdAt])
+  @@map("retrieval_logs")
 }
 
 model Taxonomy {
@@ -625,16 +810,14 @@ model Organization {
   projects          Project[]
   auditCampaigns    AuditCampaign[]
   audits            Audit[]
-  standardDocuments StandardDocument[]
-  standardVersions  StandardVersion[]
-  clauses           Clause[]
-  requirements      Requirement[]
   evidence          Evidence[]
   findings          Finding[]
   correctiveActions CorrectiveAction[]
   files             FileObject[]
   backgroundJobs    BackgroundJob[]
   auditLogEntries   AuditLogEntry[]
+  retrievalLogs     RetrievalLog[]
+  aiInvocations     AiInvocation[]
 
   @@map("organizations")
 }
@@ -709,9 +892,11 @@ model Project {
   updatedAt      DateTime          @updatedAt @map("updated_at")
   archivedAt     DateTime?         @map("archived_at")
 
-  organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  createdBy    User              @relation("ProjectCreator", fields: [createdById], references: [id], onDelete: Restrict)
-  activities   ProjectActivity[]
+  organization  Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy     User              @relation("ProjectCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  activities    ProjectActivity[]
+  profile       ProjectProfile?
+  aiInvocations AiInvocation[]
 
   @@unique([organizationId, slug])
   @@index([organizationId])
@@ -734,6 +919,186 @@ model ProjectActivity {
   @@unique([projectId, normalizedName])
   @@index([projectId])
   @@map("project_activities")
+}
+
+model ProjectProfile {
+  id                  String        @id @default(cuid())
+  projectId           String        @unique @map("project_id")
+  schemaVersion       Int           @default(1) @map("schema_version")
+  revision            Int           @default(1)
+  status              ProfileStatus @default(IN_PROGRESS)
+  completenessPercent Int           @default(0) @map("completeness_percent")
+  regulatoryReadiness Int           @default(0) @map("regulatory_readiness")
+  completedAt         DateTime?     @map("completed_at")
+  lastReviewedAt      DateTime?     @map("last_reviewed_at")
+  nextReviewAt        DateTime?     @map("next_review_at")
+  createdAt           DateTime      @default(now()) @map("created_at")
+  updatedAt           DateTime      @updatedAt @map("updated_at")
+
+  project       Project                      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  fields        ProjectProfileField[]
+  snapshots     ProjectProfileSnapshot[]
+  conversations ProjectProfileConversation[]
+  aiInvocations AiInvocation[]
+
+  @@index([status])
+  @@map("project_profiles")
+}
+
+model ProjectProfileField {
+  id                  String              @id @default(cuid())
+  profileId           String              @map("profile_id")
+  key                 String
+  value               Json?
+  status              ProfileFieldStatus  @default(UNANSWERED)
+  source              ProfileFieldSource?
+  confidence          Float?
+  sourceMessageId     String?             @map("source_message_id")
+  notApplicableReason String?             @map("not_applicable_reason")
+  confirmedById       String?             @map("confirmed_by_id")
+  confirmedAt         DateTime?           @map("confirmed_at")
+  createdAt           DateTime            @default(now()) @map("created_at")
+  updatedAt           DateTime            @updatedAt @map("updated_at")
+
+  profile     ProjectProfile                @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  confirmedBy User?                         @relation("ProfileFieldConfirmer", fields: [confirmedById], references: [id], onDelete: SetNull)
+  revisions   ProjectProfileFieldRevision[]
+
+  @@unique([profileId, key])
+  @@index([profileId, status])
+  @@map("project_profile_fields")
+}
+
+model ProjectProfileFieldRevision {
+  id              String              @id @default(cuid())
+  fieldId         String              @map("field_id")
+  previousValue   Json?               @map("previous_value")
+  newValue        Json?               @map("new_value")
+  previousStatus  ProfileFieldStatus? @map("previous_status")
+  newStatus       ProfileFieldStatus  @map("new_status")
+  source          ProfileFieldSource
+  changedById     String?             @map("changed_by_id")
+  sourceMessageId String?             @map("source_message_id")
+  changeReason    String?             @map("change_reason")
+  createdAt       DateTime            @default(now()) @map("created_at")
+
+  field     ProjectProfileField @relation(fields: [fieldId], references: [id], onDelete: Cascade)
+  changedBy User?               @relation("ProfileFieldRevisionActor", fields: [changedById], references: [id], onDelete: SetNull)
+
+  @@index([fieldId, createdAt])
+  @@map("project_profile_field_revisions")
+}
+
+model ProjectProfileSnapshot {
+  id                  String   @id @default(cuid())
+  profileId           String   @map("profile_id")
+  sequence            Int
+  schemaVersion       Int      @map("schema_version")
+  data                Json
+  contentHash         String   @map("content_hash")
+  completenessPercent Int      @map("completeness_percent")
+  regulatoryReadiness Int      @map("regulatory_readiness")
+  createdById         String?  @map("created_by_id")
+  createdAt           DateTime @default(now()) @map("created_at")
+
+  profile   ProjectProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  createdBy User?          @relation("ProfileSnapshotCreator", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@unique([profileId, sequence])
+  @@unique([profileId, contentHash])
+  @@map("project_profile_snapshots")
+}
+
+model ProjectProfileConversation {
+  id                 String                    @id @default(cuid())
+  profileId          String                    @map("profile_id")
+  status             ProfileConversationStatus @default(ACTIVE)
+  language           String                    @default("fr")
+  currentQuestionKey String?                   @map("current_question_key")
+  module             String                    @default("PROFILE_COMPLETION")
+  createdById        String                    @map("created_by_id")
+  createdAt          DateTime                  @default(now()) @map("created_at")
+  updatedAt          DateTime                  @updatedAt @map("updated_at")
+
+  profile       ProjectProfile          @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  createdBy     User                    @relation("ProfileConversationCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  messages      ProjectProfileMessage[]
+  aiInvocations AiInvocation[]
+
+  @@index([profileId, status])
+  @@map("project_profile_conversations")
+}
+
+model ProjectProfileMessage {
+  id               String             @id @default(cuid())
+  conversationId   String             @map("conversation_id")
+  role             ProfileMessageRole
+  content          String
+  clientMessageId  String?            @map("client_message_id")
+  replyToMessageId String?            @map("reply_to_message_id")
+  parts            Json?
+  model            String?
+  promptKey        String?            @map("prompt_key")
+  promptVersion    Int?               @map("prompt_version")
+  inputTokens      Int?               @map("input_tokens")
+  outputTokens     Int?               @map("output_tokens")
+  createdAt        DateTime           @default(now()) @map("created_at")
+
+  conversation ProjectProfileConversation        @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  attachments  ProjectProfileMessageAttachment[]
+
+  @@unique([conversationId, clientMessageId])
+  @@index([conversationId, createdAt])
+  @@index([replyToMessageId])
+  @@map("project_profile_messages")
+}
+
+model ProjectProfileMessageAttachment {
+  id        String   @id @default(cuid())
+  messageId String   @map("message_id")
+  fileId    String   @map("file_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  message ProjectProfileMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  file    FileObject            @relation(fields: [fileId], references: [id], onDelete: Restrict)
+
+  @@unique([messageId, fileId])
+  @@index([fileId])
+  @@map("project_profile_message_attachments")
+}
+
+model AiInvocation {
+  id                 String             @id @default(cuid())
+  organizationId     String             @map("organization_id")
+  projectId          String?            @map("project_id")
+  profileId          String?            @map("profile_id")
+  conversationId     String?            @map("conversation_id")
+  module             String
+  task               String
+  promptKey          String             @map("prompt_key")
+  promptVersion      Int                @map("prompt_version")
+  model              String
+  inputSchemaVersion Int?               @map("input_schema_version")
+  inputHash          String             @map("input_hash")
+  outputHash         String?            @map("output_hash")
+  toolNames          String[]           @default([]) @map("tool_names")
+  inputTokens        Int?               @map("input_tokens")
+  outputTokens       Int?               @map("output_tokens")
+  latencyMs          Int?               @map("latency_ms")
+  status             AiInvocationStatus @default(RUNNING)
+  errorCode          String?            @map("error_code")
+  createdAt          DateTime           @default(now()) @map("created_at")
+  completedAt        DateTime?          @map("completed_at")
+
+  organization Organization                @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  project      Project?                    @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  profile      ProjectProfile?             @relation(fields: [profileId], references: [id], onDelete: SetNull)
+  conversation ProjectProfileConversation? @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, createdAt])
+  @@index([projectId, createdAt])
+  @@index([module, task, createdAt])
+  @@map("ai_invocations")
 }
 
 model AuditCampaign {
@@ -776,102 +1141,22 @@ model Audit {
   @@map("audits")
 }
 
-model StandardDocument {
-  id             String   @id @default(cuid())
-  organizationId String
-  code           String
-  title          String
-  publisher      String?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-
-  organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  versions     StandardVersion[]
-
-  @@unique([organizationId, code])
-  @@map("standard_documents")
-}
-
-model StandardVersion {
-  id                 String    @id @default(cuid())
-  organizationId     String
-  standardDocumentId String
-  version            String
-  publishedAt        DateTime?
-  effectiveAt        DateTime?
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
-
-  organization     Organization     @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  standardDocument StandardDocument @relation(fields: [standardDocumentId], references: [id], onDelete: Restrict)
-  clauses          Clause[]
-
-  @@unique([organizationId, standardDocumentId, version])
-  @@index([organizationId])
-  @@map("standard_versions")
-}
-
-model Clause {
-  id                String                       @id @default(cuid())
-  organizationId    String
-  standardVersionId String
-  reference         String
-  title             String?
-  content           String
-  embedding         Unsupported("vector(1536)")?
-  createdAt         DateTime                     @default(now())
-  updatedAt         DateTime                     @updatedAt
-
-  organization    Organization    @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  standardVersion StandardVersion @relation(fields: [standardVersionId], references: [id], onDelete: Cascade)
-  requirements    Requirement[]
-
-  @@unique([organizationId, standardVersionId, reference])
-  @@index([organizationId])
-  @@map("clauses")
-}
-
-model Requirement {
-  id             String   @id @default(cuid())
-  organizationId String
-  clauseId       String
-  code           String
-  text           String
-  activities     String[] @default([])
-  weight         Decimal  @default(1) @db.Decimal(8, 2)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  clause       Clause       @relation(fields: [clauseId], references: [id], onDelete: Cascade)
-  evidence     Evidence[]
-  findings     Finding[]
-
-  @@unique([organizationId, clauseId, code])
-  @@index([organizationId])
-  @@map("requirements")
-}
-
 model Evidence {
-  id               String                       @id @default(cuid())
+  id               String           @id @default(cuid())
   organizationId   String
   auditId          String
-  requirementId    String?
   fileId           String?
   kind             EvidenceKind
   summary          String?
-  assessmentResult AssessmentResult             @default(NOT_ASSESSED)
-  embedding        Unsupported("vector(1536)")?
-  createdAt        DateTime                     @default(now())
-  updatedAt        DateTime                     @updatedAt
+  assessmentResult AssessmentResult @default(NOT_ASSESSED)
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   audit        Audit        @relation(fields: [auditId], references: [id], onDelete: Cascade)
-  requirement  Requirement? @relation(fields: [requirementId], references: [id], onDelete: SetNull)
   file         FileObject?  @relation(fields: [fileId], references: [id], onDelete: SetNull)
 
   @@index([organizationId, auditId])
-  @@index([organizationId, requirementId])
   @@map("evidence")
 }
 
@@ -879,7 +1164,6 @@ model Finding {
   id             String          @id @default(cuid())
   organizationId String
   auditId        String
-  requirementId  String?
   title          String
   description    String
   severity       FindingSeverity
@@ -889,7 +1173,6 @@ model Finding {
 
   organization      Organization       @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   audit             Audit              @relation(fields: [auditId], references: [id], onDelete: Cascade)
-  requirement       Requirement?       @relation(fields: [requirementId], references: [id], onDelete: SetNull)
   correctiveActions CorrectiveAction[]
 
   @@index([organizationId, auditId])
@@ -918,23 +1201,49 @@ model CorrectiveAction {
 }
 
 model FileObject {
-  id             String    @id @default(cuid())
+  id             String           @id @default(cuid())
   organizationId String
   objectKey      String
   originalName   String
   contentType    String
   sizeBytes      BigInt
   checksum       String
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  purpose        FilePurpose      @default(CHAT_ATTACHMENT)
+  uploadStatus   FileUploadStatus @default(PENDING) @map("upload_status")
+  uploadedById   String?          @map("uploaded_by_id")
+  verifiedAt     DateTime?        @map("verified_at")
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
   deletedAt      DateTime?
 
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  evidence     Evidence[]
+  organization              Organization                      @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  uploadedBy                User?                             @relation("FileUploader", fields: [uploadedById], references: [id], onDelete: SetNull)
+  evidence                  Evidence[]
+  profileMessageAttachments ProjectProfileMessageAttachment[]
+  transcriptions            FileTranscription[]
 
   @@unique([organizationId, objectKey])
   @@index([organizationId, deletedAt])
   @@map("files")
+}
+
+model FileTranscription {
+  id          String              @id @default(cuid())
+  fileId      String              @map("file_id")
+  model       String
+  language    String?
+  text        String?
+  durationMs  Int?                @map("duration_ms")
+  status      TranscriptionStatus @default(PENDING)
+  errorCode   String?             @map("error_code")
+  createdAt   DateTime            @default(now()) @map("created_at")
+  completedAt DateTime?           @map("completed_at")
+
+  file FileObject @relation(fields: [fileId], references: [id], onDelete: Cascade)
+
+  @@unique([fileId, model])
+  @@index([status, createdAt])
+  @@map("file_transcriptions")
 }
 
 model BackgroundJob {

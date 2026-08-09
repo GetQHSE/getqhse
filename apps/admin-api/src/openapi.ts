@@ -22,6 +22,7 @@ const environment = {
   S3_SECRET_KEY: "openapi",
   S3_FORCE_PATH_STYLE: true,
   DOCLING_URL: "http://localhost:8000",
+  OPENAI_PROFILE_MODEL: "gpt-5-mini",
   LOG_LEVEL: "info" as const,
   MAX_UPLOAD_BYTES: 10_485_760,
   ADMIN_API_PORT: 3001,

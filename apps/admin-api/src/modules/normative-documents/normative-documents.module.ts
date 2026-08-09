@@ -16,7 +16,7 @@ const redisUrl = new URL(process.env["REDIS_URL"] ?? "redis://localhost:6379");
         ...(redisUrl.password ? { password: redisUrl.password } : {}),
       },
     }),
-    BullModule.registerQueue({ name: "document-processing" }),
+    BullModule.registerQueue({ name: "document-processing" }, { name: "embedding-generation" }),
   ],
   controllers: [DocumentsController],
   providers: [DocumentsService, DocumentStorageService],

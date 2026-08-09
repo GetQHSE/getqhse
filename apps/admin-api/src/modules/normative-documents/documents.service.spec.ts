@@ -49,16 +49,22 @@ describe("DocumentsService upload retries", () => {
 
   const user = { id: "user-1", platformRole: "content_manager" } as never;
   const input = {
-    versionLabel: "1",
-    changeType: "initial",
     originalFileName: "standard.pdf",
     mimeType: "application/pdf",
     fileSize: 128,
     fileHash: "a".repeat(64),
+    rights: {
+      storage: true,
+      extraction: true,
+      embedding: true,
+      aiProcessing: true,
+      externalProviderProcessing: true,
+      excerptDisplay: true,
+    },
     allowDuplicate: false,
   } as const;
 
-  it("resumes an unconfirmed version with the same label and hash", async () => {
+  it("resumes an unconfirmed revision with the same hash", async () => {
     const resumable = { id: "version-1", ...input, fileSize: BigInt(input.fileSize) };
     const database = {
       document: { findFirst: vi.fn().mockResolvedValue({ id: "document-1", status: "UPLOADED" }) },
@@ -72,7 +78,6 @@ describe("DocumentsService upload retries", () => {
     expect(database.documentVersion.findFirst).toHaveBeenCalledWith({
       where: {
         documentId: "document-1",
-        versionLabel: "1",
         fileHash: input.fileHash,
         status: "UPLOADED",
         files: { none: { fileRole: "primary" } },
@@ -124,6 +129,79 @@ describe("DocumentsService upload retries", () => {
       where: { fileHash: input.fileHash, files: { some: { fileRole: "primary" } } },
       include: { document: { select: { id: true, title: true } } },
     });
+  });
+
+  it("derives replacement revision controls from the published revision", async () => {
+    const create = vi.fn().mockResolvedValue({ id: "version-2" });
+    const database = {
+      document: {
+        findFirst: vi.fn().mockResolvedValue({
+          id: "document-1",
+          status: "PUBLISHED",
+          currentVersionId: "version-1",
+        }),
+        updateMany: vi.fn().mockResolvedValue({ count: 0 }),
+      },
+      documentVersion: {
+        findFirst: vi.fn().mockResolvedValueOnce(null).mockResolvedValueOnce(null),
+        aggregate: vi.fn().mockResolvedValue({ _max: { versionNumber: 1 } }),
+        create,
+      },
+      documentActivity: { create: vi.fn().mockResolvedValue({}) },
+    };
+    const service = serviceWith(database);
+
+    await service.createVersion(user, "document-1", input);
+
+    expect(create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        versionNumber: 2,
+        versionLabel: "r2",
+        changeType: "REPLACEMENT",
+        supersedesVersionId: "version-1",
+        embeddingAllowed: true,
+        externalProviderAllowed: true,
+      }),
+    });
+  });
+
+  it("atomically switches publication and closes the prior effective interval", async () => {
+    const now = new Date("2026-08-08T00:00:00.000Z");
+    const updateVersion = vi.fn().mockResolvedValue({ id: "version-2", status: "PUBLISHED" });
+    const transactionClient = {
+      document: {
+        findUniqueOrThrow: vi.fn().mockResolvedValue({ currentVersionId: "version-1" }),
+        update: vi.fn().mockResolvedValue({}),
+      },
+      documentVersion: { update: updateVersion },
+    };
+    const transaction = vi.fn(
+      async (operation: (tx: typeof transactionClient) => Promise<unknown>) =>
+        operation(transactionClient),
+    );
+    const database = {
+      documentVersion: {
+        findFirst: vi.fn().mockResolvedValue({
+          id: "version-2",
+          documentId: "document-1",
+          status: "VALIDATED",
+          effectiveDate: now,
+        }),
+      },
+      documentActivity: { create: vi.fn().mockResolvedValue({}) },
+      $transaction: transaction,
+    };
+    const service = serviceWith(database);
+
+    await service.publishVersion(user, "document-1", "version-2", true);
+
+    expect(updateVersion).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        where: { id: "version-1" },
+        data: { expirationDate: now },
+      }),
+    );
   });
 
   it("reports the exact incomplete validation checklist items and uses latest jobs", async () => {

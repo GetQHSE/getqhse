@@ -11,6 +11,11 @@ x-app-environment: &app-environment
   S3_SECRET_KEY: local-secret-key
   S3_FORCE_PATH_STYLE: "true"
   DOCLING_URL: http://docling:8000
+  NORMATIVE_RAG_ENABLED: ${NORMATIVE_RAG_ENABLED:-false}
+  OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+  OPENAI_PROFILE_MODEL: ${OPENAI_PROFILE_MODEL:-gpt-5-mini}
+  OPENAI_TRANSCRIPTION_MODEL: ${OPENAI_TRANSCRIPTION_MODEL:-gpt-4o-mini-transcribe}
+  EMBEDDING_BATCH_SIZE: ${EMBEDDING_BATCH_SIZE:-64}
   LOG_LEVEL: info
 
 services:

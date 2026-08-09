@@ -16,7 +16,8 @@ COPY requirements.txt .
 RUN pip install --requirement requirements.txt
 RUN apt-get update && \
     apt-get install --yes --no-install-recommends \
-      libgl1 libglib2.0-0 libxcb1 poppler-utils tesseract-ocr && \
+      libgl1 libglib2.0-0 libxcb1 poppler-utils tesseract-ocr \
+      tesseract-ocr-fra tesseract-ocr-ara && \
     rm -rf /var/lib/apt/lists/*
 
 COPY app ./app

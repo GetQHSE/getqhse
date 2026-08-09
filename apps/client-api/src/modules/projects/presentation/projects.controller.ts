@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Query, Req, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, Inject, Param, Post, Query, Req, UseGuards } from "@nestjs/common";
 import { ApiCookieAuth, ApiHeader, ApiOkResponse, ApiTags } from "@nestjs/swagger";
 import { createProjectSchema, paginationQuerySchema, type CreateProject } from "@qhse/contracts";
 
@@ -22,7 +22,7 @@ export class CreateProjectDto implements CreateProject {
 @UseGuards(TenantContextGuard)
 @Controller("v1/projects")
 export class ProjectsController {
-  constructor(private readonly projects: ProjectsService) {}
+  constructor(@Inject(ProjectsService) private readonly projects: ProjectsService) {}
 
   @Get()
   @ApiOkResponse({ description: "Tenant-scoped project page" })

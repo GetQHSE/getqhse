@@ -205,6 +205,31 @@ export class DocumentsController {
     );
   }
 
+  @Post(":documentId/versions/:versionId/reindex")
+  reindex(
+    @Req() request: AdminRequest,
+    @Param("documentId") documentId: string,
+    @Param("versionId") versionId: string,
+    @Body() body: { profileId?: string } | undefined,
+  ) {
+    return this.documents.reindexVersion(
+      request.platformUser!,
+      documentId,
+      versionId,
+      body?.profileId,
+    );
+  }
+
+  @Post("embedding-profiles")
+  createProfile(@Req() request: AdminRequest) {
+    return this.documents.createEmbeddingProfile(request.platformUser!);
+  }
+
+  @Post("embedding-profiles/:profileId/activate")
+  activateProfile(@Req() request: AdminRequest, @Param("profileId") profileId: string) {
+    return this.documents.activateEmbeddingProfile(request.platformUser!, profileId);
+  }
+
   @Post(":documentId/archive")
   archive(@Req() request: AdminRequest, @Param("documentId") documentId: string) {
     return this.documents.archive(request.platformUser!, documentId, request.ip);

@@ -21,6 +21,9 @@ export const serverEnvironmentSchema = z.object({
   S3_SECRET_KEY: z.string().min(1),
   S3_FORCE_PATH_STYLE: booleanString,
   DOCLING_URL: z.url(),
+  OPENAI_API_KEY: z.string().min(1).optional(),
+  OPENAI_PROFILE_MODEL: z.string().min(1).default("gpt-5-mini"),
+  OPENAI_TRANSCRIPTION_MODEL: z.string().min(1).default("gpt-4o-mini-transcribe"),
   LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace"]).default("info"),
   MAX_UPLOAD_BYTES: z.coerce.number().int().positive().default(10_485_760),
 });

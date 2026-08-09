@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Controller,
   Headers,
+  Inject,
   Param,
   Post,
   Req,
@@ -19,7 +20,7 @@ import { WorkQueueService } from "../../jobs/work-queue.service.js";
 @UseGuards(TenantContextGuard)
 @Controller("v1/evidence")
 export class EvidenceJobsController {
-  constructor(private readonly work: WorkQueueService) {}
+  constructor(@Inject(WorkQueueService) private readonly work: WorkQueueService) {}
 
   @Post(":evidenceId/analysis-jobs")
   @ApiHeader({ name: "idempotency-key", required: true })

@@ -32,21 +32,25 @@ browser API contract. Derived extraction, OCR and preview assets use sibling pre
 
 ## Lifecycle
 
-1. An authorized manager creates a logical document and immutable version.
+1. An authorized manager creates a logical document and uploads its first immutable revision. The
+   platform derives `r1`; Replace document derives `r2`, `r3`, and so on.
 2. The browser calculates SHA-256; the API reports duplicate metadata with `409` unless a super
    administrator explicitly overrides it.
 3. The API validates size, extension, MIME declaration and filename, then signs a five-minute S3
    upload. Upload confirmation verifies size and checksum metadata. File signatures and malware are
    queue stages and must be backed by production providers before production use.
-4. `document-processing` creates one idempotent record per stage. OCR is skipped for reliable
-   extractable text. The bundled worker is deliberately a mock provider boundary and marks all
-   generated suggestions for review.
+4. `document-processing` creates one idempotent record per stage. The worker sends supported binary
+   documents through the Docling HTTP boundary. Extraction preserves pages, uses page-preserving
+   `pdftotext` as fallback, and applies French/Arabic OCR to scanned pages.
 5. Processing ends in `review_required`. Automatic metadata and classification are never trusted as
    manual decisions. Blocking review issues prevent validation.
 6. Validation evaluates the server-derived checklist. Publishing is a separate confirmed action;
-   only it updates `documents.current_version_id` and makes a version eligible downstream.
+   only it atomically updates `documents.current_version_id`. The previous revision remains current
+   while a replacement is processed or reviewed.
 7. Published content is immutable and is archived rather than deleted. Only dependency-free drafts
    may be soft-deleted.
+8. Human-validated revisions with reviewed rights can be re-indexed through the embedding queue.
+   Search additionally requires a complete active embedding profile.
 
 ## Provider integration
 
@@ -55,5 +59,5 @@ be idempotent by processing-job key, preserve source locations, write derived da
 prefix, and return only locations/quality metadata to the database. Never place full content in audit
 metadata or application logs.
 
-Before production, replace the `mock` extraction, OCR, file-signature and malware providers, set
-strict bucket lifecycle policies, and add formula-neutralized spreadsheet preview generation.
+Before production, replace the mock OCR, file-signature and malware providers, set strict bucket
+lifecycle policies, and add formula-neutralized spreadsheet preview generation.

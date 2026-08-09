@@ -65,7 +65,7 @@ export function DocumentsPage() {
           <p className="text-sm text-muted-foreground">Knowledge sources</p>
           <h1 className="text-2xl font-semibold tracking-tight">Documents</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Upload, review, version and publish controlled QHSE reference content.
+            Upload, review, replace and publish controlled QHSE reference content.
           </p>
         </div>
         {user?.platformRole !== "support" ? (
@@ -163,7 +163,7 @@ export function DocumentsPage() {
                   <div className="mt-5 flex justify-between text-xs text-muted-foreground">
                     <span>
                       {document.currentVersion?.versionLabel ??
-                        `${document._count.versions} version(s)`}
+                        `${document._count.versions} revision(s)`}
                     </span>
                     <span>{formatDate(document.updatedAt)}</span>
                   </div>
@@ -177,7 +177,7 @@ export function DocumentsPage() {
                   <TableHead>Title</TableHead>
                   <TableHead>Type</TableHead>
                   <TableHead>Authority</TableHead>
-                  <TableHead>Version</TableHead>
+                  <TableHead>Revision</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Processing</TableHead>
                   <TableHead>Effective</TableHead>

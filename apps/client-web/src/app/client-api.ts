@@ -6,22 +6,18 @@ import {
   type OnboardingStatus,
   type Project,
 } from "@qhse/contracts";
+import { apiRequest, createAxiosClient, type ApiRequestInit } from "@qhse/api-client";
 
-import { apiUrl } from "./api-url.js";
+import { API_BASE_URL } from "./api-url.js";
+
+export const clientHttp = createAxiosClient({ baseUrl: API_BASE_URL });
 
 async function request<T>(
   path: string,
   parse: (value: unknown) => T,
-  init?: RequestInit,
+  init?: ApiRequestInit,
 ): Promise<T> {
-  const response = await fetch(apiUrl(path), {
-    ...init,
-    credentials: "include",
-    headers: { "content-type": "application/json", ...init?.headers },
-  });
-  const body: unknown = await response.json();
-  if (!response.ok) throw new Error(`Client API request failed: ${response.status}`);
-  return parse(body);
+  return parse(await apiRequest<unknown>(clientHttp, path, init));
 }
 
 export const clientApi = {

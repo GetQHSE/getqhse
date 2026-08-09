@@ -7,6 +7,7 @@ import {
   Inject,
   Injectable,
   NotFoundException,
+  Optional,
   UnprocessableEntityException,
 } from "@nestjs/common";
 import type { CurrentUser } from "@qhse/auth";
@@ -55,6 +56,9 @@ export class DocumentsService {
     @Inject(DocumentStorageService)
     private readonly storage: DocumentStorageService,
     @InjectQueue("document-processing") private readonly queue: Queue,
+    @Optional()
+    @InjectQueue("embedding-generation")
+    private readonly embeddingQueue?: Queue,
   ) {
     this.database = createPrismaClient();
   }
@@ -367,7 +371,6 @@ export class DocumentsService {
     const resumable = await this.database.documentVersion.findFirst({
       where: {
         documentId,
-        versionLabel: input.versionLabel,
         fileHash: input.fileHash,
         status: "UPLOADED",
         files: { none: { fileRole: "primary" } },
@@ -406,32 +409,35 @@ export class DocumentsService {
       where: { documentId },
       _max: { versionNumber: true },
     });
+    const versionNumber = (latest._max.versionNumber ?? 0) + 1;
     const versionId = randomUUID();
     const version = await this.database.documentVersion.create({
       data: {
         id: versionId,
         documentId,
-        versionNumber: (latest._max.versionNumber ?? 0) + 1,
-        versionLabel: input.versionLabel,
+        versionNumber,
+        versionLabel: `r${versionNumber}`,
         revisionDate: date(input.revisionDate) ?? null,
+        sourceEdition: input.sourceEdition ?? null,
+        sourceUrl: input.sourceUrl ?? null,
         effectiveDate: date(input.effectiveDate) ?? null,
         expirationDate: date(input.expirationDate) ?? null,
         changeSummary: input.changeSummary ?? null,
-        changeType: enumValue(input.changeType) as
-          | "INITIAL"
-          | "MINOR_REVISION"
-          | "MAJOR_REVISION"
-          | "AMENDMENT"
-          | "CORRECTION"
-          | "REPLACEMENT"
-          | "TRANSLATION",
+        changeType: versionNumber === 1 ? "INITIAL" : "REPLACEMENT",
         originalFileName: input.originalFileName,
         mimeType: input.mimeType,
         fileExtension: input.originalFileName.split(".").at(-1)?.toLowerCase() ?? "bin",
         fileSize: BigInt(input.fileSize),
         storageKey: `pending/${versionId}`,
         fileHash: input.fileHash,
-        supersedesVersionId: input.supersedesVersionId ?? null,
+        supersedesVersionId: versionNumber === 1 ? null : document.currentVersionId,
+        storageAllowed: input.rights.storage,
+        extractionAllowed: input.rights.extraction,
+        embeddingAllowed: input.rights.embedding,
+        aiProcessingAllowed: input.rights.aiProcessing,
+        externalProviderAllowed: input.rights.externalProviderProcessing,
+        excerptDisplayAllowed: input.rights.excerptDisplay,
+        rightsReviewedAt: new Date(),
         createdByUserId: user.id,
       },
     });
@@ -445,7 +451,11 @@ export class DocumentsService {
       actorId: user.id,
       action: "document.upload_started",
       ip,
-      metadata: { versionLabel: input.versionLabel, duplicateOverride: Boolean(duplicate) },
+      metadata: {
+        revisionLabel: `r${versionNumber}`,
+        action: versionNumber === 1 ? "upload" : "replace",
+        duplicateOverride: Boolean(duplicate),
+      },
     });
     return jsonSafe(version);
   }
@@ -810,8 +820,38 @@ export class DocumentsService {
       throw new UnprocessableEntityException("Explicit publication confirmation is required");
     const version = await this.findVersion(documentId, versionId);
     this.transition(version.status, "published");
+    if (
+      process.env["NORMATIVE_RAG_ENABLED"] === "true" &&
+      version.storageAllowed &&
+      version.extractionAllowed &&
+      version.embeddingAllowed &&
+      version.aiProcessingAllowed &&
+      version.externalProviderAllowed &&
+      version.excerptDisplayAllowed
+    ) {
+      const profile = await this.database.embeddingProfile.findFirst({
+        where: { status: "ACTIVE" },
+      });
+      if (profile) {
+        const [chunks, embeddings] = await Promise.all([
+          this.database.documentChunk.count({ where: { documentVersionId: versionId } }),
+          this.database.documentEmbedding.count({
+            where: { embeddingProfileId: profile.id, chunk: { documentVersionId: versionId } },
+          }),
+        ]);
+        if (!chunks || chunks !== embeddings) {
+          throw new ConflictException(
+            "This searchable revision must be fully indexed before publication",
+          );
+        }
+      }
+    }
     const now = new Date();
     const published = await this.database.$transaction(async (tx) => {
+      const document = await tx.document.findUniqueOrThrow({
+        where: { id: documentId },
+        select: { currentVersionId: true },
+      });
       const result = await tx.documentVersion.update({
         where: { id: versionId },
         data: { status: "PUBLISHED", publishedByUserId: user.id, publishedAt: now },
@@ -826,6 +866,12 @@ export class DocumentsService {
           updatedByUserId: user.id,
         },
       });
+      if (document.currentVersionId && document.currentVersionId !== versionId) {
+        await tx.documentVersion.update({
+          where: { id: document.currentVersionId },
+          data: { expirationDate: version.effectiveDate ?? now },
+        });
+      }
       return result;
     });
     await this.activity({
@@ -836,6 +882,133 @@ export class DocumentsService {
       ip,
     });
     return jsonSafe(published);
+  }
+
+  async reindexVersion(
+    user: CurrentUser,
+    documentId: string,
+    versionId: string,
+    requestedProfileId?: string,
+  ) {
+    this.authorize(user, "process");
+    if (!this.embeddingQueue) throw new ConflictException("Embedding queue is unavailable");
+    const version = await this.findVersion(documentId, versionId);
+    if (!version.validatedAt || !["VALIDATED", "PUBLISHED"].includes(version.status)) {
+      throw new ConflictException("Only a human-validated revision can be indexed");
+    }
+    const rights = [
+      version.storageAllowed,
+      version.extractionAllowed,
+      version.embeddingAllowed,
+      version.aiProcessingAllowed,
+      version.externalProviderAllowed,
+      version.excerptDisplayAllowed,
+    ];
+    if (!rights.every(Boolean)) throw new ConflictException("Revision rights do not permit search");
+
+    let profile = requestedProfileId
+      ? await this.database.embeddingProfile.findFirst({
+          where: { id: requestedProfileId, status: { in: ["BUILDING", "READY", "ACTIVE"] } },
+        })
+      : await this.database.embeddingProfile.findFirst({
+          where: { status: { in: ["BUILDING", "ACTIVE"] } },
+          orderBy: [{ status: "asc" }, { version: "desc" }],
+        });
+    if (requestedProfileId && !profile) {
+      throw new NotFoundException("Indexable embedding profile not found");
+    }
+    if (!profile) {
+      const latest = await this.database.embeddingProfile.aggregate({ _max: { version: true } });
+      const profileVersion = (latest._max.version ?? 0) + 1;
+      profile = await this.database.embeddingProfile.create({
+        data: {
+          key: `openai:text-embedding-3-small:768:v${profileVersion}`,
+          provider: "openai",
+          model: "text-embedding-3-small",
+          dimensions: 768,
+          version: profileVersion,
+          status: "BUILDING",
+        },
+      });
+    }
+    const job = await this.embeddingQueue.add(
+      "index-normative-revision",
+      {
+        organizationId: "platform",
+        correlationId: randomUUID(),
+        idempotencyKey: `${versionId}:${profile.id}:${version.chunkingVersion ?? "pending"}`,
+        payload: { documentId, versionId, profileId: profile.id },
+      },
+      {
+        jobId: `${versionId}-${profile.id}-${version.chunkingVersion ?? "pending"}`,
+        attempts: 5,
+        backoff: { type: "exponential", delay: 2_000 },
+      },
+    );
+    const [chunkCount, indexedCount] = await Promise.all([
+      this.database.documentChunk.count({ where: { documentVersionId: versionId } }),
+      this.database.documentEmbedding.count({
+        where: { embeddingProfileId: profile.id, chunk: { documentVersionId: versionId } },
+      }),
+    ]);
+    return {
+      jobId: job.id,
+      profileId: profile.id,
+      readiness: {
+        searchable: profile.status === "ACTIVE" && chunkCount > 0 && chunkCount === indexedCount,
+        chunks: chunkCount,
+        indexedChunks: indexedCount,
+      },
+    };
+  }
+
+  async createEmbeddingProfile(user: CurrentUser) {
+    this.authorize(user, "process");
+    const building = await this.database.embeddingProfile.findFirst({
+      where: { status: "BUILDING" },
+    });
+    if (building) throw new ConflictException("An embedding profile is already building");
+    const latest = await this.database.embeddingProfile.aggregate({ _max: { version: true } });
+    const profileVersion = (latest._max.version ?? 0) + 1;
+    return this.database.embeddingProfile.create({
+      data: {
+        key: `openai:text-embedding-3-small:768:v${profileVersion}`,
+        provider: "openai",
+        model: "text-embedding-3-small",
+        dimensions: 768,
+        version: profileVersion,
+        status: "BUILDING",
+      },
+    });
+  }
+
+  async activateEmbeddingProfile(user: CurrentUser, profileId: string) {
+    this.authorize(user, "publish");
+    const profile = await this.database.embeddingProfile.findUnique({ where: { id: profileId } });
+    if (!profile) throw new NotFoundException("Embedding profile not found");
+    if (profile.status !== "READY") throw new ConflictException("Embedding profile is not ready");
+    const missing = await this.database.documentChunk.count({
+      where: {
+        version: {
+          status: "PUBLISHED",
+          validatedAt: { not: null },
+          embeddingAllowed: true,
+        },
+        embeddings: { none: { embeddingProfileId: profileId } },
+      },
+    });
+    if (missing) throw new ConflictException(`${missing} searchable chunks are not indexed`);
+    return this.database.$transaction(async (tx) => {
+      const now = new Date();
+      await tx.embeddingProfile.updateMany({
+        where: { status: "ACTIVE", id: { not: profileId } },
+        data: { status: "RETIRED", retiredAt: now },
+      });
+      return tx.embeddingProfile.update({
+        where: { id: profileId },
+        data: { status: "ACTIVE", activatedAt: now, retiredAt: null },
+      });
+    });
   }
 
   async archive(user: CurrentUser, documentId: string, ip?: string) {
@@ -881,7 +1054,7 @@ export class DocumentsService {
         before: { id: before.id, label: before.versionLabel },
         after: { id: after.id, label: after.versionLabel },
       },
-      metadata: ["versionLabel", "revisionDate", "effectiveDate", "expirationDate", "changeType"]
+      metadata: ["sourceEdition", "revisionDate", "effectiveDate", "expirationDate", "sourceUrl"]
         .map((field) => ({
           field,
           before: before[field as keyof typeof before],
@@ -1064,35 +1237,26 @@ export class DocumentsService {
       throw new UnprocessableEntityException("An edited value is required");
     const proposedValue = input.decision === "edited" ? input.value : suggestion.suggestedValue;
     if (input.decision !== "rejected" && typeof proposedValue === "string") {
-      if (suggestion.fieldName === "versionLabel") {
-        if (["VALIDATED", "PUBLISHED", "ARCHIVED"].includes(suggestion.version.status))
-          throw new ConflictException("Published or validated version metadata is immutable");
-        await this.database.documentVersion.update({
-          where: { id: versionId },
-          data: { versionLabel: proposedValue },
+      const documentFields = new Set([
+        "title",
+        "shortTitle",
+        "description",
+        "documentType",
+        "sourceType",
+        "jurisdiction",
+        "countryCode",
+        "language",
+        "issuingAuthority",
+        "referenceNumber",
+      ]);
+      if (documentFields.has(suggestion.fieldName)) {
+        await this.database.document.update({
+          where: { id: documentId },
+          data: {
+            [suggestion.fieldName]: proposedValue,
+            updatedByUserId: user.id,
+          },
         });
-      } else {
-        const documentFields = new Set([
-          "title",
-          "shortTitle",
-          "description",
-          "documentType",
-          "sourceType",
-          "jurisdiction",
-          "countryCode",
-          "language",
-          "issuingAuthority",
-          "referenceNumber",
-        ]);
-        if (documentFields.has(suggestion.fieldName)) {
-          await this.database.document.update({
-            where: { id: documentId },
-            data: {
-              [suggestion.fieldName]: proposedValue,
-              updatedByUserId: user.id,
-            },
-          });
-        }
       }
     }
     const reviewed = await this.database.documentMetadataSuggestion.update({

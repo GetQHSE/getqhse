@@ -18,6 +18,7 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
+    "@qhse/profile": "workspace:*",
     "zod": "^4.4.3"
   },
   "devDependencies": {

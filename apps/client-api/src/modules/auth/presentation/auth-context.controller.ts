@@ -1,4 +1,11 @@
-import { Controller, ForbiddenException, Get, Req, UnauthorizedException } from "@nestjs/common";
+import {
+  Controller,
+  ForbiddenException,
+  Get,
+  Inject,
+  Req,
+  UnauthorizedException,
+} from "@nestjs/common";
 import { ServerAuthError } from "@qhse/auth";
 import type { Request } from "express";
 
@@ -6,7 +13,7 @@ import { AuthenticationPort } from "../application/auth.port.js";
 
 @Controller("api/auth-context")
 export class AuthContextController {
-  constructor(private readonly authentication: AuthenticationPort) {}
+  constructor(@Inject(AuthenticationPort) private readonly authentication: AuthenticationPort) {}
 
   @Get("organizations")
   async organizations(@Req() request: Request) {

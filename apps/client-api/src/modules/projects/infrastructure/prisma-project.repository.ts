@@ -122,6 +122,7 @@ export class PrismaProjectRepository extends ProjectRepository {
           description: input.description?.trim() || null,
           status: "EMPTY",
           activities: { create: activities },
+          profile: { create: {} },
         },
         include: { activities: { orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }] } },
       });

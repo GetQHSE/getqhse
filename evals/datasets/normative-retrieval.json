@@ -1,0 +1,30 @@
+[
+  {
+    "id": "fr-exact-clause-001",
+    "language": "fr",
+    "query": "Que demande la clause 4.1 sur le contexte ?",
+    "expectedIdentifiers": ["4.1"],
+    "kind": "exact"
+  },
+  {
+    "id": "fr-semantic-quality-001",
+    "language": "fr",
+    "query": "Comment identifier les attentes des parties intéressées ?",
+    "expectedIdentifiers": ["4.2"],
+    "kind": "semantic"
+  },
+  {
+    "id": "ar-exact-article-001",
+    "language": "ar",
+    "query": "ما هي مقتضيات المادة ٥؟",
+    "expectedIdentifiers": ["المادة ٥"],
+    "kind": "exact"
+  },
+  {
+    "id": "ar-semantic-compliance-001",
+    "language": "ar",
+    "query": "ما التزامات المؤسسة بشأن توثيق إجراءات الجودة؟",
+    "expectedIdentifiers": ["المادة ٧"],
+    "kind": "semantic"
+  }
+]

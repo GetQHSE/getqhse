@@ -19,6 +19,7 @@
     "test:coverage": "vitest run --coverage --passWithNoTests"
   },
   "dependencies": {
+    "@qhse/api-client": "workspace:*",
     "@qhse/ui": "workspace:*",
     "better-auth": "^1.6.25",
     "lucide-react": "^1.28.0",

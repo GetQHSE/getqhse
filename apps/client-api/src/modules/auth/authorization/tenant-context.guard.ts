@@ -1,4 +1,10 @@
-import { CanActivate, ForbiddenException, Injectable, UnauthorizedException } from "@nestjs/common";
+import {
+  CanActivate,
+  ForbiddenException,
+  Inject,
+  Injectable,
+  UnauthorizedException,
+} from "@nestjs/common";
 import { ServerAuthError } from "@qhse/auth";
 
 import type { QhseRequest } from "../../../common/request-context.js";
@@ -8,7 +14,7 @@ type HttpExecutionContext = Parameters<CanActivate["canActivate"]>[0];
 
 @Injectable()
 export class TenantContextGuard implements CanActivate {
-  constructor(private readonly authentication: AuthenticationPort) {}
+  constructor(@Inject(AuthenticationPort) private readonly authentication: AuthenticationPort) {}
 
   async canActivate(context: HttpExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<QhseRequest>();

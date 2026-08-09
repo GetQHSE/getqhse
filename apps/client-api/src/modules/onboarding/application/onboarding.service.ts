@@ -1,6 +1,6 @@
 import type { IncomingHttpHeaders } from "node:http";
 
-import { Injectable, Optional } from "@nestjs/common";
+import { Inject, Injectable, Optional } from "@nestjs/common";
 import type { OnboardingStatus } from "@qhse/contracts";
 import { createPrismaClient, type DatabaseClient } from "@qhse/database";
 
@@ -11,7 +11,7 @@ export class OnboardingService {
   private readonly database: DatabaseClient;
 
   constructor(
-    private readonly authentication: AuthenticationPort,
+    @Inject(AuthenticationPort) private readonly authentication: AuthenticationPort,
     @Optional() database?: DatabaseClient,
   ) {
     this.database = database ?? createPrismaClient();

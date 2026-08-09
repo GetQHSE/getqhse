@@ -10,7 +10,9 @@
             "description": ""
           }
         },
-        "tags": ["BetterAuth"]
+        "tags": [
+          "BetterAuth"
+        ]
       },
       "post": {
         "operationId": "BetterAuthController_handle_post",
@@ -20,7 +22,9 @@
             "description": ""
           }
         },
-        "tags": ["BetterAuth"]
+        "tags": [
+          "BetterAuth"
+        ]
       },
       "put": {
         "operationId": "BetterAuthController_handle_put",
@@ -30,7 +34,9 @@
             "description": ""
           }
         },
-        "tags": ["BetterAuth"]
+        "tags": [
+          "BetterAuth"
+        ]
       },
       "delete": {
         "operationId": "BetterAuthController_handle_delete",
@@ -40,7 +46,9 @@
             "description": ""
           }
         },
-        "tags": ["BetterAuth"]
+        "tags": [
+          "BetterAuth"
+        ]
       },
       "patch": {
         "operationId": "BetterAuthController_handle_patch",
@@ -50,7 +58,9 @@
             "description": ""
           }
         },
-        "tags": ["BetterAuth"]
+        "tags": [
+          "BetterAuth"
+        ]
       },
       "options": {
         "operationId": "BetterAuthController_handle_options",
@@ -60,7 +70,9 @@
             "description": ""
           }
         },
-        "tags": ["BetterAuth"]
+        "tags": [
+          "BetterAuth"
+        ]
       },
       "head": {
         "operationId": "BetterAuthController_handle_head",
@@ -70,7 +82,9 @@
             "description": ""
           }
         },
-        "tags": ["BetterAuth"]
+        "tags": [
+          "BetterAuth"
+        ]
       },
       "search": {
         "operationId": "BetterAuthController_handle_search",
@@ -80,7 +94,374 @@
             "description": ""
           }
         },
-        "tags": ["BetterAuth"]
+        "tags": [
+          "BetterAuth"
+        ]
+      }
+    },
+    "/api/auth-context/organizations": {
+      "get": {
+        "operationId": "AuthContextController_organizations",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "AuthContext"
+        ]
+      }
+    },
+    "/v1/onboarding/status": {
+      "get": {
+        "operationId": "OnboardingController_status",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Authentication and onboarding routing status"
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": [
+          "onboarding"
+        ]
+      }
+    },
+    "/v1/projects": {
+      "get": {
+        "operationId": "ProjectsController_list",
+        "parameters": [
+          {
+            "name": "x-organization-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Tenant-scoped project page"
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": [
+          "projects"
+        ]
+      },
+      "post": {
+        "operationId": "ProjectsController_create",
+        "parameters": [
+          {
+            "name": "x-organization-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": [
+          "projects"
+        ]
+      }
+    },
+    "/v1/projects/{projectIdOrSlug}": {
+      "get": {
+        "operationId": "ProjectsController_get",
+        "parameters": [
+          {
+            "name": "x-organization-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": [
+          "projects"
+        ]
+      }
+    },
+    "/v1/projects/{projectIdOrSlug}/profile": {
+      "get": {
+        "operationId": "ProjectProfilesController_get",
+        "parameters": [
+          {
+            "name": "x-organization-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Canonical project profile and completion state"
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": [
+          "project-profile"
+        ]
+      },
+      "patch": {
+        "operationId": "ProjectProfilesController_update",
+        "parameters": [
+          {
+            "name": "x-organization-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": [
+          "project-profile"
+        ]
+      }
+    },
+    "/v1/projects/{projectIdOrSlug}/profile/conversation": {
+      "get": {
+        "operationId": "ProjectProfilesController_conversation",
+        "parameters": [
+          {
+            "name": "x-organization-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": [
+          "project-profile"
+        ]
+      }
+    },
+    "/v1/projects/{projectIdOrSlug}/profile/chat": {
+      "post": {
+        "operationId": "ProjectProfilesController_chat",
+        "parameters": [
+          {
+            "name": "x-organization-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": [
+          "project-profile"
+        ]
+      }
+    },
+    "/v1/projects/{projectIdOrSlug}/profile/chat/stream": {
+      "post": {
+        "operationId": "ProjectProfilesController_streamChat",
+        "parameters": [
+          {
+            "name": "x-organization-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": [
+          "project-profile"
+        ]
+      }
+    },
+    "/v1/projects/{projectIdOrSlug}/profile/complete": {
+      "post": {
+        "operationId": "ProjectProfilesController_complete",
+        "parameters": [
+          {
+            "name": "x-organization-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": [
+          "project-profile"
+        ]
+      }
+    },
+    "/v1/files/uploads": {
+      "post": {
+        "operationId": "FilesController_createUpload",
+        "parameters": [
+          {
+            "name": "x-organization-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": [
+          "files"
+        ]
+      }
+    },
+    "/v1/files/{fileId}/complete": {
+      "post": {
+        "operationId": "FilesController_completeUpload",
+        "parameters": [
+          {
+            "name": "x-organization-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": [
+          "files"
+        ]
+      }
+    },
+    "/v1/files/{fileId}/transcription": {
+      "post": {
+        "operationId": "FilesController_transcribe",
+        "parameters": [
+          {
+            "name": "x-organization-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": [
+          "files"
+        ]
       }
     },
     "/v1/sites": {
@@ -106,7 +487,9 @@
             "cookie": []
           }
         ],
-        "tags": ["sites"]
+        "tags": [
+          "sites"
+        ]
       },
       "post": {
         "operationId": "SitesController_create",
@@ -130,7 +513,28 @@
             "cookie": []
           }
         ],
-        "tags": ["sites"]
+        "tags": [
+          "sites"
+        ]
+      }
+    },
+    "/v1/normative/search": {
+      "post": {
+        "operationId": "NormativeSearchController_search",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Citation-ready normative retrieval results"
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": [
+          "normative"
+        ]
       }
     },
     "/v1/evidence/{evidenceId}/analysis-jobs": {
@@ -156,7 +560,9 @@
             "cookie": []
           }
         ],
-        "tags": ["evidence"]
+        "tags": [
+          "evidence"
+        ]
       }
     },
     "/health/live": {
@@ -168,7 +574,9 @@
             "description": "Process is alive"
           }
         },
-        "tags": ["health"]
+        "tags": [
+          "health"
+        ]
       }
     },
     "/health/ready": {
@@ -180,7 +588,9 @@
             "description": "Process is ready"
           }
         },
-        "tags": ["health"]
+        "tags": [
+          "health"
+        ]
       }
     }
   },

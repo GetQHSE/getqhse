@@ -1,4 +1,4 @@
-import { ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
+import { ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { CreateProject, PaginationQuery } from "@qhse/contracts";
 
 import type { TenantContext } from "../../../common/request-context.js";
@@ -6,7 +6,7 @@ import { ProjectRepository } from "../domain/project.repository.js";
 
 @Injectable()
 export class ProjectsService {
-  constructor(private readonly repository: ProjectRepository) {}
+  constructor(@Inject(ProjectRepository) private readonly repository: ProjectRepository) {}
 
   async list(tenant: TenantContext, pagination: PaginationQuery) {
     const result = await this.repository.list(tenant.organizationId, pagination);
