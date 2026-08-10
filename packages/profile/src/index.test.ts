@@ -2,11 +2,13 @@ import { describe, expect, it } from "vitest";
 
 import {
   calculateProfileCompletion,
+  getProfileFieldValueJsonSchema,
   getNextProfileQuestion,
   parseProfileToolAnswer,
   profileFieldKeys,
   profileQuestionByKey,
   profileQuestions,
+  profileToolInputSchemaForField,
   validateProfileFieldValue,
 } from "./index.js";
 
@@ -64,5 +66,41 @@ describe("project profile catalog", () => {
         confidence: 1,
       }),
     ).toMatchObject({ success: false });
+  });
+
+  it("exposes an exact field-specific tool schema for structured answers", () => {
+    const valueSchema = getProfileFieldValueJsonSchema("organization.offerings");
+    expect(valueSchema).toMatchObject({
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          name: { type: "string" },
+          type: { enum: ["PRODUCT", "SERVICE"] },
+        },
+        required: ["name", "type"],
+      },
+    });
+
+    const toolSchema = profileToolInputSchemaForField("organization.offerings");
+    expect(
+      toolSchema.safeParse({
+        answers: [
+          {
+            key: "organization.offerings",
+            valueJson: JSON.stringify([
+              { name: "Armoires métalliques", type: "PRODUCT" },
+              { name: "Maintenance", type: "SERVICE" },
+            ]),
+            confidence: 1,
+          },
+        ],
+      }).success,
+    ).toBe(true);
+    expect(
+      toolSchema.safeParse({
+        answers: [{ key: "organization.mission", valueJson: '"Une mission"', confidence: 1 }],
+      }).success,
+    ).toBe(false);
   });
 });

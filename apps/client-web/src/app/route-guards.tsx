@@ -7,7 +7,7 @@ import { type Permission, usePermissions } from "./permissions.js";
 export function AuthenticatedRoute({ children }: PropsWithChildren) {
   const { user, isPending } = useAuth();
   const location = useLocation();
-  if (isPending) return <p role="status">Chargement…</p>;
+  if (isPending && !user) return <p role="status">Chargement…</p>;
   if (!user) return <Navigate to="/login" replace state={{ from: location.pathname }} />;
   return children;
 }
@@ -15,7 +15,7 @@ export function AuthenticatedRoute({ children }: PropsWithChildren) {
 export function OrganizationRoute({ children }: PropsWithChildren) {
   const { activeOrganization, onboarding, isPending } = useAuth();
   const location = useLocation();
-  if (isPending) return <p role="status">Chargement…</p>;
+  if (isPending && !activeOrganization && !onboarding) return <p role="status">Chargement…</p>;
   if (onboarding?.nextStep === "CREATE_ORGANIZATION") {
     return <Navigate to="/onboarding/organization" replace />;
   }

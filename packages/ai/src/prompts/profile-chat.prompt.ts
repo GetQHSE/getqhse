@@ -1,4 +1,4 @@
-import type { ProfileFieldKey } from "@qhse/profile";
+import { getProfileFieldValueJsonSchema, type ProfileFieldKey } from "@qhse/profile";
 
 import type { PromptDefinition } from "../prompt-definition.js";
 import { sharedQhseAssistantPolicy } from "../policies/shared.policy.js";
@@ -14,7 +14,7 @@ export type ProfileChatPromptInput = {
 
 export const profileChatPrompt: PromptDefinition<ProfileChatPromptInput> = {
   key: "profile.chat",
-  version: 1,
+  version: 2,
   build(input) {
     const languageInstruction =
       input.language === "ar"
@@ -26,9 +26,11 @@ export const profileChatPrompt: PromptDefinition<ProfileChatPromptInput> = {
 You complete an ISO 9001 project profile conversationally.
 ${languageInstruction}
 Ask one primary question at a time and avoid repeating information already recorded.
-When the user gives one or more answers, call recordProfileAnswers with every explicit fact found.
-For each tool answer, valueJson must be valid JSON matching the field described by the current question.
-After the tool returns, acknowledge briefly and ask exactly the next question returned by the tool.
+When the user answers the current profile question, call recordProfileAnswers exactly once for that field.
+Use the currentFieldValueSchema from the structured context to construct valueJson. valueJson must contain a JSON-serialized value matching that schema exactly; do not send a conversational summary or a simpler shape.
+Do not call recordProfileAnswers a second time in the same turn.
+If the tool accepts the answer, acknowledge it briefly and ask exactly the next question returned by the tool.
+If the tool rejects the answer, use its rejection reason to ask one precise clarification question. Do not show a generic failure message and do not advance to another profile question.
 If the user did not answer a profile question, help briefly and ask the current question.
 Do not mark inferred information as a user fact. Ask for clarification instead.
 Do not conduct regulatory applicability, SWOT, risk, or audit analysis in this module.`,
@@ -39,6 +41,9 @@ Do not conduct regulatory applicability, SWOT, risk, or audit analysis in this m
         completenessPercent: input.completenessPercent,
         regulatoryReadiness: input.regulatoryReadiness,
         currentQuestion: input.currentQuestion,
+        currentFieldValueSchema: input.currentQuestion
+          ? getProfileFieldValueJsonSchema(input.currentQuestion.key)
+          : null,
         knownFields: input.knownFields,
       }),
     };

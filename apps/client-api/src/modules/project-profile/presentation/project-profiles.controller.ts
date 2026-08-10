@@ -51,12 +51,18 @@ export class ProjectProfilesController {
   }
 
   @Get("conversation")
-  conversation(
+  async conversation(
     @Req() request: QhseRequest,
     @Param("projectIdOrSlug") projectIdOrSlug: string,
+    @Res() response: Response,
     @Query("conversationId") conversationId?: string,
   ) {
-    return this.profiles.getConversation(request.tenant!, projectIdOrSlug, conversationId);
+    const conversation = await this.profiles.getConversation(
+      request.tenant!,
+      projectIdOrSlug,
+      conversationId,
+    );
+    return response.status(200).json(conversation);
   }
 
   @Post("chat")

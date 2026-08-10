@@ -43,4 +43,17 @@ describe("QhseApiClient project profile", () => {
     expect(() => client.completeProjectProfile("project-1", 0)).toThrow();
     expect(request).not.toHaveBeenCalled();
   });
+
+  it.each([undefined, null, ""])(
+    "treats an empty conversation response (%s) as no conversation yet",
+    async (data) => {
+      const request = vi.fn().mockResolvedValue({ data });
+      const client = new QhseApiClient({
+        baseUrl: "http://localhost:3000",
+        axios: { request } as unknown as AxiosInstance,
+      });
+
+      await expect(client.getProjectProfileConversation("atlas-industrie")).resolves.toBeNull();
+    },
+  );
 });

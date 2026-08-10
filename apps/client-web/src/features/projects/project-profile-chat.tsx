@@ -195,12 +195,14 @@ function isAnswered(status: string): boolean {
   return ["ANSWERED", "CONFIRMED", "NOT_APPLICABLE"].includes(status);
 }
 
-function conversationMessages(conversation: ProjectProfileConversation | null): ProfileUiMessage[] {
+export function conversationMessages(
+  conversation: ProjectProfileConversation | null,
+): ProfileUiMessage[] {
   if (!conversation) return [];
   return conversation.messages
     .filter((message) => message.role === "USER" || message.role === "ASSISTANT")
     .map((message) => ({
-      id: message.id,
+      id: message.role === "USER" && message.clientMessageId ? message.clientMessageId : message.id,
       role: message.role === "USER" ? "user" : "assistant",
       parts: [{ type: "text", text: message.content }],
       metadata: {
@@ -208,6 +210,41 @@ function conversationMessages(conversation: ProjectProfileConversation | null): 
         ...(message.attachments ? { attachments: message.attachments } : {}),
       },
     }));
+}
+
+export function reconcileConversationMessages(
+  current: ProfileUiMessage[],
+  persisted: ProfileUiMessage[],
+): ProfileUiMessage[] {
+  const knownIds = new Set(current.map((message) => message.id));
+  const missing = persisted.filter((message) => !knownIds.has(message.id));
+  if (!missing.length) return current;
+  const order = new Map(
+    [...current, ...missing].map((message, index) => [message.id, index] as const),
+  );
+  return [...current, ...missing].sort((left, right) => {
+    const leftTime = left.metadata?.createdAt
+      ? new Date(left.metadata.createdAt).getTime()
+      : Number.POSITIVE_INFINITY;
+    const rightTime = right.metadata?.createdAt
+      ? new Date(right.metadata.createdAt).getTime()
+      : Number.POSITIVE_INFINITY;
+    if (leftTime !== rightTime) return leftTime - rightTime;
+    return (order.get(left.id) ?? 0) - (order.get(right.id) ?? 0);
+  });
+}
+
+function useDelayedIndicator(active: boolean, delayMs = 500): boolean {
+  const [visible, setVisible] = useState(false);
+  useEffect(() => {
+    if (!active) {
+      setVisible(false);
+      return;
+    }
+    const timeout = window.setTimeout(() => setVisible(true), delayMs);
+    return () => window.clearTimeout(timeout);
+  }, [active, delayMs]);
+  return visible;
 }
 
 function timeLabel(value?: string): string {
@@ -298,6 +335,13 @@ function ToolResultCard({ part }: { part: RecordProfileToolPart }) {
 
 function ChatMessage({ message }: { message: ProfileUiMessage }) {
   const isUser = message.role === "user";
+  const toolParts = message.parts.filter(
+    (part): part is (typeof message.parts)[number] & RecordProfileToolPart =>
+      part.type === "tool-recordProfileAnswers",
+  );
+  const selectedToolPart =
+    [...toolParts].reverse().find((part) => (part.output?.acceptedKeys.length ?? 0) > 0) ??
+    toolParts.at(-1);
   return (
     <article
       aria-label={isUser ? "Message de l’utilisateur" : "Message de l’assistant"}
@@ -333,6 +377,7 @@ function ChatMessage({ message }: { message: ProfileUiMessage }) {
               );
             }
             if (part.type === "tool-recordProfileAnswers") {
+              if (part.toolCallId !== selectedToolPart?.toolCallId) return null;
               return (
                 <ToolResultCard
                   key={part.toolCallId}
@@ -596,7 +641,17 @@ function ProfileDrawer({ profile }: { profile: ProjectProfile }) {
   );
 }
 
-function ProfileStatusBar({ profile }: { profile: ProjectProfile }) {
+function ProfileStatusBar({
+  profile,
+  synchronizing,
+  synchronizationFailed,
+  onRetry,
+}: {
+  profile: ProjectProfile;
+  synchronizing: boolean;
+  synchronizationFailed: boolean;
+  onRetry: () => void;
+}) {
   return (
     <div className="shrink-0 border-b border-slate-200 bg-[#fafafe] px-4 py-3 lg:px-8">
       <div className="mx-auto flex max-w-5xl items-center gap-3 sm:gap-4">
@@ -612,9 +667,81 @@ function ProfileStatusBar({ profile }: { profile: ProjectProfile }) {
             </p>
           </div>
         </div>
-        <div className="ml-auto shrink-0">
+        <div className="ml-auto flex shrink-0 items-center gap-2">
+          {synchronizing && (
+            <span
+              role="status"
+              aria-label="Synchronisation en cours"
+              className="flex items-center gap-1.5 text-[11px] text-slate-500"
+            >
+              <LoaderCircleIcon className="size-3.5 animate-spin text-violet-600" />
+              <span className="hidden sm:inline">Synchronisation…</span>
+            </span>
+          )}
+          {synchronizationFailed && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-8 text-amber-700 hover:bg-amber-50 hover:text-amber-800"
+              onClick={onRetry}
+            >
+              <AlertCircleIcon className="size-3.5" />
+              <span className="hidden sm:inline">Actualiser</span>
+            </Button>
+          )}
           <ProfileDrawer profile={profile} />
         </div>
+      </div>
+    </div>
+  );
+}
+
+function ConversationHistorySkeleton() {
+  return (
+    <div aria-label="Chargement de l’historique" role="status" className="space-y-7">
+      <span className="sr-only">Chargement de l’historique de conversation…</span>
+      <div className="flex animate-pulse gap-3">
+        <div className="size-9 shrink-0 rounded-2xl bg-violet-100" />
+        <div className="w-full max-w-xl space-y-2 rounded-3xl rounded-tl-lg bg-slate-50 p-5">
+          <div className="h-3 w-28 rounded-full bg-slate-200" />
+          <div className="h-3 w-full rounded-full bg-slate-200" />
+          <div className="h-3 w-4/5 rounded-full bg-slate-200" />
+        </div>
+      </div>
+      <div className="flex animate-pulse justify-end gap-3">
+        <div className="h-16 w-full max-w-sm rounded-3xl rounded-br-lg bg-slate-100" />
+        <div className="size-8 shrink-0 rounded-full bg-blue-50" />
+      </div>
+    </div>
+  );
+}
+
+function ConversationPageSkeleton() {
+  return (
+    <div
+      aria-label="Chargement de la conversation"
+      role="status"
+      className="-m-6 flex h-[calc(100dvh-4rem)] min-h-[680px] flex-col overflow-hidden bg-white"
+    >
+      <span className="sr-only">Chargement de la conversation…</span>
+      <div className="shrink-0 border-b border-slate-200 bg-[#fafafe] px-4 py-3 lg:px-8">
+        <div className="mx-auto flex max-w-5xl animate-pulse items-center gap-3">
+          <div className="size-9 rounded-2xl bg-violet-100" />
+          <div className="space-y-2">
+            <div className="h-3 w-28 rounded-full bg-slate-200" />
+            <div className="h-2.5 w-48 rounded-full bg-slate-100" />
+          </div>
+          <div className="ml-auto h-8 w-28 rounded-xl bg-slate-100" />
+        </div>
+      </div>
+      <div className="min-h-0 flex-1 px-5 py-8 lg:px-10">
+        <div className="mx-auto max-w-5xl">
+          <ConversationHistorySkeleton />
+        </div>
+      </div>
+      <div className="shrink-0 border-t border-slate-100 px-4 py-4 lg:px-8">
+        <div className="mx-auto h-24 max-w-4xl animate-pulse rounded-3xl border border-slate-200 bg-slate-50" />
       </div>
     </div>
   );
@@ -634,7 +761,8 @@ export function ProjectProfileChat({ projectIdOrSlug }: { projectIdOrSlug: strin
   const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
   const [composerError, setComposerError] = useState<string>();
   const [recording, setRecording] = useState(false);
-  const hydrated = useRef(false);
+  const hydratedConversationId = useRef<string | null | undefined>(undefined);
+  const skipNextScroll = useRef(false);
   const fileInput = useRef<HTMLInputElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
@@ -687,15 +815,36 @@ export function ProjectProfileChat({ projectIdOrSlug }: { projectIdOrSlug: strin
   });
 
   useEffect(() => {
-    if (!conversationQuery.isPending && !hydrated.current) {
-      setMessages(conversationMessages(conversationQuery.data ?? null));
-      hydrated.current = true;
+    if (!conversationQuery.isSuccess) return;
+    const persisted = conversationMessages(conversationQuery.data ?? null);
+    const conversationId = conversationQuery.data?.id ?? null;
+    if (hydratedConversationId.current === undefined) {
+      setMessages((current) =>
+        current.length ? reconcileConversationMessages(current, persisted) : persisted,
+      );
+      hydratedConversationId.current = conversationId;
+      return;
     }
-  }, [conversationQuery.data, conversationQuery.isPending, setMessages]);
+    setMessages((current) => {
+      const reconciled = reconcileConversationMessages(current, persisted);
+      if (reconciled !== current) skipNextScroll.current = true;
+      return reconciled;
+    });
+    hydratedConversationId.current = conversationId;
+  }, [conversationQuery.data, conversationQuery.isSuccess, setMessages]);
 
   useEffect(() => {
+    if (skipNextScroll.current) {
+      skipNextScroll.current = false;
+      return;
+    }
     bottomRef.current?.scrollIntoView({ behavior: status === "streaming" ? "auto" : "smooth" });
   }, [messages, status, profileQuery.data?.nextQuestion?.key]);
+
+  const backgroundRefreshing =
+    (profileQuery.isFetching && !profileQuery.isPending) ||
+    (conversationQuery.isFetching && !conversationQuery.isPending);
+  const showSynchronization = useDelayedIndicator(backgroundRefreshing);
 
   const uploadFile = useCallback(
     async (file: File, purpose: PendingAttachment["purpose"]) => {
@@ -833,25 +982,25 @@ export function ProjectProfileChat({ projectIdOrSlug }: { projectIdOrSlug: strin
     }
   }
 
-  if (profileQuery.isPending || conversationQuery.isPending) {
-    return (
-      <div className="-m-6 grid h-[calc(100dvh-4rem)] place-items-center bg-white">
-        <div className="flex items-center gap-3 text-sm text-slate-500">
-          <LoaderCircleIcon className="size-5 animate-spin text-violet-600" /> Chargement de la
-          conversation…
-        </div>
-      </div>
-    );
+  function retrySynchronization() {
+    void Promise.all([profileQuery.refetch(), conversationQuery.refetch()]);
   }
-  if (profileQuery.error || !profileQuery.data) {
+
+  if (profileQuery.isPending && !profileQuery.data) return <ConversationPageSkeleton />;
+  if (!profileQuery.data) {
     return (
       <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-red-800">
         <h1 className="font-semibold">Le profil ne peut pas être chargé</h1>
         <p className="mt-2 text-sm">Réessayez dans quelques instants.</p>
+        <Button type="button" variant="outline" className="mt-4" onClick={retrySynchronization}>
+          Réessayer
+        </Button>
       </div>
     );
   }
   const profile = profileQuery.data;
+  const historyPending = conversationQuery.isPending && !conversationQuery.data;
+  const synchronizationFailed = Boolean(profileQuery.error && profileQuery.data);
   const busy = status === "submitted" || status === "streaming";
   const canSend =
     (draft.trim().length > 0 || attachments.some((item) => item.status === "ready")) &&
@@ -860,7 +1009,12 @@ export function ProjectProfileChat({ projectIdOrSlug }: { projectIdOrSlug: strin
 
   return (
     <div className="-m-6 flex h-[calc(100dvh-4rem)] min-h-[680px] flex-col overflow-hidden bg-white">
-      <ProfileStatusBar profile={profile} />
+      <ProfileStatusBar
+        profile={profile}
+        synchronizing={showSynchronization}
+        synchronizationFailed={synchronizationFailed}
+        onRetry={retrySynchronization}
+      />
       <section
         className="flex min-h-0 flex-1 flex-col bg-white"
         aria-label="Conversation de profil"
@@ -871,7 +1025,29 @@ export function ProjectProfileChat({ projectIdOrSlug }: { projectIdOrSlug: strin
               <span className="h-px flex-1 bg-slate-100" /> Conversation de profil{" "}
               <span className="h-px flex-1 bg-slate-100" />
             </div>
-            {!messages.length && (
+            {conversationQuery.error && (
+              <div
+                role="alert"
+                className="flex flex-col gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 sm:flex-row sm:items-center"
+              >
+                <div className="flex min-w-0 flex-1 items-center gap-2">
+                  <AlertCircleIcon className="size-4 shrink-0" />
+                  L’historique n’a pas pu être synchronisé. La conversation affichée reste
+                  disponible.
+                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="border-amber-300 bg-white text-amber-800 hover:bg-amber-100"
+                  onClick={() => void conversationQuery.refetch()}
+                >
+                  Réessayer
+                </Button>
+              </div>
+            )}
+            {historyPending && !messages.length && <ConversationHistorySkeleton />}
+            {!historyPending && !messages.length && (
               <ChatMessage
                 message={{
                   id: "welcome",

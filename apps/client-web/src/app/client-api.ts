@@ -53,9 +53,10 @@ export const clientApi = {
       projectProfileSchema.parse(value),
     ),
   projectProfileConversation: (idOrSlug: string): Promise<ProjectProfileConversation | null> =>
-    request(`/v1/projects/${encodeURIComponent(idOrSlug)}/profile/conversation`, (value) =>
-      projectProfileConversationSchema.nullable().parse(value),
-    ),
+    request(`/v1/projects/${encodeURIComponent(idOrSlug)}/profile/conversation`, (value) => {
+      if (value === undefined || value === null || value === "") return null;
+      return projectProfileConversationSchema.parse(value);
+    }),
   updateProjectProfile: (idOrSlug: string, input: UpdateProjectProfile): Promise<ProjectProfile> =>
     request(
       `/v1/projects/${encodeURIComponent(idOrSlug)}/profile`,

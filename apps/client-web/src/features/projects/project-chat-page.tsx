@@ -5,5 +5,5 @@ import { ProjectProfileChat } from "./project-profile-chat.js";
 export function ProjectChatPage() {
   const { projectId } = useParams();
   if (!projectId) return null;
-  return <ProjectProfileChat projectIdOrSlug={projectId} />;
+  return <ProjectProfileChat key={projectId} projectIdOrSlug={projectId} />;
 }

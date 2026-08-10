@@ -113,12 +113,14 @@ export function AuthProvider({ children }: PropsWithChildren) {
     onboarding: onboardingQuery.data ?? null,
     projects: projectsQuery.data ?? [],
     isPending:
-      session.isPending ||
+      (session.isPending && !session.data) ||
       (Boolean(session.data?.user) &&
-        (activeMemberships.isPending ||
-          activeOrganizationQuery.isPending ||
-          onboardingQuery.isPending ||
-          (Boolean(activeOrganizationQuery.data?.id) && projectsQuery.isPending))),
+        ((activeMemberships.isPending && !activeMemberships.data) ||
+          (activeOrganizationQuery.isPending && !activeOrganizationQuery.data) ||
+          (onboardingQuery.isPending && !onboardingQuery.data) ||
+          (Boolean(activeOrganizationQuery.data?.id) &&
+            projectsQuery.isPending &&
+            !projectsQuery.data))),
     selectOrganization: async (organizationId) => {
       const result = await authClient.organization.setActive({ organizationId });
       if (result.error) throw new Error(result.error.message);

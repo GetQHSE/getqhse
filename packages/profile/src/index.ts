@@ -586,6 +586,10 @@ export function validateProfileFieldValue(key: ProfileFieldKey, value: unknown) 
   return profileValueSchemas[key].safeParse(value);
 }
 
+export function getProfileFieldValueJsonSchema(key: ProfileFieldKey) {
+  return z.toJSONSchema(profileValueSchemas[key]);
+}
+
 export type ProfileFieldState = {
   key: ProfileFieldKey;
   value: unknown;
@@ -662,6 +666,27 @@ export const profileToolAnswerSchema = z.object({
 export const profileToolInputSchema = z.object({
   answers: z.array(profileToolAnswerSchema).min(1).max(20),
 });
+
+export function profileToolInputSchemaForField(key: ProfileFieldKey) {
+  const valueSchema = JSON.stringify(getProfileFieldValueJsonSchema(key));
+  return z.object({
+    answers: z
+      .array(
+        profileToolAnswerSchema.extend({
+          key: z.literal(key),
+          valueJson: z
+            .string()
+            .min(1)
+            .max(30_000)
+            .describe(
+              `A JSON-serialized value for ${key}. The decoded JSON must match this schema exactly: ${valueSchema}`,
+            ),
+        }),
+      )
+      .length(1)
+      .describe("Submit the current question exactly once in this tool call."),
+  });
+}
 
 export type ProfileToolAnswer = z.infer<typeof profileToolAnswerSchema>;
 

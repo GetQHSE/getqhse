@@ -1,11 +1,15 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { clientApi } from "../../app/client-api.js";
-import { ProjectProfileChat } from "./project-profile-chat.js";
+import {
+  conversationMessages,
+  ProjectProfileChat,
+  reconcileConversationMessages,
+} from "./project-profile-chat.js";
 
 const sendMessage = vi.fn();
 const setMessages = vi.fn();
@@ -34,10 +38,11 @@ const toolMessage = {
     },
   ],
 };
+let mockChatMessages: (typeof toolMessage)[] = [toolMessage];
 
 vi.mock("@ai-sdk/react", () => ({
   useChat: () => ({
-    messages: [toolMessage],
+    messages: mockChatMessages,
     setMessages,
     sendMessage,
     status: "ready",
@@ -117,11 +122,24 @@ const profile = {
   },
 };
 
-function renderChat() {
+const conversation = {
+  id: "conversation-1",
+  status: "ACTIVE",
+  language: "fr",
+  currentQuestionKey: "operations.keyProcesses",
+  messages: [],
+  createdAt: "2026-08-09T10:00:00.000Z",
+  updatedAt: "2026-08-09T10:00:00.000Z",
+};
+
+function renderChat(queryClient?: QueryClient) {
   return render(
     <MemoryRouter>
       <QueryClientProvider
-        client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
+        client={
+          queryClient ??
+          new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } })
+        }
       >
         <ProjectProfileChat projectIdOrSlug="atlas-industrie" />
       </QueryClientProvider>
@@ -137,16 +155,9 @@ afterEach(cleanup);
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mockChatMessages = [toolMessage];
   vi.mocked(clientApi.projectProfile).mockResolvedValue(profile as never);
-  vi.mocked(clientApi.projectProfileConversation).mockResolvedValue({
-    id: "conversation-1",
-    status: "ACTIVE",
-    language: "fr",
-    currentQuestionKey: "operations.keyProcesses",
-    messages: [],
-    createdAt: "2026-08-09T10:00:00.000Z",
-    updatedAt: "2026-08-09T10:00:00.000Z",
-  });
+  vi.mocked(clientApi.projectProfileConversation).mockResolvedValue(conversation as never);
 });
 
 describe("ProjectProfileChat", () => {
@@ -159,6 +170,51 @@ describe("ProjectProfileChat", () => {
       screen.getByRole("heading", { name: "Quels sont vos processus clés ?" }),
     ).toBeInTheDocument();
     expect(screen.getByText("28%")).toBeInTheDocument();
+  });
+
+  it("collapses repeated rejected tool calls into one clarification card", async () => {
+    const rejectionOutput = {
+      acceptedKeys: [],
+      rejectedAnswers: [
+        { key: "organization.offerings", reason: "Invalid input: expected object" },
+      ],
+      nextQuestion: {
+        key: "organization.offerings",
+        prompt: "Quels produits ou services proposez-vous ?",
+      },
+      completenessPercent: 9,
+      regulatoryReadiness: 0,
+    };
+    mockChatMessages = [
+      {
+        id: "assistant-rejections",
+        role: "assistant",
+        parts: [
+          {
+            type: "tool-recordProfileAnswers",
+            toolCallId: "rejected-1",
+            state: "output-available",
+            input: { answers: [] },
+            output: rejectionOutput,
+          },
+          {
+            type: "tool-recordProfileAnswers",
+            toolCallId: "rejected-2",
+            state: "output-available",
+            input: { answers: [] },
+            output: rejectionOutput,
+          },
+        ],
+      },
+    ] as never;
+
+    renderChat();
+
+    expect(
+      await screen.findAllByText(
+        "Une information nécessite une précision avant d’être enregistrée.",
+      ),
+    ).toHaveLength(1);
   });
 
   it("sends a streamed turn with the active conversation context", async () => {
@@ -180,6 +236,155 @@ describe("ProjectProfileChat", () => {
           attachmentIds: [],
         },
       },
+    );
+  });
+
+  it("uses a chat-shaped skeleton only while the profile has never loaded", () => {
+    mockChatMessages = [];
+    vi.mocked(clientApi.projectProfile).mockReturnValue(new Promise(() => {}));
+    vi.mocked(clientApi.projectProfileConversation).mockReturnValue(new Promise(() => {}));
+
+    renderChat();
+
+    expect(screen.getByRole("status", { name: "Chargement de la conversation" })).toBeVisible();
+    expect(screen.queryByText("Chargement de la conversation…")).toBeInTheDocument();
+  });
+
+  it("keeps the profile and composer visible while conversation history loads", async () => {
+    mockChatMessages = [];
+    vi.mocked(clientApi.projectProfileConversation).mockReturnValue(new Promise(() => {}));
+
+    renderChat();
+
+    expect(await screen.findByText(/Atlas Industrie/)).toBeInTheDocument();
+    expect(screen.getByRole("status", { name: "Chargement de l’historique" })).toBeVisible();
+    expect(screen.getByRole("textbox", { name: "Votre réponse" })).toBeEnabled();
+  });
+
+  it("does not clear an optimistic message when initial history finishes loading", async () => {
+    mockChatMessages = [];
+    renderChat();
+
+    await waitFor(() => expect(setMessages).toHaveBeenCalled());
+    const updater = setMessages.mock.calls.at(-1)?.[0] as (
+      messages: Array<{
+        id: string;
+        role: "user";
+        parts: Array<{ type: "text"; text: string }>;
+      }>,
+    ) => unknown[];
+    const optimistic = [
+      {
+        id: "optimistic-user-1",
+        role: "user" as const,
+        parts: [{ type: "text" as const, text: "Réponse en cours" }],
+      },
+    ];
+
+    expect(updater(optimistic)).toEqual(optimistic);
+  });
+
+  it("treats a missing conversation as a valid first-use state", async () => {
+    mockChatMessages = [];
+    vi.mocked(clientApi.projectProfileConversation).mockResolvedValue(null);
+
+    renderChat();
+
+    expect(await screen.findByText(/je vais vous aider à compléter le profil/)).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "Votre réponse" })).toBeEnabled();
+  });
+
+  it("keeps cached conversation UI visible during a slow background refresh", async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false, staleTime: 0, gcTime: Infinity } },
+    });
+    queryClient.setQueryData(["project-profile", "atlas-industrie"], profile);
+    queryClient.setQueryData(["project-profile-conversation", "atlas-industrie"], conversation);
+    vi.mocked(clientApi.projectProfile).mockReturnValue(new Promise(() => {}));
+    vi.mocked(clientApi.projectProfileConversation).mockReturnValue(new Promise(() => {}));
+
+    renderChat(queryClient);
+    const input = screen.getByRole("textbox", { name: "Votre réponse" });
+    await userEvent.type(input, "Une réponse conservée");
+
+    expect(screen.getByText("1 information enregistrée")).toBeInTheDocument();
+    expect(input).toHaveValue("Une réponse conservée");
+    expect(
+      await screen.findByRole("status", { name: "Synchronisation en cours" }, { timeout: 1_200 }),
+    ).toBeInTheDocument();
+    expect(input).toHaveValue("Une réponse conservée");
+  });
+
+  it("retains cached content and offers retry when background history refresh fails", async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false, staleTime: 0, gcTime: Infinity } },
+    });
+    queryClient.setQueryData(["project-profile", "atlas-industrie"], profile);
+    queryClient.setQueryData(["project-profile-conversation", "atlas-industrie"], conversation);
+    vi.mocked(clientApi.projectProfileConversation).mockRejectedValue(new Error("offline"));
+
+    renderChat(queryClient);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "L’historique n’a pas pu être synchronisé",
+    );
+    expect(screen.getByText("1 information enregistrée")).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "Votre réponse" })).toBeEnabled();
+    await userEvent.click(screen.getByRole("button", { name: "Réessayer" }));
+    await waitFor(() => expect(clientApi.projectProfileConversation).toHaveBeenCalledTimes(2));
+  });
+
+  it("retains cached content when the profile background refresh fails", async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false, staleTime: 0, gcTime: Infinity } },
+    });
+    queryClient.setQueryData(["project-profile", "atlas-industrie"], profile);
+    queryClient.setQueryData(["project-profile-conversation", "atlas-industrie"], conversation);
+    vi.mocked(clientApi.projectProfile).mockRejectedValue(new Error("offline"));
+
+    renderChat(queryClient);
+
+    expect(await screen.findByRole("button", { name: "Actualiser" })).toBeInTheDocument();
+    expect(screen.getByText("1 information enregistrée")).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "Votre réponse" })).toBeEnabled();
+  });
+
+  it("normalizes persisted user IDs and preserves rich messages while reconciling", () => {
+    const persisted = conversationMessages({
+      ...conversation,
+      messages: [
+        {
+          id: "database-user-1",
+          clientMessageId: "client-user-1",
+          role: "USER",
+          content: "Bonjour",
+          createdAt: "2026-08-09T10:01:00.000Z",
+        },
+        {
+          id: "assistant-1",
+          role: "ASSISTANT",
+          content: "Merci.",
+          createdAt: "2026-08-09T10:02:00.000Z",
+        },
+      ],
+    } as never);
+    const current = [
+      {
+        id: "client-user-1",
+        role: "user" as const,
+        parts: [{ type: "text" as const, text: "Bonjour" }],
+        metadata: { createdAt: "2026-08-09T10:01:00.000Z" },
+      },
+      toolMessage,
+    ];
+
+    const reconciled = reconcileConversationMessages(current, persisted as never);
+
+    expect(reconciled).toBe(current);
+    expect(reconciled).toHaveLength(2);
+    expect(reconciled[1]?.parts).toContainEqual(
+      expect.objectContaining({ type: "tool-recordProfileAnswers" }),
     );
   });
 });

@@ -155,10 +155,13 @@ export class QhseApiClient {
     conversationId?: string,
   ): Promise<ProjectProfileConversation | null> {
     const query = conversationId ? `?conversationId=${encodeURIComponent(conversationId)}` : "";
-    return this.#request(
+    return apiRequest<unknown>(
+      this.#axios,
       `/v1/projects/${encodeURIComponent(projectIdOrSlug)}/profile/conversation${query}`,
-      projectProfileConversationSchema.nullable(),
-    );
+    ).then((value) => {
+      if (value === undefined || value === null || value === "") return null;
+      return projectProfileConversationSchema.parse(value);
+    });
   }
 
   chatProjectProfile(

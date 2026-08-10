@@ -1,7 +1,11 @@
 import { Injectable, ServiceUnavailableException } from "@nestjs/common";
 import { openai } from "@ai-sdk/openai";
 import { profileChatPrompt } from "@qhse/ai";
-import { profileToolInputSchema } from "@qhse/profile";
+import {
+  getProfileFieldValueJsonSchema,
+  profileToolInputSchema,
+  profileToolInputSchemaForField,
+} from "@qhse/profile";
 import {
   generateText,
   pipeUIMessageStreamToResponse,
@@ -49,11 +53,17 @@ export class OpenAiProfileChatAdapter extends ProfileChatModelPort {
       ...(input.history ?? []).map((message) => ({ role: message.role, content: message.content })),
       { role: "user", content: currentContent },
     ];
+    const currentFieldSchema = input.currentQuestion
+      ? getProfileFieldValueJsonSchema(input.currentQuestion.key)
+      : null;
     const tools = {
       recordProfileAnswers: tool({
-        description:
-          "Record only explicit organization profile facts supplied by the user. Values must match the current profile field schema.",
-        inputSchema: profileToolInputSchema,
+        description: input.currentQuestion
+          ? `Record the user's answer to the current profile question exactly once. The only allowed key is ${input.currentQuestion.key}. valueJson must contain JSON matching this exact schema: ${JSON.stringify(currentFieldSchema)}. Return validation failures to the user as one precise clarification question; never retry this tool in the same turn.`
+          : "Do not call this tool because the profile has no current question.",
+        inputSchema: input.currentQuestion
+          ? profileToolInputSchemaForField(input.currentQuestion.key)
+          : profileToolInputSchema,
         execute: async ({ answers }) => input.recordAnswers(answers),
       }),
     };
@@ -68,7 +78,7 @@ export class OpenAiProfileChatAdapter extends ProfileChatModelPort {
       system: prompt.system,
       messages,
       tools,
-      stopWhen: stepCountIs(3),
+      stopWhen: stepCountIs(2),
       maxRetries: 2,
       providerOptions: { openai: { store: false } },
     });
@@ -91,7 +101,7 @@ export class OpenAiProfileChatAdapter extends ProfileChatModelPort {
       system: prompt.system,
       messages,
       tools,
-      stopWhen: stepCountIs(3),
+      stopWhen: stepCountIs(2),
       maxRetries: 2,
       providerOptions: { openai: { store: false } },
       onEnd: async (event) => {
