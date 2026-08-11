@@ -45,18 +45,22 @@
         "VITE_DEFAULT_LOCALE"
       ]
     },
+    "db:generate": {
+      "inputs": ["prisma/schema.prisma", "prisma.config.ts"],
+      "outputs": ["src/generated/**"]
+    },
     "build": {
-      "dependsOn": ["^build"],
+      "dependsOn": ["^build", "db:generate"],
       "outputs": ["dist/**", "coverage/**", ".vite/**"]
     },
     "lint": {
-      "dependsOn": ["^build"]
+      "dependsOn": ["^build", "db:generate"]
     },
     "typecheck": {
-      "dependsOn": ["^build"]
+      "dependsOn": ["^build", "db:generate"]
     },
     "test": {
-      "dependsOn": ["^build"]
+      "dependsOn": ["^build", "db:generate"]
     },
     "test:unit": {
       "dependsOn": ["^build"]
