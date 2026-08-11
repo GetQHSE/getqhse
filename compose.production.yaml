@@ -57,13 +57,13 @@ services:
     environment:
       <<: *api-environment
       API_HOST: 0.0.0.0
-      API_PORT: "3000"
+      API_PORT: "4000"
       APP_ORIGIN: ${APP_ORIGIN:?Set APP_ORIGIN}
       CORS_ORIGINS: ${CORS_ORIGINS:?Set CORS_ORIGINS}
       BETTER_AUTH_URL: ${BETTER_AUTH_URL:?Set BETTER_AUTH_URL}
 
     expose:
-      - "3000"
+      - "4000"
 
     depends_on:
       migrate:
@@ -87,17 +87,17 @@ services:
     environment:
       <<: *api-environment
       API_HOST: 0.0.0.0
-      API_PORT: "3000"
+      API_PORT: "4000"
       APP_ORIGIN: ${APP_ORIGIN:?Set APP_ORIGIN}
       CORS_ORIGINS: ${CORS_ORIGINS:?Set CORS_ORIGINS}
       BETTER_AUTH_URL: ${BETTER_AUTH_URL:?Set BETTER_AUTH_URL}
       ADMIN_API_HOST: 0.0.0.0
-      ADMIN_API_PORT: "3001"
+      ADMIN_API_PORT: "4001"
       ADMIN_BETTER_AUTH_URL: ${ADMIN_BETTER_AUTH_URL:?Set ADMIN_BETTER_AUTH_URL}
       ADMIN_CORS_ORIGINS: ${ADMIN_CORS_ORIGINS:?Set ADMIN_CORS_ORIGINS}
 
     expose:
-      - "3001"
+      - "4001"
 
     depends_on:
       migrate:
