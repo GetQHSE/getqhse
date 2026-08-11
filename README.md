@@ -61,6 +61,8 @@ Integration and API tests use real PostgreSQL, Redis, and MinIO through Testcont
 | ------------------- | ---: | ----------------------------------- |
 | client-web          | 5173 | Customer React application          |
 | client-api          | 3000 | Customer API and `/docs` OpenAPI UI |
+| admin-web           | 5174 | Platform administration application |
+| admin-api           | 3001 | Platform administration API         |
 | PostgreSQL/pgvector | 5432 | Transactional and vector storage    |
 | Redis               | 6379 | BullMQ                              |
 | MinIO API           | 9000 | S3-compatible object storage        |
@@ -109,3 +111,8 @@ See `docs/decisions` and `docs/security/tenant-isolation.md` for the complete ra
   minified JavaScript bundle.
 
 Commits should follow Conventional Commits (`feat:`, `fix:`, `test:`, `docs:`, `chore:`).
+
+Production uses the portable `compose.production.yaml` definition; Dokploy is the initial control plane,
+not an application dependency. See the [production deployment](docs/runbooks/production-deployment.md),
+[backup and restore](docs/runbooks/backup-restore.md), and
+[GitHub workflow](docs/runbooks/github-workflow.md) runbooks.

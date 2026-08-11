@@ -173,6 +173,74 @@ enum AiInvocationStatus {
   FAILED
 }
 
+enum RegulatoryWatchStatus {
+  NOT_STARTED
+  ANALYZING
+  AWAITING_CLARIFICATION
+  REVIEW_REQUIRED
+  ACTIVE
+  STALE
+  FAILED
+}
+
+enum RegulatoryAnalysisStatus {
+  QUEUED
+  RUNNING
+  AWAITING_CLARIFICATION
+  READY_FOR_REVIEW
+  COMPLETED
+  SUPERSEDED
+  FAILED
+}
+
+enum RegulatoryChangeType {
+  ADDED
+  UNCHANGED
+  MODIFIED
+  REMOVAL_PROPOSED
+}
+
+enum RegulatoryDecisionSource {
+  SYSTEM
+  HUMAN
+}
+
+enum RegulatoryRunTrigger {
+  MANUAL
+  DOCUMENT_REVISION
+}
+
+enum RegulatorySyncEventStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum RegulatoryApplicability {
+  APPLICABLE
+  TO_CONFIRM
+  NOT_APPLICABLE
+}
+
+enum RegulatoryBaselineStatus {
+  PUBLISHED
+  SUPERSEDED
+}
+
+enum RegulatoryActionStatus {
+  OPEN
+  IN_PROGRESS
+  DONE
+  VERIFIED
+}
+
+enum RegulatoryEffectiveness {
+  PENDING
+  EFFECTIVE
+  INEFFECTIVE
+}
+
 enum FileUploadStatus {
   PENDING
   READY
@@ -183,6 +251,7 @@ enum FilePurpose {
   CHAT_ATTACHMENT
   VOICE_NOTE
   EVIDENCE
+  REGULATORY_EVIDENCE
 }
 
 enum TranscriptionStatus {
@@ -230,30 +299,37 @@ model User {
   accounts                            Account[]
   sessions                            Session[]
   members                             Member[]
-  invitations                         Invitation[]                  @relation("InvitationInviter")
-  assignedActions                     CorrectiveAction[]            @relation("ActionAssignee")
-  documentsCreated                    Document[]                    @relation("DocumentCreator")
-  documentsUpdated                    Document[]                    @relation("DocumentUpdater")
-  documentsPublished                  Document[]                    @relation("DocumentPublisher")
-  documentVersionsCreated             DocumentVersion[]             @relation("DocumentVersionCreator")
-  documentVersionsValidated           DocumentVersion[]             @relation("DocumentVersionValidator")
-  documentVersionsPublished           DocumentVersion[]             @relation("DocumentVersionPublisher")
-  documentFilesUploaded               DocumentFile[]                @relation("DocumentFileUploader")
-  profileFieldsConfirmed              ProjectProfileField[]         @relation("ProfileFieldConfirmer")
-  profileFieldRevisions               ProjectProfileFieldRevision[] @relation("ProfileFieldRevisionActor")
-  profileSnapshotsCreated             ProjectProfileSnapshot[]      @relation("ProfileSnapshotCreator")
-  profileConversationsCreated         ProjectProfileConversation[]  @relation("ProfileConversationCreator")
-  filesUploaded                       FileObject[]                  @relation("FileUploader")
-  documentRelationshipsCreated        DocumentRelationship[]        @relation("DocumentRelationshipCreator")
-  documentClassificationsValidated    DocumentTaxonomyTerm[]        @relation("DocumentTaxonomyValidator")
-  documentMetadataSuggestionsReviewed DocumentMetadataSuggestion[]  @relation("DocumentMetadataSuggestionReviewer")
-  documentReviewsAssigned             DocumentReview[]              @relation("DocumentReviewAssignee")
-  documentReviewsCreated              DocumentReview[]              @relation("DocumentReviewCreator")
-  documentReviewIssuesAssigned        DocumentReviewIssue[]         @relation("DocumentReviewIssueAssignee")
-  documentReviewIssuesCreated         DocumentReviewIssue[]         @relation("DocumentReviewIssueCreator")
-  documentReviewIssuesResolved        DocumentReviewIssue[]         @relation("DocumentReviewIssueResolver")
-  documentActivities                  DocumentActivity[]            @relation("DocumentActivityActor")
-  createdProjects                     Project[]                     @relation("ProjectCreator")
+  invitations                         Invitation[]                       @relation("InvitationInviter")
+  assignedActions                     CorrectiveAction[]                 @relation("ActionAssignee")
+  documentsCreated                    Document[]                         @relation("DocumentCreator")
+  documentsUpdated                    Document[]                         @relation("DocumentUpdater")
+  documentsPublished                  Document[]                         @relation("DocumentPublisher")
+  documentVersionsCreated             DocumentVersion[]                  @relation("DocumentVersionCreator")
+  documentVersionsValidated           DocumentVersion[]                  @relation("DocumentVersionValidator")
+  documentVersionsPublished           DocumentVersion[]                  @relation("DocumentVersionPublisher")
+  documentFilesUploaded               DocumentFile[]                     @relation("DocumentFileUploader")
+  profileFieldsConfirmed              ProjectProfileField[]              @relation("ProfileFieldConfirmer")
+  profileFieldRevisions               ProjectProfileFieldRevision[]      @relation("ProfileFieldRevisionActor")
+  profileSnapshotsCreated             ProjectProfileSnapshot[]           @relation("ProfileSnapshotCreator")
+  profileConversationsCreated         ProjectProfileConversation[]       @relation("ProfileConversationCreator")
+  filesUploaded                       FileObject[]                       @relation("FileUploader")
+  documentRelationshipsCreated        DocumentRelationship[]             @relation("DocumentRelationshipCreator")
+  documentClassificationsValidated    DocumentTaxonomyTerm[]             @relation("DocumentTaxonomyValidator")
+  documentMetadataSuggestionsReviewed DocumentMetadataSuggestion[]       @relation("DocumentMetadataSuggestionReviewer")
+  documentReviewsAssigned             DocumentReview[]                   @relation("DocumentReviewAssignee")
+  documentReviewsCreated              DocumentReview[]                   @relation("DocumentReviewCreator")
+  documentReviewIssuesAssigned        DocumentReviewIssue[]              @relation("DocumentReviewIssueAssignee")
+  documentReviewIssuesCreated         DocumentReviewIssue[]              @relation("DocumentReviewIssueCreator")
+  documentReviewIssuesResolved        DocumentReviewIssue[]              @relation("DocumentReviewIssueResolver")
+  documentActivities                  DocumentActivity[]                 @relation("DocumentActivityActor")
+  createdProjects                     Project[]                          @relation("ProjectCreator")
+  regulatoryAnalysesCreated           RegulatoryAnalysisRun[]            @relation("RegulatoryAnalysisCreator")
+  regulatoryCandidatesReviewed        RegulatoryApplicabilityCandidate[] @relation("RegulatoryCandidateReviewer")
+  regulatoryBaselinesPublished        RegulatoryBaseline[]               @relation("RegulatoryBaselinePublisher")
+  regulatoryEvaluationsCompleted      RegulatoryEvaluation[]             @relation("RegulatoryEvaluationReviewer")
+  regulatoryEvidenceCreated           RegulatoryEvaluationEvidence[]     @relation("RegulatoryEvidenceCreator")
+  regulatoryActionsAssigned           RegulatoryEvaluationAction[]       @relation("RegulatoryActionAssignee")
+  regulatorySyncEventsCreated         RegulatorySyncEvent[]              @relation("RegulatorySyncEventActor")
 
   @@map("users")
 }
@@ -300,6 +376,7 @@ model Document {
   targetRelationships   DocumentRelationship[] @relation("RelationshipTargetDocument")
   taxonomyTerms         DocumentTaxonomyTerm[]
   activity              DocumentActivity[]
+  regulatorySyncEvents  RegulatorySyncEvent[]
 
   @@index([status, updatedAt])
   @@index([documentType, countryCode])
@@ -343,6 +420,7 @@ model DocumentVersion {
   aiProcessingAllowed      Boolean             @default(false) @map("ai_processing_allowed")
   externalProviderAllowed  Boolean             @default(false) @map("external_provider_allowed")
   excerptDisplayAllowed    Boolean             @default(false) @map("excerpt_display_allowed")
+  exportAllowed            Boolean             @default(false) @map("export_allowed")
   rightsReviewedAt         DateTime?           @map("rights_reviewed_at")
   supersedesVersionId      String?             @map("supersedes_version_id")
   chunkingVersion          String?             @map("chunking_version")
@@ -355,24 +433,27 @@ model DocumentVersion {
   createdAt                DateTime            @default(now()) @map("created_at")
   updatedAt                DateTime            @updatedAt @map("updated_at")
 
-  document             Document                     @relation("DocumentVersions", fields: [documentId], references: [id], onDelete: Restrict)
-  currentFor           Document?                    @relation("CurrentDocumentVersion")
-  supersedesVersion    DocumentVersion?             @relation("VersionSupersession", fields: [supersedesVersionId], references: [id], onDelete: SetNull)
-  supersededByVersions DocumentVersion[]            @relation("VersionSupersession")
-  createdBy            User                         @relation("DocumentVersionCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
-  validatedBy          User?                        @relation("DocumentVersionValidator", fields: [validatedByUserId], references: [id], onDelete: SetNull)
-  publishedBy          User?                        @relation("DocumentVersionPublisher", fields: [publishedByUserId], references: [id], onDelete: SetNull)
-  files                DocumentFile[]
-  processingJobs       DocumentProcessingJob[]
-  sections             DocumentSection[]
-  provisions           DocumentProvision[]
-  chunks               DocumentChunk[]
-  metadataSuggestions  DocumentMetadataSuggestion[]
-  reviews              DocumentReview[]
-  reviewIssues         DocumentReviewIssue[]
-  sourceRelationships  DocumentRelationship[]       @relation("RelationshipSourceVersion")
-  targetRelationships  DocumentRelationship[]       @relation("RelationshipTargetVersion")
-  activity             DocumentActivity[]
+  document                 Document                     @relation("DocumentVersions", fields: [documentId], references: [id], onDelete: Restrict)
+  currentFor               Document?                    @relation("CurrentDocumentVersion")
+  supersedesVersion        DocumentVersion?             @relation("VersionSupersession", fields: [supersedesVersionId], references: [id], onDelete: SetNull)
+  supersededByVersions     DocumentVersion[]            @relation("VersionSupersession")
+  createdBy                User                         @relation("DocumentVersionCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  validatedBy              User?                        @relation("DocumentVersionValidator", fields: [validatedByUserId], references: [id], onDelete: SetNull)
+  publishedBy              User?                        @relation("DocumentVersionPublisher", fields: [publishedByUserId], references: [id], onDelete: SetNull)
+  files                    DocumentFile[]
+  processingJobs           DocumentProcessingJob[]
+  sections                 DocumentSection[]
+  provisions               DocumentProvision[]
+  chunks                   DocumentChunk[]
+  metadataSuggestions      DocumentMetadataSuggestion[]
+  reviews                  DocumentReview[]
+  reviewIssues             DocumentReviewIssue[]
+  sourceRelationships      DocumentRelationship[]       @relation("RelationshipSourceVersion")
+  targetRelationships      DocumentRelationship[]       @relation("RelationshipTargetVersion")
+  activity                 DocumentActivity[]
+  regulatoryRunsTriggered  RegulatoryAnalysisRun[]      @relation("RegulatoryTriggerDocumentVersion")
+  regulatorySyncEventsFrom RegulatorySyncEvent[]        @relation("RegulatorySyncPreviousVersion")
+  regulatorySyncEventsTo   RegulatorySyncEvent[]        @relation("RegulatorySyncPublishedVersion")
 
   @@unique([documentId, versionNumber])
   @@unique([documentId, versionLabel])
@@ -496,9 +577,11 @@ model DocumentProvision {
   createdAt         DateTime              @default(now()) @map("created_at")
   updatedAt         DateTime              @updatedAt @map("updated_at")
 
-  version DocumentVersion  @relation(fields: [documentVersionId], references: [id], onDelete: Cascade)
-  section DocumentSection? @relation(fields: [documentSectionId], references: [id], onDelete: SetNull)
-  chunks  DocumentChunk[]
+  version              DocumentVersion                    @relation(fields: [documentVersionId], references: [id], onDelete: Cascade)
+  section              DocumentSection?                   @relation(fields: [documentSectionId], references: [id], onDelete: SetNull)
+  chunks               DocumentChunk[]
+  regulatoryCandidates RegulatoryApplicabilityCandidate[]
+  regulatoryEntries    RegulatoryRegisterEntry[]
 
   @@unique([documentVersionId, orderIndex])
   @@index([documentVersionId, sourceIdentifier])
@@ -818,6 +901,7 @@ model Organization {
   auditLogEntries   AuditLogEntry[]
   retrievalLogs     RetrievalLog[]
   aiInvocations     AiInvocation[]
+  regulatoryWatches ProjectRegulatoryWatch[]
 
   @@map("organizations")
 }
@@ -892,11 +976,12 @@ model Project {
   updatedAt      DateTime          @updatedAt @map("updated_at")
   archivedAt     DateTime?         @map("archived_at")
 
-  organization  Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  createdBy     User              @relation("ProjectCreator", fields: [createdById], references: [id], onDelete: Restrict)
-  activities    ProjectActivity[]
-  profile       ProjectProfile?
-  aiInvocations AiInvocation[]
+  organization    Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy       User                    @relation("ProjectCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  activities      ProjectActivity[]
+  profile         ProjectProfile?
+  aiInvocations   AiInvocation[]
+  regulatoryWatch ProjectRegulatoryWatch?
 
   @@unique([organizationId, slug])
   @@index([organizationId])
@@ -1001,12 +1086,269 @@ model ProjectProfileSnapshot {
   createdById         String?  @map("created_by_id")
   createdAt           DateTime @default(now()) @map("created_at")
 
-  profile   ProjectProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
-  createdBy User?          @relation("ProfileSnapshotCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  profile             ProjectProfile          @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  createdBy           User?                   @relation("ProfileSnapshotCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  regulatoryAnalyses  RegulatoryAnalysisRun[]
+  regulatoryBaselines RegulatoryBaseline[]
 
   @@unique([profileId, sequence])
   @@unique([profileId, contentHash])
   @@map("project_profile_snapshots")
+}
+
+model ProjectRegulatoryWatch {
+  id                   String                @id @default(cuid())
+  organizationId       String                @map("organization_id")
+  projectId            String                @unique @map("project_id")
+  status               RegulatoryWatchStatus @default(NOT_STARTED)
+  revision             Int                   @default(1)
+  currentBaselineId    String?               @unique @map("current_baseline_id")
+  lastCheckedAt        DateTime?             @map("last_checked_at")
+  lastSuccessfulSyncAt DateTime?             @map("last_successful_sync_at")
+  createdAt            DateTime              @default(now()) @map("created_at")
+  updatedAt            DateTime              @updatedAt @map("updated_at")
+
+  organization    Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  project         Project                 @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  currentBaseline RegulatoryBaseline?     @relation("CurrentRegulatoryBaseline", fields: [currentBaselineId], references: [id], onDelete: SetNull)
+  analyses        RegulatoryAnalysisRun[]
+  baselines       RegulatoryBaseline[]    @relation("RegulatoryWatchBaselines")
+
+  @@index([organizationId, status])
+  @@map("project_regulatory_watches")
+}
+
+model RegulatoryAnalysisRun {
+  id                       String                   @id @default(cuid())
+  watchId                  String                   @map("watch_id")
+  profileSnapshotId        String                   @map("profile_snapshot_id")
+  createdById              String                   @map("created_by_id")
+  baseBaselineId           String?                  @map("base_baseline_id")
+  triggerType              RegulatoryRunTrigger     @default(MANUAL) @map("trigger_type")
+  triggerKey               String                   @default(cuid()) @map("trigger_key")
+  triggerDocumentVersionId String?                  @map("trigger_document_version_id")
+  status                   RegulatoryAnalysisStatus @default(QUEUED)
+  asOf                     DateTime                 @map("as_of") @db.Date
+  languages                String[]                 @default(["fr", "ar"])
+  phase                    String                   @default("queued")
+  progressPercent          Int                      @default(0) @map("progress_percent")
+  clarificationRevision    Int                      @default(0) @map("clarification_revision")
+  model                    String?
+  promptKey                String?                  @map("prompt_key")
+  promptVersion            Int?                     @map("prompt_version")
+  inputTokens              Int?                     @map("input_tokens")
+  outputTokens             Int?                     @map("output_tokens")
+  errorCode                String?                  @map("error_code")
+  errorMessage             String?                  @map("error_message")
+  startedAt                DateTime?                @map("started_at")
+  completedAt              DateTime?                @map("completed_at")
+  supersededAt             DateTime?                @map("superseded_at")
+  createdAt                DateTime                 @default(now()) @map("created_at")
+  updatedAt                DateTime                 @updatedAt @map("updated_at")
+
+  watch                  ProjectRegulatoryWatch             @relation(fields: [watchId], references: [id], onDelete: Cascade)
+  profileSnapshot        ProjectProfileSnapshot             @relation(fields: [profileSnapshotId], references: [id], onDelete: Restrict)
+  createdBy              User                               @relation("RegulatoryAnalysisCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  baseBaseline           RegulatoryBaseline?                @relation("RegulatoryAnalysisBaseBaseline", fields: [baseBaselineId], references: [id], onDelete: Restrict)
+  triggerDocumentVersion DocumentVersion?                   @relation("RegulatoryTriggerDocumentVersion", fields: [triggerDocumentVersionId], references: [id], onDelete: SetNull)
+  scopeFacts             RegulatoryScopeFact[]
+  candidates             RegulatoryApplicabilityCandidate[]
+  baseline               RegulatoryBaseline?
+
+  @@unique([watchId, triggerKey])
+  @@index([watchId, createdAt])
+  @@index([status, createdAt])
+  @@map("regulatory_analysis_runs")
+}
+
+model RegulatoryScopeFact {
+  id        String   @id @default(cuid())
+  runId     String   @map("run_id")
+  key       String
+  question  String
+  answer    Json?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  run RegulatoryAnalysisRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@unique([runId, key])
+  @@map("regulatory_scope_facts")
+}
+
+model RegulatoryApplicabilityCandidate {
+  id                 String                    @id @default(cuid())
+  runId              String                    @map("run_id")
+  provisionId        String                    @map("provision_id")
+  previousEntryId    String?                   @map("previous_entry_id")
+  changeType         RegulatoryChangeType      @default(ADDED) @map("change_type")
+  changeSummary      String?                   @map("change_summary")
+  requiresReview     Boolean                   @default(true) @map("requires_review")
+  suggestion         RegulatoryApplicability
+  rationale          String
+  matchedProfileKeys String[]                  @default([]) @map("matched_profile_keys")
+  confidence         Decimal                   @db.Decimal(5, 4)
+  decision           RegulatoryApplicability?
+  decisionSource     RegulatoryDecisionSource? @map("decision_source")
+  decisionNote       String?                   @map("decision_note")
+  reviewedById       String?                   @map("reviewed_by_id")
+  reviewedAt         DateTime?                 @map("reviewed_at")
+  createdAt          DateTime                  @default(now()) @map("created_at")
+  updatedAt          DateTime                  @updatedAt @map("updated_at")
+
+  run           RegulatoryAnalysisRun    @relation(fields: [runId], references: [id], onDelete: Cascade)
+  provision     DocumentProvision        @relation(fields: [provisionId], references: [id], onDelete: Restrict)
+  previousEntry RegulatoryRegisterEntry? @relation("RegulatoryCandidatePreviousEntry", fields: [previousEntryId], references: [id], onDelete: Restrict)
+  reviewedBy    User?                    @relation("RegulatoryCandidateReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  @@unique([runId, provisionId])
+  @@index([runId, decision, suggestion])
+  @@map("regulatory_applicability_candidates")
+}
+
+model RegulatoryBaseline {
+  id                 String                   @id @default(cuid())
+  watchId            String                   @map("watch_id")
+  analysisRunId      String                   @unique @map("analysis_run_id")
+  profileSnapshotId  String                   @map("profile_snapshot_id")
+  previousBaselineId String?                  @map("previous_baseline_id")
+  sequence           Int
+  status             RegulatoryBaselineStatus @default(PUBLISHED)
+  publishedById      String                   @map("published_by_id")
+  publishedAt        DateTime                 @default(now()) @map("published_at")
+  createdAt          DateTime                 @default(now()) @map("created_at")
+
+  watch              ProjectRegulatoryWatch    @relation("RegulatoryWatchBaselines", fields: [watchId], references: [id], onDelete: Cascade)
+  currentFor         ProjectRegulatoryWatch?   @relation("CurrentRegulatoryBaseline")
+  analysisRun        RegulatoryAnalysisRun     @relation(fields: [analysisRunId], references: [id], onDelete: Restrict)
+  previousBaseline   RegulatoryBaseline?       @relation("RegulatoryBaselineLineage", fields: [previousBaselineId], references: [id], onDelete: Restrict)
+  successorBaselines RegulatoryBaseline[]      @relation("RegulatoryBaselineLineage")
+  successorAnalyses  RegulatoryAnalysisRun[]   @relation("RegulatoryAnalysisBaseBaseline")
+  profileSnapshot    ProjectProfileSnapshot    @relation(fields: [profileSnapshotId], references: [id], onDelete: Restrict)
+  publishedBy        User                      @relation("RegulatoryBaselinePublisher", fields: [publishedById], references: [id], onDelete: Restrict)
+  entries            RegulatoryRegisterEntry[]
+
+  @@unique([watchId, sequence])
+  @@index([watchId, status])
+  @@map("regulatory_baselines")
+}
+
+model RegulatoryRegisterEntry {
+  id                     String               @id @default(cuid())
+  baselineId             String               @map("baseline_id")
+  provisionId            String               @map("provision_id")
+  previousEntryId        String?              @map("previous_entry_id")
+  changeType             RegulatoryChangeType @default(ADDED) @map("change_type")
+  orderIndex             Int                  @map("order_index")
+  citationLabel          String               @map("citation_label")
+  applicabilityRationale String               @map("applicability_rationale")
+  createdAt              DateTime             @default(now()) @map("created_at")
+
+  baseline            RegulatoryBaseline                 @relation(fields: [baselineId], references: [id], onDelete: Cascade)
+  provision           DocumentProvision                  @relation(fields: [provisionId], references: [id], onDelete: Restrict)
+  previousEntry       RegulatoryRegisterEntry?           @relation("RegulatoryEntryLineage", fields: [previousEntryId], references: [id], onDelete: Restrict)
+  successorEntries    RegulatoryRegisterEntry[]          @relation("RegulatoryEntryLineage")
+  successorCandidates RegulatoryApplicabilityCandidate[] @relation("RegulatoryCandidatePreviousEntry")
+  evaluation          RegulatoryEvaluation?
+
+  @@unique([baselineId, provisionId])
+  @@unique([baselineId, orderIndex])
+  @@map("regulatory_register_entries")
+}
+
+model RegulatoryEvaluation {
+  id                   String           @id @default(cuid())
+  entryId              String           @unique @map("entry_id")
+  previousEvaluationId String?          @map("previous_evaluation_id")
+  requiresReevaluation Boolean          @default(false) @map("requires_reevaluation")
+  result               AssessmentResult @default(NOT_ASSESSED)
+  comment              String?
+  revision             Int              @default(1)
+  evaluatedById        String?          @map("evaluated_by_id")
+  evaluatedAt          DateTime?        @map("evaluated_at")
+  createdAt            DateTime         @default(now()) @map("created_at")
+  updatedAt            DateTime         @updatedAt @map("updated_at")
+
+  entry                RegulatoryRegisterEntry        @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  previousEvaluation   RegulatoryEvaluation?          @relation("RegulatoryEvaluationLineage", fields: [previousEvaluationId], references: [id], onDelete: Restrict)
+  successorEvaluations RegulatoryEvaluation[]         @relation("RegulatoryEvaluationLineage")
+  evaluatedBy          User?                          @relation("RegulatoryEvaluationReviewer", fields: [evaluatedById], references: [id], onDelete: SetNull)
+  evidence             RegulatoryEvaluationEvidence[]
+  actions              RegulatoryEvaluationAction[]
+
+  @@index([result, updatedAt])
+  @@map("regulatory_evaluations")
+}
+
+model RegulatoryEvaluationEvidence {
+  id                    String       @id @default(cuid())
+  evaluationId          String       @map("evaluation_id")
+  carriedFromEvidenceId String?      @map("carried_from_evidence_id")
+  kind                  EvidenceKind
+  fileId                String?      @map("file_id")
+  label                 String?
+  url                   String?
+  note                  String?
+  createdById           String       @map("created_by_id")
+  createdAt             DateTime     @default(now()) @map("created_at")
+
+  evaluation          RegulatoryEvaluation           @relation(fields: [evaluationId], references: [id], onDelete: Cascade)
+  carriedFromEvidence RegulatoryEvaluationEvidence?  @relation("RegulatoryEvidenceLineage", fields: [carriedFromEvidenceId], references: [id], onDelete: SetNull)
+  carriedEvidence     RegulatoryEvaluationEvidence[] @relation("RegulatoryEvidenceLineage")
+  file                FileObject?                    @relation(fields: [fileId], references: [id], onDelete: SetNull)
+  createdBy           User                           @relation("RegulatoryEvidenceCreator", fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@index([evaluationId, createdAt])
+  @@map("regulatory_evaluation_evidence")
+}
+
+model RegulatoryEvaluationAction {
+  id                    String                  @id @default(cuid())
+  evaluationId          String                  @map("evaluation_id")
+  carriedFromActionId   String?                 @map("carried_from_action_id")
+  title                 String
+  assigneeId            String?                 @map("assignee_id")
+  resources             String?
+  dueDate               DateTime?               @map("due_date") @db.Date
+  completedDate         DateTime?               @map("completed_date") @db.Date
+  status                RegulatoryActionStatus  @default(OPEN)
+  effectivenessCriteria String?                 @map("effectiveness_criteria")
+  effectiveness         RegulatoryEffectiveness @default(PENDING)
+  comment               String?
+  createdAt             DateTime                @default(now()) @map("created_at")
+  updatedAt             DateTime                @updatedAt @map("updated_at")
+
+  evaluation        RegulatoryEvaluation         @relation(fields: [evaluationId], references: [id], onDelete: Cascade)
+  carriedFromAction RegulatoryEvaluationAction?  @relation("RegulatoryActionLineage", fields: [carriedFromActionId], references: [id], onDelete: SetNull)
+  carriedActions    RegulatoryEvaluationAction[] @relation("RegulatoryActionLineage")
+  assignee          User?                        @relation("RegulatoryActionAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+
+  @@index([evaluationId, status])
+  @@index([assigneeId, dueDate])
+  @@map("regulatory_evaluation_actions")
+}
+
+model RegulatorySyncEvent {
+  id                 String                    @id @default(cuid())
+  documentId         String                    @map("document_id")
+  previousVersionId  String                    @map("previous_version_id")
+  publishedVersionId String                    @unique @map("published_version_id")
+  actorUserId        String                    @map("actor_user_id")
+  status             RegulatorySyncEventStatus @default(PENDING)
+  attempts           Int                       @default(0)
+  affectedWatchCount Int                       @default(0) @map("affected_watch_count")
+  lastError          String?                   @map("last_error")
+  processedAt        DateTime?                 @map("processed_at")
+  createdAt          DateTime                  @default(now()) @map("created_at")
+  updatedAt          DateTime                  @updatedAt @map("updated_at")
+
+  document         Document        @relation(fields: [documentId], references: [id], onDelete: Restrict)
+  previousVersion  DocumentVersion @relation("RegulatorySyncPreviousVersion", fields: [previousVersionId], references: [id], onDelete: Restrict)
+  publishedVersion DocumentVersion @relation("RegulatorySyncPublishedVersion", fields: [publishedVersionId], references: [id], onDelete: Restrict)
+  actor            User            @relation("RegulatorySyncEventActor", fields: [actorUserId], references: [id], onDelete: Restrict)
+
+  @@index([status, createdAt])
+  @@map("regulatory_sync_events")
 }
 
 model ProjectProfileConversation {
@@ -1221,6 +1563,7 @@ model FileObject {
   evidence                  Evidence[]
   profileMessageAttachments ProjectProfileMessageAttachment[]
   transcriptions            FileTranscription[]
+  regulatoryEvidence        RegulatoryEvaluationEvidence[]
 
   @@unique([organizationId, objectKey])
   @@index([organizationId, deletedAt])

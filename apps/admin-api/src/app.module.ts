@@ -15,6 +15,7 @@ import { NormativeReviewModule } from "./modules/normative-review/normative-revi
 import { NormativeSearchTestingModule } from "./modules/normative-search-testing/normative-search-testing.module.js";
 import { NormativeSourcesModule } from "./modules/normative-sources/normative-sources.module.js";
 import { NormativeVersionsModule } from "./modules/normative-versions/normative-versions.module.js";
+import { PlatformUsersModule } from "./modules/platform-users/platform-users.module.js";
 
 @Module({
   imports: [
@@ -35,6 +36,7 @@ import { NormativeVersionsModule } from "./modules/normative-versions/normative-
     NormativeLicensingModule,
     NormativeEntitlementsModule,
     NormativeSearchTestingModule,
+    PlatformUsersModule,
     HealthModule,
   ],
   providers: [

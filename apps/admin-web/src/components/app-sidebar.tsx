@@ -12,12 +12,10 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarRail,
 } from "@qhse/ui/components/sidebar";
-import {
-  FilesIcon,
-  LayoutDashboardIcon,
-  ShieldCheckIcon,
-} from "lucide-react";
+import { BrandLogo } from "@qhse/ui/components/brand-logo";
+import { FilesIcon, LayoutDashboardIcon, UsersRoundIcon } from "lucide-react";
 
 const data = {
   navMain: [
@@ -32,6 +30,11 @@ const data = {
       url: "/documents",
       icon: <FilesIcon />,
     },
+    {
+      title: "Operators",
+      url: "/operators",
+      icon: <UsersRoundIcon />,
+    },
   ],
 };
 
@@ -42,17 +45,27 @@ type AppSidebarProps = React.ComponentProps<typeof Sidebar> & {
 
 export function AppSidebar({ user, onLogout, ...props }: AppSidebarProps) {
   return (
-    <Sidebar variant="inset" {...props}>
-      <SidebarHeader>
+    <Sidebar collapsible="icon" className="border-slate-800" {...props}>
+      <SidebarHeader className="gap-3 border-b border-white/10 p-3">
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton size="lg" render={<Link to="/" />}>
-              <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
-                <ShieldCheckIcon className="size-4" />
-              </div>
-              <div className="grid flex-1 text-left text-sm leading-tight">
-                <span className="truncate font-medium">QHSE Platform</span>
-                <span className="truncate text-xs">Administration</span>
+            <SidebarMenuButton
+              size="lg"
+              className="h-12 hover:bg-white/[0.06]"
+              render={<Link to="/" aria-label="GetQHSE administration home" />}
+            >
+              <BrandLogo
+                variant="icon"
+                className="hidden size-8 shrink-0 object-contain group-data-[collapsible=icon]:block"
+              />
+              <div className="grid flex-1 text-left leading-tight">
+                <BrandLogo
+                  variant="dark-background"
+                  className="h-6 w-auto max-w-32 object-contain object-left"
+                />
+                <span className="truncate text-[10px] uppercase tracking-[0.14em] text-slate-500">
+                  Administration
+                </span>
               </div>
             </SidebarMenuButton>
           </SidebarMenuItem>
@@ -61,9 +74,10 @@ export function AppSidebar({ user, onLogout, ...props }: AppSidebarProps) {
       <SidebarContent>
         <NavMain items={data.navMain} />
       </SidebarContent>
-      <SidebarFooter>
+      <SidebarFooter className="border-t border-white/10 p-3">
         <NavUser user={user} onLogout={onLogout} />
       </SidebarFooter>
+      <SidebarRail />
     </Sidebar>
   );
 }

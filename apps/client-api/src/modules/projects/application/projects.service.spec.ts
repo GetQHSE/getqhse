@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/unbound-method */
 import { ForbiddenException, NotFoundException } from "@nestjs/common";
 import type { CreateProject, Project } from "@qhse/contracts";
 import { describe, expect, it, vi } from "vitest";

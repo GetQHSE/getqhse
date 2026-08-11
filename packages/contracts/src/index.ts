@@ -211,6 +211,60 @@ export const updateProjectProfileSchema = z.object({
 });
 export type UpdateProjectProfile = z.infer<typeof updateProjectProfileSchema>;
 
+export const portableProjectProfileFieldSchema = z
+  .strictObject({
+    key: profileFieldKeySchema,
+    status: z.enum(["ANSWERED", "NOT_APPLICABLE"]),
+    value: z.unknown().optional(),
+    notApplicableReason: z.string().trim().min(3).max(1_000).optional(),
+  })
+  .superRefine((field, context) => {
+    if (field.status === "ANSWERED" && field.value === undefined) {
+      context.addIssue({ code: "custom", path: ["value"], message: "value is required" });
+    }
+    if (field.status === "NOT_APPLICABLE" && !field.notApplicableReason) {
+      context.addIssue({
+        code: "custom",
+        path: ["notApplicableReason"],
+        message: "notApplicableReason is required",
+      });
+    }
+  });
+
+export const portableProjectProfileSchema = z
+  .strictObject({
+    format: z.literal("qhse-project-profile"),
+    formatVersion: z.literal(1),
+    profileSchemaVersion: z.number().int().positive(),
+    exportedAt: isoDateTimeSchema,
+    sourceProject: z.strictObject({
+      name: z.string().trim().min(1).max(160),
+      countryCode: supportedCountryCodeSchema,
+      standardCode: z.literal("ISO_9001"),
+    }),
+    fields: z.array(portableProjectProfileFieldSchema).min(1).max(33),
+  })
+  .superRefine((document, context) => {
+    const seen = new Set<string>();
+    for (const [index, field] of document.fields.entries()) {
+      if (seen.has(field.key)) {
+        context.addIssue({
+          code: "custom",
+          path: ["fields", index, "key"],
+          message: `Duplicate profile field: ${field.key}`,
+        });
+      }
+      seen.add(field.key);
+    }
+  });
+export type PortableProjectProfile = z.infer<typeof portableProjectProfileSchema>;
+
+export const importProjectProfileSchema = z.strictObject({
+  revision: z.number().int().positive(),
+  document: portableProjectProfileSchema,
+});
+export type ImportProjectProfile = z.infer<typeof importProjectProfileSchema>;
+
 export const aiModuleSchema = z.enum(["PROFILE_COMPLETION", "NORMATIVE_WATCH"]);
 export type AiModule = z.infer<typeof aiModuleSchema>;
 
@@ -486,6 +540,267 @@ export const normativeSearchResponseSchema = z.object({
 });
 export type NormativeSearchResponse = z.infer<typeof normativeSearchResponseSchema>;
 
+export const regulatoryWatchStatusSchema = z.enum([
+  "NOT_STARTED",
+  "ANALYZING",
+  "AWAITING_CLARIFICATION",
+  "REVIEW_REQUIRED",
+  "ACTIVE",
+  "STALE",
+  "FAILED",
+]);
+export const regulatoryAnalysisStatusSchema = z.enum([
+  "QUEUED",
+  "RUNNING",
+  "AWAITING_CLARIFICATION",
+  "READY_FOR_REVIEW",
+  "COMPLETED",
+  "SUPERSEDED",
+  "FAILED",
+]);
+export const regulatoryChangeTypeSchema = z.enum([
+  "ADDED",
+  "UNCHANGED",
+  "MODIFIED",
+  "REMOVAL_PROPOSED",
+]);
+export const regulatoryDecisionSourceSchema = z.enum(["SYSTEM", "HUMAN"]);
+export const regulatoryRunTriggerSchema = z.enum(["MANUAL", "DOCUMENT_REVISION"]);
+export const regulatoryApplicabilitySchema = z.enum(["APPLICABLE", "TO_CONFIRM", "NOT_APPLICABLE"]);
+export const assessmentResultSchema = z.enum([
+  "CONFORMING",
+  "PARTIAL",
+  "NON_CONFORMING",
+  "NOT_ASSESSED",
+]);
+
+export const startRegulatoryAnalysisSchema = z.object({
+  asOf: z.iso.date().optional(),
+  languages: z
+    .array(z.enum(["fr", "ar"]))
+    .min(1)
+    .max(2)
+    .default(["fr", "ar"]),
+});
+export type StartRegulatoryAnalysis = z.infer<typeof startRegulatoryAnalysisSchema>;
+
+export const regulatoryClarificationAnswerSchema = z.object({
+  key: z.string().trim().min(1).max(120),
+  answer: z.unknown(),
+});
+export const answerRegulatoryClarificationsSchema = z.object({
+  revision: z.number().int().nonnegative(),
+  answers: z.array(regulatoryClarificationAnswerSchema).min(1).max(5),
+});
+export type AnswerRegulatoryClarifications = z.infer<typeof answerRegulatoryClarificationsSchema>;
+
+export const decideRegulatoryCandidateSchema = z.object({
+  watchRevision: z.number().int().positive(),
+  decision: z.enum(["APPLICABLE", "NOT_APPLICABLE"]),
+  note: z.string().trim().max(2_000).nullable().optional(),
+});
+export type DecideRegulatoryCandidate = z.infer<typeof decideRegulatoryCandidateSchema>;
+
+export const publishRegulatoryBaselineSchema = z.object({
+  analysisRunId: idSchema,
+  watchRevision: z.number().int().positive(),
+});
+export type PublishRegulatoryBaseline = z.infer<typeof publishRegulatoryBaselineSchema>;
+
+export const updateRegulatoryEvaluationSchema = z.object({
+  revision: z.number().int().positive(),
+  result: assessmentResultSchema,
+  comment: z.string().trim().max(4_000).nullable().optional(),
+});
+export type UpdateRegulatoryEvaluation = z.infer<typeof updateRegulatoryEvaluationSchema>;
+
+export const createRegulatoryEvidenceSchema = z
+  .object({
+    kind: z.enum(["DOCUMENT", "PHOTO", "NOTE", "LINK"]),
+    fileId: idSchema.nullable().optional(),
+    label: z.string().trim().max(300).nullable().optional(),
+    url: z.url().nullable().optional(),
+    note: z.string().trim().max(4_000).nullable().optional(),
+  })
+  .superRefine((value, context) => {
+    if ((value.kind === "DOCUMENT" || value.kind === "PHOTO") && !value.fileId) {
+      context.addIssue({ code: "custom", path: ["fileId"], message: "fileId is required" });
+    }
+    if (value.kind === "LINK" && !value.url) {
+      context.addIssue({ code: "custom", path: ["url"], message: "url is required" });
+    }
+    if (value.kind === "NOTE" && !value.note) {
+      context.addIssue({ code: "custom", path: ["note"], message: "note is required" });
+    }
+  });
+export type CreateRegulatoryEvidence = z.infer<typeof createRegulatoryEvidenceSchema>;
+
+export const regulatoryActionStatusSchema = z.enum(["OPEN", "IN_PROGRESS", "DONE", "VERIFIED"]);
+export const regulatoryEffectivenessSchema = z.enum(["PENDING", "EFFECTIVE", "INEFFECTIVE"]);
+export const createRegulatoryActionSchema = z.object({
+  title: z.string().trim().min(2).max(500),
+  assigneeId: idSchema.nullable().optional(),
+  resources: z.string().trim().max(2_000).nullable().optional(),
+  dueDate: z.iso.date().nullable().optional(),
+  completedDate: z.iso.date().nullable().optional(),
+  status: regulatoryActionStatusSchema.default("OPEN"),
+  effectivenessCriteria: z.string().trim().max(2_000).nullable().optional(),
+  effectiveness: regulatoryEffectivenessSchema.default("PENDING"),
+  comment: z.string().trim().max(2_000).nullable().optional(),
+});
+export const updateRegulatoryActionSchema = createRegulatoryActionSchema.partial();
+export type CreateRegulatoryAction = z.infer<typeof createRegulatoryActionSchema>;
+export type UpdateRegulatoryAction = z.infer<typeof updateRegulatoryActionSchema>;
+
+export const regulatoryCitationSchema = normativeSearchResultSchema.pick({
+  sourceId: true,
+  documentId: true,
+  revisionId: true,
+  documentTitle: true,
+  referenceNumber: true,
+  revisionLabel: true,
+  sourceEdition: true,
+  jurisdiction: true,
+  countryCode: true,
+  language: true,
+  documentFamily: true,
+  provisionType: true,
+  provisionIdentifier: true,
+  headingPath: true,
+  pageStart: true,
+  pageEnd: true,
+  excerpt: true,
+  citationLabel: true,
+});
+
+export const regulatoryCandidateSchema = z.object({
+  id: idSchema,
+  changeType: regulatoryChangeTypeSchema,
+  changeSummary: z.string().nullable(),
+  previousEntryId: idSchema.nullable(),
+  previousSource: regulatoryCitationSchema.nullable(),
+  requiresReview: z.boolean(),
+  suggestion: regulatoryApplicabilitySchema,
+  decision: regulatoryApplicabilitySchema.nullable(),
+  decisionSource: regulatoryDecisionSourceSchema.nullable(),
+  rationale: z.string(),
+  matchedProfileKeys: z.array(z.string()),
+  confidence: z.number().min(0).max(1),
+  decisionNote: z.string().nullable(),
+  reviewedAt: isoDateTimeSchema.nullable(),
+  source: regulatoryCitationSchema,
+});
+
+export const regulatoryAnalysisRunSchema = z.object({
+  id: idSchema,
+  profileSnapshotId: idSchema,
+  baseBaselineId: idSchema.nullable(),
+  triggerType: regulatoryRunTriggerSchema,
+  triggerDocumentVersionId: idSchema.nullable(),
+  status: regulatoryAnalysisStatusSchema,
+  asOf: z.iso.date(),
+  languages: z.array(z.enum(["fr", "ar"])),
+  phase: z.string(),
+  progressPercent: z.number().int().min(0).max(100),
+  clarificationRevision: z.number().int().nonnegative(),
+  clarifications: z.array(
+    z.object({ key: z.string(), question: z.string(), answer: z.unknown().nullable() }),
+  ),
+  candidates: z.array(regulatoryCandidateSchema),
+  diff: z.object({
+    added: z.number().int().nonnegative(),
+    unchanged: z.number().int().nonnegative(),
+    modified: z.number().int().nonnegative(),
+    removalProposed: z.number().int().nonnegative(),
+    requiresReview: z.number().int().nonnegative(),
+  }),
+  error: z.object({ code: z.string().nullable(), message: z.string().nullable() }).nullable(),
+  createdAt: isoDateTimeSchema,
+  completedAt: isoDateTimeSchema.nullable(),
+});
+
+export const regulatoryEvaluationSchema = z.object({
+  id: idSchema,
+  revision: z.number().int().positive(),
+  result: assessmentResultSchema,
+  comment: z.string().nullable(),
+  evaluatedAt: isoDateTimeSchema.nullable(),
+  requiresReevaluation: z.boolean(),
+  evidence: z.array(
+    z.object({
+      id: idSchema,
+      kind: z.enum(["DOCUMENT", "PHOTO", "NOTE", "LINK"]),
+      fileId: idSchema.nullable(),
+      label: z.string().nullable(),
+      url: z.string().nullable(),
+      note: z.string().nullable(),
+      createdAt: isoDateTimeSchema,
+    }),
+  ),
+  actions: z.array(
+    z.object({
+      id: idSchema,
+      title: z.string(),
+      assigneeId: idSchema.nullable(),
+      assigneeName: z.string().nullable(),
+      resources: z.string().nullable(),
+      dueDate: z.iso.date().nullable(),
+      completedDate: z.iso.date().nullable(),
+      status: regulatoryActionStatusSchema,
+      effectivenessCriteria: z.string().nullable(),
+      effectiveness: regulatoryEffectivenessSchema,
+      comment: z.string().nullable(),
+    }),
+  ),
+});
+
+export const regulatoryRegisterEntrySchema = z.object({
+  id: idSchema,
+  previousEntryId: idSchema.nullable(),
+  changeType: regulatoryChangeTypeSchema,
+  orderIndex: z.number().int().nonnegative(),
+  applicabilityRationale: z.string(),
+  source: regulatoryCitationSchema,
+  evaluation: regulatoryEvaluationSchema,
+});
+
+export const regulatoryWatchSchema = z.object({
+  id: idSchema,
+  projectId: idSchema,
+  status: regulatoryWatchStatusSchema,
+  revision: z.number().int().positive(),
+  currentAnalysis: regulatoryAnalysisRunSchema.nullable(),
+  currentBaseline: z
+    .object({
+      id: idSchema,
+      sequence: z.number().int().positive(),
+      profileSnapshotId: idSchema,
+      publishedAt: isoDateTimeSchema,
+      entries: z.array(regulatoryRegisterEntrySchema),
+    })
+    .nullable(),
+  synchronization: z.object({
+    state: z.enum(["IDLE", "QUEUED", "RUNNING", "CHANGES_READY", "FAILED", "STALE"]),
+    trigger: regulatoryRunTriggerSchema.nullable(),
+    sourceBaselineId: idSchema.nullable(),
+    progressPercent: z.number().int().min(0).max(100),
+    lastCheckedAt: isoDateTimeSchema.nullable(),
+    lastSuccessfulSyncAt: isoDateTimeSchema.nullable(),
+  }),
+  createdAt: isoDateTimeSchema,
+  updatedAt: isoDateTimeSchema,
+});
+export type RegulatoryWatch = z.infer<typeof regulatoryWatchSchema>;
+export type RegulatoryAnalysisRun = z.infer<typeof regulatoryAnalysisRunSchema>;
+export const regulatoryAnalysisJobSchema = z.object({
+  runId: idSchema.optional(),
+  status: regulatoryAnalysisStatusSchema.optional(),
+  jobId: z.string().min(1),
+  queue: z.literal("regulatory-analysis"),
+  correlationId: z.string().min(1),
+});
+export type RegulatoryAnalysisJob = z.infer<typeof regulatoryAnalysisJobSchema>;
+
 export const correctiveActionSchema = tenantEntitySchema.extend({
   findingId: idSchema,
   title: z.string().min(2).max(200),
@@ -518,6 +833,8 @@ export type JobEnvelope = z.infer<typeof jobEnvelopeSchema>;
 export const workQueueNames = {
   documentIngestion: "document-ingestion",
   embeddingGeneration: "embedding-generation",
+  regulatoryAnalysis: "regulatory-analysis",
+  regulatoryImpact: "regulatory-impact",
   evidenceAnalysis: "evidence-analysis",
   reportGeneration: "report-generation",
   notifications: "notifications",

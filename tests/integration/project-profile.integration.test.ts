@@ -10,7 +10,6 @@ import type {
   ProfileChatModelPort,
 } from "../../apps/client-api/src/modules/project-profile/application/profile-chat-model.port.js";
 import type { FileStorage } from "../../apps/client-api/src/modules/files/application/file-storage.port.js";
-import type { AudioTranscriptionPort } from "../../apps/client-api/src/modules/files/application/audio-transcription.port.js";
 import { FilesService } from "../../apps/client-api/src/modules/files/application/files.service.js";
 import { ProjectProfilesService } from "../../apps/client-api/src/modules/project-profile/application/project-profiles.service.js";
 
@@ -171,11 +170,7 @@ suite("project profile backend workflow", () => {
       readObject: vi.fn(async () => new Uint8Array([1, 2, 3, 4])),
     };
     service = new ProjectProfilesService(model, storage, database);
-    filesService = new FilesService(
-      storage,
-      { transcribe: transcribeAudio } as AudioTranscriptionPort,
-      database,
-    );
+    filesService = new FilesService(storage, { transcribe: transcribeAudio }, database);
   });
 
   it("persists, verifies, and idempotently transcribes a voice note", async () => {
@@ -289,5 +284,45 @@ suite("project profile backend workflow", () => {
         "project-profile",
       ),
     ).rejects.toMatchObject({ status: 404 });
+  });
+
+  it("exports and atomically imports a complete profile into a new project", async () => {
+    const portable = await service.exportPortable(tenant, "project-profile");
+    expect(portable.fields).toHaveLength(32);
+    expect(portable).not.toHaveProperty("organizationId");
+    await database.project.create({
+      data: {
+        id: "project-profile-copy",
+        organizationId: tenant.organizationId,
+        createdById: tenant.userId,
+        name: "Nouveau projet",
+        slug: "nouveau-projet",
+        entityType: "COMPANY",
+        countryCode: "MA",
+        activities: {
+          create: [{ name: "Fabrication", normalizedName: "fabrication", isPrimary: true }],
+        },
+      },
+    });
+    const target = await service.get(tenant, "project-profile-copy");
+    const imported = await service.importPortable(tenant, "project-profile-copy", {
+      revision: target.profile.revision,
+      document: portable,
+    });
+
+    expect(imported.profile).toMatchObject({ status: "COMPLETE", revision: 2 });
+    expect(imported.completion).toMatchObject({
+      completenessPercent: 100,
+      regulatoryReadiness: 100,
+    });
+    expect(imported.project.name).toBe("Atlas Qualité");
+    expect(
+      imported.fields.find((field) => field.key === "organization.employeeCount"),
+    ).toMatchObject({ value: 42, source: "IMPORTED" });
+    expect(
+      await database.projectProfileSnapshot.count({
+        where: { profileId: imported.profile.id },
+      }),
+    ).toBe(1);
   });
 });

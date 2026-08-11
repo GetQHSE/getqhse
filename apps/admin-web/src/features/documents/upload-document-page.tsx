@@ -48,6 +48,7 @@ export function UploadDocumentPage() {
     aiProcessing: false,
     externalProviderProcessing: false,
     excerptDisplay: false,
+    export: false,
   });
   const allRightsConfirmed = Object.values(rights).every(Boolean);
   const set = (key: keyof typeof form, value: string) =>
@@ -136,13 +137,13 @@ export function UploadDocumentPage() {
   }
 
   return (
-    <form className="space-y-6" onSubmit={(event) => void submit(event)}>
+    <form className="mx-auto w-full max-w-5xl space-y-6" onSubmit={(event) => void submit(event)}>
       <div>
-        <p className="text-sm text-muted-foreground">Knowledge sources / Upload</p>
-        <h1 className="text-2xl font-semibold tracking-tight">
+        <p className="text-sm font-medium text-violet-700">Knowledge sources / Upload</p>
+        <h1 className="mt-1 text-3xl font-semibold tracking-tight">
           {existingDocumentId ? "Replace document" : "Upload document"}
         </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
+        <p className="mt-2 text-sm text-slate-600">
           The document remains unavailable downstream until validation and publication.
         </p>
       </div>
@@ -150,7 +151,7 @@ export function UploadDocumentPage() {
         {steps.map((label, index) => (
           <li
             key={label}
-            className={`rounded-xl border p-3 text-xs ${index <= step ? "border-primary/40 bg-primary/5 text-foreground" : "text-muted-foreground"}`}
+            className={`rounded-2xl border p-3 text-xs transition ${index <= step ? "border-violet-200 bg-violet-50 text-violet-950" : "border-slate-200 bg-white text-slate-400"}`}
           >
             <span className="mb-1 block font-semibold">{index + 1}</span>
             {label}
@@ -158,7 +159,7 @@ export function UploadDocumentPage() {
         ))}
       </ol>
       <Progress value={((step + 1) / steps.length) * 100} />
-      <Card>
+      <Card className="rounded-3xl border-slate-200 shadow-sm">
         <CardHeader>
           <CardTitle>{steps[step]}</CardTitle>
           <CardDescription>
@@ -173,10 +174,12 @@ export function UploadDocumentPage() {
               <div
                 onDragOver={(event) => event.preventDefault()}
                 onDrop={drop}
-                className="grid min-h-56 place-items-center rounded-2xl border-2 border-dashed bg-muted/20 p-8 text-center"
+                className="grid min-h-56 place-items-center rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50 p-8 text-center transition hover:border-violet-300 hover:bg-violet-50/30"
               >
                 <div>
-                  <FileUpIcon className="mx-auto size-9 text-muted-foreground" />
+                  <span className="mx-auto grid size-14 place-items-center rounded-2xl bg-violet-100 text-violet-700">
+                    <FileUpIcon className="size-6" />
+                  </span>
                   <p className="mt-3 font-medium">Drop a file here</p>
                   <p className="mt-1 text-sm text-muted-foreground">
                     PDF, Office, text, spreadsheet or image · up to 50 MB
@@ -347,6 +350,7 @@ export function UploadDocumentPage() {
                       ["aiProcessing", "Process it with AI"],
                       ["externalProviderProcessing", "Send derived text to OpenAI"],
                       ["excerptDisplay", "Display bounded source excerpts"],
+                      ["export", "Export source requirements to registers"],
                     ] as const
                   ).map(([key, label]) => (
                     <label key={key} className="flex items-start gap-2 rounded-lg border p-3">
@@ -392,7 +396,11 @@ export function UploadDocumentPage() {
                 Continue
               </Button>
             ) : (
-              <Button type="submit" disabled={busy || !file || !allRightsConfirmed}>
+              <Button
+                className="rounded-xl bg-violet-600 text-white hover:bg-violet-500"
+                type="submit"
+                disabled={busy || !file || !allRightsConfirmed}
+              >
                 {busy ? <Loader2Icon className="animate-spin" /> : <FileUpIcon />} Upload and
                 process
               </Button>

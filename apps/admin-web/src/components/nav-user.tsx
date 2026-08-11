@@ -55,15 +55,20 @@ export function NavUser({ user, onLogout }: { user: AdminUser; onLogout: () => P
       <SidebarMenuItem>
         <DropdownMenu>
           <DropdownMenuTrigger
-            render={<SidebarMenuButton size="lg" className="aria-expanded:bg-muted" />}
+            render={
+              <SidebarMenuButton
+                size="lg"
+                className="text-slate-300 hover:bg-white/[0.06] hover:text-white aria-expanded:bg-white/[0.08]"
+              />
+            }
           >
-            <Avatar>
+            <Avatar className="border border-white/10">
               {user.image ? <AvatarImage src={user.image} alt={user.name} /> : null}
               <AvatarFallback>{userInitials}</AvatarFallback>
             </Avatar>
             <div className="grid flex-1 text-left text-sm leading-tight">
               <span className="truncate font-medium">{user.name}</span>
-              <span className="truncate text-xs">{user.email}</span>
+              <span className="truncate text-xs text-slate-500">{user.email}</span>
             </div>
             <ChevronsUpDownIcon className="ml-auto size-4" />
           </DropdownMenuTrigger>

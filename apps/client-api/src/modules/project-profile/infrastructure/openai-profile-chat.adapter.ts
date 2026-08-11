@@ -1,5 +1,6 @@
 import { Injectable, ServiceUnavailableException } from "@nestjs/common";
 import { openai } from "@ai-sdk/openai";
+import type { ServerResponse } from "node:http";
 import { profileChatPrompt } from "@qhse/ai";
 import {
   getProfileFieldValueJsonSchema,
@@ -126,8 +127,7 @@ export class OpenAiProfileChatAdapter extends ProfileChatModelPort {
       onError: () => "La réponse n’a pas pu être générée.",
     });
     return {
-      pipe: (response: import("node:http").ServerResponse) =>
-        pipeUIMessageStreamToResponse({ response, stream }),
+      pipe: (response: ServerResponse) => pipeUIMessageStreamToResponse({ response, stream }),
     };
   }
 }

@@ -1,7 +1,6 @@
 -- CreateSchema
 CREATE SCHEMA IF NOT EXISTS "public";
 
--- Required by normative vector search and cryptographic identifiers.
 CREATE EXTENSION IF NOT EXISTS vector;
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
@@ -69,10 +68,28 @@ CREATE TYPE "ProfileMessageRole" AS ENUM ('USER', 'ASSISTANT', 'SYSTEM', 'TOOL')
 CREATE TYPE "AiInvocationStatus" AS ENUM ('RUNNING', 'COMPLETED', 'FAILED');
 
 -- CreateEnum
+CREATE TYPE "RegulatoryWatchStatus" AS ENUM ('NOT_STARTED', 'ANALYZING', 'AWAITING_CLARIFICATION', 'REVIEW_REQUIRED', 'ACTIVE', 'STALE', 'FAILED');
+
+-- CreateEnum
+CREATE TYPE "RegulatoryAnalysisStatus" AS ENUM ('QUEUED', 'RUNNING', 'AWAITING_CLARIFICATION', 'READY_FOR_REVIEW', 'COMPLETED', 'FAILED');
+
+-- CreateEnum
+CREATE TYPE "RegulatoryApplicability" AS ENUM ('APPLICABLE', 'TO_CONFIRM', 'NOT_APPLICABLE');
+
+-- CreateEnum
+CREATE TYPE "RegulatoryBaselineStatus" AS ENUM ('PUBLISHED', 'SUPERSEDED');
+
+-- CreateEnum
+CREATE TYPE "RegulatoryActionStatus" AS ENUM ('OPEN', 'IN_PROGRESS', 'DONE', 'VERIFIED');
+
+-- CreateEnum
+CREATE TYPE "RegulatoryEffectiveness" AS ENUM ('PENDING', 'EFFECTIVE', 'INEFFECTIVE');
+
+-- CreateEnum
 CREATE TYPE "FileUploadStatus" AS ENUM ('PENDING', 'READY', 'REJECTED');
 
 -- CreateEnum
-CREATE TYPE "FilePurpose" AS ENUM ('CHAT_ATTACHMENT', 'VOICE_NOTE', 'EVIDENCE');
+CREATE TYPE "FilePurpose" AS ENUM ('CHAT_ATTACHMENT', 'VOICE_NOTE', 'EVIDENCE', 'REGULATORY_EVIDENCE');
 
 -- CreateEnum
 CREATE TYPE "TranscriptionStatus" AS ENUM ('PENDING', 'COMPLETED', 'FAILED');
@@ -175,6 +192,7 @@ CREATE TABLE "document_versions" (
     "ai_processing_allowed" BOOLEAN NOT NULL DEFAULT false,
     "external_provider_allowed" BOOLEAN NOT NULL DEFAULT false,
     "excerpt_display_allowed" BOOLEAN NOT NULL DEFAULT false,
+    "export_allowed" BOOLEAN NOT NULL DEFAULT false,
     "rights_reviewed_at" TIMESTAMP(3),
     "supersedes_version_id" TEXT,
     "chunking_version" TEXT,
@@ -297,6 +315,7 @@ CREATE TABLE "document_chunks" (
     "chunk_index" INTEGER NOT NULL,
     "content" TEXT NOT NULL,
     "search_text" TEXT NOT NULL,
+    "search_vector" tsvector GENERATED ALWAYS AS (to_tsvector('simple', coalesce("search_text", ''))) STORED,
     "language" TEXT NOT NULL,
     "heading_path" TEXT[] DEFAULT ARRAY[]::TEXT[],
     "token_count" INTEGER NOT NULL,
@@ -308,8 +327,6 @@ CREATE TABLE "document_chunks" (
     "embedding_status" "ProcessingJobStatus" NOT NULL DEFAULT 'PENDING',
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
-    "search_vector" tsvector GENERATED ALWAYS AS
-      (to_tsvector('simple', coalesce("search_text", ''))) STORED,
 
     CONSTRAINT "document_chunks_pkey" PRIMARY KEY ("id")
 );
@@ -685,6 +702,156 @@ CREATE TABLE "project_profile_snapshots" (
 );
 
 -- CreateTable
+CREATE TABLE "project_regulatory_watches" (
+    "id" TEXT NOT NULL,
+    "organization_id" TEXT NOT NULL,
+    "project_id" TEXT NOT NULL,
+    "status" "RegulatoryWatchStatus" NOT NULL DEFAULT 'NOT_STARTED',
+    "revision" INTEGER NOT NULL DEFAULT 1,
+    "current_baseline_id" TEXT,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "project_regulatory_watches_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "regulatory_analysis_runs" (
+    "id" TEXT NOT NULL,
+    "watch_id" TEXT NOT NULL,
+    "profile_snapshot_id" TEXT NOT NULL,
+    "created_by_id" TEXT NOT NULL,
+    "status" "RegulatoryAnalysisStatus" NOT NULL DEFAULT 'QUEUED',
+    "as_of" DATE NOT NULL,
+    "languages" TEXT[] DEFAULT ARRAY['fr', 'ar']::TEXT[],
+    "phase" TEXT NOT NULL DEFAULT 'queued',
+    "progress_percent" INTEGER NOT NULL DEFAULT 0,
+    "clarification_revision" INTEGER NOT NULL DEFAULT 0,
+    "model" TEXT,
+    "prompt_key" TEXT,
+    "prompt_version" INTEGER,
+    "input_tokens" INTEGER,
+    "output_tokens" INTEGER,
+    "error_code" TEXT,
+    "error_message" TEXT,
+    "started_at" TIMESTAMP(3),
+    "completed_at" TIMESTAMP(3),
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "regulatory_analysis_runs_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "regulatory_scope_facts" (
+    "id" TEXT NOT NULL,
+    "run_id" TEXT NOT NULL,
+    "key" TEXT NOT NULL,
+    "question" TEXT NOT NULL,
+    "answer" JSONB,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "regulatory_scope_facts_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "regulatory_applicability_candidates" (
+    "id" TEXT NOT NULL,
+    "run_id" TEXT NOT NULL,
+    "provision_id" TEXT NOT NULL,
+    "suggestion" "RegulatoryApplicability" NOT NULL,
+    "rationale" TEXT NOT NULL,
+    "matched_profile_keys" TEXT[] DEFAULT ARRAY[]::TEXT[],
+    "confidence" DECIMAL(5,4) NOT NULL,
+    "decision" "RegulatoryApplicability",
+    "decision_note" TEXT,
+    "reviewed_by_id" TEXT,
+    "reviewed_at" TIMESTAMP(3),
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "regulatory_applicability_candidates_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "regulatory_baselines" (
+    "id" TEXT NOT NULL,
+    "watch_id" TEXT NOT NULL,
+    "analysis_run_id" TEXT NOT NULL,
+    "profile_snapshot_id" TEXT NOT NULL,
+    "sequence" INTEGER NOT NULL,
+    "status" "RegulatoryBaselineStatus" NOT NULL DEFAULT 'PUBLISHED',
+    "published_by_id" TEXT NOT NULL,
+    "published_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "regulatory_baselines_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "regulatory_register_entries" (
+    "id" TEXT NOT NULL,
+    "baseline_id" TEXT NOT NULL,
+    "provision_id" TEXT NOT NULL,
+    "order_index" INTEGER NOT NULL,
+    "citation_label" TEXT NOT NULL,
+    "applicability_rationale" TEXT NOT NULL,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "regulatory_register_entries_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "regulatory_evaluations" (
+    "id" TEXT NOT NULL,
+    "entry_id" TEXT NOT NULL,
+    "result" "AssessmentResult" NOT NULL DEFAULT 'NOT_ASSESSED',
+    "comment" TEXT,
+    "revision" INTEGER NOT NULL DEFAULT 1,
+    "evaluated_by_id" TEXT,
+    "evaluated_at" TIMESTAMP(3),
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "regulatory_evaluations_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "regulatory_evaluation_evidence" (
+    "id" TEXT NOT NULL,
+    "evaluation_id" TEXT NOT NULL,
+    "kind" "EvidenceKind" NOT NULL,
+    "file_id" TEXT,
+    "label" TEXT,
+    "url" TEXT,
+    "note" TEXT,
+    "created_by_id" TEXT NOT NULL,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "regulatory_evaluation_evidence_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "regulatory_evaluation_actions" (
+    "id" TEXT NOT NULL,
+    "evaluation_id" TEXT NOT NULL,
+    "title" TEXT NOT NULL,
+    "assignee_id" TEXT,
+    "resources" TEXT,
+    "due_date" DATE,
+    "completed_date" DATE,
+    "status" "RegulatoryActionStatus" NOT NULL DEFAULT 'OPEN',
+    "effectiveness_criteria" TEXT,
+    "effectiveness" "RegulatoryEffectiveness" NOT NULL DEFAULT 'PENDING',
+    "comment" TEXT,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "regulatory_evaluation_actions_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "project_profile_conversations" (
     "id" TEXT NOT NULL,
     "profile_id" TEXT NOT NULL,
@@ -716,6 +883,16 @@ CREATE TABLE "project_profile_messages" (
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "project_profile_messages_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "project_profile_message_attachments" (
+    "id" TEXT NOT NULL,
+    "message_id" TEXT NOT NULL,
+    "file_id" TEXT NOT NULL,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "project_profile_message_attachments_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -840,16 +1017,6 @@ CREATE TABLE "files" (
 );
 
 -- CreateTable
-CREATE TABLE "project_profile_message_attachments" (
-    "id" TEXT NOT NULL,
-    "message_id" TEXT NOT NULL,
-    "file_id" TEXT NOT NULL,
-    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
-    CONSTRAINT "project_profile_message_attachments_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
 CREATE TABLE "file_transcriptions" (
     "id" TEXT NOT NULL,
     "file_id" TEXT NOT NULL,
@@ -968,16 +1135,13 @@ CREATE UNIQUE INDEX "document_provisions_document_version_id_order_index_key" ON
 -- CreateIndex
 CREATE INDEX "document_chunks_document_provision_id_idx" ON "document_chunks"("document_provision_id");
 
+CREATE INDEX "document_chunks_search_vector_idx" ON "document_chunks" USING GIN ("search_vector");
+
 -- CreateIndex
 CREATE UNIQUE INDEX "document_chunks_document_version_id_chunking_version_chunk__key" ON "document_chunks"("document_version_id", "chunking_version", "chunk_index");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "document_chunks_document_version_id_chunking_version_conten_key" ON "document_chunks"("document_version_id", "chunking_version", "content_hash");
-
--- The simple dictionary preserves French and Arabic terms without applying an
--- English stemmer. Search filters are applied before ranking in the query.
-CREATE INDEX "document_chunks_search_vector_idx"
-  ON "document_chunks" USING GIN ("search_vector");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "embedding_profiles_key_key" ON "embedding_profiles"("key");
@@ -988,17 +1152,13 @@ CREATE INDEX "embedding_profiles_status_idx" ON "embedding_profiles"("status");
 -- CreateIndex
 CREATE UNIQUE INDEX "embedding_profiles_provider_model_dimensions_version_key" ON "embedding_profiles"("provider", "model", "dimensions", "version");
 
-CREATE UNIQUE INDEX "embedding_profiles_single_active_idx"
-  ON "embedding_profiles" ("status") WHERE "status" = 'ACTIVE';
-
 -- CreateIndex
 CREATE INDEX "document_embeddings_embedding_profile_id_idx" ON "document_embeddings"("embedding_profile_id");
 
+CREATE INDEX "document_embeddings_embedding_hnsw_idx" ON "document_embeddings" USING hnsw ("embedding" vector_cosine_ops);
+
 -- CreateIndex
 CREATE UNIQUE INDEX "document_embeddings_document_chunk_id_embedding_profile_id_key" ON "document_embeddings"("document_chunk_id", "embedding_profile_id");
-
-CREATE INDEX "document_embeddings_embedding_hnsw_idx"
-  ON "document_embeddings" USING hnsw ("embedding" vector_cosine_ops);
 
 -- CreateIndex
 CREATE INDEX "retrieval_logs_organization_id_created_at_idx" ON "retrieval_logs"("organization_id", "created_at");
@@ -1109,6 +1269,60 @@ CREATE UNIQUE INDEX "project_profile_snapshots_profile_id_sequence_key" ON "proj
 CREATE UNIQUE INDEX "project_profile_snapshots_profile_id_content_hash_key" ON "project_profile_snapshots"("profile_id", "content_hash");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "project_regulatory_watches_project_id_key" ON "project_regulatory_watches"("project_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "project_regulatory_watches_current_baseline_id_key" ON "project_regulatory_watches"("current_baseline_id");
+
+-- CreateIndex
+CREATE INDEX "project_regulatory_watches_organization_id_status_idx" ON "project_regulatory_watches"("organization_id", "status");
+
+-- CreateIndex
+CREATE INDEX "regulatory_analysis_runs_watch_id_created_at_idx" ON "regulatory_analysis_runs"("watch_id", "created_at");
+
+-- CreateIndex
+CREATE INDEX "regulatory_analysis_runs_status_created_at_idx" ON "regulatory_analysis_runs"("status", "created_at");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "regulatory_scope_facts_run_id_key_key" ON "regulatory_scope_facts"("run_id", "key");
+
+-- CreateIndex
+CREATE INDEX "regulatory_applicability_candidates_run_id_decision_suggest_idx" ON "regulatory_applicability_candidates"("run_id", "decision", "suggestion");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "regulatory_applicability_candidates_run_id_provision_id_key" ON "regulatory_applicability_candidates"("run_id", "provision_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "regulatory_baselines_analysis_run_id_key" ON "regulatory_baselines"("analysis_run_id");
+
+-- CreateIndex
+CREATE INDEX "regulatory_baselines_watch_id_status_idx" ON "regulatory_baselines"("watch_id", "status");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "regulatory_baselines_watch_id_sequence_key" ON "regulatory_baselines"("watch_id", "sequence");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "regulatory_register_entries_baseline_id_provision_id_key" ON "regulatory_register_entries"("baseline_id", "provision_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "regulatory_register_entries_baseline_id_order_index_key" ON "regulatory_register_entries"("baseline_id", "order_index");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "regulatory_evaluations_entry_id_key" ON "regulatory_evaluations"("entry_id");
+
+-- CreateIndex
+CREATE INDEX "regulatory_evaluations_result_updated_at_idx" ON "regulatory_evaluations"("result", "updated_at");
+
+-- CreateIndex
+CREATE INDEX "regulatory_evaluation_evidence_evaluation_id_created_at_idx" ON "regulatory_evaluation_evidence"("evaluation_id", "created_at");
+
+-- CreateIndex
+CREATE INDEX "regulatory_evaluation_actions_evaluation_id_status_idx" ON "regulatory_evaluation_actions"("evaluation_id", "status");
+
+-- CreateIndex
+CREATE INDEX "regulatory_evaluation_actions_assignee_id_due_date_idx" ON "regulatory_evaluation_actions"("assignee_id", "due_date");
+
+-- CreateIndex
 CREATE INDEX "project_profile_conversations_profile_id_status_idx" ON "project_profile_conversations"("profile_id", "status");
 
 -- CreateIndex
@@ -1119,6 +1333,12 @@ CREATE INDEX "project_profile_messages_reply_to_message_id_idx" ON "project_prof
 
 -- CreateIndex
 CREATE UNIQUE INDEX "project_profile_messages_conversation_id_client_message_id_key" ON "project_profile_messages"("conversation_id", "client_message_id");
+
+-- CreateIndex
+CREATE INDEX "project_profile_message_attachments_file_id_idx" ON "project_profile_message_attachments"("file_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "project_profile_message_attachments_message_id_file_id_key" ON "project_profile_message_attachments"("message_id", "file_id");
 
 -- CreateIndex
 CREATE INDEX "ai_invocations_organization_id_created_at_idx" ON "ai_invocations"("organization_id", "created_at");
@@ -1160,19 +1380,13 @@ CREATE INDEX "corrective_actions_organizationId_findingId_idx" ON "corrective_ac
 CREATE INDEX "files_organizationId_deletedAt_idx" ON "files"("organizationId", "deletedAt");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "project_profile_message_attachments_message_id_file_id_key" ON "project_profile_message_attachments"("message_id", "file_id");
-
--- CreateIndex
-CREATE INDEX "project_profile_message_attachments_file_id_idx" ON "project_profile_message_attachments"("file_id");
-
--- CreateIndex
-CREATE UNIQUE INDEX "file_transcriptions_file_id_model_key" ON "file_transcriptions"("file_id", "model");
+CREATE UNIQUE INDEX "files_organizationId_objectKey_key" ON "files"("organizationId", "objectKey");
 
 -- CreateIndex
 CREATE INDEX "file_transcriptions_status_created_at_idx" ON "file_transcriptions"("status", "created_at");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "files_organizationId_objectKey_key" ON "files"("organizationId", "objectKey");
+CREATE UNIQUE INDEX "file_transcriptions_file_id_model_key" ON "file_transcriptions"("file_id", "model");
 
 -- CreateIndex
 CREATE INDEX "background_jobs_organizationId_status_idx" ON "background_jobs"("organizationId", "status");
@@ -1382,6 +1596,75 @@ ALTER TABLE "project_profile_snapshots" ADD CONSTRAINT "project_profile_snapshot
 ALTER TABLE "project_profile_snapshots" ADD CONSTRAINT "project_profile_snapshots_created_by_id_fkey" FOREIGN KEY ("created_by_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "project_regulatory_watches" ADD CONSTRAINT "project_regulatory_watches_organization_id_fkey" FOREIGN KEY ("organization_id") REFERENCES "organizations"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "project_regulatory_watches" ADD CONSTRAINT "project_regulatory_watches_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "project_regulatory_watches" ADD CONSTRAINT "project_regulatory_watches_current_baseline_id_fkey" FOREIGN KEY ("current_baseline_id") REFERENCES "regulatory_baselines"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "regulatory_analysis_runs" ADD CONSTRAINT "regulatory_analysis_runs_watch_id_fkey" FOREIGN KEY ("watch_id") REFERENCES "project_regulatory_watches"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "regulatory_analysis_runs" ADD CONSTRAINT "regulatory_analysis_runs_profile_snapshot_id_fkey" FOREIGN KEY ("profile_snapshot_id") REFERENCES "project_profile_snapshots"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "regulatory_analysis_runs" ADD CONSTRAINT "regulatory_analysis_runs_created_by_id_fkey" FOREIGN KEY ("created_by_id") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "regulatory_scope_facts" ADD CONSTRAINT "regulatory_scope_facts_run_id_fkey" FOREIGN KEY ("run_id") REFERENCES "regulatory_analysis_runs"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "regulatory_applicability_candidates" ADD CONSTRAINT "regulatory_applicability_candidates_run_id_fkey" FOREIGN KEY ("run_id") REFERENCES "regulatory_analysis_runs"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "regulatory_applicability_candidates" ADD CONSTRAINT "regulatory_applicability_candidates_provision_id_fkey" FOREIGN KEY ("provision_id") REFERENCES "document_provisions"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "regulatory_applicability_candidates" ADD CONSTRAINT "regulatory_applicability_candidates_reviewed_by_id_fkey" FOREIGN KEY ("reviewed_by_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "regulatory_baselines" ADD CONSTRAINT "regulatory_baselines_watch_id_fkey" FOREIGN KEY ("watch_id") REFERENCES "project_regulatory_watches"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "regulatory_baselines" ADD CONSTRAINT "regulatory_baselines_analysis_run_id_fkey" FOREIGN KEY ("analysis_run_id") REFERENCES "regulatory_analysis_runs"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "regulatory_baselines" ADD CONSTRAINT "regulatory_baselines_profile_snapshot_id_fkey" FOREIGN KEY ("profile_snapshot_id") REFERENCES "project_profile_snapshots"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "regulatory_baselines" ADD CONSTRAINT "regulatory_baselines_published_by_id_fkey" FOREIGN KEY ("published_by_id") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "regulatory_register_entries" ADD CONSTRAINT "regulatory_register_entries_baseline_id_fkey" FOREIGN KEY ("baseline_id") REFERENCES "regulatory_baselines"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "regulatory_register_entries" ADD CONSTRAINT "regulatory_register_entries_provision_id_fkey" FOREIGN KEY ("provision_id") REFERENCES "document_provisions"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "regulatory_evaluations" ADD CONSTRAINT "regulatory_evaluations_entry_id_fkey" FOREIGN KEY ("entry_id") REFERENCES "regulatory_register_entries"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "regulatory_evaluations" ADD CONSTRAINT "regulatory_evaluations_evaluated_by_id_fkey" FOREIGN KEY ("evaluated_by_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "regulatory_evaluation_evidence" ADD CONSTRAINT "regulatory_evaluation_evidence_evaluation_id_fkey" FOREIGN KEY ("evaluation_id") REFERENCES "regulatory_evaluations"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "regulatory_evaluation_evidence" ADD CONSTRAINT "regulatory_evaluation_evidence_file_id_fkey" FOREIGN KEY ("file_id") REFERENCES "files"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "regulatory_evaluation_evidence" ADD CONSTRAINT "regulatory_evaluation_evidence_created_by_id_fkey" FOREIGN KEY ("created_by_id") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "regulatory_evaluation_actions" ADD CONSTRAINT "regulatory_evaluation_actions_evaluation_id_fkey" FOREIGN KEY ("evaluation_id") REFERENCES "regulatory_evaluations"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "regulatory_evaluation_actions" ADD CONSTRAINT "regulatory_evaluation_actions_assignee_id_fkey" FOREIGN KEY ("assignee_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "project_profile_conversations" ADD CONSTRAINT "project_profile_conversations_profile_id_fkey" FOREIGN KEY ("profile_id") REFERENCES "project_profiles"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
@@ -1459,7 +1742,6 @@ ALTER TABLE "background_jobs" ADD CONSTRAINT "background_jobs_organizationId_fke
 -- AddForeignKey
 ALTER TABLE "audit_log_entries" ADD CONSTRAINT "audit_log_entries_organizationId_fkey" FOREIGN KEY ("organizationId") REFERENCES "organizations"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
--- Better Auth values are validated at the database boundary as well as in the app.
 ALTER TABLE "users"
   ADD CONSTRAINT "users_status_check"
   CHECK ("status" IN ('active', 'suspended', 'deleted')),

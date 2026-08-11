@@ -1,4 +1,8 @@
-import type { ProjectProfile, ProjectProfileField } from "@qhse/contracts";
+import {
+  portableProjectProfileSchema,
+  type ProjectProfile,
+  type ProjectProfileField,
+} from "@qhse/contracts";
 import {
   profileQuestions,
   validateProfileFieldValue,
@@ -39,6 +43,7 @@ import {
   CheckCircle2Icon,
   CheckIcon,
   CircleDotIcon,
+  DownloadIcon,
   FileCheck2Icon,
   LoaderCircleIcon,
   LockKeyholeIcon,
@@ -47,8 +52,9 @@ import {
   SearchIcon,
   ShieldCheckIcon,
   SparklesIcon,
+  UploadIcon,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
 import { clientApi } from "../../app/client-api.js";
@@ -327,7 +333,11 @@ export function ProjectProfilePage() {
   const [editingKey, setEditingKey] = useState<ProfileFieldKey | null>(null);
   const [finalizeOpen, setFinalizeOpen] = useState(false);
   const [finalizing, setFinalizing] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [pageError, setPageError] = useState<string>();
+  const [pageSuccess, setPageSuccess] = useState<string>();
+  const importInputRef = useRef<HTMLInputElement>(null);
 
   const profile = profileQuery.data;
   const fieldsByKey = useMemo(
@@ -388,6 +398,66 @@ export function ProjectProfilePage() {
     }
   }
 
+  async function exportJson() {
+    if (!profile) return;
+    setExporting(true);
+    setPageError(undefined);
+    setPageSuccess(undefined);
+    try {
+      const document = await clientApi.exportProjectProfile(projectIdOrSlug);
+      const url = URL.createObjectURL(
+        new Blob([JSON.stringify(document, null, 2)], { type: "application/json" }),
+      );
+      const anchor = window.document.createElement("a");
+      anchor.href = url;
+      anchor.download = `profil-${profile.project.slug}.json`;
+      anchor.click();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      setPageError(error instanceof Error ? error.message : "Le profil ne peut pas être exporté.");
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  async function importJson(file: File) {
+    if (!profile) return;
+    setImporting(true);
+    setPageError(undefined);
+    setPageSuccess(undefined);
+    try {
+      if (file.size > 1_000_000) throw new Error("Le fichier JSON dépasse la limite de 1 Mo.");
+      const raw: unknown = JSON.parse(await file.text());
+      const document = portableProjectProfileSchema.parse(raw);
+      const updated = await clientApi.importProjectProfile(projectIdOrSlug, {
+        revision: profile.profile.revision,
+        document,
+      });
+      queryClient.setQueryData(["project-profile", projectIdOrSlug], updated);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["project-profile", projectIdOrSlug] }),
+        queryClient.invalidateQueries({
+          queryKey: ["project-profile-conversation", projectIdOrSlug],
+        }),
+        queryClient.invalidateQueries({ queryKey: ["regulatory-watch", projectIdOrSlug] }),
+        queryClient.invalidateQueries({ queryKey: ["client", "projects"] }),
+        queryClient.invalidateQueries({ queryKey: ["projects"] }),
+      ]);
+      setPageSuccess("Le profil JSON a été importé et finalisé avec succès.");
+    } catch (error) {
+      setPageError(
+        error instanceof SyntaxError
+          ? "Le fichier sélectionné n’est pas un JSON valide."
+          : error instanceof Error
+            ? error.message
+            : "Le profil ne peut pas être importé.",
+      );
+    } finally {
+      setImporting(false);
+      if (importInputRef.current) importInputRef.current.value = "";
+    }
+  }
+
   return (
     <section className="mx-auto w-full max-w-[1380px] space-y-6">
       <header className="relative overflow-hidden rounded-3xl bg-[#0a0e18] p-6 text-white sm:p-8">
@@ -420,6 +490,35 @@ export function ProjectProfilePage() {
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
+            <input
+              ref={importInputRef}
+              aria-label="Importer un profil JSON"
+              accept="application/json,.json"
+              className="sr-only"
+              type="file"
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                if (file) void importJson(file);
+              }}
+            />
+            <Button
+              variant="outline"
+              className="border-white/15 bg-white/5 text-white hover:bg-white/10 hover:text-white"
+              disabled={importing || exporting}
+              onClick={() => importInputRef.current?.click()}
+            >
+              {importing ? <LoaderCircleIcon className="animate-spin" /> : <UploadIcon />}
+              {importing ? "Import…" : "Importer JSON"}
+            </Button>
+            <Button
+              variant="outline"
+              className="border-white/15 bg-white/5 text-white hover:bg-white/10 hover:text-white"
+              disabled={exporting || importing}
+              onClick={() => void exportJson()}
+            >
+              {exporting ? <LoaderCircleIcon className="animate-spin" /> : <DownloadIcon />}
+              {exporting ? "Export…" : "Exporter JSON"}
+            </Button>
             <Button
               nativeButton={false}
               variant="outline"
@@ -469,6 +568,14 @@ export function ProjectProfilePage() {
           className="flex items-center gap-2 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
         >
           <AlertCircleIcon className="size-4" /> {pageError}
+        </div>
+      )}
+      {pageSuccess && (
+        <div
+          role="status"
+          className="flex items-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700"
+        >
+          <CheckCircle2Icon className="size-4" /> {pageSuccess}
         </div>
       )}
 

@@ -23,18 +23,16 @@ export function VersionComparisonPage() {
   }, [documentId, beforeId, afterId]);
   if (!data) return <p className="text-sm text-muted-foreground">Preparing comparison…</p>;
   return (
-    <div className="space-y-6">
+    <section className="mx-auto w-full max-w-[1440px] space-y-6">
       <div>
-        <p className="text-sm text-muted-foreground">Documents / Version comparison</p>
-        <h1 className="text-2xl font-semibold">
+        <p className="text-sm font-medium text-violet-700">Documents / Version comparison</p>
+        <h1 className="mt-1 text-3xl font-semibold tracking-tight">
           {data.versions.before.label} → {data.versions.after.label}
         </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Comparison never changes publication state.
-        </p>
+        <p className="mt-2 text-sm text-slate-600">Comparison never changes publication state.</p>
       </div>
       <Tabs defaultValue="all">
-        <TabsList>
+        <TabsList className="max-w-full overflow-x-auto rounded-xl bg-slate-200/70">
           {["all", "metadata", "content", "structure", "references", "classification"].map(
             (value) => (
               <TabsTrigger key={value} value={value} className="capitalize">
@@ -95,7 +93,7 @@ export function VersionComparisonPage() {
           </TabsContent>
         ))}
       </Tabs>
-    </div>
+    </section>
   );
 }
 

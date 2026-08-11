@@ -12,6 +12,8 @@ vi.mock("../../app/client-api.js", () => ({
     projectProfile: vi.fn(),
     updateProjectProfile: vi.fn(),
     completeProjectProfile: vi.fn(),
+    exportProjectProfile: vi.fn(),
+    importProjectProfile: vi.fn(),
   },
 }));
 
@@ -65,17 +67,19 @@ const profile = {
 };
 
 function renderPage() {
-  return render(
-    <MemoryRouter initialEntries={["/projects/atlas-industrie/profile"]}>
-      <QueryClientProvider
-        client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
-      >
-        <Routes>
-          <Route path="/projects/:projectId/profile" element={<ProjectProfilePage />} />
-        </Routes>
-      </QueryClientProvider>
-    </MemoryRouter>,
-  );
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return {
+    queryClient,
+    ...render(
+      <MemoryRouter initialEntries={["/projects/atlas-industrie/profile"]}>
+        <QueryClientProvider client={queryClient}>
+          <Routes>
+            <Route path="/projects/:projectId/profile" element={<ProjectProfilePage />} />
+          </Routes>
+        </QueryClientProvider>
+      </MemoryRouter>,
+    ),
+  };
 }
 
 afterEach(cleanup);
@@ -86,6 +90,19 @@ beforeEach(() => {
   vi.mocked(clientApi.updateProjectProfile).mockResolvedValue({
     ...profile,
     profile: { ...profile.profile, revision: 5 },
+  } as never);
+  vi.mocked(clientApi.importProjectProfile).mockResolvedValue({
+    ...profile,
+    profile: { ...profile.profile, revision: 5, status: "COMPLETE" },
+    completion: {
+      ...profile.completion,
+      answeredRequired: 32,
+      completenessPercent: 100,
+      answeredRegulatory: 12,
+      regulatoryReadiness: 100,
+      missingRequiredKeys: [],
+      missingRegulatoryKeys: [],
+    },
   } as never);
 });
 
@@ -156,5 +173,46 @@ describe("ProjectProfilePage", () => {
     await waitFor(() =>
       expect(clientApi.completeProjectProfile).toHaveBeenCalledWith("atlas-industrie", 4),
     );
+  });
+
+  it("imports JSON and invalidates every profile consumer after success", async () => {
+    const { queryClient } = renderPage();
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+    const user = userEvent.setup();
+    await screen.findByRole("heading", { name: "Profil de Atlas Industrie" });
+    const document = {
+      format: "qhse-project-profile",
+      formatVersion: 1,
+      profileSchemaVersion: 1,
+      exportedAt: "2026-08-11T08:00:00.000Z",
+      sourceProject: {
+        name: "Atlas Industrie",
+        countryCode: "MA",
+        standardCode: "ISO_9001",
+      },
+      fields: [{ key: "project.name", status: "ANSWERED", value: "Atlas Industrie" }],
+    };
+
+    await user.upload(
+      screen.getByLabelText("Importer un profil JSON"),
+      new File([JSON.stringify(document)], "profil.json", { type: "application/json" }),
+    );
+
+    await waitFor(() =>
+      expect(clientApi.importProjectProfile).toHaveBeenCalledWith("atlas-industrie", {
+        revision: 4,
+        document,
+      }),
+    );
+    expect(invalidate).toHaveBeenCalledWith({
+      queryKey: ["project-profile", "atlas-industrie"],
+    });
+    expect(invalidate).toHaveBeenCalledWith({
+      queryKey: ["project-profile-conversation", "atlas-industrie"],
+    });
+    expect(invalidate).toHaveBeenCalledWith({
+      queryKey: ["regulatory-watch", "atlas-industrie"],
+    });
+    expect(await screen.findByRole("status")).toHaveTextContent("importé et finalisé");
   });
 });

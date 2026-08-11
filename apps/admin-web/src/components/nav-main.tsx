@@ -15,7 +15,7 @@ import {
   SidebarMenuSubItem,
 } from "@qhse/ui/components/sidebar";
 import { ChevronRightIcon } from "lucide-react";
-import { Link } from "react-router-dom";
+import { NavLink, useLocation } from "react-router-dom";
 
 export function NavMain({
   items,
@@ -31,13 +31,26 @@ export function NavMain({
     }[];
   }[];
 }) {
+  const location = useLocation();
+
   return (
-    <SidebarGroup>
-      <SidebarGroupLabel>Platform</SidebarGroupLabel>
-      <SidebarMenu>
+    <SidebarGroup className="px-3 py-5">
+      <SidebarGroupLabel className="px-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+        Navigation
+      </SidebarGroupLabel>
+      <SidebarMenu className="mt-2 gap-1">
         {items.map((item) => (
           <Collapsible key={item.title} defaultOpen={item.isActive} render={<SidebarMenuItem />}>
-            <SidebarMenuButton tooltip={item.title} render={<Link to={item.url} />}>
+            <SidebarMenuButton
+              tooltip={item.title}
+              isActive={
+                item.url === "/"
+                  ? location.pathname === "/"
+                  : location.pathname.startsWith(item.url)
+              }
+              className="h-10 text-slate-400 hover:bg-white/[0.06] hover:text-white data-active:bg-violet-500/15 data-active:text-violet-200"
+              render={<NavLink to={item.url} end={item.url === "/"} />}
+            >
               {item.icon}
               <span>{item.title}</span>
             </SidebarMenuButton>
@@ -53,7 +66,7 @@ export function NavMain({
                   <SidebarMenuSub>
                     {item.items?.map((subItem) => (
                       <SidebarMenuSubItem key={subItem.title}>
-                        <SidebarMenuSubButton render={<Link to={subItem.url} />}>
+                        <SidebarMenuSubButton render={<NavLink to={subItem.url} />}>
                           <span>{subItem.title}</span>
                         </SidebarMenuSubButton>
                       </SidebarMenuSubItem>

@@ -14,6 +14,7 @@ import {
   SidebarHeader,
   SidebarRail,
 } from "@qhse/ui/components/sidebar";
+import { BrandLogo } from "@qhse/ui/components/brand-logo";
 import {
   LayoutDashboardIcon,
   FolderKanbanIcon,
@@ -72,13 +73,18 @@ export function AppSidebar({
       <SidebarHeader className="gap-3 border-b border-white/10 p-3">
         <Link
           to="/"
+          aria-label="GetQHSE home"
           className="flex h-10 items-center gap-3 px-2 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0"
         >
-          <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-violet-600 text-sm font-bold text-white">
-            Q
-          </span>
+          <BrandLogo
+            variant="icon"
+            className="hidden size-8 shrink-0 object-contain group-data-[collapsible=icon]:block"
+          />
           <div className="min-w-0 group-data-[collapsible=icon]:hidden">
-            <p className="font-semibold tracking-tight text-white">GetQHSE</p>
+            <BrandLogo
+              variant="dark-background"
+              className="h-6 w-auto max-w-32 object-contain object-left"
+            />
             <p className="text-[10px] uppercase tracking-[0.14em] text-slate-500">Workspace</p>
           </div>
         </Link>

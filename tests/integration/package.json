@@ -12,14 +12,18 @@
     "test:coverage": "vitest run --coverage --passWithNoTests"
   },
   "dependencies": {
+    "@ai-sdk/openai": "^4.0.36",
+    "@qhse/ai": "workspace:*",
     "@aws-sdk/client-s3": "^3.1098.0",
     "@qhse/auth": "workspace:*",
     "@qhse/database": "workspace:*",
     "@qhse/profile": "workspace:*",
+    "ai": "^7.0.58",
     "better-auth": "^1.6.25",
     "ioredis": "^5.11.1",
     "pg": "^8.22.0",
-    "testcontainers": "^12.0.4"
+    "testcontainers": "^12.0.4",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@types/pg": "^8.20.0",

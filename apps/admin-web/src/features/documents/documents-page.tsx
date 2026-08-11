@@ -59,34 +59,41 @@ export function DocumentsPage() {
   }, [search, status]);
 
   return (
-    <div className="space-y-6">
+    <section className="mx-auto w-full max-w-[1440px] space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="text-sm text-muted-foreground">Knowledge sources</p>
-          <h1 className="text-2xl font-semibold tracking-tight">Documents</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
+          <p className="text-sm font-medium text-violet-700">Knowledge sources</p>
+          <h1 className="mt-1 text-3xl font-semibold tracking-tight">Documents</h1>
+          <p className="mt-2 text-sm text-slate-600">
             Upload, review, replace and publish controlled QHSE reference content.
           </p>
         </div>
         {user?.platformRole !== "support" ? (
-          <Button render={<Link to="/documents/upload" />}>
+          <Button
+            className="h-10 rounded-xl bg-slate-950 px-4 text-white hover:bg-slate-800"
+            render={<Link to="/documents/upload" />}
+          >
             <PlusIcon /> Upload document
           </Button>
         ) : null}
       </div>
-      <Card>
-        <CardHeader className="border-b">
+      <Card className="overflow-hidden rounded-3xl border-slate-200 shadow-sm">
+        <CardHeader className="border-b border-slate-100 bg-white p-5 sm:p-6">
           <div className="flex flex-wrap items-center gap-3">
             <div className="relative min-w-64 flex-1">
               <SearchIcon className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
               <Input
-                className="pl-9"
+                className="h-10 rounded-xl border-slate-200 bg-slate-50 pl-9"
                 placeholder="Search title, reference or authority"
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
               />
             </div>
-            <NativeSelect value={status} onChange={(event) => setStatus(event.target.value)}>
+            <NativeSelect
+              className="h-10 rounded-xl border-slate-200 bg-slate-50"
+              value={status}
+              onChange={(event) => setStatus(event.target.value)}
+            >
               <NativeSelectOption value="">All statuses</NativeSelectOption>
               {[
                 "draft",
@@ -103,7 +110,7 @@ export function DocumentsPage() {
                 </NativeSelectOption>
               ))}
             </NativeSelect>
-            <div className="flex rounded-full bg-muted p-1">
+            <div className="flex rounded-xl bg-slate-100 p-1">
               <Button
                 size="icon-sm"
                 variant={view === "table" ? "secondary" : "ghost"}
@@ -150,17 +157,19 @@ export function DocumentsPage() {
                 <Link
                   key={document.id}
                   to={`/documents/${document.id}`}
-                  className="rounded-2xl border p-5 transition-colors hover:bg-muted/40"
+                  className="group rounded-2xl border border-slate-200 p-5 transition hover:border-violet-200 hover:bg-violet-50/40"
                 >
                   <div className="flex justify-between gap-3">
                     <DocumentStatusBadge status={document.status} />
                     <Badge variant="outline">{document.documentType.replaceAll("_", " ")}</Badge>
                   </div>
-                  <h2 className="mt-4 font-semibold leading-snug">{document.title}</h2>
-                  <p className="mt-1 text-sm text-muted-foreground">
+                  <h2 className="mt-4 font-semibold leading-snug group-hover:text-violet-950">
+                    {document.title}
+                  </h2>
+                  <p className="mt-1 text-sm text-slate-500">
                     {document.referenceNumber ?? "No reference number"}
                   </p>
-                  <div className="mt-5 flex justify-between text-xs text-muted-foreground">
+                  <div className="mt-5 flex justify-between text-xs text-slate-500">
                     <span>
                       {document.currentVersion?.versionLabel ??
                         `${document._count.versions} revision(s)`}
@@ -186,7 +195,7 @@ export function DocumentsPage() {
               </TableHeader>
               <TableBody>
                 {data.map((document) => (
-                  <TableRow key={document.id}>
+                  <TableRow key={document.id} className="hover:bg-violet-50/40">
                     <TableCell>
                       <Link
                         className="font-medium hover:underline"
@@ -225,6 +234,6 @@ export function DocumentsPage() {
           )}
         </CardContent>
       </Card>
-    </div>
+    </section>
   );
 }

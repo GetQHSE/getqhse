@@ -1,0 +1,179 @@
+name: qhse-platform-production
+
+x-api-environment: &api-environment
+  NODE_ENV: production
+  DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL}
+  REDIS_URL: ${REDIS_URL:?Set REDIS_URL}
+  S3_ENDPOINT: ${S3_ENDPOINT:?Set S3_ENDPOINT}
+  S3_REGION: ${S3_REGION:-us-east-1}
+  S3_BUCKET: ${S3_BUCKET:-qhse-files}
+  S3_DOCUMENTS_BUCKET: ${S3_DOCUMENTS_BUCKET:-qhse-files}
+  S3_ACCESS_KEY: ${S3_ACCESS_KEY:?Set S3_ACCESS_KEY}
+  S3_SECRET_KEY: ${S3_SECRET_KEY:?Set S3_SECRET_KEY}
+  S3_FORCE_PATH_STYLE: ${S3_FORCE_PATH_STYLE:-true}
+  BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?Set BETTER_AUTH_SECRET}
+  COOKIE_SECURE: "true"
+  DOCLING_URL: http://docling:8000
+  OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+  OPENAI_PROFILE_MODEL: ${OPENAI_PROFILE_MODEL:-gpt-5-mini}
+  OPENAI_REGULATORY_MODEL: ${OPENAI_REGULATORY_MODEL:-gpt-5-mini}
+  OPENAI_TRANSCRIPTION_MODEL: ${OPENAI_TRANSCRIPTION_MODEL:-gpt-4o-mini-transcribe}
+  NORMATIVE_RAG_ENABLED: ${NORMATIVE_RAG_ENABLED:-false}
+  EMBEDDING_BATCH_SIZE: ${EMBEDDING_BATCH_SIZE:-64}
+  DOCUMENT_MAX_UPLOAD_BYTES: ${DOCUMENT_MAX_UPLOAD_BYTES:-52428800}
+  DOCUMENT_WORKER_VERSION: ${DOCUMENT_WORKER_VERSION:-production-1}
+  DOCUMENT_OCR_PROVIDER: ${DOCUMENT_OCR_PROVIDER:-docling}
+  MALWARE_SCANNER_PROVIDER: ${MALWARE_SCANNER_PROVIDER:-mock}
+  LOG_LEVEL: ${LOG_LEVEL:-info}
+  MAX_UPLOAD_BYTES: ${MAX_UPLOAD_BYTES:-10485760}
+  MAIL_FROM: ${MAIL_FROM:-no-reply@example.invalid}
+  SMTP_URL: ${SMTP_URL:-}
+
+x-service-defaults: &service-defaults
+  restart: unless-stopped
+  networks: [app-internal]
+
+services:
+  migrate:
+    build:
+      context: .
+      dockerfile: infrastructure/docker/migrate.Dockerfile
+    environment:
+      DATABASE_MIGRATION_URL: ${DATABASE_MIGRATION_URL:?Set DATABASE_MIGRATION_URL}
+      DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL}
+      BOOTSTRAP_SUPER_ADMIN_EMAIL: ${BOOTSTRAP_SUPER_ADMIN_EMAIL:-}
+      BOOTSTRAP_SUPER_ADMIN_PASSWORD: ${BOOTSTRAP_SUPER_ADMIN_PASSWORD:-}
+    restart: "no"
+    networks: [app-internal]
+
+  client-api:
+    <<: *service-defaults
+    build:
+      context: .
+      dockerfile: infrastructure/docker/api.Dockerfile
+    environment:
+      <<: *api-environment
+      API_HOST: 0.0.0.0
+      API_PORT: "3000"
+      APP_ORIGIN: ${APP_ORIGIN:?Set APP_ORIGIN}
+      CORS_ORIGINS: ${CORS_ORIGINS:?Set CORS_ORIGINS}
+      BETTER_AUTH_URL: ${BETTER_AUTH_URL:?Set BETTER_AUTH_URL}
+    expose: ["3000"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      docling:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: ${API_CPU_LIMIT:-1.0}
+          memory: ${API_MEMORY_LIMIT:-1G}
+
+  admin-api:
+    <<: *service-defaults
+    build:
+      context: .
+      dockerfile: infrastructure/docker/admin-api.Dockerfile
+    environment:
+      <<: *api-environment
+      API_HOST: 0.0.0.0
+      API_PORT: "3000"
+      APP_ORIGIN: ${APP_ORIGIN:?Set APP_ORIGIN}
+      CORS_ORIGINS: ${CORS_ORIGINS:?Set CORS_ORIGINS}
+      BETTER_AUTH_URL: ${BETTER_AUTH_URL:?Set BETTER_AUTH_URL}
+      ADMIN_API_HOST: 0.0.0.0
+      ADMIN_API_PORT: "3001"
+      ADMIN_BETTER_AUTH_URL: ${ADMIN_BETTER_AUTH_URL:?Set ADMIN_BETTER_AUTH_URL}
+      ADMIN_CORS_ORIGINS: ${ADMIN_CORS_ORIGINS:?Set ADMIN_CORS_ORIGINS}
+    expose: ["3001"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      docling:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: ${ADMIN_API_CPU_LIMIT:-1.0}
+          memory: ${ADMIN_API_MEMORY_LIMIT:-1G}
+
+  worker:
+    <<: *service-defaults
+    build:
+      context: .
+      dockerfile: infrastructure/docker/worker.Dockerfile
+    environment:
+      <<: *api-environment
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      docling:
+        condition: service_healthy
+    stop_grace_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: ${WORKER_CPU_LIMIT:-2.0}
+          memory: ${WORKER_MEMORY_LIMIT:-2G}
+
+  docling:
+    <<: *service-defaults
+    build:
+      context: services/docling
+      dockerfile: Dockerfile
+    environment:
+      DOCLING_HOST: 0.0.0.0
+      DOCLING_PORT: "8000"
+      DOCLING_MAX_UPLOAD_BYTES: ${DOCLING_MAX_UPLOAD_BYTES:-52428800}
+      DOCLING_ALLOWED_TYPES: ${DOCLING_ALLOWED_TYPES:-application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document}
+    expose: ["8000"]
+    volumes:
+      - docling-cache:/home/docling/.cache/huggingface
+    deploy:
+      resources:
+        limits:
+          cpus: ${DOCLING_CPU_LIMIT:-4.0}
+          memory: ${DOCLING_MEMORY_LIMIT:-8G}
+
+  client-web:
+    <<: *service-defaults
+    build:
+      context: .
+      dockerfile: infrastructure/docker/web.Dockerfile
+      args:
+        VITE_API_URL: ${VITE_API_URL:?Set VITE_API_URL}
+        VITE_DEFAULT_LOCALE: ${VITE_DEFAULT_LOCALE:-fr}
+    expose: ["80"]
+    depends_on:
+      client-api:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: ${WEB_CPU_LIMIT:-0.5}
+          memory: ${WEB_MEMORY_LIMIT:-256M}
+
+  admin-web:
+    <<: *service-defaults
+    build:
+      context: .
+      dockerfile: infrastructure/docker/admin-web.Dockerfile
+      args:
+        VITE_ADMIN_API_URL: ${VITE_ADMIN_API_URL:?Set VITE_ADMIN_API_URL}
+    expose: ["80"]
+    depends_on:
+      admin-api:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: ${ADMIN_WEB_CPU_LIMIT:-0.5}
+          memory: ${ADMIN_WEB_MEMORY_LIMIT:-256M}
+
+networks:
+  app-internal:
+    driver: bridge
+
+volumes:
+  docling-cache:

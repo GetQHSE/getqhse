@@ -22,11 +22,17 @@ import {
   type ProjectProfileSnapshot,
   type UpdateProjectProfile,
 } from "@qhse/contracts";
-import { apiRequest, createAxiosClient, type ApiRequestInit } from "@qhse/api-client";
+import {
+  apiRequest,
+  createAxiosClient,
+  QhseApiClient,
+  type ApiRequestInit,
+} from "@qhse/api-client";
 
 import { API_BASE_URL } from "./api-url.js";
 
 export const clientHttp = createAxiosClient({ baseUrl: API_BASE_URL });
+const qhseApi = new QhseApiClient({ baseUrl: API_BASE_URL, axios: clientHttp });
 
 async function request<T>(
   path: string,
@@ -75,6 +81,31 @@ export const clientApi = {
         body: JSON.stringify(completeProjectProfileSchema.parse({ revision })),
       },
     ),
+  exportProjectProfile: (idOrSlug: string) => qhseApi.exportProjectProfile(idOrSlug),
+  importProjectProfile: (
+    idOrSlug: string,
+    input: Parameters<QhseApiClient["importProjectProfile"]>[1],
+  ) => qhseApi.importProjectProfile(idOrSlug, input),
+  regulatoryWatch: (idOrSlug: string) => qhseApi.getRegulatoryWatch(idOrSlug),
+  startRegulatoryAnalysis: (
+    idOrSlug: string,
+    input: Parameters<QhseApiClient["startRegulatoryAnalysis"]>[1],
+  ) => qhseApi.startRegulatoryAnalysis(idOrSlug, input),
+  answerRegulatoryClarifications: (
+    idOrSlug: string,
+    runId: string,
+    input: Parameters<QhseApiClient["answerRegulatoryClarifications"]>[2],
+  ) => qhseApi.answerRegulatoryClarifications(idOrSlug, runId, input),
+  decideRegulatoryCandidate: (
+    idOrSlug: string,
+    candidateId: string,
+    input: Parameters<QhseApiClient["decideRegulatoryCandidate"]>[2],
+  ) => qhseApi.decideRegulatoryCandidate(idOrSlug, candidateId, input),
+  publishRegulatoryBaseline: (
+    idOrSlug: string,
+    input: Parameters<QhseApiClient["publishRegulatoryBaseline"]>[1],
+  ) => qhseApi.publishRegulatoryBaseline(idOrSlug, input),
+  exportRegulatoryWatch: (idOrSlug: string) => qhseApi.exportRegulatoryWatch(idOrSlug),
   createFileUpload: (input: CreateFileUpload): Promise<FileUploadResponse> =>
     request("/v1/files/uploads", (value) => fileUploadResponseSchema.parse(value), {
       method: "POST",

@@ -38,7 +38,6 @@ import { Textarea } from "@qhse/ui/components/textarea";
 import { cn } from "@qhse/ui/lib/utils";
 
 import {
-  AiAvatar,
   CurrentQuestion,
   Message,
   Waveform,

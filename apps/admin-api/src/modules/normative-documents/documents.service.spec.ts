@@ -60,6 +60,7 @@ describe("DocumentsService upload retries", () => {
       aiProcessing: true,
       externalProviderProcessing: true,
       excerptDisplay: true,
+      export: true,
     },
     allowDuplicate: false,
   } as const;
@@ -174,6 +175,9 @@ describe("DocumentsService upload retries", () => {
         update: vi.fn().mockResolvedValue({}),
       },
       documentVersion: { update: updateVersion },
+      regulatorySyncEvent: {
+        upsert: vi.fn().mockResolvedValue({ id: "impact-1" }),
+      },
     };
     const transaction = vi.fn(
       async (operation: (tx: typeof transactionClient) => Promise<unknown>) =>
@@ -202,6 +206,15 @@ describe("DocumentsService upload retries", () => {
         data: { expirationDate: now },
       }),
     );
+    expect(transactionClient.regulatorySyncEvent.upsert).toHaveBeenCalledWith({
+      where: { publishedVersionId: "version-2" },
+      create: expect.objectContaining({
+        documentId: "document-1",
+        previousVersionId: "version-1",
+        publishedVersionId: "version-2",
+      }),
+      update: {},
+    });
   });
 
   it("reports the exact incomplete validation checklist items and uses latest jobs", async () => {

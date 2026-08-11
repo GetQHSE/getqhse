@@ -5,6 +5,11 @@ const booleanString = z
   .default("false")
   .transform((value) => value === "true");
 
+const optionalNonEmptyString = z.preprocess(
+  (value) => (value === "" ? undefined : value),
+  z.string().min(1).optional(),
+);
+
 export const serverEnvironmentSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   DATABASE_URL: z.url(),
@@ -21,8 +26,9 @@ export const serverEnvironmentSchema = z.object({
   S3_SECRET_KEY: z.string().min(1),
   S3_FORCE_PATH_STYLE: booleanString,
   DOCLING_URL: z.url(),
-  OPENAI_API_KEY: z.string().min(1).optional(),
+  OPENAI_API_KEY: optionalNonEmptyString,
   OPENAI_PROFILE_MODEL: z.string().min(1).default("gpt-5-mini"),
+  OPENAI_REGULATORY_MODEL: z.string().min(1).default("gpt-5-mini"),
   OPENAI_TRANSCRIPTION_MODEL: z.string().min(1).default("gpt-4o-mini-transcribe"),
   LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace"]).default("info"),
   MAX_UPLOAD_BYTES: z.coerce.number().int().positive().default(10_485_760),
@@ -39,6 +45,8 @@ export const workerEnvironmentSchema = serverEnvironmentSchema.pick({
   S3_SECRET_KEY: true,
   S3_FORCE_PATH_STYLE: true,
   DOCLING_URL: true,
+  OPENAI_API_KEY: true,
+  OPENAI_REGULATORY_MODEL: true,
   LOG_LEVEL: true,
 });
 

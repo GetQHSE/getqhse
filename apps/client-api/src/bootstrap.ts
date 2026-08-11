@@ -30,7 +30,7 @@ export async function createApplication(): Promise<INestApplication> {
     }
     next();
   });
-  app.useBodyParser("json");
+  app.useBodyParser("json", { limit: "1mb" });
   app.useBodyParser("urlencoded", { extended: true });
   app.useLogger(app.get(Logger));
   app.use(helmet());

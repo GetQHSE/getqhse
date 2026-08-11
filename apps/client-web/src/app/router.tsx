@@ -14,6 +14,8 @@ import { SitesPage } from "../features/sites/sites-page.js";
 import { TestAiChatPage } from "../features/ai-chat/test-ai-chat-page.js";
 import { TestAiChatPage2 } from "../features/ai-chat/test-ai-chat-page-2.js";
 import { TestAiChatPage3 } from "../features/ai-chat/test-ai-chat-page-3.js";
+import { RegulatoryWatchTestPage } from "../features/regulatory-watch/regulatory-watch-test-page.js";
+import { RegulatoryWatchPage } from "../features/regulatory-watch/regulatory-watch-page.js";
 
 function Placeholder({ title }: { title: string }) {
   return <h1 className="text-2xl font-semibold">{title}</h1>;
@@ -22,6 +24,7 @@ function Placeholder({ title }: { title: string }) {
 export const router = createBrowserRouter([
   { path: "/login", element: <LoginPage /> },
   { path: "/sign-up", element: <LoginPage /> },
+  { path: "/veille-test", element: <RegulatoryWatchTestPage /> },
   {
     path: "/onboarding/organization",
     element: (
@@ -77,7 +80,7 @@ export const router = createBrowserRouter([
       { path: "projects/:projectId/profile", element: <ProjectProfilePage /> },
       {
         path: "projects/:projectId/regulatory-watch",
-        element: <Placeholder title="Veille réglementaire" />,
+        element: <RegulatoryWatchPage />,
       },
       {
         path: "projects/:projectId/settings",

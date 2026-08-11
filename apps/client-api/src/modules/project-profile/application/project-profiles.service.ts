@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
+import type { ServerResponse } from "node:http";
 
 import {
   BadRequestException,
@@ -10,6 +11,8 @@ import {
   Optional,
 } from "@nestjs/common";
 import type {
+  ImportProjectProfile,
+  PortableProjectProfile,
   Project,
   ProjectProfile,
   ProjectProfileChatRequest,
@@ -48,6 +51,12 @@ type ApplyAnswerOptions = {
   sourceMessageId?: string | undefined;
   changeReason?: string | undefined;
   language?: "fr" | "ar" | undefined;
+  finalize?: {
+    data: Prisma.InputJsonValue;
+    contentHash: string;
+    completenessPercent: number;
+    regulatoryReadiness: number;
+  };
 };
 
 function sha256(value: string): string {
@@ -280,16 +289,34 @@ export class ProjectProfilesService {
           currentRevision: profile.revision,
         });
       }
+      const finalizedAt = options.finalize ? new Date() : null;
+      const nextReviewAt = finalizedAt ? new Date(finalizedAt) : null;
+      nextReviewAt?.setUTCFullYear(nextReviewAt.getUTCFullYear() + 1);
       const claimed = await tx.projectProfile.updateMany({
         where: { id: profile.id, revision: profile.revision },
         data: {
           revision: { increment: 1 },
-          status: profile.status === "COMPLETE" ? "STALE" : "IN_PROGRESS",
-          completedAt: profile.status === "COMPLETE" ? null : profile.completedAt,
+          status: options.finalize
+            ? "COMPLETE"
+            : profile.status === "COMPLETE"
+              ? "STALE"
+              : "IN_PROGRESS",
+          completedAt: options.finalize
+            ? finalizedAt
+            : profile.status === "COMPLETE"
+              ? null
+              : profile.completedAt,
+          ...(options.finalize ? { lastReviewedAt: finalizedAt, nextReviewAt } : {}),
         },
       });
       if (claimed.count !== 1) {
         throw new ConflictException("The profile was changed by another request");
+      }
+      if (profile.status === "COMPLETE") {
+        await tx.projectRegulatoryWatch.updateMany({
+          where: { projectId: project.id, currentBaselineId: { not: null } },
+          data: { status: "STALE", revision: { increment: 1 } },
+        });
       }
 
       const existingByKey = new Map(profile.fields.map((field) => [field.key, field]));
@@ -354,8 +381,43 @@ export class ProjectProfilesService {
       }
       await tx.project.update({
         where: { id: project.id },
-        data: { status: profile.status === "COMPLETE" ? "REVIEW_REQUIRED" : "PROFILE_IN_PROGRESS" },
+        data: {
+          status: options.finalize
+            ? "READY_FOR_ANALYSIS"
+            : profile.status === "COMPLETE"
+              ? "REVIEW_REQUIRED"
+              : "PROFILE_IN_PROGRESS",
+        },
       });
+      if (options.finalize) {
+        const existingSnapshot = await tx.projectProfileSnapshot.findUnique({
+          where: {
+            profileId_contentHash: {
+              profileId: profile.id,
+              contentHash: options.finalize.contentHash,
+            },
+          },
+        });
+        if (!existingSnapshot) {
+          await tx.projectProfileSnapshot.create({
+            data: {
+              profileId: profile.id,
+              sequence:
+                (await tx.projectProfileSnapshot.count({ where: { profileId: profile.id } })) + 1,
+              schemaVersion: PROFILE_SCHEMA_VERSION,
+              data: options.finalize.data,
+              contentHash: options.finalize.contentHash,
+              completenessPercent: options.finalize.completenessPercent,
+              regulatoryReadiness: options.finalize.regulatoryReadiness,
+              createdById: tenant.userId,
+            },
+          });
+        }
+        await tx.projectProfileConversation.updateMany({
+          where: { profileId: profile.id, status: "ACTIVE" },
+          data: { status: "COMPLETED", currentQuestionKey: null },
+        });
+      }
     });
     return this.buildProfile(tenant, projectIdOrSlug, options.language);
   }
@@ -370,6 +432,114 @@ export class ProjectProfilesService {
       expectedRevision: input.revision,
       source: "USER_EDIT",
       changeReason: input.changeReason,
+    });
+  }
+
+  async exportPortable(
+    tenant: TenantContext,
+    projectIdOrSlug: string,
+  ): Promise<PortableProjectProfile> {
+    const profile = await this.buildProfile(tenant, projectIdOrSlug);
+    const fields: PortableProjectProfile["fields"] = [];
+    for (const field of profile.fields) {
+      if (field.status === "NOT_APPLICABLE") {
+        fields.push({
+          key: field.key,
+          status: "NOT_APPLICABLE",
+          notApplicableReason:
+            field.notApplicableReason ?? "Information non applicable au projet source",
+        });
+        continue;
+      }
+      if (!["ANSWERED", "CONFIRMED"].includes(field.status) || field.value === null) continue;
+      fields.push({ key: field.key, status: "ANSWERED", value: field.value });
+    }
+    return {
+      format: "qhse-project-profile",
+      formatVersion: 1,
+      profileSchemaVersion: profile.profile.schemaVersion,
+      exportedAt: new Date().toISOString(),
+      sourceProject: {
+        name: profile.project.name,
+        countryCode: profile.project.countryCode,
+        standardCode: "ISO_9001",
+      },
+      fields,
+    };
+  }
+
+  async importPortable(
+    tenant: TenantContext,
+    projectIdOrSlug: string,
+    input: ImportProjectProfile,
+  ): Promise<ProjectProfile> {
+    this.assertEditable(tenant);
+    if (input.document.profileSchemaVersion !== PROFILE_SCHEMA_VERSION) {
+      throw new BadRequestException({
+        message: "Unsupported project profile schema version",
+        expected: PROFILE_SCHEMA_VERSION,
+        received: input.document.profileSchemaVersion,
+      });
+    }
+    const current = await this.buildProfile(tenant, projectIdOrSlug);
+    if (current.profile.revision !== input.revision) {
+      throw new ConflictException({
+        message: "The profile was changed by another request",
+        currentRevision: current.profile.revision,
+      });
+    }
+    const answers: AnswerInput[] = input.document.fields.map((field) => ({
+      key: field.key,
+      status: field.status,
+      ...(field.status === "ANSWERED" ? { value: field.value } : {}),
+      ...(field.notApplicableReason ? { notApplicableReason: field.notApplicableReason } : {}),
+    }));
+    const importedByKey = new Map(answers.map((answer) => [answer.key, answer]));
+    const mergedFields = current.fields.map((field) => {
+      const imported = importedByKey.get(field.key);
+      if (!imported) return field;
+      return {
+        ...field,
+        status: imported.status,
+        value: imported.status === "NOT_APPLICABLE" ? null : (imported.value ?? null),
+        notApplicableReason: imported.notApplicableReason ?? null,
+      };
+    });
+    const completion = calculateProfileCompletion(mergedFields);
+    if (completion.completenessPercent !== 100 || completion.regulatoryReadiness !== 100) {
+      throw new BadRequestException({
+        message: "The imported file does not complete the project profile",
+        missingRequiredKeys: completion.missingRequiredKeys,
+        missingRegulatoryKeys: completion.missingRegulatoryKeys,
+      });
+    }
+    const project = { ...current.project };
+    const importedName = importedByKey.get("project.name");
+    if (importedName?.status === "ANSWERED" && typeof importedName.value === "string") {
+      project.name = importedName.value.trim();
+    }
+    const importedLogo = importedByKey.get("project.logoUrl");
+    if (importedLogo) {
+      project.logoUrl =
+        importedLogo.status === "ANSWERED" && typeof importedLogo.value === "string"
+          ? importedLogo.value
+          : null;
+    }
+    const snapshotData = {
+      schemaVersion: PROFILE_SCHEMA_VERSION,
+      project,
+      fields: Object.fromEntries(mergedFields.map((field) => [field.key, field.value])),
+    };
+    return this.applyAnswers(tenant, projectIdOrSlug, answers, {
+      expectedRevision: input.revision,
+      source: "IMPORTED",
+      changeReason: `Import JSON depuis ${input.document.sourceProject.name}`,
+      finalize: {
+        data: snapshotData as Prisma.InputJsonValue,
+        contentHash: sha256(JSON.stringify(snapshotData)),
+        completenessPercent: completion.completenessPercent,
+        regulatoryReadiness: completion.regulatoryReadiness,
+      },
     });
   }
 
@@ -808,7 +978,7 @@ export class ProjectProfilesService {
 
   private replayStream(messageId: string, content: string) {
     return {
-      pipe: async (response: import("node:http").ServerResponse) => {
+      pipe: async (response: ServerResponse) => {
         response.writeHead(200, {
           "content-type": "text/event-stream",
           "cache-control": "no-cache",

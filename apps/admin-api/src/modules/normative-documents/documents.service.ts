@@ -59,6 +59,9 @@ export class DocumentsService {
     @Optional()
     @InjectQueue("embedding-generation")
     private readonly embeddingQueue?: Queue,
+    @Optional()
+    @InjectQueue("regulatory-impact")
+    private readonly regulatoryImpactQueue?: Queue,
   ) {
     this.database = createPrismaClient();
   }
@@ -437,6 +440,7 @@ export class DocumentsService {
         aiProcessingAllowed: input.rights.aiProcessing,
         externalProviderAllowed: input.rights.externalProviderProcessing,
         excerptDisplayAllowed: input.rights.excerptDisplay,
+        exportAllowed: input.rights.export,
         rightsReviewedAt: new Date(),
         createdByUserId: user.id,
       },
@@ -847,7 +851,7 @@ export class DocumentsService {
       }
     }
     const now = new Date();
-    const published = await this.database.$transaction(async (tx) => {
+    const publication = await this.database.$transaction(async (tx) => {
       const document = await tx.document.findUniqueOrThrow({
         where: { id: documentId },
         select: { currentVersionId: true },
@@ -866,13 +870,25 @@ export class DocumentsService {
           updatedByUserId: user.id,
         },
       });
+      let impactEventId: string | null = null;
       if (document.currentVersionId && document.currentVersionId !== versionId) {
         await tx.documentVersion.update({
           where: { id: document.currentVersionId },
           data: { expirationDate: version.effectiveDate ?? now },
         });
+        const impactEvent = await tx.regulatorySyncEvent.upsert({
+          where: { publishedVersionId: versionId },
+          create: {
+            documentId,
+            previousVersionId: document.currentVersionId,
+            publishedVersionId: versionId,
+            actorUserId: user.id,
+          },
+          update: {},
+        });
+        impactEventId = impactEvent.id;
       }
-      return result;
+      return { result, impactEventId };
     });
     await this.activity({
       documentId,
@@ -881,7 +897,27 @@ export class DocumentsService {
       action: "document.version_published",
       ip,
     });
-    return jsonSafe(published);
+    if (publication.impactEventId && this.regulatoryImpactQueue) {
+      try {
+        await this.regulatoryImpactQueue.add(
+          "synchronize-regulatory-impact",
+          {
+            organizationId: "platform",
+            correlationId: randomUUID(),
+            idempotencyKey: publication.impactEventId,
+            payload: { eventId: publication.impactEventId },
+          },
+          {
+            jobId: publication.impactEventId,
+            attempts: 5,
+            backoff: { type: "exponential", delay: 2_000 },
+          },
+        );
+      } catch {
+        // The durable pending event is discovered by the worker dispatcher after Redis recovers.
+      }
+    }
+    return jsonSafe(publication.result);
   }
 
   async reindexVersion(

@@ -4,6 +4,11 @@ import { Module } from "@nestjs/common";
 import { queueNames } from "./queues.js";
 import { DocumentIngestionProcessor } from "./processors/document-ingestion.processor.js";
 import { DocumentProcessingProcessor } from "./processors/document-processing.processor.js";
+import { RegulatoryAnalysisProcessor } from "./processors/regulatory-analysis.processor.js";
+import {
+  RegulatoryImpactDispatcher,
+  RegulatoryImpactProcessor,
+} from "./processors/regulatory-impact.processor.js";
 import {
   EmbeddingGenerationProcessor,
   EvidenceAnalysisProcessor,
@@ -29,6 +34,9 @@ const redisUrl = new URL(process.env["REDIS_URL"] ?? "redis://localhost:6379");
   providers: [
     DocumentIngestionProcessor,
     DocumentProcessingProcessor,
+    RegulatoryAnalysisProcessor,
+    RegulatoryImpactProcessor,
+    RegulatoryImpactDispatcher,
     EmbeddingGenerationProcessor,
     EvidenceAnalysisProcessor,
     ReportGenerationProcessor,

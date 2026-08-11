@@ -1,7 +1,6 @@
 import type { PropsWithChildren, ReactNode } from "react";
 import { CheckIcon, ShieldCheckIcon, SparklesIcon } from "lucide-react";
-
-import { Logo } from "../../components/logo.js";
+import { BrandLogo } from "@qhse/ui/components/brand-logo";
 
 const steps = [
   { number: 1, label: "Votre compte" },
@@ -33,12 +32,13 @@ export function OnboardingShell({
       <aside className="relative overflow-hidden bg-[#080c16] px-6 py-7 text-white lg:flex lg:min-h-screen lg:flex-col lg:px-8 lg:py-9">
         <div className="absolute -left-24 top-1/3 size-64 rounded-full bg-violet-600/20 blur-3xl" />
         <div className="absolute -right-32 bottom-10 size-72 rounded-full bg-cyan-400/10 blur-3xl" />
-        <div className="relative flex items-center gap-3">
-          <span className="grid size-10 place-items-center rounded-xl bg-violet-600 shadow-lg shadow-violet-950/50">
-            <Logo className="size-5 text-white" />
-          </span>
+        <div className="relative">
+          <BrandLogo
+            variant="dark-background"
+            label="GetQHSE"
+            className="h-10 w-auto max-w-48 object-contain object-left"
+          />
           <div>
-            <p className="font-semibold tracking-tight">GetQHSE</p>
             <p className="text-xs text-slate-400">Votre copilote conformité</p>
           </div>
         </div>

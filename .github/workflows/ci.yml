@@ -1,0 +1,223 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  CI: "true"
+
+jobs:
+  quality:
+    name: Quality
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.14.0
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24.17.0
+          cache: pnpm
+      - uses: actions/cache@v5
+        with:
+          path: .turbo
+          key: turbo-quality-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-${{ github.sha }}
+          restore-keys: |
+            turbo-quality-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm env:check
+      - name: Check formatting of changed files
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          if ! git cat-file -e "$BASE_SHA^{commit}" 2>/dev/null; then
+            BASE_SHA=$(git rev-parse HEAD^)
+          fi
+          git diff --name-only --diff-filter=ACMR -z "$BASE_SHA" HEAD \
+            | xargs -0 --no-run-if-empty pnpm exec prettier --check --ignore-unknown
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm db:validate
+
+  unit-and-contracts:
+    name: Unit and contracts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.14.0
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24.17.0
+          cache: pnpm
+      - uses: actions/cache@v5
+        with:
+          path: .turbo
+          key: turbo-tests-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-${{ github.sha }}
+          restore-keys: |
+            turbo-tests-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test:unit
+      - run: pnpm test:contracts
+
+  coverage-report:
+    name: Coverage report
+    continue-on-error: true
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.14.0
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24.17.0
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm turbo test:coverage --continue
+      - name: Upload coverage
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: unit-coverage
+          path: "**/coverage/**"
+          if-no-files-found: warn
+          retention-days: 14
+
+  api-and-security:
+    name: API and security
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.14.0
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24.17.0
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test:api
+      - run: pnpm test:security
+
+  integration:
+    name: Integration
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.14.0
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24.17.0
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test:integration
+        env:
+          TESTCONTAINERS_ENABLED: "true"
+
+  build:
+    name: Workspace build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.14.0
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24.17.0
+          cache: pnpm
+      - uses: actions/cache@v5
+        with:
+          path: .turbo
+          key: turbo-build-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-${{ github.sha }}
+          restore-keys: |
+            turbo-build-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+
+  docker:
+    name: Docker (${{ matrix.name }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: client-api
+            file: infrastructure/docker/api.Dockerfile
+            context: .
+          - name: admin-api
+            file: infrastructure/docker/admin-api.Dockerfile
+            context: .
+          - name: client-web
+            file: infrastructure/docker/web.Dockerfile
+            context: .
+          - name: admin-web
+            file: infrastructure/docker/admin-web.Dockerfile
+            context: .
+          - name: worker
+            file: infrastructure/docker/worker.Dockerfile
+            context: .
+          - name: docling
+            file: services/docling/Dockerfile
+            context: services/docling
+          - name: migrate
+            file: infrastructure/docker/migrate.Dockerfile
+            context: .
+    steps:
+      - uses: actions/checkout@v5
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.file }}
+          push: false
+          cache-from: type=gha,scope=${{ matrix.name }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.name }}
+
+  ci-gate:
+    name: CI gate
+    if: always()
+    needs: [quality, unit-and-contracts, api-and-security, integration, build, docker]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every CI job to succeed
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          for result in $RESULTS; do
+            test "$result" = "success"
+          done
+
+  deploy:
+    name: Deploy production
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [ci-gate]
+    runs-on: ubuntu-latest
+    environment: production
+    concurrency:
+      group: production
+      cancel-in-progress: false
+    steps:
+      - name: Trigger the gated Dokploy deployment
+        env:
+          DOKPLOY_DEPLOY_WEBHOOK: ${{ secrets.DOKPLOY_DEPLOY_WEBHOOK }}
+        run: |
+          test -n "$DOKPLOY_DEPLOY_WEBHOOK"
+          curl --fail-with-body --retry 3 --request POST "$DOKPLOY_DEPLOY_WEBHOOK"

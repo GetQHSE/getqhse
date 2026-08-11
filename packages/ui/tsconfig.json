@@ -11,5 +11,6 @@
       "@qhse/ui/*": ["./src/*"]
     }
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx"]
+  "include": ["src/**/*.ts", "src/**/*.tsx"],
+  "exclude": ["src/components/ai/**/*", "src/components/questionnaire.tsx"]
 }

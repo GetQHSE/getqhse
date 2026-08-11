@@ -81,7 +81,9 @@ suite("profile chat OpenAI live", () => {
         throw error;
       },
     });
-    const server = createServer(async (_request, response) => handle.pipe(response));
+    const server = createServer((_request, response) => {
+      void handle.pipe(response).catch((error: unknown) => response.destroy(error as Error));
+    });
     await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
     try {
       const address = server.address();

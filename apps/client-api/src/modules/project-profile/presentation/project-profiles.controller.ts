@@ -12,9 +12,10 @@ import {
   Res,
   UseGuards,
 } from "@nestjs/common";
-import { ApiCookieAuth, ApiHeader, ApiOkResponse, ApiTags } from "@nestjs/swagger";
+import { ApiCookieAuth, ApiHeader, ApiOkResponse, ApiProduces, ApiTags } from "@nestjs/swagger";
 import {
   completeProjectProfileSchema,
+  importProjectProfileSchema,
   projectProfileChatRequestSchema,
   projectProfileStreamRequestSchema,
   updateProjectProfileSchema,
@@ -48,6 +49,30 @@ export class ProjectProfilesController {
     const parsed = updateProjectProfileSchema.safeParse(body);
     if (!parsed.success) throw new BadRequestException(parsed.error.flatten());
     return this.profiles.update(request.tenant!, projectIdOrSlug, parsed.data);
+  }
+
+  @Get("export.json")
+  @ApiProduces("application/json")
+  async exportJson(
+    @Req() request: QhseRequest,
+    @Param("projectIdOrSlug") projectIdOrSlug: string,
+    @Res() response: Response,
+  ) {
+    const document = await this.profiles.exportPortable(request.tenant!, projectIdOrSlug);
+    response.setHeader("content-type", "application/json; charset=utf-8");
+    response.setHeader("content-disposition", 'attachment; filename="profil-projet.json"');
+    return response.status(200).json(document);
+  }
+
+  @Post("import")
+  importJson(
+    @Req() request: QhseRequest,
+    @Param("projectIdOrSlug") projectIdOrSlug: string,
+    @Body() body: unknown,
+  ) {
+    const parsed = importProjectProfileSchema.safeParse(body);
+    if (!parsed.success) throw new BadRequestException(parsed.error.flatten());
+    return this.profiles.importPortable(request.tenant!, projectIdOrSlug, parsed.data);
   }
 
   @Get("conversation")

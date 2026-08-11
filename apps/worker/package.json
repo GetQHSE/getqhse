@@ -20,6 +20,7 @@
     "@nestjs/common": "^11.1.28",
     "@nestjs/core": "^11.1.28",
     "@qhse/config": "workspace:*",
+    "@qhse/ai": "workspace:*",
     "@qhse/contracts": "workspace:*",
     "@qhse/database": "workspace:*",
     "@qhse/domain": "workspace:*",
@@ -30,7 +31,8 @@
     "bullmq": "^5.81.3",
     "ioredis": "^5.11.1",
     "reflect-metadata": "^0.2.2",
-    "rxjs": "^7.8.2"
+    "rxjs": "^7.8.2",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@nestjs/testing": "^11.1.28",

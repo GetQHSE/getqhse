@@ -154,17 +154,17 @@ export function DocumentDetailPage() {
     ["UPLOADED", "PROCESSING_FAILED", "REVIEW_REQUIRED"].includes(latest.status);
   const isProcessing = latest?.status === "PROCESSING";
   return (
-    <div className="space-y-6">
+    <section className="mx-auto w-full max-w-[1440px] space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm font-medium text-violet-700">
             Documents / {document.referenceNumber ?? "Unnumbered"}
           </p>
           <div className="mt-1 flex flex-wrap items-center gap-3">
-            <h1 className="text-2xl font-semibold tracking-tight">{document.title}</h1>
+            <h1 className="text-3xl font-semibold tracking-tight">{document.title}</h1>
             <DocumentStatusBadge status={document.status} />
           </div>
-          <p className="mt-2 text-sm text-muted-foreground">
+          <p className="mt-2 text-sm text-slate-600">
             {[
               document.issuingAuthority,
               document.language.toUpperCase(),
@@ -271,7 +271,7 @@ export function DocumentDetailPage() {
             ),
           ],
         ].map(([label, value]) => (
-          <Card key={label}>
+          <Card key={label} className="rounded-3xl border-slate-200 shadow-sm">
             <CardContent className="p-5">
               <p className="text-xs uppercase tracking-wide text-muted-foreground">{label}</p>
               <p className="mt-2 text-lg font-semibold capitalize">{value}</p>
@@ -279,7 +279,7 @@ export function DocumentDetailPage() {
           </Card>
         ))}
       </div>
-      <Tabs defaultValue="overview">
+      <Tabs defaultValue="overview" className="min-w-0">
         <TabsList variant="line" className="max-w-full overflow-x-auto">
           {[
             "overview",
@@ -708,6 +708,6 @@ export function DocumentDetailPage() {
           </Card>
         </TabsContent>
       </Tabs>
-    </div>
+    </section>
   );
 }

@@ -14,12 +14,25 @@ import {
   fileObjectSchema,
   fileTranscriptionSchema,
   fileUploadResponseSchema,
+  importProjectProfileSchema,
+  portableProjectProfileSchema,
   siteSchema,
   updateProjectProfileSchema,
+  answerRegulatoryClarificationsSchema,
+  createRegulatoryActionSchema,
+  createRegulatoryEvidenceSchema,
+  decideRegulatoryCandidateSchema,
+  publishRegulatoryBaselineSchema,
+  regulatoryAnalysisJobSchema,
+  regulatoryWatchSchema,
+  startRegulatoryAnalysisSchema,
+  updateRegulatoryActionSchema,
+  updateRegulatoryEvaluationSchema,
   type CreateSite,
   type CreateFileUpload,
   type FileTranscription,
   type FileUploadResponse,
+  type ImportProjectProfile,
   type NormativeSearchRequest,
   type NormativeSearchResponse,
   type ProjectProfile,
@@ -27,8 +40,19 @@ import {
   type ProjectProfileChatResponse,
   type ProjectProfileConversation,
   type ProjectProfileSnapshot,
+  type PortableProjectProfile,
   type Site,
   type UpdateProjectProfile,
+  type AnswerRegulatoryClarifications,
+  type CreateRegulatoryAction,
+  type CreateRegulatoryEvidence,
+  type DecideRegulatoryCandidate,
+  type PublishRegulatoryBaseline,
+  type RegulatoryAnalysisJob,
+  type RegulatoryWatch,
+  type StartRegulatoryAnalysis,
+  type UpdateRegulatoryAction,
+  type UpdateRegulatoryEvaluation,
 } from "@qhse/contracts";
 import axios, { isAxiosError, type AxiosInstance, type AxiosRequestConfig } from "axios";
 import type { z } from "zod";
@@ -150,6 +174,27 @@ export class QhseApiClient {
     );
   }
 
+  exportProjectProfile(projectIdOrSlug: string): Promise<PortableProjectProfile> {
+    return this.#request(
+      `/v1/projects/${encodeURIComponent(projectIdOrSlug)}/profile/export.json`,
+      portableProjectProfileSchema,
+    );
+  }
+
+  importProjectProfile(
+    projectIdOrSlug: string,
+    input: ImportProjectProfile,
+  ): Promise<ProjectProfile> {
+    return this.#request(
+      `/v1/projects/${encodeURIComponent(projectIdOrSlug)}/profile/import`,
+      projectProfileSchema,
+      {
+        method: "POST",
+        body: JSON.stringify(importProjectProfileSchema.parse(input)),
+      },
+    );
+  }
+
   getProjectProfileConversation(
     projectIdOrSlug: string,
     conversationId?: string,
@@ -190,6 +235,118 @@ export class QhseApiClient {
         body: JSON.stringify(completeProjectProfileSchema.parse({ revision })),
       },
     );
+  }
+
+  getRegulatoryWatch(projectIdOrSlug: string): Promise<RegulatoryWatch> {
+    return this.#request(
+      `/v1/projects/${encodeURIComponent(projectIdOrSlug)}/regulatory-watch`,
+      regulatoryWatchSchema,
+    );
+  }
+
+  startRegulatoryAnalysis(
+    projectIdOrSlug: string,
+    input: StartRegulatoryAnalysis,
+  ): Promise<RegulatoryAnalysisJob> {
+    return this.#request(
+      `/v1/projects/${encodeURIComponent(projectIdOrSlug)}/regulatory-watch/analysis-runs`,
+      regulatoryAnalysisJobSchema,
+      { method: "POST", body: JSON.stringify(startRegulatoryAnalysisSchema.parse(input)) },
+    );
+  }
+
+  answerRegulatoryClarifications(
+    projectIdOrSlug: string,
+    runId: string,
+    input: AnswerRegulatoryClarifications,
+  ): Promise<RegulatoryAnalysisJob> {
+    return this.#request(
+      `/v1/projects/${encodeURIComponent(projectIdOrSlug)}/regulatory-watch/analysis-runs/${encodeURIComponent(runId)}/clarifications`,
+      regulatoryAnalysisJobSchema,
+      {
+        method: "POST",
+        body: JSON.stringify(answerRegulatoryClarificationsSchema.parse(input)),
+      },
+    );
+  }
+
+  decideRegulatoryCandidate(
+    projectIdOrSlug: string,
+    candidateId: string,
+    input: DecideRegulatoryCandidate,
+  ): Promise<RegulatoryWatch> {
+    return this.#request(
+      `/v1/projects/${encodeURIComponent(projectIdOrSlug)}/regulatory-watch/candidates/${encodeURIComponent(candidateId)}`,
+      regulatoryWatchSchema,
+      { method: "PATCH", body: JSON.stringify(decideRegulatoryCandidateSchema.parse(input)) },
+    );
+  }
+
+  publishRegulatoryBaseline(
+    projectIdOrSlug: string,
+    input: PublishRegulatoryBaseline,
+  ): Promise<RegulatoryWatch> {
+    return this.#request(
+      `/v1/projects/${encodeURIComponent(projectIdOrSlug)}/regulatory-watch/baselines`,
+      regulatoryWatchSchema,
+      { method: "POST", body: JSON.stringify(publishRegulatoryBaselineSchema.parse(input)) },
+    );
+  }
+
+  updateRegulatoryEvaluation(
+    projectIdOrSlug: string,
+    evaluationId: string,
+    input: UpdateRegulatoryEvaluation,
+  ): Promise<RegulatoryWatch> {
+    return this.#request(
+      `/v1/projects/${encodeURIComponent(projectIdOrSlug)}/regulatory-watch/evaluations/${encodeURIComponent(evaluationId)}`,
+      regulatoryWatchSchema,
+      { method: "PATCH", body: JSON.stringify(updateRegulatoryEvaluationSchema.parse(input)) },
+    );
+  }
+
+  addRegulatoryEvidence(
+    projectIdOrSlug: string,
+    evaluationId: string,
+    input: CreateRegulatoryEvidence,
+  ): Promise<RegulatoryWatch> {
+    return this.#request(
+      `/v1/projects/${encodeURIComponent(projectIdOrSlug)}/regulatory-watch/evaluations/${encodeURIComponent(evaluationId)}/evidence`,
+      regulatoryWatchSchema,
+      { method: "POST", body: JSON.stringify(createRegulatoryEvidenceSchema.parse(input)) },
+    );
+  }
+
+  addRegulatoryAction(
+    projectIdOrSlug: string,
+    evaluationId: string,
+    input: CreateRegulatoryAction,
+  ): Promise<RegulatoryWatch> {
+    return this.#request(
+      `/v1/projects/${encodeURIComponent(projectIdOrSlug)}/regulatory-watch/evaluations/${encodeURIComponent(evaluationId)}/actions`,
+      regulatoryWatchSchema,
+      { method: "POST", body: JSON.stringify(createRegulatoryActionSchema.parse(input)) },
+    );
+  }
+
+  updateRegulatoryAction(
+    projectIdOrSlug: string,
+    actionId: string,
+    input: UpdateRegulatoryAction,
+  ): Promise<RegulatoryWatch> {
+    return this.#request(
+      `/v1/projects/${encodeURIComponent(projectIdOrSlug)}/regulatory-watch/actions/${encodeURIComponent(actionId)}`,
+      regulatoryWatchSchema,
+      { method: "PATCH", body: JSON.stringify(updateRegulatoryActionSchema.parse(input)) },
+    );
+  }
+
+  async exportRegulatoryWatch(projectIdOrSlug: string): Promise<ArrayBuffer> {
+    const response = await this.#axios.get<ArrayBuffer>(
+      `/v1/projects/${encodeURIComponent(projectIdOrSlug)}/regulatory-watch/export.xlsx`,
+      { responseType: "arraybuffer" },
+    );
+    return response.data;
   }
 
   createFileUpload(input: CreateFileUpload): Promise<FileUploadResponse> {

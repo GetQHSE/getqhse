@@ -1,5 +1,7 @@
 import "reflect-metadata";
 
+import type { ServerResponse } from "node:http";
+
 import type { INestApplication } from "@nestjs/common";
 import { Test } from "@nestjs/testing";
 import { ServerAuthError } from "@qhse/auth";
@@ -21,6 +23,8 @@ describe("project profile API", () => {
   const profiles = {
     get: vi.fn(),
     update: vi.fn(),
+    exportPortable: vi.fn(),
+    importPortable: vi.fn(),
     getConversation: vi.fn(),
     chat: vi.fn(),
     streamChat: vi.fn(),
@@ -81,6 +85,60 @@ describe("project profile API", () => {
     );
   });
 
+  it("exports a portable JSON profile without tenant or project identifiers", async () => {
+    profiles.exportPortable.mockResolvedValue({
+      format: "qhse-project-profile",
+      formatVersion: 1,
+      profileSchemaVersion: 1,
+      exportedAt: "2026-08-11T08:00:00.000Z",
+      sourceProject: {
+        name: "Atlas Industrie",
+        countryCode: "MA",
+        standardCode: "ISO_9001",
+      },
+      fields: [{ key: "project.name", status: "ANSWERED", value: "Atlas Industrie" }],
+    });
+    const response = await request(app.getHttpServer())
+      .get("/v1/projects/project-1/profile/export.json")
+      .expect(200)
+      .expect("content-type", /application\/json/)
+      .expect("content-disposition", /profil-projet\.json/);
+
+    expect(response.body).not.toHaveProperty("organizationId");
+    expect(response.body).not.toHaveProperty("projectId");
+    expect(profiles.exportPortable).toHaveBeenCalledWith(tenant, "project-1");
+  });
+
+  it("validates and imports a portable profile with optimistic revision control", async () => {
+    const document = {
+      format: "qhse-project-profile",
+      formatVersion: 1,
+      profileSchemaVersion: 1,
+      exportedAt: "2026-08-11T08:00:00.000Z",
+      sourceProject: {
+        name: "Atlas Industrie",
+        countryCode: "MA",
+        standardCode: "ISO_9001",
+      },
+      fields: [{ key: "project.name", status: "ANSWERED", value: "Atlas Industrie" }],
+    };
+    profiles.importPortable.mockResolvedValue({ profile: { revision: 5, status: "COMPLETE" } });
+    await request(app.getHttpServer())
+      .post("/v1/projects/project-1/profile/import")
+      .send({ revision: 4, document })
+      .expect(201)
+      .expect({ profile: { revision: 5, status: "COMPLETE" } });
+    expect(profiles.importPortable).toHaveBeenCalledWith(tenant, "project-1", {
+      revision: 4,
+      document,
+    });
+
+    await request(app.getHttpServer())
+      .post("/v1/projects/project-1/profile/import")
+      .send({ revision: 4, document: { ...document, formatVersion: 2 } })
+      .expect(400);
+  });
+
   it("exposes a separate chat turn and completion command", async () => {
     profiles.chat.mockResolvedValue({ conversationId: "conversation-1" });
     profiles.complete.mockResolvedValue({ id: "snapshot-1", sequence: 1 });
@@ -106,7 +164,7 @@ describe("project profile API", () => {
 
   it("streams AI SDK UI message events", async () => {
     profiles.streamChat.mockResolvedValue({
-      pipe: async (response: import("node:http").ServerResponse) => {
+      pipe: async (response: ServerResponse) => {
         response.writeHead(200, { "content-type": "text/event-stream" });
         response.end('data: {"type":"finish"}\n\ndata: [DONE]\n\n');
       },

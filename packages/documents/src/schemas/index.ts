@@ -49,6 +49,7 @@ export const createVersionSchema = z.object({
     aiProcessing: z.literal(true),
     externalProviderProcessing: z.literal(true),
     excerptDisplay: z.literal(true),
+    export: z.literal(true),
   }),
   allowDuplicate: z.boolean().default(false),
 });

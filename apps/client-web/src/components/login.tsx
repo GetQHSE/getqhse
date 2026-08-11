@@ -2,12 +2,11 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@qhse/ui/components/button";
 import { Field, FieldError, FieldLabel } from "@qhse/ui/components/field";
 import { Input } from "@qhse/ui/components/input";
+import { BrandLogo } from "@qhse/ui/components/brand-logo";
 import { Controller, useForm } from "react-hook-form";
 import { Link } from "react-router-dom";
 import { z } from "zod";
 import { ArrowRightIcon, CheckCircle2Icon, ShieldCheckIcon, SparklesIcon } from "lucide-react";
-
-import { Logo } from "#components/logo";
 
 const formSchema = z.object({
   name: z.string().optional(),
@@ -36,12 +35,13 @@ export function Login({ mode, isSubmitting = false, error, onSubmit }: LoginProp
       <section className="relative hidden min-h-screen overflow-hidden bg-[#080c16] px-12 py-10 text-white lg:flex lg:flex-col">
         <div className="absolute -left-32 top-40 size-96 rounded-full bg-violet-600/25 blur-3xl" />
         <div className="absolute -right-24 bottom-10 size-80 rounded-full bg-cyan-400/10 blur-3xl" />
-        <div className="relative flex items-center gap-3">
-          <span className="grid size-11 place-items-center rounded-xl bg-violet-600 shadow-xl shadow-violet-950/50">
-            <Logo className="size-6 text-white" />
-          </span>
+        <div className="relative">
+          <BrandLogo
+            variant="dark-background"
+            label="GetQHSE"
+            className="h-11 w-auto max-w-52 object-contain object-left"
+          />
           <div>
-            <p className="font-semibold tracking-tight">GetQHSE</p>
             <p className="text-xs text-slate-400">Intelligence conformité</p>
           </div>
         </div>
@@ -75,11 +75,12 @@ export function Login({ mode, isSubmitting = false, error, onSubmit }: LoginProp
 
       <section className="flex min-h-screen items-center justify-center px-5 py-10 sm:px-10">
         <div className="w-full max-w-md">
-          <div className="mb-10 flex items-center gap-3 lg:hidden">
-            <span className="grid size-10 place-items-center rounded-xl bg-violet-600">
-              <Logo className="size-5 text-white" />
-            </span>
-            <span className="font-semibold">GetQHSE</span>
+          <div className="mb-10 lg:hidden">
+            <BrandLogo
+              variant="light-background"
+              label="GetQHSE"
+              className="h-10 w-auto max-w-48 object-contain object-left"
+            />
           </div>
           <p className="text-sm font-semibold text-violet-700">
             {isSignUp ? "Commencez votre démarche" : "Heureux de vous revoir"}

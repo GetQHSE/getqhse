@@ -10,9 +10,7 @@
             "description": ""
           }
         },
-        "tags": [
-          "BetterAuth"
-        ]
+        "tags": ["BetterAuth"]
       },
       "post": {
         "operationId": "BetterAuthController_handle_post",
@@ -22,9 +20,7 @@
             "description": ""
           }
         },
-        "tags": [
-          "BetterAuth"
-        ]
+        "tags": ["BetterAuth"]
       },
       "put": {
         "operationId": "BetterAuthController_handle_put",
@@ -34,9 +30,7 @@
             "description": ""
           }
         },
-        "tags": [
-          "BetterAuth"
-        ]
+        "tags": ["BetterAuth"]
       },
       "delete": {
         "operationId": "BetterAuthController_handle_delete",
@@ -46,9 +40,7 @@
             "description": ""
           }
         },
-        "tags": [
-          "BetterAuth"
-        ]
+        "tags": ["BetterAuth"]
       },
       "patch": {
         "operationId": "BetterAuthController_handle_patch",
@@ -58,9 +50,7 @@
             "description": ""
           }
         },
-        "tags": [
-          "BetterAuth"
-        ]
+        "tags": ["BetterAuth"]
       },
       "options": {
         "operationId": "BetterAuthController_handle_options",
@@ -70,9 +60,7 @@
             "description": ""
           }
         },
-        "tags": [
-          "BetterAuth"
-        ]
+        "tags": ["BetterAuth"]
       },
       "head": {
         "operationId": "BetterAuthController_handle_head",
@@ -82,9 +70,7 @@
             "description": ""
           }
         },
-        "tags": [
-          "BetterAuth"
-        ]
+        "tags": ["BetterAuth"]
       },
       "search": {
         "operationId": "BetterAuthController_handle_search",
@@ -94,9 +80,7 @@
             "description": ""
           }
         },
-        "tags": [
-          "BetterAuth"
-        ]
+        "tags": ["BetterAuth"]
       }
     },
     "/api/auth-context/organizations": {
@@ -108,9 +92,7 @@
             "description": ""
           }
         },
-        "tags": [
-          "AuthContext"
-        ]
+        "tags": ["AuthContext"]
       }
     },
     "/v1/onboarding/status": {
@@ -127,9 +109,7 @@
             "cookie": []
           }
         ],
-        "tags": [
-          "onboarding"
-        ]
+        "tags": ["onboarding"]
       }
     },
     "/v1/projects": {
@@ -155,9 +135,7 @@
             "cookie": []
           }
         ],
-        "tags": [
-          "projects"
-        ]
+        "tags": ["projects"]
       },
       "post": {
         "operationId": "ProjectsController_create",
@@ -181,9 +159,7 @@
             "cookie": []
           }
         ],
-        "tags": [
-          "projects"
-        ]
+        "tags": ["projects"]
       }
     },
     "/v1/projects/{projectIdOrSlug}": {
@@ -209,9 +185,7 @@
             "cookie": []
           }
         ],
-        "tags": [
-          "projects"
-        ]
+        "tags": ["projects"]
       }
     },
     "/v1/projects/{projectIdOrSlug}/profile": {
@@ -237,9 +211,7 @@
             "cookie": []
           }
         ],
-        "tags": [
-          "project-profile"
-        ]
+        "tags": ["project-profile"]
       },
       "patch": {
         "operationId": "ProjectProfilesController_update",
@@ -263,9 +235,59 @@
             "cookie": []
           }
         ],
-        "tags": [
-          "project-profile"
-        ]
+        "tags": ["project-profile"]
+      }
+    },
+    "/v1/projects/{projectIdOrSlug}/profile/export.json": {
+      "get": {
+        "operationId": "ProjectProfilesController_exportJson",
+        "parameters": [
+          {
+            "name": "x-organization-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["project-profile"]
+      }
+    },
+    "/v1/projects/{projectIdOrSlug}/profile/import": {
+      "post": {
+        "operationId": "ProjectProfilesController_importJson",
+        "parameters": [
+          {
+            "name": "x-organization-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["project-profile"]
       }
     },
     "/v1/projects/{projectIdOrSlug}/profile/conversation": {
@@ -291,9 +313,7 @@
             "cookie": []
           }
         ],
-        "tags": [
-          "project-profile"
-        ]
+        "tags": ["project-profile"]
       }
     },
     "/v1/projects/{projectIdOrSlug}/profile/chat": {
@@ -319,9 +339,7 @@
             "cookie": []
           }
         ],
-        "tags": [
-          "project-profile"
-        ]
+        "tags": ["project-profile"]
       }
     },
     "/v1/projects/{projectIdOrSlug}/profile/chat/stream": {
@@ -347,9 +365,7 @@
             "cookie": []
           }
         ],
-        "tags": [
-          "project-profile"
-        ]
+        "tags": ["project-profile"]
       }
     },
     "/v1/projects/{projectIdOrSlug}/profile/complete": {
@@ -375,9 +391,7 @@
             "cookie": []
           }
         ],
-        "tags": [
-          "project-profile"
-        ]
+        "tags": ["project-profile"]
       }
     },
     "/v1/files/uploads": {
@@ -403,9 +417,7 @@
             "cookie": []
           }
         ],
-        "tags": [
-          "files"
-        ]
+        "tags": ["files"]
       }
     },
     "/v1/files/{fileId}/complete": {
@@ -431,9 +443,7 @@
             "cookie": []
           }
         ],
-        "tags": [
-          "files"
-        ]
+        "tags": ["files"]
       }
     },
     "/v1/files/{fileId}/transcription": {
@@ -459,9 +469,267 @@
             "cookie": []
           }
         ],
-        "tags": [
-          "files"
-        ]
+        "tags": ["files"]
+      }
+    },
+    "/v1/projects/{projectIdOrSlug}/regulatory-watch": {
+      "get": {
+        "operationId": "RegulatoryWatchController_get",
+        "parameters": [
+          {
+            "name": "x-organization-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current project regulatory register and evaluation state"
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["regulatory-watch"]
+      }
+    },
+    "/v1/projects/{projectIdOrSlug}/regulatory-watch/analysis-runs": {
+      "post": {
+        "operationId": "RegulatoryWatchController_startAnalysis",
+        "parameters": [
+          {
+            "name": "x-organization-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["regulatory-watch"]
+      }
+    },
+    "/v1/projects/{projectIdOrSlug}/regulatory-watch/analysis-runs/{runId}/clarifications": {
+      "post": {
+        "operationId": "RegulatoryWatchController_answerClarifications",
+        "parameters": [
+          {
+            "name": "x-organization-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["regulatory-watch"]
+      }
+    },
+    "/v1/projects/{projectIdOrSlug}/regulatory-watch/candidates/{candidateId}": {
+      "patch": {
+        "operationId": "RegulatoryWatchController_decideCandidate",
+        "parameters": [
+          {
+            "name": "x-organization-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["regulatory-watch"]
+      }
+    },
+    "/v1/projects/{projectIdOrSlug}/regulatory-watch/baselines": {
+      "post": {
+        "operationId": "RegulatoryWatchController_publish",
+        "parameters": [
+          {
+            "name": "x-organization-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["regulatory-watch"]
+      }
+    },
+    "/v1/projects/{projectIdOrSlug}/regulatory-watch/evaluations/{evaluationId}": {
+      "patch": {
+        "operationId": "RegulatoryWatchController_updateEvaluation",
+        "parameters": [
+          {
+            "name": "x-organization-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["regulatory-watch"]
+      }
+    },
+    "/v1/projects/{projectIdOrSlug}/regulatory-watch/evaluations/{evaluationId}/evidence": {
+      "post": {
+        "operationId": "RegulatoryWatchController_addEvidence",
+        "parameters": [
+          {
+            "name": "x-organization-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["regulatory-watch"]
+      }
+    },
+    "/v1/projects/{projectIdOrSlug}/regulatory-watch/evaluations/{evaluationId}/actions": {
+      "post": {
+        "operationId": "RegulatoryWatchController_addAction",
+        "parameters": [
+          {
+            "name": "x-organization-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["regulatory-watch"]
+      }
+    },
+    "/v1/projects/{projectIdOrSlug}/regulatory-watch/actions/{actionId}": {
+      "patch": {
+        "operationId": "RegulatoryWatchController_updateAction",
+        "parameters": [
+          {
+            "name": "x-organization-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["regulatory-watch"]
+      }
+    },
+    "/v1/projects/{projectIdOrSlug}/regulatory-watch/export.xlsx": {
+      "get": {
+        "operationId": "RegulatoryWatchController_export",
+        "parameters": [
+          {
+            "name": "x-organization-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["regulatory-watch"]
       }
     },
     "/v1/sites": {
@@ -487,9 +755,7 @@
             "cookie": []
           }
         ],
-        "tags": [
-          "sites"
-        ]
+        "tags": ["sites"]
       },
       "post": {
         "operationId": "SitesController_create",
@@ -513,9 +779,7 @@
             "cookie": []
           }
         ],
-        "tags": [
-          "sites"
-        ]
+        "tags": ["sites"]
       }
     },
     "/v1/normative/search": {
@@ -532,9 +796,7 @@
             "cookie": []
           }
         ],
-        "tags": [
-          "normative"
-        ]
+        "tags": ["normative"]
       }
     },
     "/v1/evidence/{evidenceId}/analysis-jobs": {
@@ -560,9 +822,7 @@
             "cookie": []
           }
         ],
-        "tags": [
-          "evidence"
-        ]
+        "tags": ["evidence"]
       }
     },
     "/health/live": {
@@ -574,9 +834,7 @@
             "description": "Process is alive"
           }
         },
-        "tags": [
-          "health"
-        ]
+        "tags": ["health"]
       }
     },
     "/health/ready": {
@@ -588,9 +846,7 @@
             "description": "Process is ready"
           }
         },
-        "tags": [
-          "health"
-        ]
+        "tags": ["health"]
       }
     }
   },
