@@ -17,3 +17,6 @@ allowBuilds:
   ssh2: false
 
 minimumReleaseAge: 0
+
+verifyDepsBeforeRun: false
+confirmModulesPurge: false
