@@ -41,7 +41,6 @@ const requiredProductionKeys = [
   "VITE_API_URL",
   "VITE_ADMIN_API_URL",
   "DATABASE_URL",
-  "DATABASE_MIGRATION_URL",
   "REDIS_URL",
   "S3_ENDPOINT",
   "S3_ACCESS_KEY",

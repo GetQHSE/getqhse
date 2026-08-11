@@ -1,4 +1,4 @@
-name: qhse-platform-production
+name: qhse-production
 
 x-api-environment: &api-environment
   NODE_ENV: production
@@ -31,7 +31,8 @@ x-api-environment: &api-environment
 
 x-service-defaults: &service-defaults
   restart: unless-stopped
-  networks: [app-internal]
+  networks:
+    - app-internal
 
 services:
   migrate:
@@ -39,18 +40,20 @@ services:
       context: .
       dockerfile: infrastructure/docker/migrate.Dockerfile
     environment:
-      DATABASE_MIGRATION_URL: ${DATABASE_MIGRATION_URL:?Set DATABASE_MIGRATION_URL}
       DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL}
       BOOTSTRAP_SUPER_ADMIN_EMAIL: ${BOOTSTRAP_SUPER_ADMIN_EMAIL:-}
       BOOTSTRAP_SUPER_ADMIN_PASSWORD: ${BOOTSTRAP_SUPER_ADMIN_PASSWORD:-}
     restart: "no"
-    networks: [app-internal]
+    networks:
+      - app-internal
 
   client-api:
     <<: *service-defaults
+
     build:
       context: .
       dockerfile: infrastructure/docker/api.Dockerfile
+
     environment:
       <<: *api-environment
       API_HOST: 0.0.0.0
@@ -58,12 +61,27 @@ services:
       APP_ORIGIN: ${APP_ORIGIN:?Set APP_ORIGIN}
       CORS_ORIGINS: ${CORS_ORIGINS:?Set CORS_ORIGINS}
       BETTER_AUTH_URL: ${BETTER_AUTH_URL:?Set BETTER_AUTH_URL}
-    expose: ["3000"]
+
+    expose:
+      - "3000"
+
     depends_on:
       migrate:
         condition: service_completed_successfully
       docling:
         condition: service_healthy
+
+    healthcheck:
+      test:
+        - CMD
+        - curl
+        - -f
+        - http://localhost:3000/health
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
     deploy:
       resources:
         limits:
@@ -72,9 +90,11 @@ services:
 
   admin-api:
     <<: *service-defaults
+
     build:
       context: .
       dockerfile: infrastructure/docker/admin-api.Dockerfile
+
     environment:
       <<: *api-environment
       API_HOST: 0.0.0.0
@@ -86,12 +106,27 @@ services:
       ADMIN_API_PORT: "3001"
       ADMIN_BETTER_AUTH_URL: ${ADMIN_BETTER_AUTH_URL:?Set ADMIN_BETTER_AUTH_URL}
       ADMIN_CORS_ORIGINS: ${ADMIN_CORS_ORIGINS:?Set ADMIN_CORS_ORIGINS}
-    expose: ["3001"]
+
+    expose:
+      - "3001"
+
     depends_on:
       migrate:
         condition: service_completed_successfully
       docling:
         condition: service_healthy
+
+    healthcheck:
+      test:
+        - CMD
+        - curl
+        - -f
+        - http://localhost:3001/health
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
     deploy:
       resources:
         limits:
@@ -100,17 +135,22 @@ services:
 
   worker:
     <<: *service-defaults
+
     build:
       context: .
       dockerfile: infrastructure/docker/worker.Dockerfile
+
     environment:
       <<: *api-environment
+
     depends_on:
       migrate:
         condition: service_completed_successfully
       docling:
         condition: service_healthy
+
     stop_grace_period: 30s
+
     deploy:
       resources:
         limits:
@@ -119,17 +159,34 @@ services:
 
   docling:
     <<: *service-defaults
+
     build:
       context: services/docling
       dockerfile: Dockerfile
+
     environment:
       DOCLING_HOST: 0.0.0.0
       DOCLING_PORT: "8000"
       DOCLING_MAX_UPLOAD_BYTES: ${DOCLING_MAX_UPLOAD_BYTES:-52428800}
       DOCLING_ALLOWED_TYPES: ${DOCLING_ALLOWED_TYPES:-application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document}
-    expose: ["8000"]
+
+    expose:
+      - "8000"
+
     volumes:
       - docling-cache:/home/docling/.cache/huggingface
+
+    healthcheck:
+      test:
+        - CMD
+        - curl
+        - -f
+        - http://localhost:8000/health
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+
     deploy:
       resources:
         limits:
@@ -138,16 +195,21 @@ services:
 
   client-web:
     <<: *service-defaults
+
     build:
       context: .
       dockerfile: infrastructure/docker/web.Dockerfile
       args:
         VITE_API_URL: ${VITE_API_URL:?Set VITE_API_URL}
         VITE_DEFAULT_LOCALE: ${VITE_DEFAULT_LOCALE:-fr}
-    expose: ["80"]
+
+    expose:
+      - "80"
+
     depends_on:
       client-api:
         condition: service_healthy
+
     deploy:
       resources:
         limits:
@@ -156,15 +218,20 @@ services:
 
   admin-web:
     <<: *service-defaults
+
     build:
       context: .
       dockerfile: infrastructure/docker/admin-web.Dockerfile
       args:
         VITE_ADMIN_API_URL: ${VITE_ADMIN_API_URL:?Set VITE_ADMIN_API_URL}
-    expose: ["80"]
+
+    expose:
+      - "80"
+
     depends_on:
       admin-api:
         condition: service_healthy
+
     deploy:
       resources:
         limits:

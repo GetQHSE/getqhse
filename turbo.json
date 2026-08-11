@@ -17,7 +17,6 @@
         "CORS_ORIGINS",
         "ADMIN_CORS_ORIGINS",
         "DATABASE_URL",
-        "DATABASE_MIGRATION_URL",
         "SHADOW_DATABASE_URL",
         "REDIS_URL",
         "S3_ENDPOINT",

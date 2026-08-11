@@ -15,10 +15,11 @@ export default defineConfig({
     seed: "tsx src/seed.ts",
   },
   datasource: {
-    url:
-      process.env["DATABASE_MIGRATION_URL"] ??
-      process.env["DATABASE_URL"] ??
-      "postgresql://qhse_migrator:change-me@localhost:5432/qhse",
-    shadowDatabaseUrl: process.env["SHADOW_DATABASE_URL"],
+    url: process.env["DATABASE_URL"],
+    // Only needed for providers that forbid CREATE DATABASE; otherwise Prisma
+    // creates and drops a temporary shadow database itself during `migrate dev`.
+    ...(process.env["SHADOW_DATABASE_URL"]
+      ? { shadowDatabaseUrl: process.env["SHADOW_DATABASE_URL"] }
+      : {}),
   },
 });
