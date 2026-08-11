@@ -159,7 +159,7 @@ services:
         - CMD
         - python
         - -c
-        - import urllib.request; urllib.request.urlopen("http://localhost:8000/health/ready")
+        - import urllib.request; urllib.request.urlopen("http://127.0.0.1:8000/health/ready")
       interval: 15s
       timeout: 10s
       retries: 10
