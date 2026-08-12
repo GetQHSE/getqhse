@@ -29,6 +29,8 @@
     "test:docling": "vitest run --config services/docling/integration/vitest.config.ts",
     "infra:up": "docker compose up -d postgres redis minio minio-init mailpit docling",
     "infra:down": "docker compose down",
+    "obs:up": "docker compose up -d loki tempo alloy grafana",
+    "obs:down": "docker compose stop loki tempo alloy grafana",
     "infra:full": "docker compose up --build",
     "db:generate": "pnpm --filter @qhse/database db:generate",
     "db:migrate": "pnpm --filter @qhse/database db:migrate",

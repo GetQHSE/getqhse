@@ -615,7 +615,10 @@ model DocumentChunk {
   embeddings DocumentEmbedding[]
 
   @@unique([documentVersionId, chunkingVersion, chunkIndex])
-  @@unique([documentVersionId, chunkingVersion, contentHash])
+  // Not unique: identical text legitimately repeats within one document
+  // (recurring boilerplate, short repeated notes), and contentHash is
+  // sha256(content) alone, so such chunks collide by construction.
+  @@index([documentVersionId, chunkingVersion, contentHash])
   @@index([documentProvisionId])
   @@map("document_chunks")
 }

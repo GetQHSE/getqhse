@@ -1,3 +1,4 @@
+import "./otel.js";
 import "reflect-metadata";
 
 import { NestFactory } from "@nestjs/core";

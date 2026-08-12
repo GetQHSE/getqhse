@@ -1,0 +1,95 @@
+// Grafana Alloy: the single collection point for local telemetry.
+//
+// Two intake paths feed it:
+//   1. OTLP from the Node apps (admin-api, client-api, worker) -- logs and
+//      traces. Works whether the app runs on the host under `pnpm dev` or in a
+//      container, since both reach this endpoint.
+//   2. Docker container logs, for services that know nothing about OTLP
+//      (postgres, redis, minio, docling).
+
+// ---------------------------------------------------------------- OTLP intake
+
+otelcol.receiver.otlp "default" {
+  grpc {
+    endpoint = "0.0.0.0:4317"
+  }
+
+  http {
+    endpoint = "0.0.0.0:4318"
+  }
+
+  output {
+    traces = [otelcol.processor.batch.default.input]
+    logs   = [otelcol.processor.batch.default.input]
+  }
+}
+
+otelcol.processor.batch "default" {
+  output {
+    traces = [otelcol.exporter.otlphttp.tempo.input]
+    logs   = [otelcol.exporter.otlphttp.loki.input]
+  }
+}
+
+otelcol.exporter.otlphttp "tempo" {
+  client {
+    endpoint = "http://tempo:4318"
+
+    tls {
+      insecure = true
+    }
+  }
+}
+
+// Loki 3.x ingests OTLP natively, so log records keep their resource
+// attributes (service.name, trace_id) instead of being flattened into labels.
+otelcol.exporter.otlphttp "loki" {
+  client {
+    endpoint = "http://loki:3100/otlp"
+
+    tls {
+      insecure = true
+    }
+  }
+}
+
+// -------------------------------------------------------- Docker log scraping
+
+discovery.docker "containers" {
+  host = "unix:///var/run/docker.sock"
+}
+
+// Turn Compose metadata into labels so logs are filterable by service in
+// Grafana the same way the OTLP-sourced ones are.
+discovery.relabel "containers" {
+  targets = discovery.docker.containers.targets
+
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
+    target_label  = "service_name"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "/(.*)"
+    target_label  = "container"
+  }
+
+  rule {
+    target_label = "job"
+    replacement  = "docker"
+  }
+}
+
+loki.source.docker "containers" {
+  host       = "unix:///var/run/docker.sock"
+  targets    = discovery.relabel.containers.output
+  labels     = { platform = "qhse" }
+  forward_to = [loki.write.default.receiver]
+}
+
+loki.write "default" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+}

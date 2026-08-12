@@ -1,0 +1,600 @@
+{
+  "format": "qhse-project-profile",
+  "formatVersion": 1,
+  "profileSchemaVersion": 1,
+  "exportedAt": "2026-08-12T09:00:00.000Z",
+  "sourceProject": {
+    "name": "Atlas Manufacturing",
+    "countryCode": "MA",
+    "standardCode": "ISO_9001"
+  },
+  "fields": [
+    {
+      "key": "project.name",
+      "status": "ANSWERED",
+      "value": "Atlas Manufacturing"
+    },
+    {
+      "key": "project.logoUrl",
+      "status": "ANSWERED",
+      "value": null
+    },
+    {
+      "key": "organization.mission",
+      "status": "ANSWERED",
+      "value": "Concevoir et fabriquer des pièces métalliques de précision pour les secteurs automobile et aéronautique, en garantissant la conformité et la sécurité de nos livraisons."
+    },
+    {
+      "key": "organization.offerings",
+      "status": "ANSWERED",
+      "value": [
+        {
+          "name": "Pièces métalliques usinées",
+          "type": "PRODUCT",
+          "range": "Usinage de précision",
+          "description": "Pièces sur plan client, tolérances serrées, série et petite série."
+        },
+        {
+          "name": "Assemblage de sous-ensembles",
+          "type": "PRODUCT",
+          "range": "Assemblage",
+          "description": "Montage de sous-ensembles mécaniques livrés prêts à intégrer."
+        },
+        {
+          "name": "Traitement de surface",
+          "type": "SERVICE",
+          "range": "Finition",
+          "description": "Anodisation et peinture industrielle réalisées en interne."
+        }
+      ]
+    },
+    {
+      "key": "organization.offeringRanges",
+      "status": "ANSWERED",
+      "value": {
+        "hasMultiple": true,
+        "ranges": ["Usinage de précision", "Assemblage", "Finition"]
+      }
+    },
+    {
+      "key": "market.primaryCustomerSegments",
+      "status": "ANSWERED",
+      "value": [
+        "Équipementiers automobiles de rang 1",
+        "Sous-traitants aéronautiques",
+        "Industriels de l'agroalimentaire"
+      ]
+    },
+    {
+      "key": "organization.employeeCount",
+      "status": "ANSWERED",
+      "value": 145
+    },
+    {
+      "key": "operations.keyProcesses",
+      "status": "ANSWERED",
+      "value": [
+        {
+          "name": "Pilotage et amélioration continue",
+          "description": "Revue de direction, objectifs qualité, actions correctives.",
+          "sequence": 1,
+          "classification": "MANAGEMENT"
+        },
+        {
+          "name": "Commercial et revue de contrat",
+          "description": "Analyse de la demande client, chiffrage, revue de faisabilité.",
+          "sequence": 2,
+          "classification": "CORE"
+        },
+        {
+          "name": "Industrialisation et méthodes",
+          "description": "Définition des gammes, outillages et paramètres de production.",
+          "sequence": 3,
+          "classification": "CORE"
+        },
+        {
+          "name": "Production et usinage",
+          "description": "Fabrication des pièces selon les gammes validées.",
+          "sequence": 4,
+          "classification": "CORE"
+        },
+        {
+          "name": "Contrôle qualité et libération",
+          "description": "Contrôle dimensionnel, essais, libération des lots.",
+          "sequence": 5,
+          "classification": "CORE"
+        },
+        {
+          "name": "Logistique et expédition",
+          "description": "Emballage, stockage et livraison client.",
+          "sequence": 6,
+          "classification": "CORE"
+        },
+        {
+          "name": "Achats et approvisionnements",
+          "description": "Sélection et évaluation des fournisseurs, approvisionnement matière.",
+          "sequence": 7,
+          "classification": "SUPPORT"
+        },
+        {
+          "name": "Maintenance et métrologie",
+          "description": "Maintenance préventive des machines et étalonnage des moyens de mesure.",
+          "sequence": 8,
+          "classification": "SUPPORT"
+        },
+        {
+          "name": "Ressources humaines et compétences",
+          "description": "Recrutement, formation et suivi des habilitations.",
+          "sequence": 9,
+          "classification": "SUPPORT"
+        }
+      ]
+    },
+    {
+      "key": "scope.certificationScope",
+      "status": "ANSWERED",
+      "value": "Conception, fabrication, traitement de surface et livraison de pièces métalliques de précision et de sous-ensembles mécaniques, sur le site de Casablanca (CAS-01). Le site de stockage déporté est exclu du périmètre."
+    },
+    {
+      "key": "operations.externalProviders",
+      "status": "ANSWERED",
+      "value": {
+        "usesExternalProviders": true,
+        "providers": [
+          {
+            "name": "Maghreb Steel Supply",
+            "category": "SUPPLIER",
+            "suppliedProductOrService": "Barres et tôles d'acier et d'aluminium",
+            "critical": true
+          },
+          {
+            "name": "TraitherM Industries",
+            "category": "SUBCONTRACTOR",
+            "suppliedProductOrService": "Traitement thermique des pièces usinées",
+            "outsourcedProcess": "Traitement thermique",
+            "critical": true
+          },
+          {
+            "name": "ControlLab Maroc",
+            "category": "SUBCONTRACTOR",
+            "suppliedProductOrService": "Contrôle non destructif et essais matière",
+            "outsourcedProcess": "Contrôle non destructif",
+            "critical": false
+          },
+          {
+            "name": "TransLog Atlas",
+            "category": "SUPPLIER",
+            "suppliedProductOrService": "Transport routier et logistique de livraison",
+            "critical": false
+          }
+        ]
+      }
+    },
+    {
+      "key": "organization.afterSalesServices",
+      "status": "ANSWERED",
+      "value": {
+        "hasAfterSalesServices": true,
+        "services": [
+          {
+            "name": "Traitement des réclamations client",
+            "description": "Analyse des non-conformités remontées et plan d'action sous 15 jours."
+          },
+          {
+            "name": "Retouche et remise en conformité",
+            "description": "Reprise des pièces non conformes retournées par le client."
+          }
+        ]
+      }
+    },
+    {
+      "key": "scope.operatingReach",
+      "status": "ANSWERED",
+      "value": "INTERNATIONAL"
+    },
+    {
+      "key": "scope.operatingCountries",
+      "status": "ANSWERED",
+      "value": ["MA", "FR", "ES"]
+    },
+    {
+      "key": "organization.primarySector",
+      "status": "ANSWERED",
+      "value": {
+        "label": "Fabrication de pièces métalliques usinées",
+        "code": "25.62"
+      }
+    },
+    {
+      "key": "regulatory.implementedFrameworks",
+      "status": "ANSWERED",
+      "value": {
+        "hasImplementedFrameworks": true,
+        "frameworks": [
+          {
+            "type": "STANDARD",
+            "reference": "ISO 9001:2015",
+            "name": "Systeme de management de la qualite",
+            "status": "PARTIAL",
+            "scope": "Deploye sur la production, en cours sur les achats."
+          },
+          {
+            "type": "STANDARD",
+            "reference": "ISO 45001:2018",
+            "name": "Sante et securite au travail",
+            "status": "PLANNED",
+            "scope": "Projet de deploiement prevu sur l'atelier d'usinage."
+          },
+          {
+            "type": "REGULATION",
+            "reference": "Loi 65-99",
+            "name": "Code du travail marocain",
+            "status": "IMPLEMENTED",
+            "scope": "Applique a l'ensemble du personnel du site."
+          }
+        ]
+      }
+    },
+    {
+      "key": "operations.orderToDeliveryFlow",
+      "status": "ANSWERED",
+      "value": "Le client transmet une consultation avec plans et quantités. Le service commercial enregistre la demande et déclenche une revue de contrat avec les méthodes pour valider la faisabilité technique, le délai et le prix. Après acceptation du devis, la commande est saisie dans l'ERP et un ordre de fabrication est créé. Les achats approvisionnent la matière auprès des fournisseurs référencés, avec contrôle à réception. Les méthodes éditent la gamme de fabrication et les programmes machines. La production réalise l'usinage, puis l'assemblage et le traitement de surface selon le besoin. Le contrôle qualité effectue un contrôle dimensionnel sur prélèvement et un contrôle final avant libération du lot, avec édition du rapport de contrôle. Les pièces conformes sont emballées, étiquetées et stockées avant expédition. La logistique organise la livraison et transmet le bon de livraison et les certificats matière au client. Une non-conformité détectée à toute étape déclenche une fiche de non-conformité et, si nécessaire, une action corrective suivie en revue de direction."
+    },
+    {
+      "key": "resources.keyResources",
+      "status": "ANSWERED",
+      "value": [
+        {
+          "category": "EQUIPMENT",
+          "name": "Parc de 12 centres d'usinage CNC 3 et 5 axes",
+          "critical": true
+        },
+        {
+          "category": "EQUIPMENT",
+          "name": "Machine à mesurer tridimensionnelle (MMT)",
+          "critical": true
+        },
+        {
+          "category": "HUMAN",
+          "name": "Équipe d'usineurs et régleurs qualifiés",
+          "critical": true
+        },
+        {
+          "category": "HUMAN",
+          "name": "Service qualité et métrologie",
+          "critical": true
+        },
+        {
+          "category": "SOFTWARE",
+          "name": "ERP de gestion de production et CAO/FAO",
+          "critical": true
+        },
+        {
+          "category": "INFRASTRUCTURE",
+          "name": "Atelier de 4 500 m² et zone de stockage climatisée",
+          "critical": false
+        },
+        {
+          "category": "SUPPLIER",
+          "name": "Fournisseurs matière référencés et qualifiés",
+          "critical": true
+        }
+      ]
+    },
+    {
+      "key": "resources.criticalCompetencies",
+      "status": "ANSWERED",
+      "value": [
+        "Programmation CN et FAO",
+        "Réglage et conduite de centres d'usinage 5 axes",
+        "Lecture de plans et cotation GPS",
+        "Métrologie dimensionnelle et utilisation de MMT",
+        "Maîtrise des outils qualité (8D, AMDEC, 5 pourquoi)",
+        "Gestion des achats et évaluation fournisseurs"
+      ]
+    },
+    {
+      "key": "operations.majorDifficulties",
+      "status": "ANSWERED",
+      "value": {
+        "has": true,
+        "items": [
+          "Retards de livraison matière entraînant des décalages de planning",
+          "Taux de rebut élevé sur les séries à tolérances serrées",
+          "Difficulté à recruter des régleurs qualifiés sur 5 axes",
+          "Arrêts machines non planifiés faute de maintenance préventive suffisante"
+        ]
+      }
+    },
+    {
+      "key": "context.externalFactors",
+      "status": "ANSWERED",
+      "value": [
+        {
+          "category": "LEGAL",
+          "description": "Évolution de la réglementation douanière et des exigences d'exportation vers l'Union européenne."
+        },
+        {
+          "category": "ECONOMIC",
+          "description": "Volatilité du prix des matières premières métalliques et des coûts de l'énergie."
+        },
+        {
+          "category": "COMPETITION",
+          "description": "Pression tarifaire des sous-traitants d'Europe de l'Est et d'Asie."
+        },
+        {
+          "category": "TECHNOLOGY",
+          "description": "Montée en puissance de l'automatisation et de la fabrication additive chez les donneurs d'ordres."
+        },
+        {
+          "category": "ENVIRONMENT",
+          "description": "Exigences croissantes des clients sur l'empreinte carbone et la gestion des déchets industriels."
+        },
+        {
+          "category": "SOCIAL",
+          "description": "Tension sur le marché local de l'emploi industriel qualifié."
+        }
+      ]
+    },
+    {
+      "key": "regulatory.knownRequirements",
+      "status": "ANSWERED",
+      "value": {
+        "hasKnownRequirements": true,
+        "requirements": [
+          {
+            "name": "Code du travail marocain",
+            "reference": "Loi 65-99",
+            "description": "Conditions de travail, durée du travail, hygiène et sécurité du personnel."
+          },
+          {
+            "name": "Loi relative à la gestion des déchets",
+            "reference": "Loi 28-00",
+            "description": "Tri, stockage et élimination des déchets industriels, notamment huiles et copeaux."
+          },
+          {
+            "name": "Protection des données à caractère personnel",
+            "reference": "Loi 09-08",
+            "description": "Traitement des données du personnel et des contacts clients."
+          },
+          {
+            "name": "Exigences client automobile",
+            "reference": "IATF 16949",
+            "description": "Exigences spécifiques imposées par certains donneurs d'ordres automobiles."
+          }
+        ]
+      }
+    },
+    {
+      "key": "context.sectorChallenges",
+      "status": "ANSWERED",
+      "value": [
+        "Réduction des délais exigés par les donneurs d'ordres",
+        "Exigences de traçabilité complète des lots matière",
+        "Transition vers des procédés moins consommateurs d'énergie",
+        "Pénurie de main-d'œuvre technique qualifiée"
+      ]
+    },
+    {
+      "key": "stakeholders.customerNeeds",
+      "status": "ANSWERED",
+      "value": [
+        {
+          "customerType": "Équipementier automobile de rang 1",
+          "needs": [
+            "Respect strict des délais de livraison",
+            "Traçabilité matière complète",
+            "Taux de conformité supérieur à 99 pour cent",
+            "Compétitivité tarifaire"
+          ]
+        },
+        {
+          "customerType": "Sous-traitant aéronautique",
+          "needs": [
+            "Tolérances dimensionnelles serrées",
+            "Documentation qualité et rapports de contrôle",
+            "Stabilité des procédés"
+          ]
+        },
+        {
+          "customerType": "Industriel de l'agroalimentaire",
+          "needs": [
+            "Matériaux compatibles avec le contact alimentaire",
+            "Réactivité sur les petites séries",
+            "Finition de surface soignée"
+          ]
+        }
+      ]
+    },
+    {
+      "key": "stakeholders.otherParties",
+      "status": "ANSWERED",
+      "value": [
+        {
+          "category": "EMPLOYEE",
+          "name": "Personnel de production et d'encadrement"
+        },
+        {
+          "category": "SUPPLIER",
+          "name": "Maghreb Steel Supply"
+        },
+        {
+          "category": "SUBCONTRACTOR",
+          "name": "TraitherM Industries"
+        },
+        {
+          "category": "AUTHORITY",
+          "name": "Inspection du travail et autorités environnementales"
+        },
+        {
+          "category": "BANK",
+          "name": "Banque partenaire pour le financement des investissements"
+        },
+        {
+          "category": "OWNER",
+          "name": "Actionnaires de la société"
+        },
+        {
+          "category": "COMMUNITY",
+          "name": "Riverains de la zone industrielle de Casablanca"
+        }
+      ]
+    },
+    {
+      "key": "stakeholders.expectations",
+      "status": "ANSWERED",
+      "value": [
+        {
+          "party": "Personnel",
+          "expectations": [
+            "Conditions de travail sûres",
+            "Formation et évolution des compétences",
+            "Stabilité de l'emploi"
+          ]
+        },
+        {
+          "party": "Fournisseurs et sous-traitants",
+          "expectations": [
+            "Prévisions de commande fiables",
+            "Respect des délais de paiement",
+            "Relation de partenariat durable"
+          ]
+        },
+        {
+          "party": "Autorités",
+          "expectations": [
+            "Conformité réglementaire du site",
+            "Déclarations environnementales à jour",
+            "Sécurité des installations"
+          ]
+        },
+        {
+          "party": "Actionnaires",
+          "expectations": [
+            "Rentabilité et maîtrise des coûts",
+            "Croissance du chiffre d'affaires",
+            "Maîtrise des risques"
+          ]
+        },
+        {
+          "party": "Riverains et collectivité",
+          "expectations": [
+            "Limitation des nuisances sonores",
+            "Gestion responsable des déchets",
+            "Création d'emplois locaux"
+          ]
+        }
+      ]
+    },
+    {
+      "key": "strategy.annualObjectives",
+      "status": "ANSWERED",
+      "value": [
+        {
+          "description": "Obtenir la certification ISO 9001 version 2015 pour le site de Casablanca",
+          "target": "Certification obtenue sans non-conformité majeure",
+          "dueDate": "2026-12-31",
+          "owner": "Responsable Qualité"
+        },
+        {
+          "description": "Réduire le taux de rebut interne",
+          "target": "Passer de 4,2 pour cent à 2,5 pour cent",
+          "dueDate": "2026-12-31",
+          "owner": "Responsable Production"
+        },
+        {
+          "description": "Améliorer le taux de livraison dans les délais",
+          "target": "Atteindre 95 pour cent de livraisons à l'heure",
+          "dueDate": "2026-12-31",
+          "owner": "Responsable Logistique"
+        },
+        {
+          "description": "Former les régleurs à la conduite des centres 5 axes",
+          "target": "12 opérateurs habilités",
+          "dueDate": "2026-10-31",
+          "owner": "Responsable Ressources Humaines"
+        }
+      ]
+    },
+    {
+      "key": "strategy.values",
+      "status": "ANSWERED",
+      "value": [
+        "Rigueur et precision",
+        "Securite des personnes",
+        "Respect des engagements clients",
+        "Amelioration continue",
+        "Responsabilite environnementale"
+      ]
+    },
+    {
+      "key": "strategy.differentiators",
+      "status": "ANSWERED",
+      "value": [
+        "Maîtrise interne de la chaîne complète, de l'usinage à la finition",
+        "Capacité à traiter les petites séries à forte exigence dimensionnelle",
+        "Réactivité et proximité géographique avec les donneurs d'ordres européens",
+        "Parc machines 5 axes récent"
+      ]
+    },
+    {
+      "key": "strategy.iso9001Motivation",
+      "status": "ANSWERED",
+      "value": "La certification ISO 9001 est exigée par plusieurs donneurs d'ordres automobiles et aéronautiques pour être référencé comme fournisseur. Au-delà de l'accès commercial, la démarche doit structurer nos processus, réduire les non-conformités récurrentes et fiabiliser nos délais de livraison."
+    },
+    {
+      "key": "context.marketChallenges",
+      "status": "ANSWERED",
+      "value": [
+        "Pression sur les prix de vente face à la concurrence internationale",
+        "Exigence de certification comme condition d'entrée chez les grands comptes",
+        "Allongement des délais d'approvisionnement matière",
+        "Demande client de plus en plus orientée vers les petites séries"
+      ]
+    },
+    {
+      "key": "context.growthOpportunities",
+      "status": "ANSWERED",
+      "value": [
+        "Référencement chez de nouveaux équipementiers européens après certification",
+        "Développement de l'activité aéronautique à plus forte valeur ajoutée",
+        "Internalisation du traitement thermique aujourd'hui sous-traité",
+        "Offre de services d'industrialisation et de prototypage rapide"
+      ]
+    },
+    {
+      "key": "regulatory.criticalRisks",
+      "status": "ANSWERED",
+      "value": [
+        "Accident du travail sur les machines d'usinage entraînant sanction et arrêt d'activité",
+        "Non-conformité dans la gestion et l'élimination des déchets industriels",
+        "Perte de référencement client faute de certification dans les délais",
+        "Manquement aux exigences de traçabilité matière sur les pièces critiques"
+      ]
+    },
+    {
+      "key": "operations.recurrentIssues",
+      "status": "ANSWERED",
+      "value": {
+        "hasRecurrentIssues": true,
+        "issues": [
+          {
+            "description": "Dérive dimensionnelle sur les séries longues en usinage",
+            "frequency": "Environ 2 fois par mois",
+            "impact": "Rebut ou retouche, retard de livraison sur le lot concerné."
+          },
+          {
+            "description": "Réception de matière non conforme au certificat fournisseur",
+            "frequency": "Environ 1 fois par trimestre",
+            "impact": "Blocage du lot, décalage du planning de production."
+          },
+          {
+            "description": "Erreur d'étiquetage lors de l'expédition",
+            "frequency": "Environ 3 fois par an",
+            "impact": "Réclamation client et reprise logistique à notre charge."
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -12,6 +12,7 @@ import {
   type ProvisionType,
   type RevisionRights,
 } from "@qhse/knowledge";
+import { createLogger, currentTraceId } from "@qhse/observability";
 import type { Job } from "bullmq";
 
 type PipelinePayload = { documentId: string; versionId: string; jobIds: string[] };
@@ -146,6 +147,7 @@ export class DocumentProcessingProcessor extends WorkerHost {
     },
   });
   private readonly bucket = process.env["S3_BUCKET"] ?? "qhse-files";
+  private readonly logger = createLogger({ base: { service: "qhse-worker" } });
 
   async process(queueJob: Job<PipelinePayload>) {
     const { documentId, versionId, jobIds } = queueJob.data;
@@ -168,7 +170,31 @@ export class DocumentProcessingProcessor extends WorkerHost {
             workerVersion: this.workerVersion,
           },
         });
+        const startedAt = Date.now();
+        this.logger.info(
+          {
+            event: "stage_started",
+            stage: stage.jobType,
+            documentId,
+            versionId,
+            jobId: stage.id,
+            attempt: stage.attemptCount + 1,
+          },
+          "processing stage started",
+        );
         const result = await this.runStage(stage.jobType as ProcessingJobType, versionId, stage.id);
+        this.logger.info(
+          {
+            event: "stage_finished",
+            stage: stage.jobType,
+            documentId,
+            versionId,
+            jobId: stage.id,
+            skipped: result.skipped === true,
+            durationMs: Date.now() - startedAt,
+          },
+          "processing stage finished",
+        );
         await this.database.documentProcessingJob.update({
           where: { id: stage.id },
           data: {
@@ -210,6 +236,23 @@ export class DocumentProcessingProcessor extends WorkerHost {
         where: { id: { in: jobIds }, status: "RUNNING" },
         orderBy: { startedAt: "desc" },
       });
+      const traceId = currentTraceId();
+      // The record below keeps only a truncated message, so emit the full error
+      // -- stack included -- to the log pipeline. `traceId` is the join key back
+      // to the trace in Tempo.
+      this.logger.error(
+        {
+          event: "stage_failed",
+          stage: active?.jobType,
+          documentId,
+          versionId,
+          jobId: active?.id,
+          attempt: active?.attemptCount,
+          ...(traceId ? { traceId } : {}),
+          err: error,
+        },
+        "processing stage failed",
+      );
       if (active)
         await this.database.documentProcessingJob.update({
           where: { id: active.id },
@@ -218,6 +261,7 @@ export class DocumentProcessingProcessor extends WorkerHost {
             completedAt: new Date(),
             errorCode: "PROVIDER_FAILURE",
             errorMessage: message,
+            ...(traceId ? { outputMetadata: { traceId } } : {}),
           },
         });
       await this.database.$transaction([
