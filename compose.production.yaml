@@ -65,6 +65,13 @@ services:
     expose:
       - "4000"
 
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1:4000/health/ready"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -98,6 +105,13 @@ services:
 
     expose:
       - "4001"
+
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1:4001/health/ready"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
 
     depends_on:
       migrate:
