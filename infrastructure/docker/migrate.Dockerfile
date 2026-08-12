@@ -13,6 +13,8 @@ RUN pnpm install --frozen-lockfile --config.confirmModulesPurge=false
 
 RUN pnpm --filter @qhse/database db:generate
 
+RUN pnpm --filter @qhse/database build
+
 RUN pnpm deploy --legacy --filter @qhse/database /out
 
 
@@ -29,4 +31,4 @@ COPY --from=build --chown=node:node /out .
 # Invoke the Prisma CLI directly: running it through pnpm makes pnpm re-verify
 # (and reinstall) dependencies at container start, since the root .npmrc and
 # packageManager pin do not travel with `pnpm deploy` output.
-CMD ["node_modules/.bin/prisma", "migrate", "deploy"]
+CMD ["sh", "-c", "node_modules/.bin/prisma migrate deploy && node dist/bootstrap.js"]
