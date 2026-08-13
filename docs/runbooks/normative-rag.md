@@ -27,6 +27,31 @@ rollback. A revision is returned only when it is published, human-validated, eff
 requested date, visible, in the Morocco/global ISO scope, fully indexed under the active profile,
 and permitted by every required rights flag.
 
+## Diagnosing "L'analyse n'a pas abouti" in la veille réglementaire
+
+The regulatory analysis runs against the **ACTIVE** profile only. Every reason it can be
+unavailable is reported by a single endpoint:
+
+```bash
+curl -s --cookie "$ADMIN_COOKIE" https://<admin-api>/v1/documents/embedding-profiles | jq
+```
+
+`reason` is `null` when search is healthy; otherwise it is the same code the worker writes to
+`RegulatoryAnalysisRun.errorCode`, and the customer UI renders its French translation:
+
+| `reason`                          | Meaning                                                   | Fix                                                                                    |
+| --------------------------------- | --------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| `NORMATIVE_RAG_DISABLED`          | The **worker** does not see `NORMATIVE_RAG_ENABLED=true`. | Export it into the worker container; `compose.production.yaml` defaults it to `false`. |
+| `OPENAI_KEY_MISSING`              | `OPENAI_API_KEY` is unset.                                | Set it, restart the worker.                                                            |
+| `EMBEDDING_PROFILE_MISSING`       | The corpus was never indexed.                             | Run rollout steps 6–7.                                                                 |
+| `EMBEDDING_PROFILE_BUILDING`      | Indexing is under way.                                    | Wait for the BullMQ jobs; check `missingChunks` per profile.                           |
+| `EMBEDDING_PROFILE_NOT_ACTIVATED` | A profile is READY but step 7 was skipped.                | `POST /v1/documents/embedding-profiles/{profileId}/activate`.                          |
+| `EMBEDDING_PROFILE_STALE`         | Content was published after the active profile was built. | Reindex the new revisions, then activate the refreshed profile.                        |
+
+Readiness is judged against exactly the revisions the retriever can return, so a READY profile
+always satisfies the activation gate. Publishing new content after a profile reaches READY moves
+it back to BUILDING on the next indexing job rather than stranding it.
+
 ## Search request
 
 ```json

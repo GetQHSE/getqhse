@@ -1,4 +1,9 @@
-import type { ProjectProfile, RegulatoryWatch } from "@qhse/contracts";
+import {
+  regulatoryAnalysisErrorMessages,
+  regulatoryAnalysisErrorCodeSchema,
+  type ProjectProfile,
+  type RegulatoryWatch,
+} from "@qhse/contracts";
 import { Badge } from "@qhse/ui/components/badge";
 import { Button } from "@qhse/ui/components/button";
 import { Input } from "@qhse/ui/components/input";
@@ -42,6 +47,29 @@ import {
 } from "./regulatory-watch-test-page.js";
 
 const activeAnalysisStatuses = new Set(["QUEUED", "RUNNING"]);
+
+/**
+ * Failure reasons an operator has to clear. Retrying the analysis cannot fix
+ * them, so the customer is not offered a retry button.
+ */
+const administrativeErrorCodes = new Set([
+  "NORMATIVE_RAG_DISABLED",
+  "OPENAI_KEY_MISSING",
+  "EMBEDDING_PROFILE_MISSING",
+  "EMBEDDING_PROFILE_NOT_ACTIVATED",
+  "EMBEDDING_PROFILE_STALE",
+]);
+
+/** Translates a persisted `errorCode` into customer-facing French copy. */
+export function analysisErrorMessage(code: string | null | undefined): string {
+  const parsed = regulatoryAnalysisErrorCodeSchema.safeParse(code);
+  if (!parsed.success) return regulatoryAnalysisErrorMessages.ANALYSIS_FAILED;
+  return regulatoryAnalysisErrorMessages[parsed.data];
+}
+
+export function analysisIsRetryable(code: string | null | undefined): boolean {
+  return !code || !administrativeErrorCodes.has(code);
+}
 
 function useDelayedVisibility(active: boolean, delay = 500): boolean {
   const [visible, setVisible] = useState(false);
@@ -1029,16 +1057,17 @@ export function RegulatoryWatchPage() {
           </span>
           <h1 className="mt-5 text-2xl font-semibold">L’analyse n’a pas abouti</h1>
           <p className="mt-3 text-sm text-slate-500">
-            {watch.currentAnalysis?.error?.message ??
-              "Vous pouvez relancer l’analyse sans modifier le profil."}
+            {analysisErrorMessage(watch.currentAnalysis?.error?.code)}
           </p>
-          <Button
-            className="mt-6"
-            disabled={startMutation.isPending}
-            onClick={() => startMutation.mutate()}
-          >
-            <RefreshCwIcon /> Relancer l’analyse
-          </Button>
+          {analysisIsRetryable(watch.currentAnalysis?.error?.code) ? (
+            <Button
+              className="mt-6"
+              disabled={startMutation.isPending}
+              onClick={() => startMutation.mutate()}
+            >
+              <RefreshCwIcon /> Relancer l’analyse
+            </Button>
+          ) : null}
         </div>
       </StateShell>
     );

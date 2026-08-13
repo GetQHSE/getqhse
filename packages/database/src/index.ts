@@ -3,6 +3,7 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "./generated/client/client.js";
 
 export * from "./generated/client/client.js";
+export * from "./normative-index.js";
 export { ensureBootstrapSuperAdmin } from "./bootstrap-super-admin.js";
 export type {
   BootstrapSuperAdminOptions,

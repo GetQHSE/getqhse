@@ -15,9 +15,13 @@ import {
   createPrismaClient,
   type DatabaseClient,
   type DocumentStatus as DbDocumentStatus,
+  indexableProfileStatuses,
   Prisma,
   ProcessingJobStatus,
+  searchableRevisionFilter,
+  unindexedSearchableChunkFilter,
 } from "@qhse/database";
+import { regulatoryAnalysisErrorMessages, type RegulatoryAnalysisErrorCode } from "@qhse/contracts";
 import {
   canManageDocuments,
   canTransition,
@@ -38,6 +42,23 @@ import type { Queue } from "bullmq";
 import { DocumentStorageService } from "./document-storage.service.js";
 
 const enumValue = (value: string) => value.toUpperCase();
+
+/**
+ * The single reason customer-facing normative search is unavailable, checked
+ * from the outside in: environment first, then whether an index exists, then
+ * whether it still covers the corpus. Returns `null` when search is healthy.
+ */
+function searchUnavailableReason(
+  active: { complete: boolean } | undefined,
+  pending: { status: string } | undefined,
+): RegulatoryAnalysisErrorCode | null {
+  if (process.env["NORMATIVE_RAG_ENABLED"] !== "true") return "NORMATIVE_RAG_DISABLED";
+  if (!process.env["OPENAI_API_KEY"]) return "OPENAI_KEY_MISSING";
+  if (active) return active.complete ? null : "EMBEDDING_PROFILE_STALE";
+  if (!pending) return "EMBEDDING_PROFILE_MISSING";
+  if (pending.status === "READY") return "EMBEDDING_PROFILE_NOT_ACTIVATED";
+  return "EMBEDDING_PROFILE_BUILDING";
+}
 const apiStatus = (value: DbDocumentStatus): DocumentStatus =>
   value.toLowerCase() as DocumentStatus;
 const date = (value?: string) => (value ? new Date(`${value}T00:00:00.000Z`) : undefined);
@@ -944,10 +965,12 @@ export class DocumentsService {
 
     let profile = requestedProfileId
       ? await this.database.embeddingProfile.findFirst({
-          where: { id: requestedProfileId, status: { in: ["BUILDING", "READY", "ACTIVE"] } },
+          where: { id: requestedProfileId, status: { in: [...indexableProfileStatuses] } },
         })
       : await this.database.embeddingProfile.findFirst({
-          where: { status: { in: ["BUILDING", "ACTIVE"] } },
+          // READY must be selectable too: newly published content has to be
+          // absorbed by the existing profile rather than stranding it.
+          where: { status: { in: [...indexableProfileStatuses] } },
           orderBy: [{ status: "asc" }, { version: "desc" }],
         });
     if (requestedProfileId && !profile) {
@@ -1018,20 +1041,63 @@ export class DocumentsService {
     });
   }
 
+  /**
+   * Operator diagnostics for normative search. Reports, per profile, how many
+   * searchable chunks are still unindexed, plus the single reason customer
+   * search is unavailable — the same code the worker records on a failed run.
+   */
+  async embeddingProfileReadiness(user: CurrentUser) {
+    this.authorize(user, "view");
+    const profiles = await this.database.embeddingProfile.findMany({
+      orderBy: [{ version: "desc" }],
+    });
+    const searchableChunks = await this.database.documentChunk.count({
+      where: { version: searchableRevisionFilter },
+    });
+    const detailed = await Promise.all(
+      profiles.map(async (profile) => {
+        const missingChunks = await this.database.documentChunk.count({
+          where: unindexedSearchableChunkFilter(profile.id),
+        });
+        return {
+          id: profile.id,
+          key: profile.key,
+          provider: profile.provider,
+          model: profile.model,
+          dimensions: profile.dimensions,
+          version: profile.version,
+          status: profile.status,
+          activatedAt: profile.activatedAt?.toISOString() ?? null,
+          retiredAt: profile.retiredAt?.toISOString() ?? null,
+          missingChunks,
+          complete: missingChunks === 0,
+          activatable: profile.status === "READY" && missingChunks === 0,
+        };
+      }),
+    );
+    const active = detailed.find((profile) => profile.status === "ACTIVE");
+    const pending = detailed.find((profile) => ["BUILDING", "READY"].includes(profile.status));
+
+    const reason = searchUnavailableReason(active, pending);
+
+    return {
+      searchable: reason === null,
+      reason,
+      message: reason ? regulatoryAnalysisErrorMessages[reason] : null,
+      ragEnabled: process.env["NORMATIVE_RAG_ENABLED"] === "true",
+      openAiConfigured: Boolean(process.env["OPENAI_API_KEY"]),
+      searchableChunks,
+      profiles: detailed,
+    };
+  }
+
   async activateEmbeddingProfile(user: CurrentUser, profileId: string) {
     this.authorize(user, "publish");
     const profile = await this.database.embeddingProfile.findUnique({ where: { id: profileId } });
     if (!profile) throw new NotFoundException("Embedding profile not found");
     if (profile.status !== "READY") throw new ConflictException("Embedding profile is not ready");
     const missing = await this.database.documentChunk.count({
-      where: {
-        version: {
-          status: "PUBLISHED",
-          validatedAt: { not: null },
-          embeddingAllowed: true,
-        },
-        embeddings: { none: { embeddingProfileId: profileId } },
-      },
+      where: unindexedSearchableChunkFilter(profileId),
     });
     if (missing) throw new ConflictException(`${missing} searchable chunks are not indexed`);
     return this.database.$transaction(async (tx) => {

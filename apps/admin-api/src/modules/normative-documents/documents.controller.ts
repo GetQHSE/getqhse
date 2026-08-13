@@ -43,6 +43,12 @@ export class DocumentsController {
     return this.documents.dashboard(request.platformUser!);
   }
 
+  // Declared ahead of `@Get(":documentId")`, which would otherwise match it.
+  @Get("embedding-profiles")
+  profileReadiness(@Req() request: AdminRequest) {
+    return this.documents.embeddingProfileReadiness(request.platformUser!);
+  }
+
   @Get()
   list(@Req() request: AdminRequest, @Query() query: Record<string, unknown>) {
     return this.documents.list(request.platformUser!, parse(listDocumentsSchema, query));

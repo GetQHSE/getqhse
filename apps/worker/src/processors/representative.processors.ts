@@ -2,7 +2,14 @@ import { Processor, WorkerHost } from "@nestjs/bullmq";
 import type { Job } from "bullmq";
 import type { JobEnvelope } from "@qhse/contracts";
 import { openai } from "@ai-sdk/openai";
-import { createPrismaClient, Prisma, type DatabaseClient } from "@qhse/database";
+import {
+  createPrismaClient,
+  embeddableRevisionFilter,
+  indexableProfileStatuses,
+  Prisma,
+  unindexedSearchableChunkFilter,
+  type DatabaseClient,
+} from "@qhse/database";
 import { embeddingInputHash } from "@qhse/knowledge";
 import { embedMany } from "ai";
 import { randomUUID } from "node:crypto";
@@ -35,7 +42,7 @@ export class EmbeddingGenerationProcessor extends RepresentativeProcessor {
     const profile = requestedProfileId
       ? await this.database.embeddingProfile.findUnique({ where: { id: requestedProfileId } })
       : await this.database.embeddingProfile.findFirst({
-          where: { status: { in: ["BUILDING", "ACTIVE"] } },
+          where: { status: { in: [...indexableProfileStatuses] } },
           orderBy: [{ status: "asc" }, { version: "desc" }],
         });
     if (!profile) throw new Error("No embedding profile is available");
@@ -46,16 +53,7 @@ export class EmbeddingGenerationProcessor extends RepresentativeProcessor {
     const chunks = await this.database.documentChunk.findMany({
       where: {
         ...(versionId ? { documentVersionId: versionId } : {}),
-        version: {
-          status: { in: ["VALIDATED", "PUBLISHED"] },
-          validatedAt: { not: null },
-          storageAllowed: true,
-          extractionAllowed: true,
-          embeddingAllowed: true,
-          aiProcessingAllowed: true,
-          externalProviderAllowed: true,
-          excerptDisplayAllowed: true,
-        },
+        version: embeddableRevisionFilter,
       },
       select: {
         id: true,
@@ -115,20 +113,25 @@ export class EmbeddingGenerationProcessor extends RepresentativeProcessor {
       );
     }
 
+    // Readiness is judged against exactly the revisions the retriever can
+    // return, so a READY profile always satisfies the activation gate.
     const missing = await this.database.documentChunk.count({
-      where: {
-        version: {
-          status: { in: ["VALIDATED", "PUBLISHED"] },
-          validatedAt: { not: null },
-          embeddingAllowed: true,
-        },
-        embeddings: { none: { embeddingProfileId: profile.id } },
-      },
+      where: unindexedSearchableChunkFilter(profile.id),
     });
     if (!missing && profile.status === "BUILDING") {
       await this.database.embeddingProfile.update({
         where: { id: profile.id },
         data: { status: "READY" },
+      });
+      return;
+    }
+    // Content published after the profile reached READY leaves it incomplete.
+    // Without this the profile would stay READY forever while activation keeps
+    // rejecting it, with no way back to BUILDING short of a new profile.
+    if (missing && profile.status === "READY") {
+      await this.database.embeddingProfile.update({
+        where: { id: profile.id },
+        data: { status: "BUILDING" },
       });
     }
   }

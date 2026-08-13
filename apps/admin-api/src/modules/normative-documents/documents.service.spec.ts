@@ -1,7 +1,13 @@
 import { getQueueToken } from "@nestjs/bullmq";
-import { ConflictException, UnprocessableEntityException } from "@nestjs/common";
+import {
+  ConflictException,
+  ForbiddenException,
+  UnprocessableEntityException,
+} from "@nestjs/common";
 import { Test } from "@nestjs/testing";
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { regulatoryAnalysisErrorMessages } from "@qhse/contracts";
+import { unindexedSearchableChunkFilter } from "@qhse/database";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { DocumentStorageService } from "./document-storage.service.js";
 import { DocumentsService } from "./documents.service.js";
@@ -266,6 +272,249 @@ describe("DocumentsService upload retries", () => {
       expect.objectContaining({
         include: expect.objectContaining({ processingJobs: { orderBy: { createdAt: "desc" } } }),
       }),
+    );
+  });
+});
+
+describe("DocumentsService embedding profile readiness", () => {
+  const previousRagFlag = process.env["NORMATIVE_RAG_ENABLED"];
+  const previousApiKey = process.env["OPENAI_API_KEY"];
+
+  beforeEach(() => {
+    process.env["DATABASE_URL"] ??= "postgresql://postgres:postgres@localhost:5432/qhse_test";
+    process.env["NORMATIVE_RAG_ENABLED"] = "true";
+    process.env["OPENAI_API_KEY"] = "sk-test";
+  });
+
+  afterEach(() => {
+    if (previousRagFlag === undefined) delete process.env["NORMATIVE_RAG_ENABLED"];
+    else process.env["NORMATIVE_RAG_ENABLED"] = previousRagFlag;
+    if (previousApiKey === undefined) delete process.env["OPENAI_API_KEY"];
+    else process.env["OPENAI_API_KEY"] = previousApiKey;
+  });
+
+  const user = { id: "user-1", platformRole: "platform_admin" } as never;
+
+  function serviceWith(database: object) {
+    const service = new DocumentsService({} as never, { add: vi.fn() } as never);
+    (service as unknown as { database: object }).database = database;
+    return service;
+  }
+
+  /** `missingByProfile` maps a profile id to its count of unindexed chunks. */
+  function databaseWith(
+    profiles: Array<Record<string, unknown>>,
+    missingByProfile: Record<string, number> = {},
+  ) {
+    return {
+      embeddingProfile: {
+        findMany: vi.fn().mockResolvedValue(profiles),
+        findUnique: vi.fn(
+          async ({ where }: { where: { id: string } }) =>
+            profiles.find((profile) => profile["id"] === where.id) ?? null,
+        ),
+        updateMany: vi.fn(),
+        update: vi.fn(async ({ data }: { data: object }) => ({ ...profiles[0], ...data })),
+      },
+      documentChunk: {
+        count: vi.fn(async ({ where }: { where: Record<string, unknown> }) => {
+          const scoped = where["embeddings"] as
+            { none: { embeddingProfileId: string } } | undefined;
+          if (!scoped) return 42; // total searchable chunks
+          return missingByProfile[scoped.none.embeddingProfileId] ?? 0;
+        }),
+      },
+      $transaction: vi.fn(async (run: (tx: unknown) => unknown) => run(undefined)),
+    };
+  }
+
+  const profile = (overrides: Record<string, unknown>) => ({
+    id: "profile-1",
+    key: "openai:text-embedding-3-small:768:v1",
+    provider: "openai",
+    model: "text-embedding-3-small",
+    dimensions: 768,
+    version: 1,
+    status: "BUILDING",
+    activatedAt: null,
+    retiredAt: null,
+    ...overrides,
+  });
+
+  it("names the missing rollout step when no profile exists", async () => {
+    const service = serviceWith(databaseWith([]));
+
+    await expect(service.embeddingProfileReadiness(user)).resolves.toMatchObject({
+      searchable: false,
+      reason: "EMBEDDING_PROFILE_MISSING",
+      profiles: [],
+    });
+  });
+
+  it("reports a READY profile as awaiting activation, not as broken", async () => {
+    const service = serviceWith(databaseWith([profile({ status: "READY" })]));
+
+    const readiness = await service.embeddingProfileReadiness(user);
+
+    expect(readiness).toMatchObject({
+      searchable: false,
+      reason: "EMBEDDING_PROFILE_NOT_ACTIVATED",
+    });
+    expect(readiness.profiles[0]).toMatchObject({ missingChunks: 0, activatable: true });
+  });
+
+  it("reports a still-building profile separately", async () => {
+    const service = serviceWith(
+      databaseWith([profile({ status: "BUILDING" })], { "profile-1": 9 }),
+    );
+
+    const readiness = await service.embeddingProfileReadiness(user);
+
+    expect(readiness).toMatchObject({ searchable: false, reason: "EMBEDDING_PROFILE_BUILDING" });
+    expect(readiness.profiles[0]).toMatchObject({
+      missingChunks: 9,
+      complete: false,
+      activatable: false,
+    });
+  });
+
+  it("declares search healthy when the active profile covers the corpus", async () => {
+    const service = serviceWith(databaseWith([profile({ status: "ACTIVE" })]));
+
+    await expect(service.embeddingProfileReadiness(user)).resolves.toMatchObject({
+      searchable: true,
+      reason: null,
+      message: null,
+      searchableChunks: 42,
+    });
+  });
+
+  it("flags an active profile that newly published content has outrun", async () => {
+    const service = serviceWith(databaseWith([profile({ status: "ACTIVE" })], { "profile-1": 3 }));
+
+    await expect(service.embeddingProfileReadiness(user)).resolves.toMatchObject({
+      searchable: false,
+      reason: "EMBEDDING_PROFILE_STALE",
+    });
+  });
+
+  it("blames the environment before the data when the flag is off", async () => {
+    process.env["NORMATIVE_RAG_ENABLED"] = "false";
+    const service = serviceWith(databaseWith([profile({ status: "ACTIVE" })]));
+
+    await expect(service.embeddingProfileReadiness(user)).resolves.toMatchObject({
+      searchable: false,
+      reason: "NORMATIVE_RAG_DISABLED",
+      ragEnabled: false,
+    });
+  });
+
+  it("reports a missing OpenAI key", async () => {
+    delete process.env["OPENAI_API_KEY"];
+    const service = serviceWith(databaseWith([profile({ status: "ACTIVE" })]));
+
+    await expect(service.embeddingProfileReadiness(user)).resolves.toMatchObject({
+      reason: "OPENAI_KEY_MISSING",
+      openAiConfigured: false,
+    });
+  });
+
+  it("returns customer-facing French copy for the diagnosis", async () => {
+    const service = serviceWith(databaseWith([]));
+
+    const readiness = await service.embeddingProfileReadiness(user);
+
+    expect(readiness.message).toBe(regulatoryAnalysisErrorMessages.EMBEDDING_PROFILE_MISSING);
+  });
+
+  it("refuses to read readiness without the view permission", async () => {
+    const service = serviceWith(databaseWith([]));
+
+    await expect(
+      service.embeddingProfileReadiness({ id: "u", platformRole: "client_user" } as never),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+});
+
+describe("DocumentsService embedding profile activation", () => {
+  const user = { id: "user-1", platformRole: "platform_admin" } as never;
+
+  beforeEach(() => {
+    process.env["DATABASE_URL"] ??= "postgresql://postgres:postgres@localhost:5432/qhse_test";
+  });
+
+  function serviceWith(database: object) {
+    const service = new DocumentsService({} as never, { add: vi.fn() } as never);
+    (service as unknown as { database: object }).database = database;
+    return service;
+  }
+
+  const ready = { id: "profile-2", status: "READY" };
+
+  it("retires the previous profile atomically when activating", async () => {
+    const updateMany = vi.fn();
+    const update = vi.fn().mockResolvedValue({ ...ready, status: "ACTIVE" });
+    const service = serviceWith({
+      embeddingProfile: {
+        findUnique: vi.fn().mockResolvedValue(ready),
+        updateMany,
+        update,
+      },
+      documentChunk: { count: vi.fn().mockResolvedValue(0) },
+      $transaction: vi.fn(async (run: (tx: unknown) => unknown) =>
+        run({ embeddingProfile: { updateMany, update } }),
+      ),
+    });
+
+    await expect(service.activateEmbeddingProfile(user, "profile-2")).resolves.toMatchObject({
+      status: "ACTIVE",
+    });
+    expect(updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { status: "ACTIVE", id: { not: "profile-2" } },
+      }),
+    );
+  });
+
+  it("refuses to activate a profile that does not cover every searchable chunk", async () => {
+    const service = serviceWith({
+      embeddingProfile: { findUnique: vi.fn().mockResolvedValue(ready) },
+      documentChunk: { count: vi.fn().mockResolvedValue(5) },
+    });
+
+    await expect(service.activateEmbeddingProfile(user, "profile-2")).rejects.toThrow(
+      "5 searchable chunks are not indexed",
+    );
+  });
+
+  it("gates the coverage check on exactly the retriever's revision filter", async () => {
+    // The activation gate and the worker's READY gate must agree, or a profile
+    // can be READY yet permanently un-activatable.
+    const count = vi.fn().mockResolvedValue(0);
+    const service = serviceWith({
+      embeddingProfile: {
+        findUnique: vi.fn().mockResolvedValue(ready),
+        updateMany: vi.fn(),
+        update: vi.fn().mockResolvedValue(ready),
+      },
+      documentChunk: { count },
+      $transaction: vi.fn(async (run: (tx: unknown) => unknown) =>
+        run({ embeddingProfile: { updateMany: vi.fn(), update: vi.fn() } }),
+      ),
+    });
+
+    await service.activateEmbeddingProfile(user, "profile-2");
+
+    expect(count).toHaveBeenCalledWith({ where: unindexedSearchableChunkFilter("profile-2") });
+  });
+
+  it("refuses to activate a profile that is still building", async () => {
+    const service = serviceWith({
+      embeddingProfile: { findUnique: vi.fn().mockResolvedValue({ ...ready, status: "BUILDING" }) },
+    });
+
+    await expect(service.activateEmbeddingProfile(user, "profile-2")).rejects.toThrow(
+      "Embedding profile is not ready",
     );
   });
 });

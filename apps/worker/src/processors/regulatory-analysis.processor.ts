@@ -1,8 +1,13 @@
 import { Processor, WorkerHost } from "@nestjs/bullmq";
 import { openai } from "@ai-sdk/openai";
 import { regulatoryApplicabilityPrompt } from "@qhse/ai";
-import type { JobEnvelope } from "@qhse/contracts";
-import { createPrismaClient, Prisma, type DatabaseClient } from "@qhse/database";
+import { RegulatoryAnalysisError, type JobEnvelope } from "@qhse/contracts";
+import {
+  createPrismaClient,
+  Prisma,
+  unindexedSearchableChunkFilter,
+  type DatabaseClient,
+} from "@qhse/database";
 import { embed, generateText, Output } from "ai";
 import type { Job } from "bullmq";
 import { z } from "zod";
@@ -156,13 +161,14 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
       });
       if (!current || current.status === "SUPERSEDED") return { runId, processed: false };
       const message = error instanceof Error ? error.message : "Unknown regulatory analysis error";
+      const code = error instanceof RegulatoryAnalysisError ? error.code : "ANALYSIS_FAILED";
       await this.database.$transaction([
         this.database.regulatoryAnalysisRun.update({
           where: { id: runId },
           data: {
             status: "FAILED",
             phase: "failed",
-            errorCode: "ANALYSIS_FAILED",
+            errorCode: code,
             errorMessage: message.slice(0, 4_000),
           },
         }),
@@ -175,6 +181,49 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
     }
   }
 
+  /**
+   * Resolves the profile search runs against, distinguishing "never indexed"
+   * from "still indexing" from "indexed but never activated" so the failure the
+   * customer sees points at the actual rollout step that is missing.
+   */
+  private async resolveActiveEmbeddingProfile() {
+    const active = await this.database.embeddingProfile.findFirst({ where: { status: "ACTIVE" } });
+    if (active) {
+      const stale = await this.database.documentChunk.findFirst({
+        where: unindexedSearchableChunkFilter(active.id),
+        select: { id: true },
+      });
+      if (stale) {
+        throw new RegulatoryAnalysisError(
+          "EMBEDDING_PROFILE_STALE",
+          `Active embedding profile ${active.key} does not cover every searchable revision`,
+        );
+      }
+      return active;
+    }
+
+    const latest = await this.database.embeddingProfile.findFirst({
+      where: { status: { in: ["BUILDING", "READY"] } },
+      orderBy: [{ version: "desc" }],
+    });
+    if (!latest) {
+      throw new RegulatoryAnalysisError(
+        "EMBEDDING_PROFILE_MISSING",
+        "No embedding profile exists: the normative corpus has never been indexed",
+      );
+    }
+    if (latest.status === "READY") {
+      throw new RegulatoryAnalysisError(
+        "EMBEDDING_PROFILE_NOT_ACTIVATED",
+        `Embedding profile ${latest.key} is READY but was never activated`,
+      );
+    }
+    throw new RegulatoryAnalysisError(
+      "EMBEDDING_PROFILE_BUILDING",
+      `Embedding profile ${latest.key} is still indexing the normative corpus`,
+    );
+  }
+
   private async stillCurrent(runId: string): Promise<boolean> {
     const run = await this.database.regulatoryAnalysisRun.findUnique({
       where: { id: runId },
@@ -184,7 +233,15 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
   }
 
   private async analyze(runId: string, job: Job<JobEnvelope>): Promise<void> {
-    if (!process.env["OPENAI_API_KEY"]) throw new Error("OPENAI_API_KEY is required");
+    if (process.env["NORMATIVE_RAG_ENABLED"] !== "true") {
+      throw new RegulatoryAnalysisError(
+        "NORMATIVE_RAG_DISABLED",
+        "NORMATIVE_RAG_ENABLED must be true for the worker to run a regulatory analysis",
+      );
+    }
+    if (!process.env["OPENAI_API_KEY"]) {
+      throw new RegulatoryAnalysisError("OPENAI_KEY_MISSING", "OPENAI_API_KEY is required");
+    }
     const run = await this.database.regulatoryAnalysisRun.findUnique({
       where: { id: runId },
       include: {
@@ -220,10 +277,7 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
     });
     await job.updateProgress({ phase: "retrieval", progress: 10 });
 
-    const embeddingProfile = await this.database.embeddingProfile.findFirst({
-      where: { status: "ACTIVE" },
-    });
-    if (!embeddingProfile) throw new Error("No active embedding profile");
+    const embeddingProfile = await this.resolveActiveEmbeddingProfile();
 
     const previousEntries = run.baseBaseline?.entries ?? [];
     const previousDocumentIds = [

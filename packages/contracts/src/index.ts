@@ -691,6 +691,66 @@ export const regulatoryCandidateSchema = z.object({
   source: regulatoryCitationSchema,
 });
 
+/**
+ * Stable, machine-readable reasons a regulatory analysis run can fail. The
+ * worker persists these on `RegulatoryAnalysisRun.errorCode` so operators and
+ * the customer UI can tell an infrastructure gap apart from a corpus gap.
+ */
+export const regulatoryAnalysisErrorCodeSchema = z.enum([
+  /** `NORMATIVE_RAG_ENABLED` is not `true` in the worker environment. */
+  "NORMATIVE_RAG_DISABLED",
+  /** `OPENAI_API_KEY` is missing in the worker environment. */
+  "OPENAI_KEY_MISSING",
+  /** No embedding profile exists at all: the corpus was never indexed. */
+  "EMBEDDING_PROFILE_MISSING",
+  /** A profile exists but is still indexing; nothing is searchable yet. */
+  "EMBEDDING_PROFILE_BUILDING",
+  /** A profile finished indexing but was never activated by an admin. */
+  "EMBEDDING_PROFILE_NOT_ACTIVATED",
+  /** The active profile no longer covers every searchable revision. */
+  "EMBEDDING_PROFILE_STALE",
+  /** The corpus is searchable but nothing matched the project profile. */
+  "CORPUS_COVERAGE_GAP",
+  /** The run could not be enqueued. */
+  "QUEUE_ERROR",
+  /** Anything else. */
+  "ANALYSIS_FAILED",
+]);
+export type RegulatoryAnalysisErrorCode = z.infer<typeof regulatoryAnalysisErrorCodeSchema>;
+
+/** Customer-facing French copy for each failure reason. */
+export const regulatoryAnalysisErrorMessages: Record<RegulatoryAnalysisErrorCode, string> = {
+  NORMATIVE_RAG_DISABLED:
+    "La recherche normative est désactivée sur cette plateforme. Contactez votre administrateur.",
+  OPENAI_KEY_MISSING: "Le service d’analyse n’est pas configuré. Contactez votre administrateur.",
+  EMBEDDING_PROFILE_MISSING:
+    "La base documentaire normative n’est pas encore indexée. Contactez votre administrateur.",
+  EMBEDDING_PROFILE_BUILDING:
+    "L’indexation de la base documentaire normative est en cours. Réessayez dans quelques minutes.",
+  EMBEDDING_PROFILE_NOT_ACTIVATED:
+    "L’index normatif est prêt mais n’a pas encore été activé. Contactez votre administrateur.",
+  EMBEDDING_PROFILE_STALE:
+    "De nouveaux textes normatifs attendent d’être indexés. Contactez votre administrateur.",
+  CORPUS_COVERAGE_GAP:
+    "Aucun texte normatif de la base ne correspond au profil du projet. Complétez le profil puis relancez l’analyse.",
+  QUEUE_ERROR: "L’analyse n’a pas pu être mise en file d’attente. Relancez l’analyse.",
+  ANALYSIS_FAILED: "Vous pouvez relancer l’analyse sans modifier le profil.",
+};
+
+/**
+ * Error carrying a {@link RegulatoryAnalysisErrorCode} so the worker can record
+ * a precise reason instead of a blanket `ANALYSIS_FAILED`.
+ */
+export class RegulatoryAnalysisError extends Error {
+  constructor(
+    readonly code: RegulatoryAnalysisErrorCode,
+    message?: string,
+  ) {
+    super(message ?? code);
+    this.name = "RegulatoryAnalysisError";
+  }
+}
+
 export const regulatoryAnalysisRunSchema = z.object({
   id: idSchema,
   profileSnapshotId: idSchema,
