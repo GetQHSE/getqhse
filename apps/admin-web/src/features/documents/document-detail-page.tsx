@@ -10,14 +10,29 @@ import {
   DownloadIcon,
   GitCompareIcon,
   PlayIcon,
+  Trash2Icon,
   UploadIcon,
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 
 import { useAdminAuth } from "../../auth.js";
 import { adminApi, formatDate } from "../../lib/admin-api.js";
 import { DocumentStatusBadge } from "./document-status-badge.js";
+
+type PurgeImpact = {
+  document: { id: string; title: string; status: string };
+  revisions: number;
+  files: number;
+  provisions: number;
+  chunks: number;
+  embeddings: number;
+  relationships: number;
+  activityEntries: number;
+  regulatorySyncEvents: number;
+  regulatoryRegisterEntries: number;
+  regulatoryCandidates: number;
+};
 
 type Version = {
   id: string;
@@ -108,6 +123,7 @@ export function DocumentDetailPage() {
   const { user } = useAdminAuth();
   const [document, setDocument] = useState<Detail | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const navigate = useNavigate();
   const [busy, setBusy] = useState<string | null>(null);
   const [taxonomies, setTaxonomies] = useState<Taxonomy[]>([]);
   const [selectedTerm, setSelectedTerm] = useState("");
@@ -130,6 +146,43 @@ export function DocumentDetailPage() {
       load();
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Action failed");
+    } finally {
+      setBusy(null);
+    }
+  }
+  /**
+   * Hard delete, development only. Asks the API what would be destroyed, shows
+   * those counts, and only then confirms — the impact reaches beyond the
+   * document itself into any regulatory register citing its provisions.
+   */
+  async function purge() {
+    setBusy("purge");
+    setError(null);
+    try {
+      const { impact } = await adminApi<{ impact: PurgeImpact }>(
+        `/v1/documents/${documentId}/purge`,
+        { method: "DELETE" },
+      );
+      const summary = [
+        `${impact.revisions} revision(s)`,
+        `${impact.files} file(s)`,
+        `${impact.provisions} provision(s)`,
+        `${impact.chunks} chunk(s)`,
+        `${impact.embeddings} embedding(s)`,
+        `${impact.regulatoryRegisterEntries} regulatory register entr(ies)`,
+        `${impact.regulatoryCandidates} regulatory candidate(s)`,
+      ].join("\n• ");
+      if (
+        !window.confirm(
+          `Permanently delete "${impact.document.title}" and everything derived from it?\n\n• ${summary}\n\nThis cannot be undone and removes the audit trail.`,
+        )
+      ) {
+        return;
+      }
+      await adminApi(`/v1/documents/${documentId}/purge?confirm=true`, { method: "DELETE" });
+      void navigate("/documents");
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Purge failed");
     } finally {
       setBusy(null);
     }
@@ -246,6 +299,15 @@ export function DocumentDetailPage() {
           >
             <ArchiveIcon /> Archive
           </Button>
+          {import.meta.env.DEV ? (
+            <Button
+              variant="destructive"
+              disabled={!canMutate || busy !== null}
+              onClick={() => void purge()}
+            >
+              <Trash2Icon /> {busy === "purge" ? "Purging…" : "Purge (dev)"}
+            </Button>
+          ) : null}
         </div>
       </div>
       {error ? (

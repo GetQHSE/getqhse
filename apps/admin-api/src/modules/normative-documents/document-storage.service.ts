@@ -1,4 +1,5 @@
 import {
+  DeleteObjectsCommand,
   HeadObjectCommand,
   GetObjectCommand,
   PutObjectCommand,
@@ -71,6 +72,27 @@ export class DocumentStorageService implements DocumentStorage {
       new GetObjectCommand({ Bucket: this.bucket, Key: storageKey }),
       { expiresIn: 300 },
     );
+  }
+
+  /**
+   * Removes stored objects in batches. Used by the development-only document
+   * purge; every key is validated against the document prefix so a malformed
+   * record can never widen the delete beyond document storage.
+   */
+  async deleteObjects(storageKeys: string[]): Promise<number> {
+    const keys = storageKeys.filter((key) => key.startsWith("documents/"));
+    for (let index = 0; index < keys.length; index += 1_000) {
+      await this.client.send(
+        new DeleteObjectsCommand({
+          Bucket: this.bucket,
+          Delete: {
+            Objects: keys.slice(index, index + 1_000).map((Key) => ({ Key })),
+            Quiet: true,
+          },
+        }),
+      );
+    }
+    return keys.length;
   }
 
   async verifyObject(

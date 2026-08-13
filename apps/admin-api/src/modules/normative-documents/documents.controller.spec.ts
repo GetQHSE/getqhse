@@ -103,3 +103,73 @@ describe("DocumentsController embedding profile routes", () => {
     expect(documents.activateEmbeddingProfile).toHaveBeenCalledWith(undefined, "profile-1");
   });
 });
+
+describe("DocumentsController purge route", () => {
+  let app: INestApplication | undefined;
+
+  afterEach(async () => {
+    await app?.close();
+  });
+
+  async function serve(documents: Record<string, unknown>) {
+    const testingModule = await Test.createTestingModule({
+      controllers: [DocumentsController],
+      providers: [{ provide: DocumentsService, useValue: documents }],
+    }).compile();
+    app = testingModule.createNestApplication();
+    await app.listen(0, "127.0.0.1");
+    return app.getUrl();
+  }
+
+  it("defaults to a dry run when confirm is absent", async () => {
+    const documents = {
+      purgeDocument: vi.fn().mockResolvedValue({ purged: false, impact: { revisions: 2 } }),
+      deleteDraft: vi.fn(),
+    };
+    const url = await serve(documents);
+
+    const result = await fetch(`${url}/v1/documents/doc-1/purge`, { method: "DELETE" });
+
+    expect(result.status).toBe(200);
+    await expect(result.json()).resolves.toEqual({ purged: false, impact: { revisions: 2 } });
+    expect(documents.purgeDocument).toHaveBeenCalledWith(
+      undefined,
+      "doc-1",
+      { confirm: false },
+      expect.any(String), // the caller IP, recorded for the audit log line
+    );
+    expect(documents.deleteDraft).not.toHaveBeenCalled();
+  });
+
+  it("only confirms on the exact string, never on a truthy value", async () => {
+    const purgeDocument =
+      vi.fn<(user: unknown, id: string, options: { confirm: boolean }) => Promise<unknown>>();
+    purgeDocument.mockResolvedValue({ purged: false });
+    const url = await serve({ purgeDocument });
+
+    for (const query of ["confirm=true", "confirm=false", "confirm=1", "confirm=yes"]) {
+      await fetch(`${url}/v1/documents/doc-1/purge?${query}`, { method: "DELETE" });
+    }
+
+    expect(purgeDocument.mock.calls.map(([, , options]) => options)).toEqual([
+      { confirm: true },
+      { confirm: false },
+      { confirm: false },
+      { confirm: false },
+    ]);
+  });
+
+  it("keeps the soft delete reachable on the bare document route", async () => {
+    const documents = {
+      deleteDraft: vi.fn().mockResolvedValue({ deleted: true }),
+      purgeDocument: vi.fn(),
+    };
+    const url = await serve(documents);
+
+    const result = await fetch(`${url}/v1/documents/doc-1`, { method: "DELETE" });
+
+    expect(result.status).toBe(200);
+    expect(documents.deleteDraft).toHaveBeenCalledOnce();
+    expect(documents.purgeDocument).not.toHaveBeenCalled();
+  });
+});

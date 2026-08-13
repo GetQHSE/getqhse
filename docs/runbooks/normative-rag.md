@@ -48,9 +48,45 @@ curl -s --cookie "$ADMIN_COOKIE" https://<admin-api>/v1/documents/embedding-prof
 | `EMBEDDING_PROFILE_NOT_ACTIVATED` | A profile is READY but step 7 was skipped.                | `POST /v1/documents/embedding-profiles/{profileId}/activate`.                          |
 | `EMBEDDING_PROFILE_STALE`         | Content was published after the active profile was built. | Reindex the new revisions, then activate the refreshed profile.                        |
 
+### Driving the rollout
+
+`pnpm --filter @qhse/admin-api normative:index` performs steps 6-7 against whatever `DATABASE_URL`
+points at. It is additive — it never deletes — and defaults to a read-only report:
+
+```bash
+pnpm --filter @qhse/admin-api normative:index             # report only
+pnpm --filter @qhse/admin-api normative:index --index     # create profile + enqueue indexing
+pnpm --filter @qhse/admin-api normative:index --activate  # activate once the worker has drained
+```
+
+`--index` reuses an existing BUILDING or READY profile rather than creating a second one, and skips
+revisions that have no chunks yet — those need document processing first. `--activate` refuses
+unless a READY profile already covers every searchable chunk.
+
 Readiness is judged against exactly the revisions the retriever can return, so a READY profile
 always satisfies the activation gate. Publishing new content after a profile reaches READY moves
 it back to BUILDING on the next indexing job rather than stranding it.
+
+## Removing a document while iterating (development only)
+
+`DELETE /v1/documents/{documentId}` soft-deletes a dependency-free draft and keeps the audit
+trail. To take a document out entirely — revisions, files and stored objects, provisions, chunks,
+embeddings, processing and review history, relationships, activity, and any regulatory register
+entry citing its provisions — use the purge, exposed in the admin UI as **Purge (dev)** on the
+document detail page:
+
+```bash
+curl -X DELETE --cookie "$ADMIN_COOKIE" https://<admin-api>/v1/documents/<id>/purge | jq  # dry run
+curl -X DELETE --cookie "$ADMIN_COOKIE" "https://<admin-api>/v1/documents/<id>/purge?confirm=true"
+```
+
+Without `confirm=true` it only reports what it would destroy. It requires the `delete` permission
+(`super_admin` or `platform_admin`) and refuses when `NODE_ENV=production`. It is irreversible and
+removes the audit trail, so it exists purely to make development iteration possible.
+
+Purging content that an ACTIVE embedding profile had indexed leaves the profile complete — the
+chunks are gone along with their embeddings — but a profile can be left covering nothing. Re-check
+with `normative:index` after purging.
 
 ## Search request
 

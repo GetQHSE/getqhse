@@ -13,6 +13,7 @@
     "test:unit": "vitest run --passWithNoTests",
     "test:coverage": "vitest run --coverage --passWithNoTests",
     "documents:reset": "tsx src/scripts/reset-documents.ts",
+    "normative:index": "tsx src/scripts/normative-index.ts",
     "openapi:generate": "tsx src/openapi.ts && prettier --write openapi.json"
   },
   "dependencies": {

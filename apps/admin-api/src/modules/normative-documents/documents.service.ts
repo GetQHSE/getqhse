@@ -6,6 +6,7 @@ import {
   ForbiddenException,
   Inject,
   Injectable,
+  Logger,
   NotFoundException,
   Optional,
   UnprocessableEntityException,
@@ -72,6 +73,7 @@ const jsonSafe = <T>(value: T): T =>
 @Injectable()
 export class DocumentsService {
   private readonly database: DatabaseClient;
+  private readonly logger = new Logger(DocumentsService.name);
 
   constructor(
     @Inject(DocumentStorageService)
@@ -1454,6 +1456,136 @@ export class DocumentsService {
       data: { deletedAt: new Date(), updatedByUserId: user.id },
     });
     return { deleted: true };
+  }
+
+  /**
+   * Irreversibly removes a document and everything derived from it: revisions,
+   * files (including stored objects), provisions, chunks, embeddings, review
+   * and processing history, relationships, and any regulatory register data
+   * that cites its provisions.
+   *
+   * Restricted to non-production environments. Unlike {@link deleteDraft}, which
+   * soft-deletes a dependency-free draft and preserves auditability, this drops
+   * the audit trail itself, so it exists only to make development iteration
+   * possible. It reports its impact and does nothing unless `confirm` is set.
+   */
+  async purgeDocument(
+    user: CurrentUser,
+    documentId: string,
+    options: { confirm: boolean },
+    ip?: string,
+  ) {
+    this.authorize(user, "delete");
+    if (process.env["NODE_ENV"] === "production") {
+      throw new ForbiddenException("Document purge is disabled when NODE_ENV=production");
+    }
+    const document = await this.database.document.findUnique({
+      where: { id: documentId },
+      select: { id: true, title: true, status: true },
+    });
+    if (!document) throw new NotFoundException("Document not found");
+
+    const versions = await this.database.documentVersion.findMany({
+      where: { documentId },
+      select: { id: true },
+    });
+    const versionIds = versions.map(({ id }) => id);
+    const provisions = await this.database.documentProvision.findMany({
+      where: { documentVersionId: { in: versionIds } },
+      select: { id: true },
+    });
+    const provisionIds = provisions.map(({ id }) => id);
+    const files = await this.database.documentFile.findMany({
+      where: { documentVersionId: { in: versionIds } },
+      select: { storageKey: true },
+    });
+    const registerEntries = await this.database.regulatoryRegisterEntry.findMany({
+      where: { provisionId: { in: provisionIds } },
+      select: { id: true },
+    });
+    const entryIds = registerEntries.map(({ id }) => id);
+
+    const [chunks, embeddings, candidates, syncEvents, relationships, activity] = await Promise.all(
+      [
+        this.database.documentChunk.count({ where: { documentVersionId: { in: versionIds } } }),
+        this.database.documentEmbedding.count({
+          where: { chunk: { documentVersionId: { in: versionIds } } },
+        }),
+        this.database.regulatoryApplicabilityCandidate.count({
+          where: {
+            OR: [{ provisionId: { in: provisionIds } }, { previousEntryId: { in: entryIds } }],
+          },
+        }),
+        this.database.regulatorySyncEvent.count({ where: { documentId } }),
+        this.database.documentRelationship.count({
+          where: { OR: [{ sourceDocumentId: documentId }, { targetDocumentId: documentId }] },
+        }),
+        this.database.documentActivity.count({ where: { documentId } }),
+      ],
+    );
+
+    const impact = {
+      document: { id: document.id, title: document.title, status: document.status },
+      revisions: versionIds.length,
+      files: files.length,
+      provisions: provisionIds.length,
+      chunks,
+      embeddings,
+      relationships,
+      activityEntries: activity,
+      regulatorySyncEvents: syncEvents,
+      regulatoryRegisterEntries: entryIds.length,
+      regulatoryCandidates: candidates,
+    };
+    if (!options.confirm) {
+      return { purged: false, impact };
+    }
+
+    await this.database.$transaction(async (tx) => {
+      // Regulatory data first: register entries and candidates hold RESTRICT
+      // references onto this document's provisions. Self-referencing lineage
+      // pointers are cleared before the rows they point at are removed.
+      await tx.regulatoryEvaluation.updateMany({
+        where: { previousEvaluation: { entryId: { in: entryIds } } },
+        data: { previousEvaluationId: null },
+      });
+      await tx.regulatoryApplicabilityCandidate.updateMany({
+        where: { previousEntryId: { in: entryIds } },
+        data: { previousEntryId: null },
+      });
+      await tx.regulatoryApplicabilityCandidate.deleteMany({
+        where: { provisionId: { in: provisionIds } },
+      });
+      await tx.regulatoryRegisterEntry.updateMany({
+        where: { previousEntryId: { in: entryIds } },
+        data: { previousEntryId: null },
+      });
+      // Evaluations, evidence and actions cascade from the entries.
+      await tx.regulatoryRegisterEntry.deleteMany({ where: { id: { in: entryIds } } });
+      await tx.regulatorySyncEvent.deleteMany({ where: { documentId } });
+
+      await tx.documentActivity.deleteMany({ where: { documentId } });
+      await tx.documentRelationship.deleteMany({
+        where: { OR: [{ sourceDocumentId: documentId }, { targetDocumentId: documentId }] },
+      });
+      await tx.documentFile.deleteMany({ where: { documentVersionId: { in: versionIds } } });
+      // Clearing the pointer first keeps the delete order independent of the
+      // document -> current revision foreign key.
+      await tx.document.update({ where: { id: documentId }, data: { currentVersionId: null } });
+      // Chunks, embeddings, provisions, sections, processing jobs, reviews and
+      // metadata suggestions all cascade from the revisions.
+      await tx.documentVersion.deleteMany({ where: { documentId } });
+      await tx.document.delete({ where: { id: documentId } });
+    });
+
+    // Only after the database commits, since object deletion cannot roll back.
+    const objectsDeleted = await this.storage.deleteObjects(
+      files.map(({ storageKey }) => storageKey),
+    );
+    this.logger.warn(
+      `Document ${documentId} purged by ${user.id}${ip ? ` from ${ip}` : ""}: ${JSON.stringify(impact)}`,
+    );
+    return { purged: true, impact: { ...impact, objectsDeleted } };
   }
 
   private async findVersion(documentId: string, versionId: string) {

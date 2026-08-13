@@ -329,6 +329,24 @@ export class DocumentsController {
   remove(@Req() request: AdminRequest, @Param("documentId") documentId: string) {
     return this.documents.deleteDraft(request.platformUser!, documentId, request.ip);
   }
+
+  /**
+   * Development-only hard delete. Reports its impact and changes nothing until
+   * called with `?confirm=true`.
+   */
+  @Delete(":documentId/purge")
+  purge(
+    @Req() request: AdminRequest,
+    @Param("documentId") documentId: string,
+    @Query("confirm") confirm?: string,
+  ) {
+    return this.documents.purgeDocument(
+      request.platformUser!,
+      documentId,
+      { confirm: confirm === "true" },
+      request.ip,
+    );
+  }
 }
 
 function parse<T>(schema: ZodType<T>, value: unknown): T {

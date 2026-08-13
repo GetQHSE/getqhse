@@ -2,6 +2,7 @@ import { getQueueToken } from "@nestjs/bullmq";
 import {
   ConflictException,
   ForbiddenException,
+  NotFoundException,
   UnprocessableEntityException,
 } from "@nestjs/common";
 import { Test } from "@nestjs/testing";
@@ -515,6 +516,176 @@ describe("DocumentsService embedding profile activation", () => {
 
     await expect(service.activateEmbeddingProfile(user, "profile-2")).rejects.toThrow(
       "Embedding profile is not ready",
+    );
+  });
+});
+
+describe("DocumentsService document purge", () => {
+  const previousNodeEnv = process.env["NODE_ENV"];
+  const user = { id: "user-1", platformRole: "super_admin" } as never;
+
+  beforeEach(() => {
+    process.env["DATABASE_URL"] ??= "postgresql://postgres:postgres@localhost:5432/qhse_test";
+    process.env["NODE_ENV"] = "development";
+  });
+
+  afterEach(() => {
+    if (previousNodeEnv === undefined) delete process.env["NODE_ENV"];
+    else process.env["NODE_ENV"] = previousNodeEnv;
+  });
+
+  function serviceWith(database: object, storage: object = { deleteObjects: vi.fn() }) {
+    const service = new DocumentsService(storage as never, { add: vi.fn() } as never);
+    (service as unknown as { database: object }).database = database;
+    return service;
+  }
+
+  /** A database whose every counted relation reports one row. */
+  function populatedDatabase(transaction?: Record<string, unknown>) {
+    const one = vi.fn().mockResolvedValue(1);
+    return {
+      document: {
+        findUnique: vi.fn().mockResolvedValue({ id: "d1", title: "Std", status: "PUBLISHED" }),
+      },
+      documentVersion: { findMany: vi.fn().mockResolvedValue([{ id: "v1" }]) },
+      documentProvision: { findMany: vi.fn().mockResolvedValue([{ id: "p1" }]) },
+      documentFile: { findMany: vi.fn().mockResolvedValue([{ storageKey: "documents/d1/x.pdf" }]) },
+      regulatoryRegisterEntry: { findMany: vi.fn().mockResolvedValue([{ id: "e1" }]) },
+      documentChunk: { count: one },
+      documentEmbedding: { count: one },
+      regulatoryApplicabilityCandidate: { count: one },
+      regulatorySyncEvent: { count: one },
+      documentRelationship: { count: one },
+      documentActivity: { count: one },
+      $transaction: vi.fn(async (run: (tx: unknown) => unknown) => run(transaction ?? {})),
+    };
+  }
+
+  it("reports its full impact without deleting anything by default", async () => {
+    const database = populatedDatabase();
+    const storage = { deleteObjects: vi.fn() };
+    const service = serviceWith(database, storage);
+
+    const result = await service.purgeDocument(user, "d1", { confirm: false });
+
+    expect(result).toMatchObject({
+      purged: false,
+      impact: {
+        document: { id: "d1", title: "Std" },
+        revisions: 1,
+        files: 1,
+        provisions: 1,
+        chunks: 1,
+        embeddings: 1,
+        regulatoryRegisterEntries: 1,
+        regulatoryCandidates: 1,
+      },
+    });
+    expect(database.$transaction).not.toHaveBeenCalled();
+    expect(storage.deleteObjects).not.toHaveBeenCalled();
+  });
+
+  it("refuses to run against production", async () => {
+    process.env["NODE_ENV"] = "production";
+    const service = serviceWith(populatedDatabase());
+
+    await expect(service.purgeDocument(user, "d1", { confirm: true })).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
+  });
+
+  it("refuses a role that cannot delete documents", async () => {
+    const service = serviceWith(populatedDatabase());
+
+    await expect(
+      service.purgeDocument({ id: "u", platformRole: "content_manager" } as never, "d1", {
+        confirm: true,
+      }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it("clears restricting references before removing the document", async () => {
+    // Register entries and candidates hold RESTRICT foreign keys onto the
+    // document's provisions; deleting out of order aborts the transaction.
+    const calls: string[] = [];
+    const track = (name: string) =>
+      vi.fn(() => {
+        calls.push(name);
+        return Promise.resolve({ count: 1 });
+      });
+    const transaction = {
+      regulatoryEvaluation: { updateMany: track("evaluation.updateMany") },
+      regulatoryApplicabilityCandidate: {
+        updateMany: track("candidate.updateMany"),
+        deleteMany: track("candidate.deleteMany"),
+      },
+      regulatoryRegisterEntry: {
+        updateMany: track("entry.updateMany"),
+        deleteMany: track("entry.deleteMany"),
+      },
+      regulatorySyncEvent: { deleteMany: track("syncEvent.deleteMany") },
+      documentActivity: { deleteMany: track("activity.deleteMany") },
+      documentRelationship: { deleteMany: track("relationship.deleteMany") },
+      documentFile: { deleteMany: track("file.deleteMany") },
+      document: { update: track("document.update"), delete: track("document.delete") },
+      documentVersion: { deleteMany: track("version.deleteMany") },
+    };
+    const service = serviceWith(populatedDatabase(transaction));
+
+    await service.purgeDocument(user, "d1", { confirm: true });
+
+    expect(calls).toEqual([
+      "evaluation.updateMany",
+      "candidate.updateMany",
+      "candidate.deleteMany",
+      "entry.updateMany",
+      "entry.deleteMany",
+      "syncEvent.deleteMany",
+      "activity.deleteMany",
+      "relationship.deleteMany",
+      "file.deleteMany",
+      "document.update",
+      "version.deleteMany",
+      "document.delete",
+    ]);
+  });
+
+  it("removes stored objects only after the database commits", async () => {
+    const order: string[] = [];
+    const transaction = new Proxy(
+      {},
+      {
+        get: () => new Proxy({}, { get: () => vi.fn().mockResolvedValue({ count: 0 }) }),
+      },
+    );
+    const database = populatedDatabase(transaction);
+    database.$transaction = vi.fn(async (run: (tx: unknown) => unknown) => {
+      const result = await run(transaction);
+      order.push("transaction");
+      return result;
+    });
+    const storage = {
+      deleteObjects: vi.fn(() => {
+        order.push("storage");
+        return Promise.resolve(1);
+      }),
+    };
+    const service = serviceWith(database, storage);
+
+    const result = await service.purgeDocument(user, "d1", { confirm: true });
+
+    expect(order).toEqual(["transaction", "storage"]);
+    expect(storage.deleteObjects).toHaveBeenCalledWith(["documents/d1/x.pdf"]);
+    expect(result).toMatchObject({ purged: true, impact: { objectsDeleted: 1 } });
+  });
+
+  it("reports a missing document rather than silently succeeding", async () => {
+    const service = serviceWith({
+      document: { findUnique: vi.fn().mockResolvedValue(null) },
+    });
+
+    await expect(service.purgeDocument(user, "missing", { confirm: true })).rejects.toBeInstanceOf(
+      NotFoundException,
     );
   });
 });
