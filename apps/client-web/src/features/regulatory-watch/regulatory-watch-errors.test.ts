@@ -25,16 +25,18 @@ describe("regulatory analysis failure copy", () => {
     }
   });
 
-  it("hides retry for failures only an operator can clear", () => {
-    // Retrying cannot conjure an index, so offering the button is a dead end.
-    expect(analysisIsRetryable("EMBEDDING_PROFILE_MISSING")).toBe(false);
-    expect(analysisIsRetryable("EMBEDDING_PROFILE_NOT_ACTIVATED")).toBe(false);
-    expect(analysisIsRetryable("EMBEDDING_PROFILE_STALE")).toBe(false);
+  it("hides retry only for failures that need a server config change", () => {
+    // Retrying cannot flip an env var, so offering the button is a dead end.
     expect(analysisIsRetryable("NORMATIVE_RAG_DISABLED")).toBe(false);
     expect(analysisIsRetryable("OPENAI_KEY_MISSING")).toBe(false);
   });
 
-  it("keeps retry available for transient and profile-driven failures", () => {
+  it("keeps retry available once an admin can fix the cause from Settings", () => {
+    // Building, activating, or reindexing an embedding profile is now a
+    // self-serve admin action, so retrying after that fix should work.
+    expect(analysisIsRetryable("EMBEDDING_PROFILE_MISSING")).toBe(true);
+    expect(analysisIsRetryable("EMBEDDING_PROFILE_NOT_ACTIVATED")).toBe(true);
+    expect(analysisIsRetryable("EMBEDDING_PROFILE_STALE")).toBe(true);
     expect(analysisIsRetryable("EMBEDDING_PROFILE_BUILDING")).toBe(true);
     expect(analysisIsRetryable("QUEUE_ERROR")).toBe(true);
     expect(analysisIsRetryable("ANALYSIS_FAILED")).toBe(true);

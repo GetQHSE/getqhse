@@ -49,16 +49,12 @@ import {
 const activeAnalysisStatuses = new Set(["QUEUED", "RUNNING"]);
 
 /**
- * Failure reasons an operator has to clear. Retrying the analysis cannot fix
- * them, so the customer is not offered a retry button.
+ * Failure reasons only an operator can clear from server configuration
+ * (env vars, deployment) — retrying cannot fix these, so no retry button.
+ * Embedding-profile codes are excluded: an admin can now build/activate/
+ * reindex a profile from Settings, so retrying after that fix works.
  */
-const administrativeErrorCodes = new Set([
-  "NORMATIVE_RAG_DISABLED",
-  "OPENAI_KEY_MISSING",
-  "EMBEDDING_PROFILE_MISSING",
-  "EMBEDDING_PROFILE_NOT_ACTIVATED",
-  "EMBEDDING_PROFILE_STALE",
-]);
+const administrativeErrorCodes = new Set(["NORMATIVE_RAG_DISABLED", "OPENAI_KEY_MISSING"]);
 
 /** Translates a persisted `errorCode` into customer-facing French copy. */
 export function analysisErrorMessage(code: string | null | undefined): string {
@@ -1113,6 +1109,28 @@ export function RegulatoryWatchPage() {
           onDecision={(candidateId, decision) => decisionMutation.mutate({ candidateId, decision })}
           onPublish={() => publishMutation.mutate()}
         />
+      )}
+      {analysisStatus === "FAILED" && (
+        <div className="flex flex-wrap items-start justify-between gap-4 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm">
+          <div className="flex items-start gap-2 text-rose-800">
+            <AlertCircleIcon className="mt-0.5 size-4 shrink-0" />
+            <div>
+              <p className="font-medium">La dernière analyse n’a pas abouti</p>
+              <p className="mt-1 text-rose-700">
+                {analysisErrorMessage(watch.currentAnalysis?.error?.code)}
+              </p>
+            </div>
+          </div>
+          {analysisIsRetryable(watch.currentAnalysis?.error?.code) ? (
+            <Button
+              size="sm"
+              disabled={startMutation.isPending}
+              onClick={() => startMutation.mutate()}
+            >
+              <RefreshCwIcon /> Relancer l’analyse
+            </Button>
+          ) : null}
+        </div>
       )}
       <DataPage
         profile={profile}
