@@ -1,7 +1,7 @@
 import { Processor, WorkerHost } from "@nestjs/bullmq";
 import { GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { createPrismaClient, type DatabaseClient, type Prisma } from "@qhse/database";
-import type { ProcessingJobType } from "@qhse/documents";
+import { shouldRunOcr, type ProcessingJobType } from "@qhse/documents";
 import {
   assertRevisionRight,
   chunkNormativeProvisions,
@@ -372,8 +372,13 @@ export class DocumentProcessingProcessor extends WorkerHost {
         };
       }
       case "ocr": {
-        const isImage = version.mimeType.startsWith("image/");
-        if (!isImage) return { skipped: true, metadata: { reason: "extractable_text_assumed" } };
+        const needsOcr = shouldRunOcr({
+          extractableCharacters: version.characterCount ?? 0,
+          pageCount: version.pageCount ?? 0,
+          textQuality: 1,
+        });
+        if (!needsOcr)
+          return { skipped: true, metadata: { reason: "extractable_text_sufficient" } };
         await this.database.documentVersion.update({
           where: { id: versionId },
           data: { ocrUsed: true, ocrConfidence: 0.5 },

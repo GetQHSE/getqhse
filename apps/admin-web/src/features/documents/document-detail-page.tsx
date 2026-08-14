@@ -10,6 +10,7 @@ import {
   DownloadIcon,
   GitCompareIcon,
   PlayIcon,
+  SearchIcon,
   Trash2Icon,
   UploadIcon,
 } from "lucide-react";
@@ -118,6 +119,33 @@ type Detail = {
 };
 type Taxonomy = { id: string; name: string; terms: Array<{ id: string; label: string }> };
 
+type EmbeddingProfile = {
+  id: string;
+  key: string;
+  provider: string;
+  model: string;
+  dimensions: number;
+  version: number;
+  status: string;
+  missingChunks: number;
+  complete: boolean;
+  activatable: boolean;
+};
+type IndexingReadiness = {
+  searchable: boolean;
+  reason: string | null;
+  message: string | null;
+  ragEnabled: boolean;
+  openAiConfigured: boolean;
+  searchableChunks: number;
+  profiles: EmbeddingProfile[];
+};
+type ReindexResult = {
+  jobId: string | number | undefined;
+  profileId: string;
+  readiness: { searchable: boolean; chunks: number; indexedChunks: number };
+};
+
 export function DocumentDetailPage() {
   const { documentId = "" } = useParams();
   const { user } = useAdminAuth();
@@ -127,6 +155,8 @@ export function DocumentDetailPage() {
   const [busy, setBusy] = useState<string | null>(null);
   const [taxonomies, setTaxonomies] = useState<Taxonomy[]>([]);
   const [selectedTerm, setSelectedTerm] = useState("");
+  const [readiness, setReadiness] = useState<IndexingReadiness | null>(null);
+  const [reindexResult, setReindexResult] = useState<ReindexResult | null>(null);
   const load = useCallback(() => {
     void adminApi<Detail>(`/v1/documents/${documentId}`)
       .then(setDocument)
@@ -138,6 +168,10 @@ export function DocumentDetailPage() {
   useEffect(() => {
     void adminApi<Taxonomy[]>("/v1/documents/taxonomies/all").then(setTaxonomies);
   }, []);
+  const loadReadiness = useCallback(() => {
+    void adminApi<IndexingReadiness>("/v1/documents/embedding-profiles").then(setReadiness);
+  }, []);
+  useEffect(loadReadiness, [loadReadiness]);
   async function action(label: string, path: string, body = {}) {
     setBusy(label);
     setError(null);
@@ -183,6 +217,22 @@ export function DocumentDetailPage() {
       void navigate("/documents");
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Purge failed");
+    } finally {
+      setBusy(null);
+    }
+  }
+  async function runReindex(versionId: string) {
+    setBusy("reindex");
+    setError(null);
+    try {
+      const result = await adminApi<ReindexResult>(
+        `/v1/documents/${documentId}/versions/${versionId}/reindex`,
+        { method: "POST", body: JSON.stringify({}) },
+      );
+      setReindexResult(result);
+      loadReadiness();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Indexing failed");
     } finally {
       setBusy(null);
     }
@@ -350,6 +400,7 @@ export function DocumentDetailPage() {
             "classification",
             "relationships",
             "processing",
+            "indexing",
             "issues",
             "activity",
           ].map((tab) => (
@@ -699,6 +750,83 @@ export function DocumentDetailPage() {
                   <DocumentStatusBadge status={job.status} />
                 </div>
               )) ?? <p>No processing jobs.</p>}
+            </CardContent>
+          </Card>
+        </TabsContent>
+        <TabsContent value="indexing">
+          <Card>
+            <CardHeader>
+              <CardTitle>Search index</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex flex-wrap gap-2">
+                <Badge variant={readiness?.ragEnabled ? "secondary" : "destructive"}>
+                  {readiness?.ragEnabled ? "RAG enabled" : "RAG disabled"}
+                </Badge>
+                <Badge variant={readiness?.openAiConfigured ? "secondary" : "destructive"}>
+                  {readiness?.openAiConfigured ? "OpenAI configured" : "OpenAI not configured"}
+                </Badge>
+                <Badge variant={readiness?.searchable ? "default" : "outline"}>
+                  {readiness?.searchable
+                    ? "Platform search available"
+                    : (readiness?.message ?? "Platform search not yet available")}
+                </Badge>
+              </div>
+              <div className="rounded-xl border p-4">
+                <p className="text-sm font-medium">This revision</p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {latest?._count.chunks ?? 0} chunk(s) generated during processing
+                  {reindexResult
+                    ? ` · ${reindexResult.readiness.indexedChunks} / ${reindexResult.readiness.chunks} indexed · ${
+                        reindexResult.readiness.searchable ? "searchable" : "not yet searchable"
+                      }`
+                    : ""}
+                </p>
+                {!latest || !["VALIDATED", "PUBLISHED"].includes(latest.status) ? (
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    Validate this revision before it can be indexed for search.
+                  </p>
+                ) : null}
+                <Button
+                  className="mt-3"
+                  size="sm"
+                  disabled={
+                    !canMutate ||
+                    busy !== null ||
+                    !latest ||
+                    !["VALIDATED", "PUBLISHED"].includes(latest.status)
+                  }
+                  onClick={() => latest && void runReindex(latest.id)}
+                >
+                  <SearchIcon /> {busy === "reindex" ? "Building index…" : "Build search index"}
+                </Button>
+              </div>
+              {readiness?.profiles.length ? (
+                <div className="space-y-2">
+                  <p className="text-sm font-medium">Embedding profiles</p>
+                  {readiness.profiles.map((profile) => (
+                    <div
+                      key={profile.id}
+                      className="flex items-center justify-between rounded-xl border p-3"
+                    >
+                      <div>
+                        <p className="text-sm font-medium">{profile.key}</p>
+                        <p className="text-xs text-muted-foreground">
+                          v{profile.version} · {profile.missingChunks} chunk(s) not yet embedded
+                        </p>
+                      </div>
+                      <Badge variant={profile.status === "ACTIVE" ? "default" : "outline"}>
+                        {profile.status.toLowerCase()}
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  No embedding profile exists yet. Building the index for the first time will create
+                  one automatically.
+                </p>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
