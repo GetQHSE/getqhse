@@ -15,7 +15,7 @@ import {
   SidebarRail,
 } from "@qhse/ui/components/sidebar";
 import { BrandLogo } from "@qhse/ui/components/brand-logo";
-import { FilesIcon, LayoutDashboardIcon, UsersRoundIcon } from "lucide-react";
+import { FilesIcon, LayoutDashboardIcon, SettingsIcon, UsersRoundIcon } from "lucide-react";
 
 const data = {
   navMain: [
@@ -34,6 +34,11 @@ const data = {
       title: "Operators",
       url: "/operators",
       icon: <UsersRoundIcon />,
+    },
+    {
+      title: "Settings",
+      url: "/settings",
+      icon: <SettingsIcon />,
     },
   ],
 };

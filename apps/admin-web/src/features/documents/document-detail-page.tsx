@@ -801,32 +801,13 @@ export function DocumentDetailPage() {
                   <SearchIcon /> {busy === "reindex" ? "Building index…" : "Build search index"}
                 </Button>
               </div>
-              {readiness?.profiles.length ? (
-                <div className="space-y-2">
-                  <p className="text-sm font-medium">Embedding profiles</p>
-                  {readiness.profiles.map((profile) => (
-                    <div
-                      key={profile.id}
-                      className="flex items-center justify-between rounded-xl border p-3"
-                    >
-                      <div>
-                        <p className="text-sm font-medium">{profile.key}</p>
-                        <p className="text-xs text-muted-foreground">
-                          v{profile.version} · {profile.missingChunks} chunk(s) not yet embedded
-                        </p>
-                      </div>
-                      <Badge variant={profile.status === "ACTIVE" ? "default" : "outline"}>
-                        {profile.status.toLowerCase()}
-                      </Badge>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-sm text-muted-foreground">
-                  No embedding profile exists yet. Building the index for the first time will create
-                  one automatically.
-                </p>
-              )}
+              <p className="text-sm text-muted-foreground">
+                Embedding profiles are managed platform-wide in{" "}
+                <Link className="font-medium underline" to="/settings">
+                  Settings
+                </Link>
+                .
+              </p>
             </CardContent>
           </Card>
         </TabsContent>
