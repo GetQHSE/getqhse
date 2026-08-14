@@ -13,9 +13,10 @@ const suite = describe.skipIf(!enabled);
 /**
  * The purge deletes across a graph guarded by RESTRICT foreign keys, so the
  * statement order is only provably correct against a real schema — mocks would
- * happily accept an order Postgres rejects.
+ * happily accept an order Postgres rejects. NODE_ENV is set to production here
+ * because the purge is deliberately available in every environment.
  */
-suite("development document purge", () => {
+suite("document purge", () => {
   let postgres: Awaited<ReturnType<GenericContainer["start"]>>;
   let raw: Client;
   let database: DatabaseClient;
@@ -36,7 +37,7 @@ suite("development document purge", () => {
       .start();
     const url = `postgresql://purge_test:purge_test@${postgres.getHost()}:${postgres.getMappedPort(5432)}/purge_test`;
     process.env["DATABASE_URL"] = url;
-    process.env["NODE_ENV"] = "development";
+    process.env["NODE_ENV"] = "production";
     raw = new Client({ connectionString: url });
     await raw.connect();
     const root = new URL("../../packages/database/prisma/migrations/", import.meta.url);

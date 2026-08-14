@@ -67,22 +67,29 @@ Readiness is judged against exactly the revisions the retriever can return, so a
 always satisfies the activation gate. Publishing new content after a profile reaches READY moves
 it back to BUILDING on the next indexing job rather than stranding it.
 
-## Removing a document while iterating (development only)
+## Permanently removing a document
 
 `DELETE /v1/documents/{documentId}` soft-deletes a dependency-free draft and keeps the audit
 trail. To take a document out entirely — revisions, files and stored objects, provisions, chunks,
 embeddings, processing and review history, relationships, activity, and any regulatory register
-entry citing its provisions — use the purge, exposed in the admin UI as **Purge (dev)** on the
-document detail page:
+entry citing its provisions — use the purge, exposed in the admin UI as **Delete permanently** on
+the document detail page:
 
 ```bash
 curl -X DELETE --cookie "$ADMIN_COOKIE" https://<admin-api>/v1/documents/<id>/purge | jq  # dry run
 curl -X DELETE --cookie "$ADMIN_COOKIE" "https://<admin-api>/v1/documents/<id>/purge?confirm=true"
 ```
 
-Without `confirm=true` it only reports what it would destroy. It requires the `delete` permission
-(`super_admin` or `platform_admin`) and refuses when `NODE_ENV=production`. It is irreversible and
-removes the audit trail, so it exists purely to make development iteration possible.
+Without `confirm=true` it only reports what it would destroy; `confirm` is matched against the
+exact string `true`. It requires the `delete` permission (`super_admin` or `platform_admin`).
+
+**This is available in every environment, including production, and cannot be undone.** It deletes
+the audit trail along with the document, so the only record of a purge is the warning line the
+admin API logs with the actor, the caller IP and the full impact — export those logs if you need a
+durable trail. Read the dry-run impact before confirming: `regulatoryRegisterEntries` and
+`regulatoryCandidates` are customer register rows in live projects, and they are destroyed too,
+because they hold RESTRICT references to the provisions being removed. Prefer
+`POST /v1/documents/{id}/archive` whenever the goal is to retire a document rather than erase it.
 
 Purging content that an ACTIVE embedding profile had indexed leaves the profile complete — the
 chunks are gone along with their embeddings — but a profile can be left covering nothing. Re-check

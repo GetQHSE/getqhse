@@ -526,7 +526,6 @@ describe("DocumentsService document purge", () => {
 
   beforeEach(() => {
     process.env["DATABASE_URL"] ??= "postgresql://postgres:postgres@localhost:5432/qhse_test";
-    process.env["NODE_ENV"] = "development";
   });
 
   afterEach(() => {
@@ -538,6 +537,14 @@ describe("DocumentsService document purge", () => {
     const service = new DocumentsService(storage as never, { add: vi.fn() } as never);
     (service as unknown as { database: object }).database = database;
     return service;
+  }
+
+  /** A transaction client that accepts any model and any operation. */
+  function permissiveTransaction() {
+    return new Proxy(
+      {},
+      { get: () => new Proxy({}, { get: () => vi.fn().mockResolvedValue({ count: 0 }) }) },
+    );
   }
 
   /** A database whose every counted relation reports one row. */
@@ -557,7 +564,9 @@ describe("DocumentsService document purge", () => {
       regulatorySyncEvent: { count: one },
       documentRelationship: { count: one },
       documentActivity: { count: one },
-      $transaction: vi.fn(async (run: (tx: unknown) => unknown) => run(transaction ?? {})),
+      $transaction: vi.fn(async (run: (tx: unknown) => unknown) =>
+        run(transaction ?? permissiveTransaction()),
+      ),
     };
   }
 
@@ -585,13 +594,15 @@ describe("DocumentsService document purge", () => {
     expect(storage.deleteObjects).not.toHaveBeenCalled();
   });
 
-  it("refuses to run against production", async () => {
-    process.env["NODE_ENV"] = "production";
-    const service = serviceWith(populatedDatabase());
+  it("runs in every environment, production included", async () => {
+    for (const environment of ["development", "test", "staging", "production"]) {
+      process.env["NODE_ENV"] = environment;
+      const service = serviceWith(populatedDatabase());
 
-    await expect(service.purgeDocument(user, "d1", { confirm: true })).rejects.toBeInstanceOf(
-      ForbiddenException,
-    );
+      await expect(service.purgeDocument(user, "d1", { confirm: true })).resolves.toMatchObject({
+        purged: true,
+      });
+    }
   });
 
   it("refuses a role that cannot delete documents", async () => {
@@ -652,12 +663,7 @@ describe("DocumentsService document purge", () => {
 
   it("removes stored objects only after the database commits", async () => {
     const order: string[] = [];
-    const transaction = new Proxy(
-      {},
-      {
-        get: () => new Proxy({}, { get: () => vi.fn().mockResolvedValue({ count: 0 }) }),
-      },
-    );
+    const transaction = permissiveTransaction();
     const database = populatedDatabase(transaction);
     database.$transaction = vi.fn(async (run: (tx: unknown) => unknown) => {
       const result = await run(transaction);

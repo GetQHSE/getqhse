@@ -331,7 +331,7 @@ export class DocumentsController {
   }
 
   /**
-   * Development-only hard delete. Reports its impact and changes nothing until
+   * Irreversible hard delete. Reports its impact and changes nothing until
    * called with `?confirm=true`.
    */
   @Delete(":documentId/purge")

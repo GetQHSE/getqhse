@@ -1464,10 +1464,12 @@ export class DocumentsService {
    * and processing history, relationships, and any regulatory register data
    * that cites its provisions.
    *
-   * Restricted to non-production environments. Unlike {@link deleteDraft}, which
-   * soft-deletes a dependency-free draft and preserves auditability, this drops
-   * the audit trail itself, so it exists only to make development iteration
-   * possible. It reports its impact and does nothing unless `confirm` is set.
+   * Available in every environment. Unlike {@link deleteDraft}, which soft-deletes
+   * a dependency-free draft and preserves auditability, this drops the audit
+   * trail itself and cascades into customer regulatory registers, so it is
+   * restricted to the `delete` permission, reports its impact first, and does
+   * nothing unless `confirm` is set. Each run is logged with the actor and the
+   * full impact, since no record of it survives in the database.
    */
   async purgeDocument(
     user: CurrentUser,
@@ -1476,9 +1478,6 @@ export class DocumentsService {
     ip?: string,
   ) {
     this.authorize(user, "delete");
-    if (process.env["NODE_ENV"] === "production") {
-      throw new ForbiddenException("Document purge is disabled when NODE_ENV=production");
-    }
     const document = await this.database.document.findUnique({
       where: { id: documentId },
       select: { id: true, title: true, status: true },

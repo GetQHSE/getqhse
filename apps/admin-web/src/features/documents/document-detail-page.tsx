@@ -299,15 +299,13 @@ export function DocumentDetailPage() {
           >
             <ArchiveIcon /> Archive
           </Button>
-          {import.meta.env.DEV ? (
-            <Button
-              variant="destructive"
-              disabled={!canMutate || busy !== null}
-              onClick={() => void purge()}
-            >
-              <Trash2Icon /> {busy === "purge" ? "Purging…" : "Purge (dev)"}
-            </Button>
-          ) : null}
+          <Button
+            variant="destructive"
+            disabled={!canMutate || busy !== null}
+            onClick={() => void purge()}
+          >
+            <Trash2Icon /> {busy === "purge" ? "Purging…" : "Delete permanently"}
+          </Button>
         </div>
       </div>
       {error ? (
