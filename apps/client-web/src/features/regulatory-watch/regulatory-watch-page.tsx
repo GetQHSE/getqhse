@@ -544,7 +544,7 @@ function ReviewState({
           value={selectedGroup}
           onValueChange={(value) => setSelectedGroup(value as typeof selectedGroup)}
         >
-          <TabsList className="grid h-auto w-full grid-cols-2 gap-1 rounded-2xl bg-slate-100 p-1 lg:grid-cols-4">
+          <TabsList className="grid w-full grid-cols-2 gap-1 rounded-2xl bg-slate-100 p-1 group-data-horizontal/tabs:h-auto lg:grid-cols-4">
             {groups.map((group) => (
               <TabsTrigger
                 className="h-auto min-h-10 whitespace-normal rounded-xl px-2 py-2 text-xs"
@@ -829,7 +829,7 @@ export function DataPage({
       </div>
 
       <Tabs className="gap-4" defaultValue="documents">
-        <TabsList className="grid h-auto w-full grid-cols-2 rounded-2xl border border-slate-200 bg-white p-1 shadow-sm">
+        <TabsList className="grid w-full grid-cols-2 rounded-2xl border border-slate-200 bg-white p-1 shadow-sm group-data-horizontal/tabs:h-auto">
           <TabsTrigger
             className="h-auto min-h-12 whitespace-normal rounded-xl px-2 py-2 text-center leading-4 data-active:bg-slate-950 data-active:text-white sm:px-5"
             value="documents"

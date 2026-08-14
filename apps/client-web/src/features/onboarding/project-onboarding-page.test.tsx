@@ -20,8 +20,9 @@ describe("ProjectOnboardingPage", () => {
         </MemoryRouter>
       </QueryClientProvider>,
     );
-    await userEvent.click(screen.getByRole("button", { name: "Fabrication" }));
-    const custom = screen.getByRole("textbox", { name: "Activité personnalisée" });
+    const custom = screen.getByRole("combobox", { name: "Activité personnalisée" });
+    await userEvent.click(custom);
+    await userEvent.click(await screen.findByRole("option", { name: "Fabrication" }));
     await userEvent.type(custom, "Conseil spécialisé{enter}");
     expect(screen.getByRole("button", { name: "Retirer Fabrication" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Retirer Conseil spécialisé" })).toBeInTheDocument();

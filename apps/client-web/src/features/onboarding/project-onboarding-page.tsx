@@ -1,8 +1,20 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { createProjectSchema } from "@qhse/contracts";
 import { Button } from "@qhse/ui";
+import {
+  Combobox,
+  ComboboxChip,
+  ComboboxChips,
+  ComboboxChipsInput,
+  ComboboxCollection,
+  ComboboxContent,
+  ComboboxEmpty,
+  ComboboxItem,
+  ComboboxList,
+  useComboboxAnchor,
+} from "@qhse/ui/components/combobox";
 import { useQueryClient } from "@tanstack/react-query";
-import { Building2Icon, CheckIcon, PlusIcon, SparklesIcon, XIcon } from "lucide-react";
+import { Building2Icon, PlusIcon, SparklesIcon, UploadIcon, XIcon } from "lucide-react";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { useNavigate } from "react-router-dom";
@@ -37,26 +49,64 @@ const entityTypes = [
   ["OTHER", "Autre"],
 ] as const;
 
+const MAX_LOGO_BYTES = 2 * 1024 * 1024;
+
 type FormValues = z.input<typeof createProjectSchema>;
+
+function readFileAsDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = () => reject(new Error("Lecture du fichier impossible"));
+    reader.readAsDataURL(file);
+  });
+}
 
 export function ProjectOnboardingPage({ mode = "onboarding" }: { mode?: "onboarding" | "create" }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { activeOrganization } = useAuth();
-  const [customActivity, setCustomActivity] = useState("");
+  const [activityQuery, setActivityQuery] = useState("");
+  const [logoError, setLogoError] = useState<string | null>(null);
+  const [logoDragActive, setLogoDragActive] = useState(false);
+  const activityAnchor = useComboboxAnchor();
   const form = useForm<FormValues>({
     resolver: zodResolver(createProjectSchema),
     defaultValues: { countryCode: "MA", entityType: "COMPANY", activities: [] },
   });
   const selected = form.watch("activities");
   const projectName = form.watch("name");
+  const logoUrl = form.watch("logoUrl");
   const addActivity = (name: string) => {
     const cleaned = name.trim().replace(/\s+/g, " ");
     if (!cleaned || selected.some((item) => item.name.toLowerCase() === cleaned.toLowerCase()))
       return;
     form.setValue("activities", [...selected, { name: cleaned }], { shouldValidate: true });
-    setCustomActivity("");
+    setActivityQuery("");
   };
+  const availableSuggestions = suggestions.filter(
+    (name) => !selected.some((item) => item.name.toLowerCase() === name.toLowerCase()),
+  );
+  const normalizedQuery = activityQuery.trim().toLowerCase();
+  const hasMatchingSuggestion = availableSuggestions.some((name) =>
+    name.toLowerCase().includes(normalizedQuery),
+  );
+  const canCreateActivity = normalizedQuery.length > 0 && !hasMatchingSuggestion;
+
+  async function handleLogoFile(file: File | undefined) {
+    setLogoError(null);
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      setLogoError("Choisissez un fichier image.");
+      return;
+    }
+    if (file.size > MAX_LOGO_BYTES) {
+      setLogoError("L’image doit faire moins de 2 Mo.");
+      return;
+    }
+    const dataUrl = await readFileAsDataUrl(file);
+    form.setValue("logoUrl", dataUrl, { shouldValidate: true });
+  }
 
   async function submit(values: FormValues) {
     try {
@@ -132,122 +182,172 @@ export function ProjectOnboardingPage({ mode = "onboarding" }: { mode?: "onboard
               </span>
             )}
           </label>
-          <div className="mt-4 grid gap-4 sm:grid-cols-2">
-            <label>
-              <span className="mb-2 block text-sm font-medium">Type d’entité</span>
-              <select
-                className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50/70 px-3 text-sm outline-none focus:border-violet-400 focus:ring-4 focus:ring-violet-100"
-                {...form.register("entityType")}
-              >
-                {entityTypes.map(([value, label]) => (
-                  <option key={value} value={value}>
-                    {label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              <span className="mb-2 block text-sm font-medium">Pays principal</span>
-              <select
-                className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50/70 px-3 text-sm outline-none focus:border-violet-400 focus:ring-4 focus:ring-violet-100"
-                {...form.register("countryCode")}
-              >
-                <option value="MA">Maroc</option>
-                <option value="FR">France</option>
-                <option value="DZ">Algérie</option>
-                <option value="TN">Tunisie</option>
-                <option value="SN">Sénégal</option>
-                <option value="CI">Côte d’Ivoire</option>
-              </select>
-            </label>
-          </div>
+          <label className="mt-4 block">
+            <span className="mb-2 block text-sm font-medium">Type d’entité</span>
+            <select
+              className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50/70 px-3 text-sm outline-none focus:border-violet-400 focus:ring-4 focus:ring-violet-100"
+              {...form.register("entityType")}
+            >
+              {entityTypes.map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </label>
         </section>
 
         <section className="border-t border-slate-100 pt-6">
           <h2 className="text-sm font-semibold text-slate-900">Activités principales</h2>
           <p className="mt-1 text-xs text-slate-500">
-            Sélectionnez tout ce qui décrit votre périmètre.
+            Recherchez, sélectionnez ou ajoutez une activité qui décrit votre périmètre.
           </p>
-          <div className="mt-4 flex flex-wrap gap-2">
-            {suggestions.map((name) => {
-              const isSelected = selected.some((item) => item.name === name);
-              return (
-                <button
-                  key={name}
-                  type="button"
-                  className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition ${
-                    isSelected
-                      ? "border-violet-300 bg-violet-50 text-violet-800"
-                      : "border-slate-200 text-slate-600 hover:border-violet-300 hover:text-violet-700"
-                  }`}
-                  onClick={() => addActivity(name)}
+          <Combobox
+            multiple
+            items={availableSuggestions}
+            value={selected.map((item) => item.name)}
+            onValueChange={(values) =>
+              form.setValue(
+                "activities",
+                values.map((name) => ({ name })),
+                { shouldValidate: true },
+              )
+            }
+            inputValue={activityQuery}
+            onInputValueChange={setActivityQuery}
+          >
+            <ComboboxChips
+              ref={activityAnchor}
+              className="mt-4 min-h-11 rounded-xl border-slate-200 bg-slate-50/70 px-2.5 focus-within:border-violet-400 focus-within:bg-white focus-within:ring-4 focus-within:ring-violet-100"
+            >
+              {selected.map((activity) => (
+                <ComboboxChip
+                  key={activity.name}
+                  showRemove={false}
+                  className="rounded-full bg-slate-900 py-1 pl-3 pr-1.5 text-white"
                 >
-                  {isSelected && <CheckIcon className="size-3" />}
-                  {name}
-                </button>
-              );
-            })}
-          </div>
-          <div className="mt-3 flex gap-2">
-            <input
-              aria-label="Activité personnalisée"
-              className="h-10 min-w-0 flex-1 rounded-xl border border-slate-200 bg-slate-50/70 px-3 text-sm outline-none focus:border-violet-400 focus:ring-4 focus:ring-violet-100"
-              placeholder="Ajouter une autre activité"
-              value={customActivity}
-              onChange={(event) => setCustomActivity(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") {
-                  event.preventDefault();
-                  addActivity(customActivity);
+                  {activity.name}
+                  <button
+                    type="button"
+                    aria-label={`Retirer ${activity.name}`}
+                    className="ml-1 grid size-4.5 place-items-center rounded-full text-slate-300 hover:bg-white/10 hover:text-white"
+                    onClick={() =>
+                      form.setValue(
+                        "activities",
+                        selected.filter((item) => item.name !== activity.name),
+                        { shouldValidate: true },
+                      )
+                    }
+                  >
+                    <XIcon className="size-3" />
+                  </button>
+                </ComboboxChip>
+              ))}
+              <ComboboxChipsInput
+                aria-label="Activité personnalisée"
+                placeholder={
+                  selected.length
+                    ? "Ajouter une autre activité"
+                    : "Rechercher ou ajouter une activité"
                 }
-              }}
-            />
-            <Button type="button" variant="outline" onClick={() => addActivity(customActivity)}>
-              <PlusIcon className="size-4" /> Ajouter
-            </Button>
-          </div>
-          <ul className="mt-3 flex flex-wrap gap-2">
-            {selected.map((activity, index) => (
-              <li
-                key={activity.name}
-                className="inline-flex items-center rounded-full bg-slate-900 py-1 pl-3 pr-1.5 text-xs text-white"
-              >
-                {activity.name}
-                <button
-                  type="button"
-                  aria-label={`Retirer ${activity.name}`}
-                  className="ml-1.5 grid size-5 place-items-center rounded-full text-slate-300 hover:bg-white/10 hover:text-white"
-                  onClick={() =>
-                    form.setValue(
-                      "activities",
-                      selected.filter((_, itemIndex) => itemIndex !== index),
-                      { shouldValidate: true },
-                    )
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" && canCreateActivity) {
+                    event.preventDefault();
+                    addActivity(activityQuery);
                   }
-                >
-                  <XIcon className="size-3" />
-                </button>
-              </li>
-            ))}
-          </ul>
+                }}
+              />
+            </ComboboxChips>
+            <ComboboxContent anchor={activityAnchor}>
+              <ComboboxList>
+                <ComboboxCollection>
+                  {(item: string) => (
+                    <ComboboxItem key={item} value={item}>
+                      {item}
+                    </ComboboxItem>
+                  )}
+                </ComboboxCollection>
+                <ComboboxEmpty>
+                  {canCreateActivity ? (
+                    <button
+                      type="button"
+                      className="flex w-full items-center justify-center gap-1.5 py-1.5 text-sm font-medium text-violet-700"
+                      onClick={() => addActivity(activityQuery)}
+                    >
+                      <PlusIcon className="size-3.5" /> Ajouter « {activityQuery.trim()} »
+                    </button>
+                  ) : (
+                    "Aucune activité ne correspond"
+                  )}
+                </ComboboxEmpty>
+              </ComboboxList>
+            </ComboboxContent>
+          </Combobox>
           {form.formState.errors.activities && (
             <p className="mt-2 text-sm text-red-700">Sélectionnez au moins une activité</p>
           )}
         </section>
 
-        <details className="rounded-xl border border-slate-200 bg-slate-50/60 p-4">
-          <summary className="cursor-pointer text-sm font-medium text-slate-700">
-            Ajouter une description ou un logo (facultatif)
-          </summary>
+        <section className="border-t border-slate-100 pt-6">
+          <h2 className="text-sm font-semibold text-slate-900">Description et logo</h2>
           <div className="mt-4 space-y-4">
-            <label className="block">
-              <span className="mb-2 block text-sm font-medium">URL du logo</span>
-              <input
-                type="url"
-                className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm"
-                {...form.register("logoUrl")}
-              />
-            </label>
+            <div>
+              <span className="mb-2 block text-sm font-medium">Logo</span>
+              <div
+                className={`flex items-center gap-4 rounded-xl border-2 border-dashed p-4 transition ${
+                  logoDragActive
+                    ? "border-violet-400 bg-violet-50"
+                    : "border-slate-200 bg-slate-50/60 hover:border-slate-300"
+                }`}
+                onDragOver={(event) => {
+                  event.preventDefault();
+                  setLogoDragActive(true);
+                }}
+                onDragLeave={() => setLogoDragActive(false)}
+                onDrop={(event) => {
+                  event.preventDefault();
+                  setLogoDragActive(false);
+                  void handleLogoFile(event.dataTransfer.files[0]);
+                }}
+              >
+                {logoUrl ? (
+                  <img
+                    src={logoUrl}
+                    alt="Logo du projet"
+                    className="size-14 shrink-0 rounded-xl border border-slate-200 object-cover"
+                  />
+                ) : (
+                  <span className="grid size-14 shrink-0 place-items-center rounded-xl bg-white text-slate-400">
+                    <UploadIcon className="size-5" />
+                  </span>
+                )}
+                <div className="min-w-0 text-xs text-slate-500">
+                  <p>
+                    Glissez une image ici ou{" "}
+                    <label className="cursor-pointer font-medium text-violet-700 hover:underline">
+                      parcourez vos fichiers
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="sr-only"
+                        onChange={(event) => void handleLogoFile(event.target.files?.[0])}
+                      />
+                    </label>
+                  </p>
+                  <p className="mt-1">PNG, JPG ou SVG · 2 Mo maximum</p>
+                  {logoUrl && (
+                    <button
+                      type="button"
+                      className="mt-1 inline-flex items-center gap-1 font-medium text-slate-500 hover:text-slate-700 hover:underline"
+                      onClick={() => form.setValue("logoUrl", undefined, { shouldValidate: true })}
+                    >
+                      <XIcon className="size-3" /> Retirer le logo
+                    </button>
+                  )}
+                </div>
+              </div>
+              {logoError && <p className="mt-1 text-xs text-red-700">{logoError}</p>}
+            </div>
             <label className="block">
               <span className="mb-2 block text-sm font-medium">Description</span>
               <textarea
@@ -257,7 +357,7 @@ export function ProjectOnboardingPage({ mode = "onboarding" }: { mode?: "onboard
               />
             </label>
           </div>
-        </details>
+        </section>
 
         {form.formState.errors.root && (
           <p role="alert" className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700">
