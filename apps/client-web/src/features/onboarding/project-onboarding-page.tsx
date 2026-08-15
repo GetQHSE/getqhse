@@ -76,7 +76,9 @@ export function ProjectOnboardingPage({ mode = "onboarding" }: { mode?: "onboard
   });
   const selected = form.watch("activities");
   const projectName = form.watch("name");
-  const logoUrl = form.watch("logoUrl");
+  // `logoUrl` is wrapped in `z.preprocess`, so its zod *input* type is
+  // `unknown`; the resolver's output type is always `string | null | undefined`.
+  const logoUrl = form.watch("logoUrl") as string | null | undefined;
   const addActivity = (name: string) => {
     const cleaned = name.trim().replace(/\s+/g, " ");
     if (!cleaned || selected.some((item) => item.name.toLowerCase() === cleaned.toLowerCase()))
