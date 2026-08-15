@@ -28,7 +28,10 @@ export const serverEnvironmentSchema = z.object({
   DOCLING_URL: z.url(),
   OPENAI_API_KEY: optionalNonEmptyString,
   OPENAI_PROFILE_MODEL: z.string().min(1).default("gpt-5-mini"),
-  OPENAI_REGULATORY_MODEL: z.string().min(1).default("gpt-5-mini"),
+  OPENAI_REGULATORY_MODEL: z.string().min(1).default("gpt-5.6-sol"),
+  OPENAI_REGULATORY_REASONING_EFFORT: z
+    .enum(["none", "low", "medium", "high", "xhigh", "max"])
+    .default("xhigh"),
   OPENAI_TRANSCRIPTION_MODEL: z.string().min(1).default("gpt-4o-mini-transcribe"),
   LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace"]).default("info"),
   MAX_UPLOAD_BYTES: z.coerce.number().int().positive().default(10_485_760),
@@ -47,6 +50,7 @@ export const workerEnvironmentSchema = serverEnvironmentSchema.pick({
   DOCLING_URL: true,
   OPENAI_API_KEY: true,
   OPENAI_REGULATORY_MODEL: true,
+  OPENAI_REGULATORY_REASONING_EFFORT: true,
   LOG_LEVEL: true,
 });
 

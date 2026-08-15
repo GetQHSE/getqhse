@@ -3,6 +3,7 @@ import ExcelJS from "exceljs";
 export type RegulatoryExportEntry = {
   documentLabel: string;
   provisionIdentifier: string;
+  sourceText: string;
   requirement: string;
   result: "CONFORMING" | "PARTIAL" | "NON_CONFORMING" | "NOT_ASSESSED";
   evidence: string[];
@@ -97,6 +98,52 @@ function isoDate(value: string | null): Date | null {
   return value ? new Date(`${value}T00:00:00.000Z`) : null;
 }
 
+function normalizeWhitespace(value: string): string {
+  return value
+    .normalize("NFC")
+    .replaceAll("\u00a0", " ")
+    .replaceAll("\r\n", "\n")
+    .replaceAll("\r", "\n")
+    .replace(/[ \t]+/g, " ")
+    .replace(/ *\n */g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+export function normalizedOfficialProvisionText(
+  sourceText: string,
+  provisionIdentifier: string,
+): string {
+  let text = normalizeWhitespace(sourceText);
+  const escapedIdentifier = provisionIdentifier.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const identifierPrefix = new RegExp(`^${escapedIdentifier}(?:\\s*[:.\u2013\u2014-])?\\s*`, "iu");
+  text = text.replace(identifierPrefix, "");
+  const lines = text.split("\n");
+  if (
+    lines.length > 1 &&
+    normalizeWhitespace(lines[0] ?? "").toLocaleLowerCase("fr") ===
+      normalizeWhitespace((lines[1] ?? "").replace(identifierPrefix, "")).toLocaleLowerCase("fr")
+  ) {
+    lines.splice(1, 1);
+    text = lines.join("\n");
+  }
+  return [provisionIdentifier, text].filter(Boolean).join("\n");
+}
+
+function dynamicRowHeight(values: Array<string | null | undefined>, widths: number[]): number {
+  const lines = values.reduce((maximum, value, index) => {
+    if (!value) return maximum;
+    const explicitLines = value.split("\n");
+    const width = Math.max(widths[index] ?? 20, 8);
+    const estimated = explicitLines.reduce(
+      (count, line) => count + Math.max(1, Math.ceil(line.length / width)),
+      0,
+    );
+    return Math.max(maximum, estimated);
+  }, 1);
+  return Math.min(409, Math.max(24, lines * 13));
+}
+
 export async function buildRegulatoryWatchWorkbook(
   entries: readonly RegulatoryExportEntry[],
 ): Promise<Buffer> {
@@ -123,28 +170,33 @@ export async function buildRegulatoryWatchWorkbook(
   sheet.getCell("D3").value = "Articles applicables";
   styleHeader(sheet, 3, 1, 3, 5, 12);
 
-  const grouped = new Map<string, string[]>();
+  const grouped = new Map<string, RegulatoryExportEntry[]>();
   for (const entry of entries) {
-    const identifiers = grouped.get(entry.documentLabel) ?? [];
-    if (!identifiers.includes(entry.provisionIdentifier))
-      identifiers.push(entry.provisionIdentifier);
-    grouped.set(entry.documentLabel, identifiers);
+    grouped.set(entry.documentLabel, [...(grouped.get(entry.documentLabel) ?? []), entry]);
   }
-  const registerRows = Math.max(grouped.size, 1);
+  const registerRows = Math.max(entries.length, 1);
   let rowIndex = 4;
   if (grouped.size === 0) {
     sheet.mergeCells(`A${rowIndex}:C${rowIndex}`);
     sheet.mergeCells(`D${rowIndex}:E${rowIndex}`);
     styleData(sheet, rowIndex, 1, rowIndex, 5);
   } else {
-    for (const [documentLabel, identifiers] of grouped) {
-      sheet.mergeCells(`A${rowIndex}:C${rowIndex}`);
-      sheet.mergeCells(`D${rowIndex}:E${rowIndex}`);
-      sheet.getCell(`A${rowIndex}`).value = documentLabel;
-      sheet.getCell(`D${rowIndex}`).value = identifiers.join("\n");
-      sheet.getRow(rowIndex).height = Math.max(24, identifiers.length * 14);
-      styleData(sheet, rowIndex, 1, rowIndex, 5);
-      rowIndex += 1;
+    for (const [documentLabel, provisions] of grouped) {
+      const documentStart = rowIndex;
+      const documentEnd = rowIndex + provisions.length - 1;
+      sheet.mergeCells(`A${documentStart}:C${documentEnd}`);
+      sheet.getCell(`A${documentStart}`).value = documentLabel;
+      for (const provision of provisions) {
+        sheet.mergeCells(`D${rowIndex}:E${rowIndex}`);
+        const officialText = normalizedOfficialProvisionText(
+          provision.sourceText,
+          provision.provisionIdentifier,
+        );
+        sheet.getCell(`D${rowIndex}`).value = officialText;
+        sheet.getRow(rowIndex).height = dynamicRowHeight([documentLabel, officialText], [32, 65]);
+        styleData(sheet, rowIndex, 1, rowIndex, 5);
+        rowIndex += 1;
+      }
     }
   }
 
@@ -198,7 +250,18 @@ export async function buildRegulatoryWatchWorkbook(
         action ? effectivenessLabels[action.effectiveness] : null,
         [entry.comment, action?.comment].filter(Boolean).join("\n") || null,
       ];
-      row.height = 48;
+      row.height = dynamicRowHeight(
+        [
+          entry.documentLabel,
+          `${entry.provisionIdentifier}\n${entry.requirement}`,
+          entry.evidence.join("\n"),
+          action?.title,
+          action?.resources,
+          action?.effectivenessCriteria,
+          [entry.comment, action?.comment].filter(Boolean).join("\n"),
+        ],
+        [32, 40, 22, 22, 20, 24, 24],
+      );
       styleData(sheet, evaluationRow, 1, evaluationRow, 12);
       sheet.getCell(evaluationRow, 8).numFmt = "yyyy-mm-dd";
       sheet.getCell(evaluationRow, 9).numFmt = "yyyy-mm-dd";

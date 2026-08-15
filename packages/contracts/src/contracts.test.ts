@@ -4,6 +4,7 @@ import {
   apiErrorSchema,
   createSiteSchema,
   createFileUploadSchema,
+  decideRegulatoryCandidateSchema,
   projectProfileAnswerInputSchema,
   projectProfileStreamRequestSchema,
   updateProjectProfileSchema,
@@ -75,5 +76,28 @@ describe("public contracts", () => {
         checksum: "not-a-checksum",
       }).success,
     ).toBe(false);
+  });
+
+  it("requires approved requirement wording for applicable regulatory decisions", () => {
+    expect(
+      decideRegulatoryCandidateSchema.safeParse({
+        watchRevision: 2,
+        decision: "APPLICABLE",
+      }).success,
+    ).toBe(false);
+    expect(
+      decideRegulatoryCandidateSchema.safeParse({
+        watchRevision: 2,
+        decision: "APPLICABLE",
+        requirementText:
+          "L’organisme doit déterminer et suivre les enjeux pertinents pour son système de management.",
+      }).success,
+    ).toBe(true);
+    expect(
+      decideRegulatoryCandidateSchema.safeParse({
+        watchRevision: 2,
+        decision: "NOT_APPLICABLE",
+      }).success,
+    ).toBe(true);
   });
 });

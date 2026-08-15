@@ -10,6 +10,7 @@ import { Input } from "@qhse/ui/components/input";
 import { Progress } from "@qhse/ui/components/progress";
 import { Skeleton } from "@qhse/ui/components/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@qhse/ui/components/tabs";
+import { Textarea } from "@qhse/ui/components/textarea";
 import { cn } from "@qhse/ui/lib/utils";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -54,7 +55,11 @@ const activeAnalysisStatuses = new Set(["QUEUED", "RUNNING"]);
  * Embedding-profile codes are excluded: an admin can now build/activate/
  * reindex a profile from Settings, so retrying after that fix works.
  */
-const administrativeErrorCodes = new Set(["NORMATIVE_RAG_DISABLED", "OPENAI_KEY_MISSING"]);
+const administrativeErrorCodes = new Set([
+  "NORMATIVE_RAG_DISABLED",
+  "OPENAI_KEY_MISSING",
+  "REGULATORY_MODEL_UNAVAILABLE",
+]);
 
 /** Translates a persisted `errorCode` into customer-facing French copy. */
 export function analysisErrorMessage(code: string | null | undefined): string {
@@ -138,7 +143,9 @@ export function regulatoryViewData(watch: RegulatoryWatch) {
       id: entry.evaluation.id,
       source: entry.source.referenceNumber ?? entry.source.documentTitle,
       provision: entry.source.provisionIdentifier ?? entry.source.provisionType,
-      requirement: entry.source.excerpt,
+      requirement: entry.requirement?.text ?? "Exigence à régénérer",
+      citation: entry.source.citationLabel,
+      officialSourceText: entry.source.excerpt,
       status: mapEvaluationStatus(entry.evaluation.result),
       evidence: evidence?.label ?? evidence?.note ?? evidence?.url ?? "Aucune preuve liée",
       action: action?.title ?? "Aucune action définie",
@@ -493,13 +500,19 @@ function ReviewState({
   error,
   onDecision,
   onPublish,
+  onRerun,
 }: {
   watch: RegulatoryWatch;
   deciding: boolean;
   publishing: boolean;
   error: string | undefined;
-  onDecision: (candidateId: string, decision: "APPLICABLE" | "NOT_APPLICABLE") => void;
+  onDecision: (
+    candidateId: string,
+    decision: "APPLICABLE" | "NOT_APPLICABLE",
+    requirementText?: string,
+  ) => void;
   onPublish: () => void;
+  onRerun: () => void;
 }) {
   const candidates = watch.currentAnalysis?.candidates ?? [];
   const groups = [
@@ -514,11 +527,21 @@ function ReviewState({
   const [selectedGroup, setSelectedGroup] = useState<(typeof groups)[number]["value"]>(
     firstPopulated ?? "ADDED",
   );
+  const [drafts, setDrafts] = useState<Record<string, string>>(() =>
+    Object.fromEntries(
+      candidates.map((candidate) => [candidate.id, candidate.requirement.text ?? ""]),
+    ),
+  );
   const remaining = candidates.filter(
     (candidate) => candidate.requiresReview && candidate.decision == null,
   ).length;
+  const blocked = candidates.filter(
+    (candidate) => candidate.requirement.status === "SOURCE_REVIEW_REQUIRED",
+  );
   const canPublish =
-    remaining === 0 && candidates.some((candidate) => candidate.decision === "APPLICABLE");
+    blocked.length === 0 &&
+    remaining === 0 &&
+    candidates.some((candidate) => candidate.decision === "APPLICABLE");
   return (
     <StateShell tone="light">
       <div className="mx-auto max-w-4xl py-3">
@@ -539,6 +562,27 @@ function ReviewState({
             {remaining} décision{remaining === 1 ? "" : "s"} restante{remaining === 1 ? "" : "s"}
           </span>
         </div>
+        {blocked.length > 0 && (
+          <div
+            role="alert"
+            className="mt-5 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800"
+          >
+            <p className="font-semibold">Publication bloquée par {blocked.length} source(s)</p>
+            <p className="mt-1 text-xs leading-5 text-rose-700">
+              Le document normatif doit être corrigé puis retraité. Relancez ensuite l’analyse;
+              aucune approbation n’est possible sur une source tronquée ou corrompue.
+            </p>
+            <Button
+              className="mt-3 bg-white"
+              disabled={deciding || publishing}
+              onClick={onRerun}
+              size="sm"
+              variant="outline"
+            >
+              <RefreshCwIcon /> Relancer l’analyse
+            </Button>
+          </div>
+        )}
         <Tabs
           className="mt-7 gap-4"
           value={selectedGroup}
@@ -567,7 +611,7 @@ function ReviewState({
                   key={candidate.id}
                 >
                   <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                    <div className="min-w-0">
+                    <div className="min-w-0 flex-1">
                       <p className="text-xs font-semibold text-violet-700">
                         {candidate.source.referenceNumber ?? candidate.source.documentTitle} ·{" "}
                         {candidate.source.provisionIdentifier}
@@ -583,6 +627,51 @@ function ReviewState({
                           {candidate.changeSummary}
                         </p>
                       )}
+                      <div className="mt-4 grid gap-3 lg:grid-cols-2">
+                        <section className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                          <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                            Citation et texte source
+                          </p>
+                          <p className="mt-2 text-xs font-semibold text-slate-700">
+                            {candidate.source.citationLabel}
+                          </p>
+                          <p className="mt-2 max-h-36 overflow-y-auto whitespace-pre-wrap text-xs leading-5 text-slate-600">
+                            {candidate.source.excerpt}
+                          </p>
+                        </section>
+                        <label className="block rounded-xl border border-violet-200 bg-violet-50/40 p-3">
+                          <span className="text-[10px] font-semibold uppercase tracking-wider text-violet-700">
+                            Projet d’exigence rédigé par l’IA
+                          </span>
+                          <Textarea
+                            aria-label={`Exigence ${candidate.source.provisionIdentifier ?? candidate.id}`}
+                            className="mt-2 min-h-28 resize-y border-violet-200 bg-white text-xs leading-5"
+                            disabled={
+                              candidate.requirement.status === "SOURCE_REVIEW_REQUIRED" || deciding
+                            }
+                            maxLength={1200}
+                            onChange={(event) =>
+                              setDrafts((current) => ({
+                                ...current,
+                                [candidate.id]: event.target.value,
+                              }))
+                            }
+                            placeholder="Rédigez l’exigence applicable en français…"
+                            value={drafts[candidate.id] ?? ""}
+                          />
+                          <span className="mt-1 block text-[10px] text-violet-700/70">
+                            Vous pouvez corriger le projet; votre version sera enregistrée comme
+                            approuvée humainement.
+                          </span>
+                        </label>
+                      </div>
+                      {candidate.requirement.issues.length > 0 && (
+                        <ul className="mt-3 list-disc space-y-1 rounded-xl bg-rose-50 px-7 py-3 text-xs text-rose-700">
+                          {candidate.requirement.issues.map((issue) => (
+                            <li key={issue}>{issue}</li>
+                          ))}
+                        </ul>
+                      )}
                     </div>
                     {candidate.requiresReview ? (
                       <div className="flex shrink-0 gap-2">
@@ -592,7 +681,9 @@ function ReviewState({
                             candidate.decision === "NOT_APPLICABLE" &&
                               "border-rose-200 bg-rose-50 text-rose-700",
                           )}
-                          disabled={deciding}
+                          disabled={
+                            deciding || candidate.requirement.status === "SOURCE_REVIEW_REQUIRED"
+                          }
                           onClick={() => onDecision(candidate.id, "NOT_APPLICABLE")}
                           variant="outline"
                         >
@@ -608,8 +699,14 @@ function ReviewState({
                               ? "bg-emerald-600 hover:bg-emerald-600"
                               : "bg-slate-950 hover:bg-slate-800",
                           )}
-                          disabled={deciding}
-                          onClick={() => onDecision(candidate.id, "APPLICABLE")}
+                          disabled={
+                            deciding ||
+                            candidate.requirement.status === "SOURCE_REVIEW_REQUIRED" ||
+                            (drafts[candidate.id]?.trim().length ?? 0) < 20
+                          }
+                          onClick={() =>
+                            onDecision(candidate.id, "APPLICABLE", drafts[candidate.id]?.trim())
+                          }
                         >
                           <CheckIcon />
                           {candidate.changeType === "REMOVAL_PROPOSED" ? "Conserver" : "Applicable"}
@@ -676,6 +773,9 @@ export function DataPage({
   const [selectedDocument, setSelectedDocument] = useState<RegulatoryDocument | null>(null);
   const [selectedEvaluation, setSelectedEvaluation] = useState<RegulatoryEvaluation | null>(null);
   const data = useMemo(() => regulatoryViewData(watch), [watch]);
+  const hasLegacyRequirements = Boolean(
+    watch.currentBaseline?.entries.some((entry) => entry.requirement === null),
+  );
   const analysisActive = Boolean(
     watch.currentAnalysis && activeAnalysisStatuses.has(watch.currentAnalysis.status),
   );
@@ -715,14 +815,32 @@ export function DataPage({
           </Button>
           <Button
             className="h-10 rounded-xl bg-slate-950 px-4 hover:bg-slate-800"
-            disabled={exporting}
+            disabled={exporting || hasLegacyRequirements}
             onClick={onExport}
+            title={
+              hasLegacyRequirements
+                ? "Relancez l’analyse et publiez la nouvelle veille avant l’export"
+                : undefined
+            }
           >
             {exporting ? <LoaderCircleIcon className="animate-spin" /> : <DownloadIcon />} Exporter
             en Excel
           </Button>
         </div>
       </header>
+
+      {hasLegacyRequirements && (
+        <div className="flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4">
+          <CircleAlertIcon className="mt-0.5 size-4 shrink-0 text-amber-700" />
+          <div>
+            <p className="text-sm font-semibold text-amber-950">Exigences à régénérer</p>
+            <p className="mt-1 text-xs leading-5 text-amber-800/80">
+              Cette baseline historique ne contient pas d’exigence rédigée et approuvée. Relancez
+              l’analyse puis publiez son successeur pour réactiver l’export Excel.
+            </p>
+          </div>
+        </div>
+      )}
 
       {analysisActive && (
         <div className="rounded-2xl border border-violet-200 bg-violet-50 p-4">
@@ -946,15 +1064,18 @@ export function RegulatoryWatchPage() {
     mutationFn: ({
       candidateId,
       decision,
+      requirementText,
     }: {
       candidateId: string;
       decision: "APPLICABLE" | "NOT_APPLICABLE";
+      requirementText?: string;
     }) => {
       const watch = watchQuery.data;
       if (!watch) throw new Error("Veille introuvable");
       return clientApi.decideRegulatoryCandidate(projectId, candidateId, {
         watchRevision: watch.revision,
         decision,
+        ...(decision === "APPLICABLE" ? { requirementText } : {}),
       });
     },
     onMutate: () => setActionError(undefined),
@@ -1040,8 +1161,15 @@ export function RegulatoryWatchPage() {
         deciding={decisionMutation.isPending}
         publishing={publishMutation.isPending}
         error={actionError}
-        onDecision={(candidateId, decision) => decisionMutation.mutate({ candidateId, decision })}
+        onDecision={(candidateId, decision, requirementText) =>
+          decisionMutation.mutate({
+            candidateId,
+            decision,
+            ...(requirementText ? { requirementText } : {}),
+          })
+        }
         onPublish={() => publishMutation.mutate()}
+        onRerun={() => startMutation.mutate()}
       />
     );
   if (!hasBaseline && watch.status === "FAILED")
@@ -1106,8 +1234,15 @@ export function RegulatoryWatchPage() {
           deciding={decisionMutation.isPending}
           publishing={publishMutation.isPending}
           error={actionError}
-          onDecision={(candidateId, decision) => decisionMutation.mutate({ candidateId, decision })}
+          onDecision={(candidateId, decision, requirementText) =>
+            decisionMutation.mutate({
+              candidateId,
+              decision,
+              ...(requirementText ? { requirementText } : {}),
+            })
+          }
           onPublish={() => publishMutation.mutate()}
+          onRerun={() => startMutation.mutate()}
         />
       )}
       {analysisStatus === "FAILED" && (

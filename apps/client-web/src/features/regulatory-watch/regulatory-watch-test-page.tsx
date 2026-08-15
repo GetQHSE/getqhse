@@ -67,6 +67,8 @@ export type RegulatoryEvaluation = {
   source: string;
   provision: string;
   requirement: string;
+  citation?: string;
+  officialSourceText?: string;
   status: EvaluationStatus;
   evidence: string;
   action: string;
@@ -747,6 +749,21 @@ export function DetailSheet({
                   </p>
                   <p className="mt-2 text-sm leading-6 text-slate-800">{evaluation.requirement}</p>
                 </section>
+                {evaluation.officialSourceText && (
+                  <section className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                    <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                      Traçabilité — texte officiel
+                    </p>
+                    {evaluation.citation && (
+                      <p className="mt-2 text-xs font-semibold text-slate-700">
+                        {evaluation.citation}
+                      </p>
+                    )}
+                    <p className="mt-2 whitespace-pre-wrap text-xs leading-5 text-slate-600">
+                      {evaluation.officialSourceText}
+                    </p>
+                  </section>
+                )}
                 <section className="rounded-2xl border border-emerald-100 bg-emerald-50/60 p-4">
                   <div className="flex items-center gap-2 text-xs font-semibold text-emerald-800">
                     <FileCheck2Icon className="size-4" /> Preuve associée

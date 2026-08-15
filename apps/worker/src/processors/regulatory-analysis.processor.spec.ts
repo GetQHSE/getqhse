@@ -3,10 +3,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   buildRegulatoryQueries,
+  canCarryForwardRequirement,
   computeProfileChanges,
+  dedupeRegulatoryProvisions,
+  isStructurallyEligibleProvision,
   matchProvisionRevision,
   RegulatoryAnalysisProcessor,
+  validateRequirementDraft,
 } from "./regulatory-analysis.processor.js";
+import { regulatoryProvisionGoldenFixtures } from "./fixtures/regulatory-provisions.golden.js";
 
 describe("regulatory analysis query planning", () => {
   it("builds bounded searches from the regulatory profile snapshot", () => {
@@ -19,7 +24,8 @@ describe("regulatory analysis query planning", () => {
         "regulatory.knownRequirements": ["ISO 9001"],
       },
     });
-    expect(queries).toHaveLength(6);
+    expect(queries.length).toBeGreaterThan(6);
+    expect(queries.length).toBeLessThanOrEqual(12);
     expect(queries[0]).toContain("Métallurgie");
     expect(queries.some((query) => query.includes("ISO 9001"))).toBe(true);
     expect(queries.every((query) => query.length < 20_000)).toBe(true);
@@ -66,6 +72,108 @@ describe("regulatory analysis query planning", () => {
       changeType: "REMOVAL_PROPOSED",
       ambiguous: true,
     });
+  });
+});
+
+describe("accuracy-first provision quality gates", () => {
+  it("excludes every non-normative golden fixture and retains valid clauses and articles", () => {
+    let truePositive = 0;
+    let falsePositive = 0;
+    let falseNegative = 0;
+    for (const fixture of regulatoryProvisionGoldenFixtures) {
+      const predicted = isStructurallyEligibleProvision(fixture);
+      expect(predicted, fixture.name).toBe(fixture.expectedEligible);
+      if (predicted && fixture.expectedEligible) truePositive += 1;
+      if (predicted && !fixture.expectedEligible) falsePositive += 1;
+      if (!predicted && fixture.expectedEligible) falseNegative += 1;
+    }
+    const precision = truePositive / (truePositive + falsePositive);
+    const recall = truePositive / (truePositive + falseNegative);
+    expect(precision).toBeGreaterThanOrEqual(0.95);
+    expect(recall).toBeGreaterThanOrEqual(0.95);
+  });
+
+  it("deduplicates a logical provision identifier before AI analysis", () => {
+    const valid = regulatoryProvisionGoldenFixtures.find(
+      (fixture) => fixture.name === "valid ISO operational clause",
+    )!;
+    const provisions = dedupeRegulatoryProvisions([
+      {
+        ...valid,
+        provisionId: "low-score",
+        documentId: "iso-9001",
+        documentVersionId: "v1",
+        documentTitle: "ISO 9001",
+        referenceNumber: "ISO 9001:2015",
+        language: "fr",
+        contentHash: "hash-low",
+        score: 0.2,
+      },
+      {
+        ...valid,
+        provisionId: "high-score",
+        documentId: "iso-9001",
+        documentVersionId: "v1",
+        documentTitle: "ISO 9001",
+        referenceNumber: "ISO 9001:2015",
+        language: "fr",
+        contentHash: "hash-high",
+        score: 0.9,
+      },
+    ]);
+    expect(provisions).toHaveLength(1);
+    expect(provisions[0]?.provisionId).toBe("high-score");
+  });
+
+  it("requires exact supporting excerpts from the same source", () => {
+    const source = regulatoryProvisionGoldenFixtures.find(
+      (fixture) => fixture.name === "Moroccan article",
+    )!.content;
+    expect(
+      validateRequirementDraft(
+        source,
+        "L’employeur doit prendre les mesures nécessaires pour préserver la sécurité et la santé des salariés.",
+        ["préserver la sécurité, la santé et la dignité des salariés"],
+      ),
+    ).toEqual([]);
+    expect(
+      validateRequirementDraft(source, "L’employeur doit organiser une formation annuelle.", [
+        "formation annuelle obligatoire",
+      ]),
+    ).toContain("Un extrait justificatif n’est pas une citation exacte de la disposition.");
+  });
+
+  it("rejects long source copying and inputs that would be truncated", () => {
+    const source =
+      "L’organisme doit déterminer surveiller revoir et mettre à jour les informations nécessaires afin de maîtriser durablement tous les processus opérationnels pertinents pour assurer la conformité constante des produits et services fournis aux clients concernés.";
+    expect(validateRequirementDraft(source, source, [source.slice(0, 80)])).toContain(
+      "L’exigence copie un passage trop long de la source au lieu de le reformuler.",
+    );
+    expect(
+      validateRequirementDraft(
+        "Article 1 — " + "texte normatif ".repeat(2_500),
+        "L’organisme doit respecter la disposition applicable.",
+        ["Article 1"],
+      ),
+    ).toContain("La disposition dépasse la taille maximale et serait tronquée.");
+  });
+
+  it("carries forward only a supported requirement on an unchanged source and profile", () => {
+    const source = regulatoryProvisionGoldenFixtures.find(
+      (fixture) => fixture.name === "valid ISO context clause",
+    )!.content;
+    const candidate = {
+      changeType: "UNCHANGED" as const,
+      content: source,
+      previousRequirementText:
+        "L’organisme doit déterminer les enjeux externes et internes pertinents pour sa finalité et son orientation stratégique.",
+      previousRequirementSupportingExcerpts: [
+        "déterminer les enjeux externes et internes pertinents par rapport à sa finalité et à son orientation stratégique",
+      ],
+    };
+    expect(canCarryForwardRequirement(candidate, [])).toBe(true);
+    expect(canCarryForwardRequirement({ ...candidate, changeType: "MODIFIED" }, [])).toBe(false);
+    expect(canCarryForwardRequirement(candidate, [{ key: "scope" }])).toBe(false);
   });
 });
 

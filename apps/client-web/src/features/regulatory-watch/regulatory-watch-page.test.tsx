@@ -117,6 +117,14 @@ const activeWatch = {
         changeType: "ADDED",
         orderIndex: 0,
         applicabilityRationale: "Applicable aux activités de production déclarées.",
+        requirement: {
+          text: "L’organisme doit déterminer et fournir les ressources nécessaires à la surveillance et à la mesure.",
+          source: "AI",
+          supportingExcerpts: [
+            "déterminer et fournir les ressources nécessaires à la surveillance et à la mesure",
+          ],
+          reviewedAt: "2026-08-10T12:00:00.000Z",
+        },
         source: {
           sourceId: "provision-1",
           documentId: "document-1",
@@ -280,6 +288,35 @@ describe("RegulatoryWatchPage", () => {
     expect(screen.getAllByText("ISO 9001:2015").length).toBeGreaterThan(0);
   });
 
+  it("labels legacy requirements for regeneration and disables XLSX export", () => {
+    const legacyWatch = {
+      ...activeWatch,
+      currentBaseline: {
+        ...activeWatch.currentBaseline,
+        entries: activeWatch.currentBaseline.entries.map((entry) => ({
+          ...entry,
+          requirement: null,
+        })),
+      },
+    };
+    render(
+      <MemoryRouter>
+        <DataPage
+          exporting={false}
+          onExport={vi.fn()}
+          onRefresh={vi.fn()}
+          profile={profile as never}
+          refreshing={false}
+          synchronizing={false}
+          watch={legacyWatch as never}
+        />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByText("Exigences à régénérer")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Exporter en Excel/ })).toBeDisabled();
+  });
+
   it("keeps the published baseline visible while grouped changes await review", async () => {
     vi.mocked(clientApi.regulatoryWatch).mockResolvedValue({
       ...activeWatch,
@@ -307,6 +344,16 @@ describe("RegulatoryWatchPage", () => {
             confidence: 0.91,
             decisionNote: null,
             reviewedAt: null,
+            requirement: {
+              text: "L’organisme doit déterminer et fournir les ressources nécessaires à la surveillance et à la mesure.",
+              status: "READY",
+              supportingExcerpts: [
+                "déterminer et fournir les ressources nécessaires à la surveillance et à la mesure",
+              ],
+              issues: [],
+              source: "AI",
+              editedAt: null,
+            },
             source: activeWatch.currentBaseline.entries[0]!.source,
           },
           {
@@ -324,6 +371,16 @@ describe("RegulatoryWatchPage", () => {
             confidence: 1,
             decisionNote: null,
             reviewedAt: null,
+            requirement: {
+              text: "L’organisme doit déterminer et fournir les ressources nécessaires à la surveillance et à la mesure.",
+              status: "READY",
+              supportingExcerpts: [
+                "déterminer et fournir les ressources nécessaires à la surveillance et à la mesure",
+              ],
+              issues: [],
+              source: "CARRIED_FORWARD",
+              editedAt: null,
+            },
             source: activeWatch.currentBaseline.entries[0]!.source,
           },
         ],
@@ -337,11 +394,77 @@ describe("RegulatoryWatchPage", () => {
         lastSuccessfulSyncAt: "2026-08-10T12:00:00.000Z",
       },
     } as never);
+    vi.mocked(clientApi.decideRegulatoryCandidate).mockResolvedValue(activeWatch as never);
+    const user = userEvent.setup();
     renderPage();
 
     expect(await screen.findByText("Validez uniquement les changements")).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: /Ajouts/ })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: /Inchangés/ })).toBeInTheDocument();
     expect(screen.getAllByText("ISO 9001:2015").length).toBeGreaterThan(0);
+    const requirement = screen.getByRole("textbox", { name: /Exigence 7\.1\.5/ });
+    await user.clear(requirement);
+    await user.type(
+      requirement,
+      "L’organisme doit fournir et maîtriser les ressources nécessaires aux activités de mesure.",
+    );
+    await user.click(screen.getByRole("button", { name: "Applicable" }));
+    expect(clientApi.decideRegulatoryCandidate).toHaveBeenCalledWith(
+      "atlas-industrie",
+      "candidate-added",
+      {
+        watchRevision: 3,
+        decision: "APPLICABLE",
+        requirementText:
+          "L’organisme doit fournir et maîtriser les ressources nécessaires aux activités de mesure.",
+      },
+    );
+  });
+
+  it("disables approval and publication when the normative source is blocked", async () => {
+    vi.mocked(clientApi.regulatoryWatch).mockResolvedValue({
+      ...notStartedWatch,
+      status: "REVIEW_REQUIRED",
+      currentAnalysis: {
+        ...analysis,
+        status: "READY_FOR_REVIEW",
+        phase: "review",
+        progressPercent: 100,
+        diff: { added: 1, unchanged: 0, modified: 0, removalProposed: 0, requiresReview: 1 },
+        candidates: [
+          {
+            id: "candidate-blocked",
+            changeType: "ADDED",
+            changeSummary: "Source extraite avec une structure corrompue.",
+            previousEntryId: null,
+            previousSource: null,
+            requiresReview: true,
+            suggestion: "TO_CONFIRM",
+            decision: null,
+            decisionSource: null,
+            rationale: "La source ne permet pas une analyse fiable.",
+            matchedProfileKeys: [],
+            confidence: 0,
+            decisionNote: null,
+            reviewedAt: null,
+            requirement: {
+              text: null,
+              status: "SOURCE_REVIEW_REQUIRED",
+              supportingExcerpts: [],
+              issues: ["Le texte source semble corrompu par l’OCR."],
+              source: null,
+              editedAt: null,
+            },
+            source: activeWatch.currentBaseline.entries[0]!.source,
+          },
+        ],
+      },
+    } as never);
+    renderPage();
+
+    expect(await screen.findByText(/Publication bloquée par 1 source/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Applicable" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Non applicable" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /Publier le référentiel/ })).toBeDisabled();
   });
 });

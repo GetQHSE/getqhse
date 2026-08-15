@@ -565,6 +565,12 @@ export const regulatoryChangeTypeSchema = z.enum([
   "REMOVAL_PROPOSED",
 ]);
 export const regulatoryDecisionSourceSchema = z.enum(["SYSTEM", "HUMAN"]);
+export const regulatoryRequirementStatusSchema = z.enum([
+  "READY",
+  "SOURCE_REVIEW_REQUIRED",
+  "NOT_REQUIRED",
+]);
+export const regulatoryRequirementSourceSchema = z.enum(["AI", "HUMAN", "CARRIED_FORWARD"]);
 export const regulatoryRunTriggerSchema = z.enum(["MANUAL", "DOCUMENT_REVISION"]);
 export const regulatoryApplicabilitySchema = z.enum(["APPLICABLE", "TO_CONFIRM", "NOT_APPLICABLE"]);
 export const assessmentResultSchema = z.enum([
@@ -594,11 +600,22 @@ export const answerRegulatoryClarificationsSchema = z.object({
 });
 export type AnswerRegulatoryClarifications = z.infer<typeof answerRegulatoryClarificationsSchema>;
 
-export const decideRegulatoryCandidateSchema = z.object({
-  watchRevision: z.number().int().positive(),
-  decision: z.enum(["APPLICABLE", "NOT_APPLICABLE"]),
-  note: z.string().trim().max(2_000).nullable().optional(),
-});
+export const decideRegulatoryCandidateSchema = z
+  .object({
+    watchRevision: z.number().int().positive(),
+    decision: z.enum(["APPLICABLE", "NOT_APPLICABLE"]),
+    requirementText: z.string().trim().min(20).max(1_200).optional(),
+    note: z.string().trim().max(2_000).nullable().optional(),
+  })
+  .superRefine((value, context) => {
+    if (value.decision === "APPLICABLE" && !value.requirementText) {
+      context.addIssue({
+        code: "custom",
+        path: ["requirementText"],
+        message: "requirementText is required for an applicable provision",
+      });
+    }
+  });
 export type DecideRegulatoryCandidate = z.infer<typeof decideRegulatoryCandidateSchema>;
 
 export const publishRegulatoryBaselineSchema = z.object({
@@ -688,6 +705,14 @@ export const regulatoryCandidateSchema = z.object({
   confidence: z.number().min(0).max(1),
   decisionNote: z.string().nullable(),
   reviewedAt: isoDateTimeSchema.nullable(),
+  requirement: z.object({
+    text: z.string().nullable(),
+    status: regulatoryRequirementStatusSchema,
+    supportingExcerpts: z.array(z.string()),
+    issues: z.array(z.string()),
+    source: regulatoryRequirementSourceSchema.nullable(),
+    editedAt: isoDateTimeSchema.nullable(),
+  }),
   source: regulatoryCitationSchema,
 });
 
@@ -713,6 +738,8 @@ export const regulatoryAnalysisErrorCodeSchema = z.enum([
   "CORPUS_COVERAGE_GAP",
   /** The run could not be enqueued. */
   "QUEUE_ERROR",
+  /** The configured regulatory model is unavailable or rejected. */
+  "REGULATORY_MODEL_UNAVAILABLE",
   /** Anything else. */
   "ANALYSIS_FAILED",
 ]);
@@ -734,6 +761,8 @@ export const regulatoryAnalysisErrorMessages: Record<RegulatoryAnalysisErrorCode
   CORPUS_COVERAGE_GAP:
     "Aucun texte normatif de la base ne correspond au profil du projet. Complétez le profil puis relancez l’analyse.",
   QUEUE_ERROR: "L’analyse n’a pas pu être mise en file d’attente. Relancez l’analyse.",
+  REGULATORY_MODEL_UNAVAILABLE:
+    "Le modèle d’analyse réglementaire configuré est indisponible. Contactez votre administrateur.",
   ANALYSIS_FAILED: "Vous pouvez relancer l’analyse sans modifier le profil.",
 };
 
@@ -820,6 +849,14 @@ export const regulatoryRegisterEntrySchema = z.object({
   changeType: regulatoryChangeTypeSchema,
   orderIndex: z.number().int().nonnegative(),
   applicabilityRationale: z.string(),
+  requirement: z
+    .object({
+      text: z.string(),
+      source: regulatoryRequirementSourceSchema,
+      supportingExcerpts: z.array(z.string()),
+      reviewedAt: isoDateTimeSchema,
+    })
+    .nullable(),
   source: regulatoryCitationSchema,
   evaluation: regulatoryEvaluationSchema,
 });

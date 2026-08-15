@@ -9,6 +9,8 @@ describe("regulatory watch workbook export", () => {
       {
         documentLabel: "ISO 9001 — Système de management de la qualité",
         provisionIdentifier: "4.1",
+        sourceText:
+          "4.1 Compréhension de l’organisme et de son contexte\n4.1 Compréhension de l’organisme et de son contexte\nL’organisme doit déterminer les enjeux externes et internes pertinents.",
         requirement: "Compréhension de l’organisme et de son contexte",
         result: "PARTIAL",
         evidence: ["Analyse de contexte.pdf", "Compte rendu de direction"],
@@ -39,6 +41,8 @@ describe("regulatory watch workbook export", () => {
       {
         documentLabel: "ISO 9001 — Système de management de la qualité",
         provisionIdentifier: "4.2",
+        sourceText:
+          "4.2 Compréhension des besoins et des attentes des parties intéressées\nL’organisme doit déterminer les parties intéressées pertinentes.",
         requirement: "Besoins et attentes des parties intéressées",
         result: "NOT_ASSESSED",
         evidence: [],
@@ -54,9 +58,15 @@ describe("regulatory watch workbook export", () => {
     expect(sheet.getCell("A1").value).toBe("Liste des textes réglementaires et normatives");
     expect(sheet.getCell("A3").value).toBe("Textes réglementaires et normatives ");
     expect(sheet.getCell("D3").value).toBe("Articles applicables");
-    expect(sheet.getCell("D4").value).toBe("4.1\n4.2");
-    expect(sheet.getCell("A6").value).toBe("EVALUATION REGLEMENTAIRE ET NORMATIVE ");
-    expect(sheet.getRow(8).values).toEqual([
+    const officialCell = sheet.getCell("D4").value;
+    if (typeof officialCell !== "string") throw new Error("Expected a string official-text cell");
+    expect(officialCell).toContain("4.1\nCompréhension de l’organisme et de son contexte");
+    expect(officialCell.match(/Compréhension de l’organisme/g)).toHaveLength(1);
+    expect(sheet.getCell("D5").value).toContain(
+      "4.2\nCompréhension des besoins et des attentes des parties intéressées",
+    );
+    expect(sheet.getCell("A7").value).toBe("EVALUATION REGLEMENTAIRE ET NORMATIVE ");
+    expect(sheet.getRow(9).values).toEqual([
       undefined,
       "Textes réglementaires/Normes ",
       "Exigences applicables ",
@@ -71,14 +81,27 @@ describe("regulatory watch workbook export", () => {
       "Action efficace oui/non",
       "commentaire",
     ]);
-    expect(sheet.getCell("C10").value).toBe("Partiellement conforme");
-    expect(sheet.getCell("D10").value).toBe("Analyse de contexte.pdf\nCompte rendu de direction");
-    expect(sheet.getCell("E10").value).toBe("Actualiser l’analyse");
-    expect(sheet.getCell("K11").value).toBe("Oui");
-    expect(sheet.getCell("B12").value).toContain("4.2");
-    expect(sheet.getCell("C12").value).toBe("À évaluer");
+    expect(sheet.getCell("C11").value).toBe("Partiellement conforme");
+    expect(sheet.getCell("D11").value).toBe("Analyse de contexte.pdf\nCompte rendu de direction");
+    expect(sheet.getCell("E11").value).toBe("Actualiser l’analyse");
+    expect(sheet.getCell("K12").value).toBe("Oui");
+    expect(sheet.getCell("B13").value).toContain("4.2");
+    expect(sheet.getCell("C13").value).toBe("À évaluer");
+    const requirementCell = sheet.getCell("B11").value;
+    if (typeof requirementCell !== "string") throw new Error("Expected a string requirement cell");
+    expect(requirementCell).not.toContain("L’organisme doit déterminer les enjeux externes");
     expect(sheet.model.merges).toEqual(
-      expect.arrayContaining(["A1:F1", "A3:C3", "D3:E3", "A6:F6", "A8:A9", "L8:L9"]),
+      expect.arrayContaining([
+        "A1:F1",
+        "A3:C3",
+        "D3:E3",
+        "A4:C5",
+        "D4:E4",
+        "D5:E5",
+        "A7:F7",
+        "A9:A10",
+        "L9:L10",
+      ]),
     );
   });
 });

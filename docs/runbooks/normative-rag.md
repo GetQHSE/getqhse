@@ -22,6 +22,30 @@ retrieval logs.
 8. Evaluate the synthetic French/Arabic dataset, then exercise `POST /v1/normative/search` from an
    authenticated customer session.
 
+## Accuracy-first regulatory analysis
+
+The regulatory worker uses `OPENAI_REGULATORY_MODEL=gpt-5.6-sol` and
+`OPENAI_REGULATORY_REASONING_EFFORT=xhigh` by default. Keep both values explicit in production. A
+configured model failure stops the run with `REGULATORY_MODEL_UNAVAILABLE`; the worker never falls
+back silently to a smaller model. Requests use `store=false`.
+
+Each run expands queries from the validated project profile, fuses keyword and vector ranks,
+expands the best 20 documents, deduplicates logical provisions, and analyzes at most 100 provisions.
+Cover pages, tables of contents, notes, definitions, tables, introductory `0.x` clauses, heading-only
+clauses, and informative annexes are removed before model review. Regulations require an identified
+article; standards require an identified clause or an explicitly normative annex.
+
+Every provision is drafted alone from its complete source text. The worker validates exact supporting
+excerpts, rejects copied passages and corrupted/truncated input, then runs an independent verification.
+It retries drafting once with verifier feedback. A remaining failure becomes
+`SOURCE_REVIEW_REQUIRED` and blocks both reviewer approval and baseline publication until the source
+document is corrected, reprocessed, reindexed, and the analysis is rerun.
+
+Published baselines are immutable. There is no automatic backfill: an older entry without approved
+requirement wording displays **Exigence à régénérer** and cannot be exported. Use **Actualiser
+l’analyse** to supersede an unpublished `READY_FOR_REVIEW` run, review the newly drafted requirements,
+and publish a successor baseline. Queued, running, and clarification runs cannot be superseded.
+
 Activating a profile atomically retires the prior profile. Its vectors remain available for
 rollback. A revision is returned only when it is published, human-validated, effective for the
 requested date, visible, in the Morocco/global ISO scope, fully indexed under the active profile,
@@ -47,6 +71,7 @@ curl -s --cookie "$ADMIN_COOKIE" https://<admin-api>/v1/documents/embedding-prof
 | `EMBEDDING_PROFILE_BUILDING`      | Indexing is under way.                                    | Wait for the BullMQ jobs; check `missingChunks` per profile.                           |
 | `EMBEDDING_PROFILE_NOT_ACTIVATED` | A profile is READY but step 7 was skipped.                | `POST /v1/documents/embedding-profiles/{profileId}/activate`.                          |
 | `EMBEDDING_PROFILE_STALE`         | Content was published after the active profile was built. | Reindex the new revisions, then activate the refreshed profile.                        |
+| `REGULATORY_MODEL_UNAVAILABLE`    | The configured accuracy model failed or was rejected.     | Verify model access and both regulatory model variables; restart the worker.           |
 
 ### Driving the rollout
 
@@ -122,3 +147,14 @@ pnpm exec dotenv -e .env -- env TESTCONTAINERS_ENABLED=true OPENAI_LIVE_TESTS=tr
 The test uses synthetic normative content and a disposable pgvector container. It checks the
 768-dimensional document vector, embedding-profile readiness, hybrid retrieval, citation metadata,
 and content-free retrieval logging, then removes the container.
+
+The requirement-drafting evaluation also uses synthetic French and Arabic articles only; licensed
+ISO text stays outside Git:
+
+```bash
+pnpm exec dotenv -e .env -- env OPENAI_LIVE_TESTS=true pnpm --filter @qhse/integration-tests exec vitest run regulatory-watch-openai.live.integration.test.ts
+```
+
+Release acceptance requires 100% exact source citations/support excerpts, zero raw-chunk leakage,
+zero non-normative golden rows, and at least 95% provision-level precision and recall on the curated
+internal regulatory evaluation dataset.

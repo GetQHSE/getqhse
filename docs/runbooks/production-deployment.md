@@ -36,11 +36,14 @@ Compose ports directly from the VPS firewall.
    least 32 characters. Keep `COOKIE_SECURE=true`, which is fixed by the Compose definition.
 4. Set resource limits to fit the VPS. Docling is the largest workload; do not allocate the defaults
    unless the host has sufficient memory and CPU.
-5. Configure the Compose application to build `compose.production.yaml` from `main`. Disable Dokploy's
+5. Keep `OPENAI_REGULATORY_MODEL=gpt-5.6-sol` and
+   `OPENAI_REGULATORY_REASONING_EFFORT=xhigh` explicit. Confirm that the production OpenAI project
+   can access the configured model; regulatory generation intentionally has no mini-model fallback.
+6. Configure the Compose application to build `compose.production.yaml` from `main`. Disable Dokploy's
    direct push auto-deploy so an unverified commit cannot bypass CI.
-6. Deploy once. The `migrate` container runs `prisma migrate deploy`; the APIs and worker start only
+7. Deploy once. The `migrate` container runs `prisma migrate deploy`; the APIs and worker start only
    after it exits successfully. A failed migration prevents the dependent services from starting.
-7. Bootstrap the first administrator exactly once:
+8. Bootstrap the first administrator exactly once:
 
    ```bash
    docker compose --env-file .env.production -f compose.production.yaml run --rm migrate pnpm db:seed
@@ -48,7 +51,7 @@ Compose ports directly from the VPS firewall.
 
    Remove the bootstrap password from Dokploy after confirming sign-in. Later deployments never seed.
 
-8. Configure each public route in Dokploy and verify:
+9. Configure each public route in Dokploy and verify:
 
    ```bash
    curl --fail https://api.example.com/health/ready

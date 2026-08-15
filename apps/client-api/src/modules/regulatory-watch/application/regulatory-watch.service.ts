@@ -240,6 +240,14 @@ export class RegulatoryWatchService {
             confidence: Number(candidate.confidence),
             decisionNote: candidate.decisionNote,
             reviewedAt: dateTime(candidate.reviewedAt),
+            requirement: {
+              text: candidate.requirementText,
+              status: candidate.requirementStatus,
+              supportingExcerpts: candidate.requirementSupportingExcerpts,
+              issues: candidate.requirementIssues,
+              source: candidate.requirementSource,
+              editedAt: dateTime(candidate.requirementEditedAt),
+            },
             source: sourceFromProvision(candidate.provision),
           })),
           diff: {
@@ -275,6 +283,15 @@ export class RegulatoryWatchService {
               changeType: entry.changeType,
               orderIndex: entry.orderIndex,
               applicabilityRationale: entry.applicabilityRationale,
+              requirement:
+                entry.requirementText && entry.requirementSource && entry.requirementReviewedAt
+                  ? {
+                      text: entry.requirementText,
+                      source: entry.requirementSource,
+                      supportingExcerpts: entry.requirementSupportingExcerpts,
+                      reviewedAt: entry.requirementReviewedAt.toISOString(),
+                    }
+                  : null,
               source: sourceFromProvision(entry.provision),
               evaluation: {
                 id: entry.evaluation.id,
@@ -359,14 +376,18 @@ export class RegulatoryWatchService {
     }
     if (
       watch.analyses[0] &&
-      ["QUEUED", "RUNNING", "AWAITING_CLARIFICATION", "READY_FOR_REVIEW"].includes(
-        watch.analyses[0].status,
-      )
+      ["QUEUED", "RUNNING", "AWAITING_CLARIFICATION"].includes(watch.analyses[0].status)
     ) {
       throw new ConflictException("A regulatory analysis is already active");
     }
     const asOf = new Date(`${input.asOf ?? new Date().toISOString().slice(0, 10)}T00:00:00.000Z`);
     const run = await this.database.$transaction(async (tx) => {
+      if (watch.analyses[0]?.status === "READY_FOR_REVIEW") {
+        await tx.regulatoryAnalysisRun.update({
+          where: { id: watch.analyses[0].id },
+          data: { status: "SUPERSEDED", phase: "superseded", supersededAt: new Date() },
+        });
+      }
       const created = await tx.regulatoryAnalysisRun.create({
         data: {
           watchId: watch.id,
@@ -494,6 +515,17 @@ export class RegulatoryWatchService {
       },
     });
     if (!candidate) throw new NotFoundException("Regulatory candidate not found");
+    if (candidate.requirementStatus === "SOURCE_REVIEW_REQUIRED") {
+      throw new BadRequestException(
+        "The normative source must be corrected and reprocessed before this candidate can be approved",
+      );
+    }
+    if (input.decision === "APPLICABLE" && !input.requirementText) {
+      throw new BadRequestException("requirementText is required for an applicable provision");
+    }
+    const requirementWasEdited =
+      input.decision === "APPLICABLE" && input.requirementText !== candidate.requirementText;
+    const reviewedAt = new Date();
     await this.database.$transaction(async (tx) => {
       const claimed = await tx.projectRegulatoryWatch.updateMany({
         where: { id: watch.id, revision: input.watchRevision },
@@ -507,7 +539,20 @@ export class RegulatoryWatchService {
           decisionSource: "HUMAN",
           decisionNote: input.note ?? null,
           reviewedById: tenant.userId,
-          reviewedAt: new Date(),
+          reviewedAt,
+          ...(input.decision === "APPLICABLE"
+            ? {
+                requirementText: input.requirementText as string,
+                requirementStatus: "READY" as const,
+                ...(requirementWasEdited
+                  ? {
+                      requirementSource: "HUMAN" as const,
+                      requirementEditedById: tenant.userId,
+                      requirementEditedAt: reviewedAt,
+                    }
+                  : {}),
+              }
+            : {}),
         },
       });
     });
@@ -538,6 +583,13 @@ export class RegulatoryWatchService {
     });
     if (!run) throw new NotFoundException("Reviewable regulatory analysis not found");
     if (
+      run.candidates.some((candidate) => candidate.requirementStatus === "SOURCE_REVIEW_REQUIRED")
+    ) {
+      throw new BadRequestException(
+        "Publication is blocked: a normative source must be corrected and reprocessed",
+      );
+    }
+    if (
       run.candidates.some((candidate) => candidate.requiresReview && candidate.decision === null)
     ) {
       throw new BadRequestException("Every regulatory change must be reviewed before publishing");
@@ -545,6 +597,16 @@ export class RegulatoryWatchService {
     const applicable = run.candidates.filter((candidate) => candidate.decision === "APPLICABLE");
     if (!applicable.length)
       throw new BadRequestException("At least one provision must be applicable");
+    if (
+      applicable.some(
+        (candidate) =>
+          candidate.requirementStatus !== "READY" ||
+          !candidate.requirementText ||
+          !candidate.requirementSource,
+      )
+    ) {
+      throw new BadRequestException("Every applicable provision must have an approved requirement");
+    }
     const invalidRetainedRemoval = applicable.find(
       (candidate) =>
         candidate.changeType === "REMOVAL_PROPOSED" &&
@@ -581,7 +643,11 @@ export class RegulatoryWatchService {
         },
       });
       for (const [index, candidate] of applicable.entries()) {
+        if (!candidate.requirementText || !candidate.requirementSource) {
+          throw new BadRequestException("Applicable requirement is missing");
+        }
         const previousEvaluation = candidate.previousEntry?.evaluation ?? null;
+        const requirementReviewedAt = candidate.reviewedAt ?? new Date();
         const entry = await tx.regulatoryRegisterEntry.create({
           data: {
             baselineId: baseline.id,
@@ -590,6 +656,11 @@ export class RegulatoryWatchService {
             changeType: candidate.changeType,
             orderIndex: index,
             applicabilityRationale: candidate.rationale,
+            requirementText: candidate.requirementText,
+            requirementSource: candidate.requirementSource,
+            requirementSupportingExcerpts: candidate.requirementSupportingExcerpts,
+            requirementReviewedById: candidate.reviewedById ?? tenant.userId,
+            requirementReviewedAt,
             citationLabel: stableCitationLabel({
               documentTitle: candidate.provision.version.document.title,
               referenceNumber: candidate.provision.version.document.referenceNumber,
@@ -839,13 +910,20 @@ export class RegulatoryWatchService {
       (entry) => !entry.provision.version.exportAllowed,
     );
     if (blocked) throw new ForbiddenException("A normative source does not permit export");
+    const legacyEntry = watch.currentBaseline.entries.find((entry) => !entry.requirementText);
+    if (legacyEntry) {
+      throw new BadRequestException(
+        "Exigence à régénérer: relancez l’analyse et publiez la nouvelle veille avant l’export XLSX",
+      );
+    }
     const entries: RegulatoryExportEntry[] = watch.currentBaseline.entries.map((entry) => {
       if (!entry.evaluation) throw new Error("Published register entry is missing evaluation");
       const document = entry.provision.version.document;
       return {
         documentLabel: [document.referenceNumber, document.title].filter(Boolean).join(" — "),
         provisionIdentifier: entry.provision.sourceIdentifier ?? "Section",
-        requirement: entry.provision.content,
+        sourceText: entry.provision.content,
+        requirement: entry.requirementText ?? "",
         result: entry.evaluation.result,
         evidence: entry.evaluation.evidence.map(
           (evidence) =>

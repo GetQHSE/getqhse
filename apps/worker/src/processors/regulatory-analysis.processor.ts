@@ -1,6 +1,6 @@
 import { Processor, WorkerHost } from "@nestjs/bullmq";
 import { openai } from "@ai-sdk/openai";
-import { regulatoryApplicabilityPrompt } from "@qhse/ai";
+import { regulatoryApplicabilityPrompt, regulatoryRequirementVerificationPrompt } from "@qhse/ai";
 import { RegulatoryAnalysisError, type JobEnvelope } from "@qhse/contracts";
 import {
   createPrismaClient,
@@ -11,6 +11,7 @@ import {
 import { embed, generateText, Output } from "ai";
 import type { Job } from "bullmq";
 import { z } from "zod";
+import { reciprocalRankFusion } from "@qhse/knowledge";
 
 import { queueNames } from "../queues.js";
 
@@ -22,6 +23,8 @@ type RetrievedProvision = {
   documentVersionId: string;
   documentTitle: string;
   referenceNumber: string | null;
+  documentFamily: "standard" | "regulation";
+  provisionType: "clause" | "article" | "definition" | "annex" | "table" | "note" | "section";
   identifier: string | null;
   title: string | null;
   headingPath: string[];
@@ -36,6 +39,8 @@ type CandidateInput = RetrievedProvision & {
   changeType: ChangeType;
   changeSummary: string | null;
   previousRationale: string | null;
+  previousRequirementText: string | null;
+  previousRequirementSupportingExcerpts: string[];
 };
 
 type ClassifiedCandidate = CandidateInput & {
@@ -44,19 +49,29 @@ type ClassifiedCandidate = CandidateInput & {
   matchedProfileKeys: string[];
   confidence: number;
   clarificationQuestion: string | null;
+  requirementText: string | null;
+  requirementStatus: "READY" | "SOURCE_REVIEW_REQUIRED" | "NOT_REQUIRED";
+  requirementSupportingExcerpts: string[];
+  requirementIssues: string[];
+  requirementSource: "AI" | "CARRIED_FORWARD" | null;
 };
 
 const classificationSchema = z.object({
-  results: z.array(
-    z.object({
-      provisionId: z.string(),
-      suggestion: z.enum(["APPLICABLE", "TO_CONFIRM", "NOT_APPLICABLE"]),
-      rationale: z.string().trim().min(1).max(2_000),
-      matchedProfileKeys: z.array(z.string().max(120)).max(12),
-      confidence: z.number().min(0).max(1),
-      clarificationQuestion: z.string().trim().min(3).max(500).nullable(),
-    }),
-  ),
+  suggestion: z.enum(["APPLICABLE", "TO_CONFIRM", "NOT_APPLICABLE"]),
+  rationale: z.string().trim().min(1).max(2_000),
+  matchedProfileKeys: z.array(z.string().max(120)).max(12),
+  confidence: z.number().min(0).max(1),
+  clarificationQuestion: z.string().trim().min(3).max(500).nullable(),
+  sourceQuality: z.enum(["PASS", "BLOCKED"]),
+  normativeRequirement: z.boolean(),
+  requirementText: z.string().trim().min(20).max(1_200).nullable(),
+  supportingExcerpts: z.array(z.string().trim().min(1).max(500)).max(3),
+  qualityIssues: z.array(z.string().trim().min(1).max(300)).max(8),
+});
+
+const verificationSchema = z.object({
+  supported: z.boolean(),
+  issues: z.array(z.string().trim().min(1).max(300)).max(8),
 });
 
 function profileFields(data: unknown): Record<string, unknown> {
@@ -87,6 +102,165 @@ function logicalKey(provision: {
   const location =
     normalized(provision.identifier) || normalized(provision.headingPath.join(" / "));
   return `${provision.documentId}:${provision.language}:${location}`;
+}
+
+function structuralIssues(
+  provision: Pick<
+    RetrievedProvision,
+    "documentFamily" | "provisionType" | "identifier" | "title" | "headingPath" | "content"
+  >,
+): string[] {
+  const issues: string[] = [];
+  const identifier = normalized(provision.identifier);
+  const title = normalized(provision.title);
+  const heading = normalized(provision.headingPath.join(" "));
+  const content = provision.content.trim();
+  const combined = `${title} ${heading} ${normalized(content.slice(0, 800))}`;
+
+  if (["definition", "note", "table", "section"].includes(provision.provisionType)) {
+    issues.push(`Type de disposition non normatif: ${provision.provisionType}.`);
+  }
+  if (
+    /\b(sommaire|table des matieres|contents?|avant propos|foreword|introduction|domaine d application)\b/u.test(
+      combined,
+    ) &&
+    !identifier
+  ) {
+    issues.push("Couverture, sommaire ou section introductive détectée.");
+  }
+  if (
+    content.length < 40 ||
+    normalized(content) === normalized(provision.identifier) ||
+    normalized(content) === title ||
+    normalized(content) === normalized(`${provision.identifier ?? ""} ${provision.title ?? ""}`)
+  ) {
+    issues.push("Disposition sans contenu normatif exploitable.");
+  }
+  if (provision.documentFamily === "regulation") {
+    if (
+      provision.provisionType !== "article" ||
+      !/^(article|المادة)\s+/iu.test(provision.identifier?.trim() ?? "")
+    ) {
+      issues.push("Une réglementation doit être rattachée à un article identifié.");
+    }
+  } else {
+    if (provision.provisionType === "clause") {
+      if (!/^\d+(?:\.\d+)+$/u.test(provision.identifier?.trim() ?? "")) {
+        issues.push("La clause normative ne possède pas d’identifiant valide.");
+      }
+      if (/^0(?:\.|$)/u.test(provision.identifier?.trim() ?? "")) {
+        issues.push("Les clauses introductives 0.x sont exclues.");
+      }
+    } else if (provision.provisionType === "annex") {
+      if (
+        /\b(informative|informatif|informative)\b/u.test(combined) ||
+        !/\b(normative|normatif|normativa)\b/u.test(combined)
+      ) {
+        issues.push("L’annexe n’est pas explicitement normative.");
+      }
+    } else {
+      issues.push("Une norme doit être rattachée à une clause ou à une annexe normative.");
+    }
+  }
+  return [...new Set(issues)];
+}
+
+export function isStructurallyEligibleProvision(
+  provision: Pick<
+    RetrievedProvision,
+    "documentFamily" | "provisionType" | "identifier" | "title" | "headingPath" | "content"
+  >,
+): boolean {
+  return structuralIssues(provision).length === 0;
+}
+
+function normalizedWords(value: string): string[] {
+  return normalized(value).split(" ").filter(Boolean);
+}
+
+function hasLongCopiedPassage(source: string, draft: string, threshold = 25): boolean {
+  const sourceWords = normalizedWords(source);
+  const draftWords = normalizedWords(draft);
+  if (draftWords.length < threshold) return false;
+  const sourceText = ` ${sourceWords.join(" ")} `;
+  for (let index = 0; index <= draftWords.length - threshold; index += 1) {
+    if (sourceText.includes(` ${draftWords.slice(index, index + threshold).join(" ")} `))
+      return true;
+  }
+  return false;
+}
+
+export function validateRequirementDraft(
+  source: string,
+  requirementText: string | null,
+  supportingExcerpts: string[],
+): string[] {
+  const issues: string[] = [];
+  if (source.length > 30_000)
+    issues.push("La disposition dépasse la taille maximale et serait tronquée.");
+  if (!requirementText?.trim()) issues.push("Aucune exigence n’a été rédigée.");
+  if (
+    requirementText &&
+    (requirementText.trim().length < 20 || requirementText.trim().length > 1_200)
+  ) {
+    issues.push("La longueur de l’exigence est invalide.");
+  }
+  if (supportingExcerpts.length < 1 || supportingExcerpts.length > 3) {
+    issues.push("Un à trois extraits justificatifs exacts sont requis.");
+  }
+  const uniqueExcerpts = new Set<string>();
+  for (const excerpt of supportingExcerpts) {
+    if (excerpt.length > 500) issues.push("Un extrait justificatif dépasse 500 caractères.");
+    if (!source.includes(excerpt))
+      issues.push("Un extrait justificatif n’est pas une citation exacte de la disposition.");
+    const key = normalized(excerpt);
+    if (uniqueExcerpts.has(key)) issues.push("Un extrait justificatif est dupliqué.");
+    uniqueExcerpts.add(key);
+  }
+  if (requirementText && hasLongCopiedPassage(source, requirementText)) {
+    issues.push("L’exigence copie un passage trop long de la source au lieu de le reformuler.");
+  }
+  if (/\uFFFD/u.test(source) || (source.match(/\|/g)?.length ?? 0) > 30) {
+    issues.push("Le texte source semble corrompu par l’extraction ou l’OCR.");
+  }
+  return [...new Set(issues)];
+}
+
+export function canCarryForwardRequirement(
+  candidate: Pick<
+    CandidateInput,
+    "changeType" | "content" | "previousRequirementText" | "previousRequirementSupportingExcerpts"
+  >,
+  profileChanges: readonly unknown[],
+): boolean {
+  return (
+    candidate.changeType === "UNCHANGED" &&
+    profileChanges.length === 0 &&
+    Boolean(candidate.previousRequirementText) &&
+    validateRequirementDraft(
+      candidate.content,
+      candidate.previousRequirementText,
+      candidate.previousRequirementSupportingExcerpts,
+    ).length === 0
+  );
+}
+
+export function dedupeRegulatoryProvisions<T extends RetrievedProvision>(provisions: T[]): T[] {
+  const byKey = new Map<string, T>();
+  for (const provision of provisions) {
+    const key = logicalKey(provision);
+    const existing = byKey.get(key);
+    const provisionEligible = isStructurallyEligibleProvision(provision);
+    const existingEligible = existing ? isStructurallyEligibleProvision(existing) : false;
+    if (
+      !existing ||
+      (provisionEligible && !existingEligible) ||
+      (provisionEligible === existingEligible && Number(provision.score) > Number(existing.score))
+    ) {
+      byKey.set(key, provision);
+    }
+  }
+  return [...byKey.values()].sort((left, right) => Number(right.score) - Number(left.score));
 }
 
 export function matchProvisionRevision<
@@ -124,6 +298,9 @@ export function computeProfileChanges(
 
 export function buildRegulatoryQueries(snapshotData: unknown): string[] {
   const fields = profileFields(snapshotData);
+  const fieldQueries = Object.entries(fields)
+    .filter(([, value]) => value !== null && value !== undefined && compact(value).length > 2)
+    .map(([key, value]) => `${key.replace(/[._]/g, " ")} ${compact(value)} exigences Maroc`);
   const queries = [
     [
       fields["organization.primarySector"],
@@ -142,7 +319,7 @@ export function buildRegulatoryQueries(snapshotData: unknown): string[] {
   ]
     .map((parts) => parts.map(compact).join(" ").replace(/\s+/g, " ").trim())
     .filter((query) => query.length >= 3);
-  return [...new Set(queries)].slice(0, 6);
+  return [...new Set([...queries, ...fieldQueries])].slice(0, 12);
 }
 
 @Processor(queueNames.regulatoryAnalysis, { concurrency: 2 })
@@ -320,6 +497,9 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
           documentVersionId: version.id,
           documentTitle: document.title,
           referenceNumber: document.referenceNumber,
+          documentFamily: document.documentType === "standard" ? "standard" : "regulation",
+          provisionType:
+            provision.provisionType.toLowerCase() as RetrievedProvision["provisionType"],
           identifier: provision.sourceIdentifier,
           title: provision.title,
           headingPath: provision.headingPath,
@@ -340,6 +520,10 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
         documentVersionId: entry.provision.documentVersionId,
         documentTitle: entry.provision.version.document.title,
         referenceNumber: entry.provision.version.document.referenceNumber,
+        documentFamily:
+          entry.provision.version.document.documentType === "standard" ? "standard" : "regulation",
+        provisionType:
+          entry.provision.provisionType.toLowerCase() as RetrievedProvision["provisionType"],
         identifier: entry.provision.sourceIdentifier,
         title: entry.provision.title,
         headingPath: entry.provision.headingPath,
@@ -357,6 +541,8 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
           ...previous,
           previousEntryId: entry.id,
           previousRationale: entry.applicabilityRationale,
+          previousRequirementText: entry.requirementText,
+          previousRequirementSupportingExcerpts: entry.requirementSupportingExcerpts,
           changeType: "REMOVAL_PROPOSED" as const,
           changeSummary: !resolution.ambiguous
             ? "La disposition n’a pas été retrouvée dans la révision courante."
@@ -368,6 +554,8 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
         ...current,
         previousEntryId: entry.id,
         previousRationale: entry.applicabilityRationale,
+        previousRequirementText: entry.requirementText,
+        previousRequirementSupportingExcerpts: entry.requirementSupportingExcerpts,
         changeType: resolution.changeType,
         changeSummary:
           resolution.changeType === "UNCHANGED"
@@ -394,11 +582,13 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
           !mandatoryKeys.has(logicalKey(candidate)) &&
           !previouslyExcludedIds.has(candidate.provisionId),
       )
-      .slice(0, 40)
+      .slice(0, 100)
       .map((candidate) => ({
         ...candidate,
         previousEntryId: null,
         previousRationale: null,
+        previousRequirementText: null,
+        previousRequirementSupportingExcerpts: [],
         changeType: "ADDED",
         changeSummary: "Nouvelle disposition potentiellement applicable.",
       }));
@@ -420,7 +610,7 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
       run.profileSnapshot.data,
     );
     const deterministic = mandatory
-      .filter((candidate) => candidate.changeType === "UNCHANGED" && profileChanges.length === 0)
+      .filter((candidate) => canCarryForwardRequirement(candidate, profileChanges))
       .map((candidate): ClassifiedCandidate => ({
         ...candidate,
         suggestion: "APPLICABLE",
@@ -428,6 +618,11 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
         matchedProfileKeys: [],
         confidence: 1,
         clarificationQuestion: null,
+        requirementText: candidate.previousRequirementText,
+        requirementStatus: "READY",
+        requirementSupportingExcerpts: candidate.previousRequirementSupportingExcerpts,
+        requirementIssues: [],
+        requirementSource: "CARRIED_FORWARD",
       }));
     const toClassify = [
       ...mandatory.filter(
@@ -435,7 +630,7 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
       ),
       ...additions,
     ];
-    const classified = await this.classifyInBatches(run, toClassify, profileChanges);
+    const classified = await this.classifyProvisions(run, toClassify, profileChanges);
     const byProvision = new Map(classified.map((item) => [item.provisionId, item]));
     for (const candidate of toClassify) {
       if (!byProvision.has(candidate.provisionId)) {
@@ -446,6 +641,11 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
           matchedProfileKeys: [],
           confidence: 0,
           clarificationQuestion: null,
+          requirementText: null,
+          requirementStatus: "SOURCE_REVIEW_REQUIRED",
+          requirementSupportingExcerpts: [],
+          requirementIssues: ["Le modèle n’a produit aucune décision structurée exploitable."],
+          requirementSource: null,
         });
       }
     }
@@ -485,8 +685,9 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
 
     const reviewCount = finalCandidates.filter(
       (candidate) =>
-        candidate.changeType !== "UNCHANGED" &&
-        !(candidate.changeType === "ADDED" && candidate.suggestion === "NOT_APPLICABLE"),
+        candidate.requirementStatus === "SOURCE_REVIEW_REQUIRED" ||
+        (candidate.changeType !== "UNCHANGED" &&
+          !(candidate.changeType === "ADDED" && candidate.suggestion === "NOT_APPLICABLE")),
     ).length;
     if (run.baseBaselineId && reviewCount === 0) {
       const now = new Date();
@@ -528,7 +729,7 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
     embeddingModel: string,
     job: Job<JobEnvelope>,
   ): Promise<RetrievedProvision[]> {
-    const candidates = new Map<string, RetrievedProvision>();
+    const seeds = new Map<string, RetrievedProvision>();
     const queries = buildRegulatoryQueries(run.profileSnapshot.data);
     for (const [index, query] of queries.entries()) {
       const vectorResult = await embed({
@@ -541,22 +742,19 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
       if (vectorResult.embedding.length !== 768) throw new Error("Embedding dimensions mismatch");
       const vector = `[${vectorResult.embedding.join(",")}]`;
       const languageFilter = Prisma.join(run.languages.map((language) => Prisma.sql`${language}`));
-      const rows = await this.database.$queryRaw<RetrievedProvision[]>(Prisma.sql`
-        SELECT p."id" AS "provisionId", d."id" AS "documentId",
+      const selectColumns = Prisma.sql`
+        p."id" AS "provisionId", d."id" AS "documentId",
           v."id" AS "documentVersionId", d."title" AS "documentTitle",
-          d."reference_number" AS "referenceNumber", p."source_identifier" AS "identifier",
+          d."reference_number" AS "referenceNumber",
+          CASE WHEN d."document_type" = 'standard' THEN 'standard' ELSE 'regulation' END AS "documentFamily",
+          lower(p."provision_type"::text) AS "provisionType",
+          p."source_identifier" AS "identifier",
           p."title" AS "title", p."heading_path" AS "headingPath", p."language" AS "language",
-          p."content" AS "content", p."content_hash" AS "contentHash",
-          MAX((1 - (e."embedding" <=> ${vector}::vector))
-            + ts_rank_cd(c."search_vector", plainto_tsquery('simple', ${query}))) AS "score"
-        FROM "document_embeddings" e
-        JOIN "document_chunks" c ON c."id" = e."document_chunk_id"
-        JOIN "document_provisions" p ON p."id" = c."document_provision_id"
-        JOIN "document_versions" v ON v."id" = p."document_version_id"
-        JOIN "documents" d ON d."id" = v."document_id"
-        WHERE e."embedding_profile_id" = ${embeddingProfileId}
-          AND d."current_version_id" = v."id" AND v."status" = 'PUBLISHED'
-          AND v."validated_at" IS NOT NULL AND d."archived_at" IS NULL AND d."deleted_at" IS NULL
+          p."content" AS "content", p."content_hash" AS "contentHash"`;
+      const filters = Prisma.sql`
+          d."current_version_id" = v."id" AND v."status" = 'PUBLISHED'
+          AND v."validated_at" IS NOT NULL AND d."status" <> 'ARCHIVED'
+          AND d."archived_at" IS NULL AND d."deleted_at" IS NULL
           AND d."visibility" IN ('ORGANIZATION_AVAILABLE', 'PUBLIC_REFERENCE')
           AND v."storage_allowed" AND v."extraction_allowed" AND v."embedding_allowed"
           AND v."ai_processing_allowed" AND v."external_provider_allowed"
@@ -566,30 +764,117 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
             OR (d."document_type" = 'standard' AND lower(coalesce(d."jurisdiction", '')) IN ('global', 'international', 'iso')))
           AND coalesce(v."effective_date", d."effective_date", v."published_at"::date) <= ${dateOnly(run.asOf)}::date
           AND (coalesce(v."expiration_date", d."expiration_date") IS NULL
-            OR coalesce(v."expiration_date", d."expiration_date") > ${dateOnly(run.asOf)}::date)
-        GROUP BY p."id", d."id", v."id", d."title", d."reference_number", p."source_identifier",
-          p."title", p."heading_path", p."language", p."content", p."content_hash"
-        ORDER BY "score" DESC, p."id" ASC LIMIT 50`);
-      for (const row of rows) {
-        const existing = candidates.get(row.provisionId);
-        if (!existing || Number(row.score) > Number(existing.score))
-          candidates.set(row.provisionId, row);
+            OR coalesce(v."expiration_date", d."expiration_date") > ${dateOnly(run.asOf)}::date)`;
+      const [keywordRows, semanticRows] = await Promise.all([
+        this.database.$queryRaw<RetrievedProvision[]>(Prisma.sql`
+          SELECT ${selectColumns},
+            MAX(ts_rank_cd(c."search_vector", plainto_tsquery('simple', ${query}))) AS "score"
+          FROM "document_chunks" c
+          JOIN "document_embeddings" e ON e."document_chunk_id" = c."id"
+            AND e."embedding_profile_id" = ${embeddingProfileId}
+          JOIN "document_provisions" p ON p."id" = c."document_provision_id"
+          JOIN "document_versions" v ON v."id" = p."document_version_id"
+          JOIN "documents" d ON d."id" = v."document_id"
+          WHERE ${filters} AND c."search_vector" @@ plainto_tsquery('simple', ${query})
+          GROUP BY p."id", d."id", v."id", d."title", d."reference_number", d."document_type",
+            p."provision_type", p."source_identifier", p."title", p."heading_path", p."language",
+            p."content", p."content_hash"
+          ORDER BY "score" DESC, p."id" ASC LIMIT 50`),
+        this.database.$queryRaw<RetrievedProvision[]>(Prisma.sql`
+          SELECT ${selectColumns}, MAX(1 - (e."embedding" <=> ${vector}::vector)) AS "score"
+          FROM "document_embeddings" e
+          JOIN "document_chunks" c ON c."id" = e."document_chunk_id"
+          JOIN "document_provisions" p ON p."id" = c."document_provision_id"
+          JOIN "document_versions" v ON v."id" = p."document_version_id"
+          JOIN "documents" d ON d."id" = v."document_id"
+          WHERE e."embedding_profile_id" = ${embeddingProfileId} AND ${filters}
+          GROUP BY p."id", d."id", v."id", d."title", d."reference_number", d."document_type",
+            p."provision_type", p."source_identifier", p."title", p."heading_path", p."language",
+            p."content", p."content_hash"
+          ORDER BY MAX(e."embedding" <=> ${vector}::vector), p."id" ASC LIMIT 50`),
+      ]);
+      const byProvision = new Map(
+        [...keywordRows, ...semanticRows].map((row) => [row.provisionId, row]),
+      );
+      const fused = reciprocalRankFusion(
+        keywordRows.map((row, rank) => ({
+          id: row.provisionId,
+          rank: rank + 1,
+          score: Number(row.score),
+        })),
+        semanticRows.map((row, rank) => ({
+          id: row.provisionId,
+          rank: rank + 1,
+          score: Number(row.score),
+        })),
+        100,
+      );
+      for (const item of fused) {
+        const row = byProvision.get(item.id);
+        if (!row) continue;
+        const score = item.rrfScore + 1 / (100 + index);
+        const existing = seeds.get(row.provisionId);
+        if (!existing || score > Number(existing.score))
+          seeds.set(row.provisionId, { ...row, score });
       }
       await job.updateProgress({
         phase: "retrieval",
         progress: 10 + Math.round(((index + 1) / queries.length) * 35),
       });
     }
-    return [...candidates.values()].sort((a, b) => Number(b.score) - Number(a.score));
+    const rankedSeeds = dedupeRegulatoryProvisions([...seeds.values()]);
+    const documentScores = new Map<string, number>();
+    for (const seed of rankedSeeds) {
+      documentScores.set(
+        seed.documentId,
+        Math.max(documentScores.get(seed.documentId) ?? 0, Number(seed.score)),
+      );
+    }
+    const documentIds = [...documentScores.entries()]
+      .sort((left, right) => right[1] - left[1])
+      .slice(0, 20)
+      .map(([documentId]) => documentId);
+    if (!documentIds.length) return [];
+
+    const languageFilter = Prisma.join(run.languages.map((language) => Prisma.sql`${language}`));
+    const documentFilter = Prisma.join(documentIds.map((documentId) => Prisma.sql`${documentId}`));
+    const expanded = await this.database.$queryRaw<RetrievedProvision[]>(Prisma.sql`
+      SELECT p."id" AS "provisionId", d."id" AS "documentId", v."id" AS "documentVersionId",
+        d."title" AS "documentTitle", d."reference_number" AS "referenceNumber",
+        CASE WHEN d."document_type" = 'standard' THEN 'standard' ELSE 'regulation' END AS "documentFamily",
+        lower(p."provision_type"::text) AS "provisionType", p."source_identifier" AS "identifier",
+        p."title" AS "title", p."heading_path" AS "headingPath", p."language" AS "language",
+        p."content" AS "content", p."content_hash" AS "contentHash", 0.0 AS "score"
+      FROM "document_provisions" p
+      JOIN "document_versions" v ON v."id" = p."document_version_id"
+      JOIN "documents" d ON d."id" = v."document_id"
+      WHERE d."id" IN (${documentFilter}) AND d."current_version_id" = v."id"
+        AND p."language" IN (${languageFilter})
+      ORDER BY d."id", p."order_index"`);
+    const combined = new Map(rankedSeeds.map((seed) => [seed.provisionId, seed]));
+    for (const provision of expanded) {
+      if (!isStructurallyEligibleProvision(provision)) continue;
+      const siblingScore = (documentScores.get(provision.documentId) ?? 0) * 0.5;
+      const existing = combined.get(provision.provisionId);
+      if (!existing) combined.set(provision.provisionId, { ...provision, score: siblingScore });
+    }
+    return dedupeRegulatoryProvisions([...combined.values()])
+      .filter(isStructurallyEligibleProvision)
+      .slice(0, 100);
   }
 
-  private async classifyInBatches(
+  private async classifyProvisions(
     run: {
       id: string;
       profileSnapshot: { data: Prisma.JsonValue };
       baseBaseline: {
         profileSnapshot: { data: Prisma.JsonValue };
-        entries: Array<{ id: string; provisionId: string; applicabilityRationale: string }>;
+        entries: Array<{
+          id: string;
+          provisionId: string;
+          applicabilityRationale: string;
+          requirementText: string | null;
+        }>;
       } | null;
       scopeFacts: Array<{ key: string; question: string; answer: Prisma.JsonValue | null }>;
     },
@@ -597,63 +882,171 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
     profileChanges: Array<{ key: string; previous: unknown; current: unknown }>,
   ): Promise<ClassifiedCandidate[]> {
     if (!candidates.length) return [];
-    const model = process.env["OPENAI_REGULATORY_MODEL"] ?? "gpt-5-mini";
+    const model = process.env["OPENAI_REGULATORY_MODEL"] ?? "gpt-5.6-sol";
+    const reasoningEffort = (process.env["OPENAI_REGULATORY_REASONING_EFFORT"] ?? "xhigh") as
+      "none" | "low" | "medium" | "high" | "xhigh" | "max";
     const results: ClassifiedCandidate[] = [];
     let inputTokens = 0;
     let outputTokens = 0;
-    for (let offset = 0; offset < candidates.length; offset += 20) {
-      if (!(await this.stillCurrent(run.id))) return results;
-      const batch = candidates.slice(offset, offset + 20);
-      const previousEntryIds = new Set(
-        batch.flatMap((candidate) =>
-          candidate.previousEntryId ? [candidate.previousEntryId] : [],
-        ),
-      );
-      const prompt = regulatoryApplicabilityPrompt.build({
-        profileContext: run.profileSnapshot.data,
-        previousProfileContext: run.baseBaseline?.profileSnapshot.data ?? null,
-        profileChanges,
-        clarificationContext: run.scopeFacts.map(({ key, question, answer }) => ({
-          key,
-          question,
-          answer,
-        })),
-        previousDecisions: (run.baseBaseline?.entries ?? [])
-          .filter((entry) => previousEntryIds.has(entry.id))
-          .map((entry) => ({
-            previousEntryId: entry.id,
-            provisionId: entry.provisionId,
-            decision: "APPLICABLE" as const,
-            rationale: entry.applicabilityRationale.slice(0, 800),
-          })),
-        candidates: batch.map((candidate) => ({
-          provisionId: candidate.provisionId,
-          previousEntryId: candidate.previousEntryId,
-          changeType: candidate.changeType,
-          document: [candidate.referenceNumber, candidate.documentTitle]
-            .filter(Boolean)
-            .join(" — "),
-          identifier: candidate.identifier,
-          title: candidate.title,
-          content: candidate.content.slice(0, 1_500),
-        })),
-      });
-      const generated = await generateText({
-        model: openai.responses(model),
-        system: prompt.system,
-        prompt: prompt.context,
-        output: Output.object({ schema: classificationSchema }),
-        maxRetries: 2,
-        providerOptions: { openai: { store: false } },
-        telemetry: { isEnabled: false },
-      });
-      inputTokens += generated.totalUsage.inputTokens ?? 0;
-      outputTokens += generated.totalUsage.outputTokens ?? 0;
-      const byId = new Map(batch.map((candidate) => [candidate.provisionId, candidate]));
-      for (const item of generated.output.results) {
-        const candidate = byId.get(item.provisionId);
-        if (candidate) results.push({ ...candidate, ...item });
+    const generate = async <T extends z.ZodTypeAny>(
+      prompt: { system: string; context: string },
+      schema: T,
+    ) => {
+      try {
+        const generated = await generateText({
+          model: openai.responses(model),
+          system: prompt.system,
+          prompt: prompt.context,
+          output: Output.object({ schema }),
+          maxRetries: 2,
+          providerOptions: { openai: { store: false, reasoningEffort } },
+          telemetry: { isEnabled: false },
+        });
+        inputTokens += generated.totalUsage.inputTokens ?? 0;
+        outputTokens += generated.totalUsage.outputTokens ?? 0;
+        return generated.output as z.infer<T>;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Unknown model error";
+        throw new RegulatoryAnalysisError(
+          "REGULATORY_MODEL_UNAVAILABLE",
+          `Regulatory model ${model} failed without fallback: ${message}`,
+        );
       }
+    };
+
+    for (const candidate of candidates) {
+      if (!(await this.stillCurrent(run.id))) return results;
+      const initialIssues = structuralIssues(candidate);
+      if (candidate.content.length > 30_000) {
+        initialIssues.push(
+          "La disposition dépasse 30 000 caractères et ne peut pas être envoyée sans troncature.",
+        );
+      }
+      if (initialIssues.length) {
+        results.push({
+          ...candidate,
+          suggestion: candidate.previousEntryId ? "APPLICABLE" : "TO_CONFIRM",
+          rationale: "La qualité ou la structure de la source ne permet pas une analyse fiable.",
+          matchedProfileKeys: [],
+          confidence: 0,
+          clarificationQuestion: null,
+          requirementText: null,
+          requirementStatus: "SOURCE_REVIEW_REQUIRED",
+          requirementSupportingExcerpts: [],
+          requirementIssues: [...new Set(initialIssues)],
+          requirementSource: null,
+        });
+        continue;
+      }
+
+      const previous = candidate.previousEntryId
+        ? (run.baseBaseline?.entries ?? []).find((entry) => entry.id === candidate.previousEntryId)
+        : null;
+      let verifierFeedback: string[] = [];
+      let classified: ClassifiedCandidate | null = null;
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        const prompt = regulatoryApplicabilityPrompt.build({
+          profileContext: run.profileSnapshot.data,
+          previousProfileContext: run.baseBaseline?.profileSnapshot.data ?? null,
+          profileChanges,
+          clarificationContext: run.scopeFacts.map(({ key, question, answer }) => ({
+            key,
+            question,
+            answer,
+          })),
+          previousDecision: previous
+            ? {
+                previousEntryId: previous.id,
+                decision: "APPLICABLE",
+                rationale: previous.applicabilityRationale.slice(0, 800),
+                requirementText: previous.requirementText,
+              }
+            : null,
+          candidate: {
+            provisionId: candidate.provisionId,
+            previousEntryId: candidate.previousEntryId,
+            changeType: candidate.changeType,
+            documentFamily: candidate.documentFamily,
+            provisionType: candidate.provisionType,
+            document: [candidate.referenceNumber, candidate.documentTitle]
+              .filter(Boolean)
+              .join(" — "),
+            identifier: candidate.identifier,
+            title: candidate.title,
+            content: candidate.content,
+          },
+          verifierFeedback,
+        });
+        const draft = await generate(prompt, classificationSchema);
+        const draftIssues = [
+          ...draft.qualityIssues,
+          ...(draft.sourceQuality === "BLOCKED"
+            ? ["Le modèle a signalé une source inexploitable."]
+            : []),
+        ];
+        const needsRequirement =
+          draft.sourceQuality === "PASS" &&
+          draft.normativeRequirement &&
+          draft.suggestion !== "NOT_APPLICABLE";
+        if (!needsRequirement) {
+          classified = {
+            ...candidate,
+            suggestion: draft.suggestion,
+            rationale: draft.rationale,
+            matchedProfileKeys: draft.matchedProfileKeys,
+            confidence: draft.confidence,
+            clarificationQuestion: draft.clarificationQuestion,
+            requirementText: draft.requirementText,
+            requirementStatus:
+              draft.sourceQuality === "BLOCKED" ? "SOURCE_REVIEW_REQUIRED" : "NOT_REQUIRED",
+            requirementSupportingExcerpts: draft.supportingExcerpts,
+            requirementIssues: [...new Set(draftIssues)],
+            requirementSource: draft.requirementText ? "AI" : null,
+          };
+          break;
+        }
+
+        const deterministicIssues = validateRequirementDraft(
+          candidate.content,
+          draft.requirementText,
+          draft.supportingExcerpts,
+        );
+        let verificationIssues = deterministicIssues;
+        if (!verificationIssues.length && draft.requirementText) {
+          const verificationPrompt = regulatoryRequirementVerificationPrompt.build({
+            document: [candidate.referenceNumber, candidate.documentTitle]
+              .filter(Boolean)
+              .join(" — "),
+            identifier: candidate.identifier,
+            content: candidate.content,
+            requirementText: draft.requirementText,
+            supportingExcerpts: draft.supportingExcerpts,
+          });
+          const verification = await generate(verificationPrompt, verificationSchema);
+          verificationIssues = verification.supported
+            ? []
+            : verification.issues.length
+              ? verification.issues
+              : ["Le vérificateur indépendant n’a pas confirmé le support de l’exigence."];
+        }
+        const allIssues = [...new Set([...draftIssues, ...verificationIssues])];
+        classified = {
+          ...candidate,
+          suggestion: draft.suggestion,
+          rationale: draft.rationale,
+          matchedProfileKeys: draft.matchedProfileKeys,
+          confidence: draft.confidence,
+          clarificationQuestion: draft.clarificationQuestion,
+          requirementText: draft.requirementText,
+          requirementStatus: allIssues.length ? "SOURCE_REVIEW_REQUIRED" : "READY",
+          requirementSupportingExcerpts: draft.supportingExcerpts,
+          requirementIssues: allIssues,
+          requirementSource: "AI",
+        };
+        if (!allIssues.length) break;
+        verifierFeedback = allIssues;
+      }
+      if (classified) results.push(classified);
     }
     await this.database.regulatoryAnalysisRun.update({
       where: { id: run.id },
@@ -672,9 +1065,12 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
     await this.database.$transaction(async (tx) => {
       await tx.regulatoryApplicabilityCandidate.deleteMany({ where: { runId } });
       for (const candidate of candidates) {
-        const unchanged = candidate.changeType === "UNCHANGED";
+        const unchanged =
+          candidate.changeType === "UNCHANGED" && candidate.requirementStatus === "READY";
         const systemExcluded =
-          candidate.changeType === "ADDED" && candidate.suggestion === "NOT_APPLICABLE";
+          candidate.changeType === "ADDED" &&
+          candidate.suggestion === "NOT_APPLICABLE" &&
+          candidate.requirementStatus === "NOT_REQUIRED";
         await tx.regulatoryApplicabilityCandidate.create({
           data: {
             runId,
@@ -687,6 +1083,11 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
             rationale: candidate.rationale,
             matchedProfileKeys: candidate.matchedProfileKeys,
             confidence: candidate.confidence,
+            requirementText: candidate.requirementText,
+            requirementStatus: candidate.requirementStatus,
+            requirementSupportingExcerpts: candidate.requirementSupportingExcerpts,
+            requirementIssues: candidate.requirementIssues,
+            requirementSource: candidate.requirementSource,
             decision: unchanged ? "APPLICABLE" : systemExcluded ? "NOT_APPLICABLE" : null,
             decisionSource: unchanged || systemExcluded ? "SYSTEM" : null,
           },

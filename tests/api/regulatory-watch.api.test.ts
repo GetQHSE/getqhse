@@ -80,11 +80,18 @@ describe("regulatory watch API", () => {
     regulatory.decideCandidate.mockResolvedValue({ id: "watch-1", revision: 3 });
     await request(app.getHttpServer())
       .patch("/v1/projects/project-1/regulatory-watch/candidates/candidate-1")
-      .send({ watchRevision: 2, decision: "APPLICABLE" })
+      .send({
+        watchRevision: 2,
+        decision: "APPLICABLE",
+        requirementText:
+          "L’organisation doit appliquer et suivre cette exigence réglementaire validée.",
+      })
       .expect(200);
     expect(regulatory.decideCandidate).toHaveBeenCalledWith(tenant, "project-1", "candidate-1", {
       watchRevision: 2,
       decision: "APPLICABLE",
+      requirementText:
+        "L’organisation doit appliquer et suivre cette exigence réglementaire validée.",
     });
 
     regulatory.exportWorkbook.mockResolvedValue(Buffer.from("xlsx"));
