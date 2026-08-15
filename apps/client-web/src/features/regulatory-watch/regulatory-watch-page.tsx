@@ -48,6 +48,20 @@ import {
 } from "./regulatory-watch-test-page.js";
 
 const activeAnalysisStatuses = new Set(["QUEUED", "RUNNING"]);
+const analysisPhaseLabels: Record<string, string> = {
+  queued: "Préparation de l’analyse",
+  planning: "Lecture du profil",
+  retrieval: "Recherche dans le fonds documentaire",
+  classification: "Analyse de l’applicabilité",
+  classification_drafting: "Rédaction d’une exigence applicable",
+  classification_verifying: "Vérification indépendante de l’exigence",
+  classification_retrying: "Correction de l’exigence après vérification",
+  finalizing: "Préparation de la revue",
+};
+
+function analysisPhaseLabel(phase: string | null | undefined): string {
+  return analysisPhaseLabels[phase ?? "queued"] ?? "Analyse des exigences applicables";
+}
 
 /**
  * Failure reasons only an operator can clear from server configuration
@@ -381,13 +395,6 @@ function ReadyState({
 function ProcessingState({ watch }: { watch: RegulatoryWatch }) {
   const analysis = watch.currentAnalysis;
   const progress = analysis?.progressPercent ?? 5;
-  const phaseLabels: Record<string, string> = {
-    queued: "Préparation de l’analyse",
-    planning: "Lecture du profil",
-    retrieval: "Recherche dans le fonds documentaire",
-    classification: "Analyse de l’applicabilité",
-    finalizing: "Préparation de la revue",
-  };
   return (
     <StateShell>
       <div className="mx-auto flex max-w-2xl flex-col items-center py-16 text-center">
@@ -402,7 +409,7 @@ function ProcessingState({ watch }: { watch: RegulatoryWatch }) {
           Nous préparons votre référentiel
         </h1>
         <p className="mt-3 text-sm leading-6 text-slate-400">
-          {phaseLabels[analysis?.phase ?? "queued"] ?? "Analyse des exigences applicables"}
+          {analysisPhaseLabel(analysis?.phase)}
         </p>
         <div className="mt-8 w-full rounded-3xl border border-white/10 bg-white/5 p-5 text-left">
           <div className="flex items-center justify-between text-xs">
@@ -858,7 +865,8 @@ export function DataPage({
                 </span>
               </div>
               <p className="mt-1 text-xs text-violet-800/70">
-                Le référentiel publié reste disponible pendant toute l’analyse.
+                {analysisPhaseLabel(watch.currentAnalysis?.phase)}. Le référentiel publié reste
+                disponible pendant toute l’analyse.
               </p>
               <Progress
                 className="mt-3 [&_[data-slot=progress-indicator]]:bg-violet-600 [&_[data-slot=progress-track]]:bg-violet-100"

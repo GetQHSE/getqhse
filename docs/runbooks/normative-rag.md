@@ -53,6 +53,38 @@ and permitted by every required rights flag.
 
 ## Diagnosing "L'analyse n'a pas abouti" in la veille réglementaire
 
+### Following a running analysis
+
+The customer page polls every two seconds. Retrieval advances from 10–45%, provision-by-provision
+classification advances from 50–92%, and candidate persistence is reported at 95%. During a model
+call the phase identifies whether the worker is drafting, independently verifying, or retrying an
+exigence. A percentage that changes confirms completed work; the worker log heartbeat confirms a
+long-running model request is still alive.
+
+Follow the structured worker log locally:
+
+```bash
+docker compose logs -f worker | rg 'regulatory_(analysis|retrieval|provision|model|finalization)'
+```
+
+Useful events are `regulatory_provision_started`, `regulatory_model_call_started`, the 30-second
+`regulatory_model_call_heartbeat`, `regulatory_model_call_finished`, and
+`regulatory_provision_finished`. Records contain run/job IDs, provision identifiers, candidate
+position and total, attempt, duration, token usage, and error details. They deliberately never
+contain profile prompts, source provisions, excerpts, or drafted requirements.
+
+If the percentage is unchanged and there is no heartbeat, first confirm the infrastructure and
+worker are running:
+
+```bash
+docker compose ps postgres redis worker
+docker compose logs --tail=100 worker
+```
+
+When applications run on the host with `pnpm dev`, use that terminal's `qhse-worker` JSON output
+instead. For centralized logs and traces, start the local stack with `pnpm obs:up`; production must
+send worker OTLP logs and traces to its managed collector.
+
 The regulatory analysis runs against the **ACTIVE** profile only. Every reason it can be
 unavailable is reported by a single endpoint:
 

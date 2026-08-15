@@ -12,6 +12,7 @@ import { embed, generateText, Output } from "ai";
 import type { Job } from "bullmq";
 import { z } from "zod";
 import { reciprocalRankFusion } from "@qhse/knowledge";
+import { createLogger, currentTraceId } from "@qhse/observability";
 
 import { queueNames } from "../queues.js";
 
@@ -55,6 +56,23 @@ type ClassifiedCandidate = CandidateInput & {
   requirementIssues: string[];
   requirementSource: "AI" | "CARRIED_FORWARD" | null;
 };
+
+type ClassificationModelStage = "drafting" | "verification";
+
+const CLASSIFICATION_PROGRESS_START = 50;
+const CLASSIFICATION_PROGRESS_END = 92;
+const MODEL_HEARTBEAT_INTERVAL_MS = 30_000;
+
+export function regulatoryClassificationProgress(completed: number, total: number): number {
+  if (total <= 0) return CLASSIFICATION_PROGRESS_END;
+  const boundedCompleted = Math.min(Math.max(completed, 0), total);
+  return (
+    CLASSIFICATION_PROGRESS_START +
+    Math.floor(
+      (boundedCompleted / total) * (CLASSIFICATION_PROGRESS_END - CLASSIFICATION_PROGRESS_START),
+    )
+  );
+}
 
 const classificationSchema = z.object({
   suggestion: z.enum(["APPLICABLE", "TO_CONFIRM", "NOT_APPLICABLE"]),
@@ -325,12 +343,67 @@ export function buildRegulatoryQueries(snapshotData: unknown): string[] {
 @Processor(queueNames.regulatoryAnalysis, { concurrency: 2 })
 export class RegulatoryAnalysisProcessor extends WorkerHost {
   private readonly database: DatabaseClient = createPrismaClient();
+  private readonly logger = createLogger({ base: { service: "qhse-worker" } });
+
+  private async reportProgress(
+    runId: string,
+    job: Job<JobEnvelope>,
+    progress: {
+      phase: string;
+      percent: number;
+      completed?: number;
+      total?: number;
+      provisionId?: string;
+      identifier?: string | null;
+      documentId?: string;
+      attempt?: number;
+      stage?: string;
+    },
+  ): Promise<void> {
+    await Promise.all([
+      this.database.regulatoryAnalysisRun.update({
+        where: { id: runId },
+        data: { phase: progress.phase, progressPercent: progress.percent },
+      }),
+      job.updateProgress({
+        phase: progress.phase,
+        progress: progress.percent,
+        ...(progress.completed === undefined ? {} : { completed: progress.completed }),
+        ...(progress.total === undefined ? {} : { total: progress.total }),
+        ...(progress.provisionId ? { provisionId: progress.provisionId } : {}),
+        ...(progress.identifier ? { identifier: progress.identifier } : {}),
+        ...(progress.documentId ? { documentId: progress.documentId } : {}),
+        ...(progress.attempt === undefined ? {} : { attempt: progress.attempt }),
+        ...(progress.stage ? { stage: progress.stage } : {}),
+        updatedAt: new Date().toISOString(),
+      }),
+    ]);
+  }
 
   async process(job: Job<JobEnvelope>) {
     const runId = typeof job.data.payload["runId"] === "string" ? job.data.payload["runId"] : null;
     if (!runId) throw new Error("Regulatory analysis runId is required");
+    const startedAt = Date.now();
+    this.logger.info(
+      {
+        event: "regulatory_analysis_started",
+        runId,
+        jobId: job.id,
+        attempt: job.attemptsMade + 1,
+      },
+      "regulatory analysis started",
+    );
     try {
       await this.analyze(runId, job);
+      this.logger.info(
+        {
+          event: "regulatory_analysis_finished",
+          runId,
+          jobId: job.id,
+          durationMs: Date.now() - startedAt,
+        },
+        "regulatory analysis finished",
+      );
       return { runId, processed: true };
     } catch (error) {
       const current = await this.database.regulatoryAnalysisRun.findUnique({
@@ -339,6 +412,19 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
       if (!current || current.status === "SUPERSEDED") return { runId, processed: false };
       const message = error instanceof Error ? error.message : "Unknown regulatory analysis error";
       const code = error instanceof RegulatoryAnalysisError ? error.code : "ANALYSIS_FAILED";
+      const traceId = currentTraceId();
+      this.logger.error(
+        {
+          event: "regulatory_analysis_failed",
+          runId,
+          jobId: job.id,
+          code,
+          durationMs: Date.now() - startedAt,
+          ...(traceId ? { traceId } : {}),
+          err: error,
+        },
+        "regulatory analysis failed",
+      );
       await this.database.$transaction([
         this.database.regulatoryAnalysisRun.update({
           where: { id: runId },
@@ -453,6 +539,15 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
       },
     });
     await job.updateProgress({ phase: "retrieval", progress: 10 });
+    this.logger.info(
+      {
+        event: "regulatory_retrieval_started",
+        runId: run.id,
+        jobId: job.id,
+        languages: run.languages,
+      },
+      "regulatory retrieval started",
+    );
 
     const embeddingProfile = await this.resolveActiveEmbeddingProfile();
 
@@ -570,6 +665,16 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
       embeddingProfile.model,
       job,
     );
+    this.logger.info(
+      {
+        event: "regulatory_retrieval_finished",
+        runId: run.id,
+        jobId: job.id,
+        discoveredProvisions: discovered.length,
+        previousEntries: previousEntries.length,
+      },
+      "regulatory retrieval finished",
+    );
     const mandatoryKeys = new Set(mandatory.map(logicalKey));
     const previouslyExcludedIds = new Set(
       (run.baseBaseline?.analysisRun.candidates ?? [])
@@ -594,11 +699,10 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
       }));
 
     if (!(await this.stillCurrent(run.id))) return;
-    await this.database.regulatoryAnalysisRun.update({
-      where: { id: run.id },
-      data: { phase: "classification", progressPercent: 50 },
+    await this.reportProgress(run.id, job, {
+      phase: "classification",
+      percent: CLASSIFICATION_PROGRESS_START,
     });
-    await job.updateProgress({ phase: "classification", progress: 50 });
 
     if (!previousEntries.length && !additions.length) {
       await this.coverageGap(run.id, run.watchId);
@@ -630,7 +734,27 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
       ),
       ...additions,
     ];
-    const classified = await this.classifyProvisions(run, toClassify, profileChanges);
+    this.logger.info(
+      {
+        event: "regulatory_classification_started",
+        runId: run.id,
+        jobId: job.id,
+        total: toClassify.length,
+        carriedForward: deterministic.length,
+      },
+      "regulatory provision classification started",
+    );
+    const classified = await this.classifyProvisions(run, toClassify, profileChanges, job);
+    this.logger.info(
+      {
+        event: "regulatory_classification_finished",
+        runId: run.id,
+        jobId: job.id,
+        total: toClassify.length,
+        classified: classified.length,
+      },
+      "regulatory provision classification finished",
+    );
     const byProvision = new Map(classified.map((item) => [item.provisionId, item]));
     for (const candidate of toClassify) {
       if (!byProvision.has(candidate.provisionId)) {
@@ -668,6 +792,22 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
     );
 
     if (!(await this.stillCurrent(run.id))) return;
+    await this.reportProgress(run.id, job, {
+      phase: "finalizing",
+      percent: 95,
+      completed: finalCandidates.length,
+      total: finalCandidates.length,
+      stage: "persisting_candidates",
+    });
+    this.logger.info(
+      {
+        event: "regulatory_finalization_started",
+        runId: run.id,
+        jobId: job.id,
+        candidates: finalCandidates.length,
+      },
+      "regulatory analysis finalization started",
+    );
     await this.persistCandidates(run.id, finalCandidates);
     if (!(await this.stillCurrent(run.id))) return;
 
@@ -724,7 +864,12 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
   }
 
   private async retrieveAdditions(
-    run: { asOf: Date; languages: string[]; profileSnapshot: { data: Prisma.JsonValue } },
+    run: {
+      id: string;
+      asOf: Date;
+      languages: string[];
+      profileSnapshot: { data: Prisma.JsonValue };
+    },
     embeddingProfileId: string,
     embeddingModel: string,
     job: Job<JobEnvelope>,
@@ -732,6 +877,7 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
     const seeds = new Map<string, RetrievedProvision>();
     const queries = buildRegulatoryQueries(run.profileSnapshot.data);
     for (const [index, query] of queries.entries()) {
+      const queryStartedAt = Date.now();
       const vectorResult = await embed({
         model: openai.embedding(embeddingModel),
         value: query,
@@ -817,10 +963,28 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
         if (!existing || score > Number(existing.score))
           seeds.set(row.provisionId, { ...row, score });
       }
-      await job.updateProgress({
+      const progress = 10 + Math.round(((index + 1) / queries.length) * 35);
+      await this.reportProgress(run.id, job, {
         phase: "retrieval",
-        progress: 10 + Math.round(((index + 1) / queries.length) * 35),
+        percent: progress,
+        completed: index + 1,
+        total: queries.length,
+        stage: "hybrid_search",
       });
+      this.logger.info(
+        {
+          event: "regulatory_retrieval_query_finished",
+          runId: run.id,
+          jobId: job.id,
+          queryIndex: index + 1,
+          queryTotal: queries.length,
+          keywordResults: keywordRows.length,
+          semanticResults: semanticRows.length,
+          uniqueSeeds: seeds.size,
+          durationMs: Date.now() - queryStartedAt,
+        },
+        "regulatory retrieval query finished",
+      );
     }
     const rankedSeeds = dedupeRegulatoryProvisions([...seeds.values()]);
     const documentScores = new Map<string, number>();
@@ -834,7 +998,19 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
       .sort((left, right) => right[1] - left[1])
       .slice(0, 20)
       .map(([documentId]) => documentId);
-    if (!documentIds.length) return [];
+    if (!documentIds.length) {
+      this.logger.info(
+        {
+          event: "regulatory_retrieval_expansion_finished",
+          runId: run.id,
+          jobId: job.id,
+          selectedDocuments: 0,
+          eligibleProvisions: 0,
+        },
+        "regulatory document expansion finished",
+      );
+      return [];
+    }
 
     const languageFilter = Prisma.join(run.languages.map((language) => Prisma.sql`${language}`));
     const documentFilter = Prisma.join(documentIds.map((documentId) => Prisma.sql`${documentId}`));
@@ -858,9 +1034,22 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
       const existing = combined.get(provision.provisionId);
       if (!existing) combined.set(provision.provisionId, { ...provision, score: siblingScore });
     }
-    return dedupeRegulatoryProvisions([...combined.values()])
+    const eligible = dedupeRegulatoryProvisions([...combined.values()])
       .filter(isStructurallyEligibleProvision)
       .slice(0, 100);
+    this.logger.info(
+      {
+        event: "regulatory_retrieval_expansion_finished",
+        runId: run.id,
+        jobId: job.id,
+        selectedDocuments: documentIds.length,
+        rankedSeeds: rankedSeeds.length,
+        expandedProvisions: expanded.length,
+        eligibleProvisions: eligible.length,
+      },
+      "regulatory document expansion finished",
+    );
+    return eligible;
   }
 
   private async classifyProvisions(
@@ -880,6 +1069,7 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
     },
     candidates: CandidateInput[],
     profileChanges: Array<{ key: string; previous: unknown; current: unknown }>,
+    job: Job<JobEnvelope>,
   ): Promise<ClassifiedCandidate[]> {
     if (!candidates.length) return [];
     const model = process.env["OPENAI_REGULATORY_MODEL"] ?? "gpt-5.6-sol";
@@ -891,7 +1081,65 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
     const generate = async <T extends z.ZodTypeAny>(
       prompt: { system: string; context: string },
       schema: T,
+      context: {
+        candidate: CandidateInput;
+        candidateIndex: number;
+        candidateTotal: number;
+        attempt: number;
+        stage: ClassificationModelStage;
+      },
     ) => {
+      const phase =
+        context.attempt > 1
+          ? "classification_retrying"
+          : context.stage === "drafting"
+            ? "classification_drafting"
+            : "classification_verifying";
+      const percent = regulatoryClassificationProgress(
+        context.candidateIndex,
+        context.candidateTotal,
+      );
+      await this.reportProgress(run.id, job, {
+        phase,
+        percent,
+        completed: context.candidateIndex,
+        total: context.candidateTotal,
+        provisionId: context.candidate.provisionId,
+        identifier: context.candidate.identifier,
+        documentId: context.candidate.documentId,
+        attempt: context.attempt,
+        stage: context.stage,
+      });
+      const callStartedAt = Date.now();
+      const logContext = {
+        runId: run.id,
+        jobId: job.id,
+        candidateIndex: context.candidateIndex + 1,
+        candidateTotal: context.candidateTotal,
+        provisionId: context.candidate.provisionId,
+        identifier: context.candidate.identifier,
+        documentId: context.candidate.documentId,
+        language: context.candidate.language,
+        stage: context.stage,
+        attempt: context.attempt,
+        model,
+        reasoningEffort,
+      };
+      this.logger.info(
+        { event: "regulatory_model_call_started", ...logContext },
+        "regulatory model call started",
+      );
+      const heartbeat = setInterval(() => {
+        this.logger.info(
+          {
+            event: "regulatory_model_call_heartbeat",
+            ...logContext,
+            durationMs: Date.now() - callStartedAt,
+          },
+          "regulatory model call is still running",
+        );
+      }, MODEL_HEARTBEAT_INTERVAL_MS);
+      heartbeat.unref();
       try {
         const generated = await generateText({
           model: openai.responses(model),
@@ -902,20 +1150,60 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
           providerOptions: { openai: { store: false, reasoningEffort } },
           telemetry: { isEnabled: false },
         });
-        inputTokens += generated.totalUsage.inputTokens ?? 0;
-        outputTokens += generated.totalUsage.outputTokens ?? 0;
+        const callInputTokens = generated.totalUsage.inputTokens ?? 0;
+        const callOutputTokens = generated.totalUsage.outputTokens ?? 0;
+        inputTokens += callInputTokens;
+        outputTokens += callOutputTokens;
+        this.logger.info(
+          {
+            event: "regulatory_model_call_finished",
+            ...logContext,
+            durationMs: Date.now() - callStartedAt,
+            inputTokens: callInputTokens,
+            outputTokens: callOutputTokens,
+          },
+          "regulatory model call finished",
+        );
         return generated.output as z.infer<T>;
       } catch (error) {
+        this.logger.error(
+          {
+            event: "regulatory_model_call_failed",
+            ...logContext,
+            durationMs: Date.now() - callStartedAt,
+            err: error,
+          },
+          "regulatory model call failed",
+        );
         const message = error instanceof Error ? error.message : "Unknown model error";
         throw new RegulatoryAnalysisError(
           "REGULATORY_MODEL_UNAVAILABLE",
           `Regulatory model ${model} failed without fallback: ${message}`,
         );
+      } finally {
+        clearInterval(heartbeat);
       }
     };
 
-    for (const candidate of candidates) {
+    for (const [candidateIndex, candidate] of candidates.entries()) {
       if (!(await this.stillCurrent(run.id))) return results;
+      const provisionStartedAt = Date.now();
+      this.logger.info(
+        {
+          event: "regulatory_provision_started",
+          runId: run.id,
+          jobId: job.id,
+          candidateIndex: candidateIndex + 1,
+          candidateTotal: candidates.length,
+          provisionId: candidate.provisionId,
+          identifier: candidate.identifier,
+          documentId: candidate.documentId,
+          referenceNumber: candidate.referenceNumber,
+          language: candidate.language,
+          changeType: candidate.changeType,
+        },
+        "regulatory provision analysis started",
+      );
       const initialIssues = structuralIssues(candidate);
       if (candidate.content.length > 30_000) {
         initialIssues.push(
@@ -923,7 +1211,7 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
         );
       }
       if (initialIssues.length) {
-        results.push({
+        const blocked: ClassifiedCandidate = {
           ...candidate,
           suggestion: candidate.previousEntryId ? "APPLICABLE" : "TO_CONFIRM",
           rationale: "La qualité ou la structure de la source ne permet pas une analyse fiable.",
@@ -935,7 +1223,34 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
           requirementSupportingExcerpts: [],
           requirementIssues: [...new Set(initialIssues)],
           requirementSource: null,
+        };
+        results.push(blocked);
+        await this.reportProgress(run.id, job, {
+          phase: "classification",
+          percent: regulatoryClassificationProgress(candidateIndex + 1, candidates.length),
+          completed: candidateIndex + 1,
+          total: candidates.length,
+          provisionId: candidate.provisionId,
+          identifier: candidate.identifier,
+          documentId: candidate.documentId,
+          stage: "source_quality_blocked",
         });
+        this.logger.warn(
+          {
+            event: "regulatory_provision_finished",
+            runId: run.id,
+            jobId: job.id,
+            candidateIndex: candidateIndex + 1,
+            candidateTotal: candidates.length,
+            provisionId: candidate.provisionId,
+            identifier: candidate.identifier,
+            documentId: candidate.documentId,
+            status: blocked.requirementStatus,
+            issueCount: blocked.requirementIssues.length,
+            durationMs: Date.now() - provisionStartedAt,
+          },
+          "regulatory provision blocked by source quality",
+        );
         continue;
       }
 
@@ -977,7 +1292,13 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
           },
           verifierFeedback,
         });
-        const draft = await generate(prompt, classificationSchema);
+        const draft = await generate(prompt, classificationSchema, {
+          candidate,
+          candidateIndex,
+          candidateTotal: candidates.length,
+          attempt: attempt + 1,
+          stage: "drafting",
+        });
         const draftIssues = [
           ...draft.qualityIssues,
           ...(draft.sourceQuality === "BLOCKED"
@@ -1022,7 +1343,13 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
             requirementText: draft.requirementText,
             supportingExcerpts: draft.supportingExcerpts,
           });
-          const verification = await generate(verificationPrompt, verificationSchema);
+          const verification = await generate(verificationPrompt, verificationSchema, {
+            candidate,
+            candidateIndex,
+            candidateTotal: candidates.length,
+            attempt: attempt + 1,
+            stage: "verification",
+          });
           verificationIssues = verification.supported
             ? []
             : verification.issues.length
@@ -1047,6 +1374,33 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
         verifierFeedback = allIssues;
       }
       if (classified) results.push(classified);
+      await this.reportProgress(run.id, job, {
+        phase: "classification",
+        percent: regulatoryClassificationProgress(candidateIndex + 1, candidates.length),
+        completed: candidateIndex + 1,
+        total: candidates.length,
+        provisionId: candidate.provisionId,
+        identifier: candidate.identifier,
+        documentId: candidate.documentId,
+        stage: "provision_completed",
+      });
+      this.logger.info(
+        {
+          event: "regulatory_provision_finished",
+          runId: run.id,
+          jobId: job.id,
+          candidateIndex: candidateIndex + 1,
+          candidateTotal: candidates.length,
+          provisionId: candidate.provisionId,
+          identifier: candidate.identifier,
+          documentId: candidate.documentId,
+          suggestion: classified?.suggestion,
+          status: classified?.requirementStatus,
+          issueCount: classified?.requirementIssues.length ?? 0,
+          durationMs: Date.now() - provisionStartedAt,
+        },
+        "regulatory provision analysis finished",
+      );
     }
     await this.database.regulatoryAnalysisRun.update({
       where: { id: run.id },

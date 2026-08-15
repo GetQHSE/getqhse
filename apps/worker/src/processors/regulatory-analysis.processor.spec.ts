@@ -8,12 +8,21 @@ import {
   dedupeRegulatoryProvisions,
   isStructurallyEligibleProvision,
   matchProvisionRevision,
+  regulatoryClassificationProgress,
   RegulatoryAnalysisProcessor,
   validateRequirementDraft,
 } from "./regulatory-analysis.processor.js";
 import { regulatoryProvisionGoldenFixtures } from "./fixtures/regulatory-provisions.golden.js";
 
 describe("regulatory analysis query planning", () => {
+  it("advances classification progress from 50 to 92 percent", () => {
+    expect(regulatoryClassificationProgress(0, 10)).toBe(50);
+    expect(regulatoryClassificationProgress(1, 10)).toBeGreaterThan(50);
+    expect(regulatoryClassificationProgress(5, 10)).toBe(71);
+    expect(regulatoryClassificationProgress(10, 10)).toBe(92);
+    expect(regulatoryClassificationProgress(12, 10)).toBe(92);
+  });
+
   it("builds bounded searches from the regulatory profile snapshot", () => {
     const queries = buildRegulatoryQueries({
       fields: {

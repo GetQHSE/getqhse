@@ -19,9 +19,10 @@ function serviceName(): string {
 }
 
 /**
- * Ships logs to the collector over OTLP so they land in Loki with the same
- * resource attributes the traces carry — that shared `service.name` is what
- * lets a Tempo span link across to its logs.
+ * Mirrors logs to stdout and ships them to the collector over OTLP so they
+ * remain visible through container logs while also landing in Loki with the
+ * same resource attributes the traces carry. That shared `service.name` is
+ * what lets a Tempo span link across to its logs.
  *
  * Disabled by default so `pnpm dev` without the observability stack running
  * stays quiet; opt in with LOG_OTLP=true (compose sets it for you).
@@ -29,17 +30,25 @@ function serviceName(): string {
 function transport(): LoggerOptions["transport"] {
   if (process.env["LOG_OTLP"] !== "true") return undefined;
   return {
-    target: "pino-opentelemetry-transport",
-    options: {
-      logRecordProcessorOptions: {
-        recordProcessorType: "batch",
-        exporterOptions: { protocol: "http/protobuf" },
+    targets: [
+      {
+        target: "pino/file",
+        options: { destination: 1 },
       },
-      resourceAttributes: {
-        "service.name": serviceName(),
-        "deployment.environment.name": process.env["NODE_ENV"] ?? "development",
+      {
+        target: "pino-opentelemetry-transport",
+        options: {
+          logRecordProcessorOptions: {
+            recordProcessorType: "batch",
+            exporterOptions: { protocol: "http/protobuf" },
+          },
+          resourceAttributes: {
+            "service.name": serviceName(),
+            "deployment.environment.name": process.env["NODE_ENV"] ?? "development",
+          },
+        },
       },
-    },
+    ],
   };
 }
 

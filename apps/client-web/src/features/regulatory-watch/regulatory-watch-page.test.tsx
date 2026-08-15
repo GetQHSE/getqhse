@@ -257,6 +257,22 @@ describe("RegulatoryWatchPage", () => {
     expect(screen.getByText("Cette page se met à jour automatiquement.")).toBeInTheDocument();
   });
 
+  it("shows the current drafting and verification stage instead of an opaque 50 percent", async () => {
+    vi.mocked(clientApi.regulatoryWatch).mockResolvedValue({
+      ...notStartedWatch,
+      status: "ANALYZING",
+      currentAnalysis: {
+        ...analysis,
+        phase: "classification_verifying",
+        progressPercent: 67,
+      },
+    } as never);
+    renderPage();
+
+    expect(await screen.findByText("Vérification indépendante de l’exigence")).toBeInTheDocument();
+    expect(screen.getByText("67%")).toBeInTheDocument();
+  });
+
   it("renders published API data in both workbook sections", async () => {
     vi.mocked(clientApi.regulatoryWatch).mockResolvedValue(activeWatch as never);
     const user = userEvent.setup();
@@ -270,6 +286,15 @@ describe("RegulatoryWatchPage", () => {
   });
 
   it("shows a non-blocking synchronization indicator without hiding published data", () => {
+    const synchronizingWatch = {
+      ...activeWatch,
+      currentAnalysis: {
+        ...analysis,
+        baseBaselineId: "baseline-1",
+        phase: "classification_drafting",
+        progressPercent: 63,
+      },
+    };
     render(
       <MemoryRouter>
         <DataPage
@@ -279,12 +304,14 @@ describe("RegulatoryWatchPage", () => {
           profile={profile as never}
           refreshing={false}
           synchronizing
-          watch={activeWatch as never}
+          watch={synchronizingWatch as never}
         />
       </MemoryRouter>,
     );
 
     expect(screen.getByRole("status", { name: "" })).toHaveTextContent("Synchronisation");
+    expect(screen.getByText(/Rédaction d’une exigence applicable/)).toBeInTheDocument();
+    expect(screen.getByText("63%")).toBeInTheDocument();
     expect(screen.getAllByText("ISO 9001:2015").length).toBeGreaterThan(0);
   });
 

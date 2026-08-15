@@ -96,6 +96,7 @@ describe("independent regulatory requirement verification", () => {
           run: unknown,
           candidates: unknown[],
           changes: unknown[],
+          job: unknown,
         ): Promise<
           Array<{
             requirementText: string | null;
@@ -105,6 +106,7 @@ describe("independent regulatory requirement verification", () => {
         >;
       }
     ).classifyProvisions.bind(processor);
+    const updateProgress = vi.fn().mockResolvedValue(undefined);
     const candidates = await classify(
       {
         id: "run-1",
@@ -138,6 +140,7 @@ describe("independent regulatory requirement verification", () => {
         },
       ],
       [],
+      { id: "job-1", updateProgress },
     );
 
     expect(generated).toHaveBeenCalledTimes(4);
@@ -154,6 +157,25 @@ describe("independent regulatory requirement verification", () => {
           inputTokens: 290,
           outputTokens: 120,
         }),
+      }),
+    );
+    expect(updateProgress).toHaveBeenCalledWith(
+      expect.objectContaining({
+        phase: "classification_retrying",
+        progress: 50,
+        completed: 0,
+        total: 1,
+        provisionId: "article-24",
+        attempt: 2,
+      }),
+    );
+    expect(updateProgress).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        phase: "classification",
+        progress: 92,
+        completed: 1,
+        total: 1,
+        stage: "provision_completed",
       }),
     );
   });
