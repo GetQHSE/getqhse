@@ -28,7 +28,8 @@ Compose ports directly from the VPS firewall.
 ## First deployment
 
 1. Provision PostgreSQL, Redis, and object storage in Dokploy. Use separate application and migration
-   PostgreSQL roles. The migration role owns schema changes; the application role has runtime access.
+   PostgreSQL roles. Set `DATABASE_URL` to the least-privileged application role and
+   `MIGRATION_DATABASE_URL` to the schema-owning migration role.
 2. Make those services reachable from the Compose application through private addresses or Dokploy's
    shared private network. Do not use public database ports.
 3. Copy every variable from `.env.production.example` into the Compose environment and replace all
@@ -36,13 +37,18 @@ Compose ports directly from the VPS firewall.
    least 32 characters. Keep `COOKIE_SECURE=true`, which is fixed by the Compose definition.
 4. Set resource limits to fit the VPS. Docling is the largest workload; do not allocate the defaults
    unless the host has sufficient memory and CPU.
-5. Keep `OPENAI_REGULATORY_MODEL=gpt-5.6-sol` and
-   `OPENAI_REGULATORY_REASONING_EFFORT=xhigh` explicit. Confirm that the production OpenAI project
-   can access the configured model; regulatory generation intentionally has no mini-model fallback.
+5. Keep `OPENAI_REGULATORY_MODEL=gpt-5-mini` and
+   `OPENAI_REGULATORY_REASONING_EFFORT=low` explicit. Review the configured token prices whenever
+   OpenAI pricing changes. The worker reserves cost before every generation call and stops a run at
+   `OPENAI_REGULATORY_RUN_BUDGET_USD` (default `$1`). It does not silently fall back to another model.
+   Keep `NORMATIVE_RAG_ENABLED=false` until the licensed corpus is processed, indexed, and its
+   embedding profile is ACTIVE; then set it to `true` and restart both APIs and the worker.
 6. Configure the Compose application to build `compose.production.yaml` from `main`. Disable Dokploy's
    direct push auto-deploy so an unverified commit cannot bypass CI.
-7. Deploy once. The `migrate` container runs `prisma migrate deploy`; the APIs and worker start only
-   after it exits successfully. A failed migration prevents the dependent services from starting.
+7. Deploy once. The `migrate` container runs `prisma migrate deploy` with
+   `MIGRATION_DATABASE_URL`; its bootstrap step still uses the runtime `DATABASE_URL`. The APIs and
+   worker start only after it exits successfully. A failed migration prevents the dependent services
+   from starting.
 8. Bootstrap the first administrator exactly once:
 
    ```bash
@@ -58,7 +64,13 @@ Compose ports directly from the VPS firewall.
    curl --fail https://admin-api.example.com/health/ready
    curl --fail https://app.example.com/healthz
    curl --fail https://admin.example.com/healthz
+   docker compose --env-file .env.production -f compose.production.yaml exec -T worker \
+     wget -q -O - http://127.0.0.1:4002/health/ready
    ```
+
+   Port `4002` is exposed only to the Compose network and must not receive a Dokploy route or a
+   public firewall rule. `/health/live` confirms that the process is alive; `/health/ready` also
+   checks PostgreSQL and Redis and reports whether regulatory RAG and the OpenAI key are configured.
 
 ## Gated automatic deployment
 

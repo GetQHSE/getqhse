@@ -28,11 +28,24 @@ export const serverEnvironmentSchema = z.object({
   DOCLING_URL: z.url(),
   OPENAI_API_KEY: optionalNonEmptyString,
   OPENAI_PROFILE_MODEL: z.string().min(1).default("gpt-5-mini"),
-  OPENAI_REGULATORY_MODEL: z.string().min(1).default("gpt-5.6-sol"),
+  OPENAI_REGULATORY_MODEL: z.string().min(1).default("gpt-5-mini"),
   OPENAI_REGULATORY_REASONING_EFFORT: z
     .enum(["none", "low", "medium", "high", "xhigh", "max"])
-    .default("xhigh"),
+    .default("low"),
+  OPENAI_REGULATORY_TIMEOUT_MS: z.coerce.number().int().positive().default(180_000),
+  OPENAI_REGULATORY_DRAFT_MAX_OUTPUT_TOKENS: z.coerce.number().int().positive().default(12_000),
+  OPENAI_REGULATORY_VERIFICATION_MAX_OUTPUT_TOKENS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(6_000),
+  OPENAI_REGULATORY_RUN_BUDGET_USD: z.coerce.number().positive().default(1),
+  OPENAI_REGULATORY_INPUT_USD_PER_MTOK: z.coerce.number().positive().default(0.25),
+  OPENAI_REGULATORY_OUTPUT_USD_PER_MTOK: z.coerce.number().positive().default(2),
   OPENAI_TRANSCRIPTION_MODEL: z.string().min(1).default("gpt-4o-mini-transcribe"),
+  NORMATIVE_RAG_ENABLED: booleanString,
+  WORKER_HOST: z.string().min(1).default("127.0.0.1"),
+  WORKER_PORT: z.coerce.number().int().positive().default(4_002),
   LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace"]).default("info"),
   MAX_UPLOAD_BYTES: z.coerce.number().int().positive().default(10_485_760),
 });
@@ -51,6 +64,15 @@ export const workerEnvironmentSchema = serverEnvironmentSchema.pick({
   OPENAI_API_KEY: true,
   OPENAI_REGULATORY_MODEL: true,
   OPENAI_REGULATORY_REASONING_EFFORT: true,
+  OPENAI_REGULATORY_TIMEOUT_MS: true,
+  OPENAI_REGULATORY_DRAFT_MAX_OUTPUT_TOKENS: true,
+  OPENAI_REGULATORY_VERIFICATION_MAX_OUTPUT_TOKENS: true,
+  OPENAI_REGULATORY_RUN_BUDGET_USD: true,
+  OPENAI_REGULATORY_INPUT_USD_PER_MTOK: true,
+  OPENAI_REGULATORY_OUTPUT_USD_PER_MTOK: true,
+  NORMATIVE_RAG_ENABLED: true,
+  WORKER_HOST: true,
+  WORKER_PORT: true,
   LOG_LEVEL: true,
 });
 

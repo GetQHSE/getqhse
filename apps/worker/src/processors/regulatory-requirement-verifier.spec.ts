@@ -10,7 +10,7 @@ vi.mock("ai", () => ({
 
 vi.mock("@ai-sdk/openai", () => ({
   openai: {
-    responses: vi.fn(() => ({ modelId: "gpt-5.6-sol" })),
+    responses: vi.fn(() => ({ modelId: "gpt-5-mini" })),
     embedding: vi.fn(() => ({ modelId: "embedding" })),
   },
 }));
@@ -22,8 +22,8 @@ describe("independent regulatory requirement verification", () => {
 
   beforeEach(() => {
     process.env["DATABASE_URL"] ??= "postgresql://postgres:postgres@localhost:5432/qhse_test";
-    process.env["OPENAI_REGULATORY_MODEL"] = "gpt-5.6-sol";
-    process.env["OPENAI_REGULATORY_REASONING_EFFORT"] = "xhigh";
+    process.env["OPENAI_REGULATORY_MODEL"] = "gpt-5-mini";
+    process.env["OPENAI_REGULATORY_REASONING_EFFORT"] = "low";
     generated.mockReset();
   });
 
@@ -84,12 +84,34 @@ describe("independent regulatory requirement verification", () => {
 
     const processor = new RegulatoryAnalysisProcessor();
     const update = vi.fn().mockResolvedValue({});
-    (processor as unknown as { database: object }).database = {
+    let modelCallSequence = 0;
+    const database = {
       regulatoryAnalysisRun: {
-        findUnique: vi.fn().mockResolvedValue({ status: "RUNNING" }),
+        findUnique: vi.fn().mockResolvedValue({
+          status: "RUNNING",
+          budgetMicroUsd: 1_000_000,
+          spentMicroUsd: 0,
+          reservedMicroUsd: 0,
+        }),
         update,
       },
+      regulatoryModelCall: {
+        create: vi.fn().mockImplementation(async () => ({ id: `call-${++modelCallSequence}` })),
+        findUnique: vi.fn().mockResolvedValue({ status: "RUNNING" }),
+        update: vi.fn().mockResolvedValue({}),
+      },
+      regulatoryApplicabilityCandidate: {
+        findMany: vi.fn().mockResolvedValue([]),
+        upsert: vi.fn().mockResolvedValue({}),
+        count: vi.fn().mockResolvedValue(1),
+      },
+      $transaction: vi.fn(async (input: unknown) =>
+        typeof input === "function"
+          ? (input as (tx: typeof database) => Promise<unknown>)(database)
+          : Promise.all(input as Promise<unknown>[]),
+      ),
     };
+    (processor as unknown as { database: object }).database = database;
     const classify = (
       processor as unknown as {
         classifyProvisions(
@@ -97,19 +119,21 @@ describe("independent regulatory requirement verification", () => {
           candidates: unknown[],
           changes: unknown[],
           job: unknown,
-        ): Promise<
-          Array<{
+        ): Promise<{
+          results: Array<{
             requirementText: string | null;
             requirementStatus: string;
             requirementIssues: string[];
-          }>
-        >;
+          }>;
+          budgetExhausted: boolean;
+        }>;
       }
     ).classifyProvisions.bind(processor);
     const updateProgress = vi.fn().mockResolvedValue(undefined);
     const candidates = await classify(
       {
         id: "run-1",
+        clarificationRevision: 0,
         profileSnapshot: { data: { fields: { "organization.employeeCount": 12 } } },
         baseBaseline: null,
         scopeFacts: [],
@@ -144,7 +168,7 @@ describe("independent regulatory requirement verification", () => {
     );
 
     expect(generated).toHaveBeenCalledTimes(4);
-    expect(candidates[0]).toMatchObject({
+    expect(candidates.results[0]).toMatchObject({
       requirementStatus: "READY",
       requirementIssues: [],
       requirementText:
@@ -153,11 +177,18 @@ describe("independent regulatory requirement verification", () => {
     expect(update).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
-          model: "gpt-5.6-sol",
-          inputTokens: 290,
-          outputTokens: 120,
+          model: "gpt-5-mini",
         }),
       }),
+    );
+    expect(database.regulatoryModelCall.create).toHaveBeenCalledTimes(4);
+    expect(generated).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ timeout: 180_000, maxOutputTokens: 12_000, maxRetries: 0 }),
+    );
+    expect(generated).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ timeout: 180_000, maxOutputTokens: 6_000, maxRetries: 0 }),
     );
     expect(updateProgress).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -177,6 +208,90 @@ describe("independent regulatory requirement verification", () => {
         total: 1,
         stage: "provision_completed",
       }),
+    );
+  });
+
+  it("restores a completed candidate checkpoint without making duplicate model calls", async () => {
+    const processor = new RegulatoryAnalysisProcessor();
+    (processor as unknown as { database: object }).database = {
+      regulatoryAnalysisRun: {
+        findUnique: vi.fn().mockResolvedValue({ status: "RUNNING" }),
+        update: vi.fn().mockResolvedValue({}),
+      },
+      regulatoryApplicabilityCandidate: {
+        findMany: vi.fn().mockResolvedValue([
+          {
+            provisionId: "article-24",
+            suggestion: "APPLICABLE",
+            rationale: "Checkpoint validé avant le redémarrage.",
+            matchedProfileKeys: ["organization.employeeCount"],
+            confidence: 0.98,
+            clarificationQuestion: null,
+            requirementText:
+              "L’employeur doit prendre les mesures nécessaires pour préserver la sécurité et la santé des salariés.",
+            requirementStatus: "READY",
+            requirementSupportingExcerpts: [
+              "préserver la sécurité, la santé et la dignité des salariés",
+            ],
+            requirementIssues: [],
+            requirementSource: "AI",
+          },
+        ]),
+      },
+    };
+    const classify = (
+      processor as unknown as {
+        classifyProvisions(
+          run: unknown,
+          candidates: unknown[],
+          changes: unknown[],
+          job: unknown,
+        ): Promise<{ results: Array<{ provisionId: string }>; budgetExhausted: boolean }>;
+      }
+    ).classifyProvisions.bind(processor);
+    const updateProgress = vi.fn().mockResolvedValue(undefined);
+
+    const outcome = await classify(
+      {
+        id: "run-1",
+        clarificationRevision: 0,
+        profileSnapshot: { data: { fields: {} } },
+        baseBaseline: null,
+        scopeFacts: [],
+      },
+      [
+        {
+          provisionId: "article-24",
+          documentId: "code-travail",
+          documentVersionId: "v1",
+          documentTitle: "Code du travail",
+          referenceNumber: "Loi n° 65-99",
+          documentFamily: "regulation",
+          provisionType: "article",
+          identifier: "Article 24",
+          title: null,
+          headingPath: ["Livre premier"],
+          language: "fr",
+          content:
+            "Article 24 — L’employeur est tenu de prendre toutes les mesures nécessaires afin de préserver la sécurité, la santé et la dignité des salariés.",
+          contentHash: "hash-24",
+          score: 1,
+          previousEntryId: null,
+          changeType: "ADDED",
+          changeSummary: null,
+          previousRationale: null,
+          previousRequirementText: null,
+          previousRequirementSupportingExcerpts: [],
+        },
+      ],
+      [],
+      { id: "job-1", updateProgress },
+    );
+
+    expect(outcome.results).toHaveLength(1);
+    expect(generated).not.toHaveBeenCalled();
+    expect(updateProgress).toHaveBeenCalledWith(
+      expect.objectContaining({ stage: "checkpoint_recovered", completed: 1, total: 1 }),
     );
   });
 });

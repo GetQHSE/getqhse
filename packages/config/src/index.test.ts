@@ -8,4 +8,25 @@ describe("serverEnvironmentSchema", () => {
     expect(serverEnvironmentSchema.shape.OPENAI_API_KEY.parse(undefined)).toBeUndefined();
     expect(serverEnvironmentSchema.shape.OPENAI_API_KEY.parse("test-key")).toBe("test-key");
   });
+
+  it("defaults regulatory analysis to bounded GPT-5 mini calls", () => {
+    expect(serverEnvironmentSchema.shape.OPENAI_REGULATORY_MODEL.parse(undefined)).toBe(
+      "gpt-5-mini",
+    );
+    expect(serverEnvironmentSchema.shape.OPENAI_REGULATORY_REASONING_EFFORT.parse(undefined)).toBe(
+      "low",
+    );
+    expect(serverEnvironmentSchema.shape.OPENAI_REGULATORY_TIMEOUT_MS.parse(undefined)).toBe(
+      180_000,
+    );
+    expect(
+      serverEnvironmentSchema.shape.OPENAI_REGULATORY_DRAFT_MAX_OUTPUT_TOKENS.parse(undefined),
+    ).toBe(12_000);
+    expect(
+      serverEnvironmentSchema.shape.OPENAI_REGULATORY_VERIFICATION_MAX_OUTPUT_TOKENS.parse(
+        undefined,
+      ),
+    ).toBe(6_000);
+    expect(serverEnvironmentSchema.shape.OPENAI_REGULATORY_RUN_BUDGET_USD.parse(undefined)).toBe(1);
+  });
 });

@@ -1,6 +1,11 @@
 import { createHash } from "node:crypto";
 
-import { BadRequestException, Injectable, type OnModuleDestroy } from "@nestjs/common";
+import {
+  BadRequestException,
+  Injectable,
+  ServiceUnavailableException,
+  type OnModuleDestroy,
+} from "@nestjs/common";
 import {
   jobEnvelopeSchema,
   workQueueNames,
@@ -46,6 +51,19 @@ export class WorkQueueService implements OnModuleDestroy {
       .digest("hex");
     const job = await queue.add(jobName, validated, { jobId });
     return { jobId: job.id, queue: queueName, correlationId: validated.correlationId };
+  }
+
+  async assertWorkerAvailable(queueName: WorkQueueName): Promise<void> {
+    try {
+      const count = await this.queue(queueName).getWorkersCount();
+      if (count > 0) return;
+    } catch {
+      // Redis/queue discovery failures are indistinguishable from an unavailable consumer here.
+    }
+    throw new ServiceUnavailableException({
+      code: "REGULATORY_WORKER_UNAVAILABLE",
+      message: "No regulatory analysis worker is currently registered",
+    });
   }
 
   async onModuleDestroy(): Promise<void> {

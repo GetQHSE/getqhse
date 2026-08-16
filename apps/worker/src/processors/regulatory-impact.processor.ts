@@ -6,7 +6,13 @@ import type { Job, Queue } from "bullmq";
 
 import { defaultJobOptions, queueNames } from "../queues.js";
 
-const activeStatuses = ["QUEUED", "RUNNING", "AWAITING_CLARIFICATION", "READY_FOR_REVIEW"] as const;
+const activeStatuses = [
+  "QUEUED",
+  "RUNNING",
+  "AWAITING_CLARIFICATION",
+  "PARTIAL",
+  "READY_FOR_REVIEW",
+] as const;
 
 @Processor(queueNames.regulatoryImpact, { concurrency: 1 })
 export class RegulatoryImpactProcessor extends WorkerHost {
@@ -80,6 +86,9 @@ export class RegulatoryImpactProcessor extends WorkerHost {
               triggerDocumentVersionId: event.publishedVersionId,
               asOf: new Date(new Date().toISOString().slice(0, 10)),
               languages: ["fr", "ar"],
+              budgetMicroUsd: Math.round(
+                Number(process.env["OPENAI_REGULATORY_RUN_BUDGET_USD"] ?? 1) * 1_000_000,
+              ),
             },
           });
           await tx.projectRegulatoryWatch.update({

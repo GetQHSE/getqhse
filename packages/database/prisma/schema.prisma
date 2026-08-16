@@ -187,10 +187,18 @@ enum RegulatoryAnalysisStatus {
   QUEUED
   RUNNING
   AWAITING_CLARIFICATION
+  PARTIAL
   READY_FOR_REVIEW
   COMPLETED
   SUPERSEDED
   FAILED
+}
+
+enum RegulatoryModelCallStatus {
+  RUNNING
+  SUCCEEDED
+  FAILED
+  TIMED_OUT
 }
 
 enum RegulatoryChangeType {
@@ -596,6 +604,7 @@ model DocumentProvision {
   chunks               DocumentChunk[]
   regulatoryCandidates RegulatoryApplicabilityCandidate[]
   regulatoryEntries    RegulatoryRegisterEntry[]
+  regulatoryModelCalls RegulatoryModelCall[]
 
   @@unique([documentVersionId, orderIndex])
   @@index([documentVersionId, sourceIdentifier])
@@ -1153,8 +1162,14 @@ model RegulatoryAnalysisRun {
   model                    String?
   promptKey                String?                  @map("prompt_key")
   promptVersion            Int?                     @map("prompt_version")
-  inputTokens              Int?                     @map("input_tokens")
-  outputTokens             Int?                     @map("output_tokens")
+  inputTokens              Int                      @default(0) @map("input_tokens")
+  outputTokens             Int                      @default(0) @map("output_tokens")
+  reasoningTokens          Int                      @default(0) @map("reasoning_tokens")
+  budgetMicroUsd           Int                      @default(1000000) @map("budget_micro_usd")
+  spentMicroUsd            Int                      @default(0) @map("spent_micro_usd")
+  reservedMicroUsd         Int                      @default(0) @map("reserved_micro_usd")
+  completedProvisions      Int                      @default(0) @map("completed_provisions")
+  totalProvisions          Int                      @default(0) @map("total_provisions")
   errorCode                String?                  @map("error_code")
   errorMessage             String?                  @map("error_message")
   startedAt                DateTime?                @map("started_at")
@@ -1170,6 +1185,7 @@ model RegulatoryAnalysisRun {
   triggerDocumentVersion DocumentVersion?                   @relation("RegulatoryTriggerDocumentVersion", fields: [triggerDocumentVersionId], references: [id], onDelete: SetNull)
   scopeFacts             RegulatoryScopeFact[]
   candidates             RegulatoryApplicabilityCandidate[]
+  modelCalls             RegulatoryModelCall[]
   baseline               RegulatoryBaseline?
 
   @@unique([watchId, triggerKey])
@@ -1205,6 +1221,7 @@ model RegulatoryApplicabilityCandidate {
   rationale                     String
   matchedProfileKeys            String[]                     @default([]) @map("matched_profile_keys")
   confidence                    Decimal                      @db.Decimal(5, 4)
+  clarificationQuestion         String?                      @map("clarification_question")
   decision                      RegulatoryApplicability?
   decisionSource                RegulatoryDecisionSource?    @map("decision_source")
   decisionNote                  String?                      @map("decision_note")
@@ -1215,6 +1232,7 @@ model RegulatoryApplicabilityCandidate {
   requirementSource             RegulatoryRequirementSource? @map("requirement_source")
   requirementEditedById         String?                      @map("requirement_edited_by_id")
   requirementEditedAt           DateTime?                    @map("requirement_edited_at")
+  classificationRevision        Int                          @default(0) @map("classification_revision")
   reviewedById                  String?                      @map("reviewed_by_id")
   reviewedAt                    DateTime?                    @map("reviewed_at")
   createdAt                     DateTime                     @default(now()) @map("created_at")
@@ -1229,6 +1247,32 @@ model RegulatoryApplicabilityCandidate {
   @@unique([runId, provisionId])
   @@index([runId, decision, suggestion])
   @@map("regulatory_applicability_candidates")
+}
+
+model RegulatoryModelCall {
+  id                    String                    @id @default(cuid())
+  runId                 String                    @map("run_id")
+  provisionId           String                    @map("provision_id")
+  clarificationRevision Int                       @default(0) @map("clarification_revision")
+  stage                 String
+  attempt               Int
+  model                 String
+  status                RegulatoryModelCallStatus @default(RUNNING)
+  reservedMicroUsd      Int                       @map("reserved_micro_usd")
+  costMicroUsd          Int?                      @map("cost_micro_usd")
+  inputTokens           Int?
+  outputTokens          Int?
+  reasoningTokens       Int?                      @map("reasoning_tokens")
+  latencyMs             Int?                      @map("latency_ms")
+  errorCode             String?                   @map("error_code")
+  createdAt             DateTime                  @default(now()) @map("created_at")
+  completedAt           DateTime?                 @map("completed_at")
+
+  run       RegulatoryAnalysisRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  provision DocumentProvision     @relation(fields: [provisionId], references: [id], onDelete: Restrict)
+
+  @@index([runId, createdAt])
+  @@map("regulatory_model_calls")
 }
 
 model RegulatoryBaseline {

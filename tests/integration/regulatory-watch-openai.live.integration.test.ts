@@ -83,14 +83,17 @@ describe.skipIf(!enabled)("regulatory applicability OpenAI live", () => {
         verifierFeedback: [],
       });
       const result = await generateText({
-        model: openai.responses(process.env["OPENAI_REGULATORY_MODEL"] ?? "gpt-5.6-sol"),
+        model: openai.responses(process.env["OPENAI_REGULATORY_MODEL"] ?? "gpt-5-mini"),
         system: prompt.system,
         prompt: prompt.context,
         output: Output.object({ schema }),
+        timeout: Number(process.env["OPENAI_REGULATORY_TIMEOUT_MS"] ?? 180_000),
+        maxOutputTokens: Number(process.env["OPENAI_REGULATORY_DRAFT_MAX_OUTPUT_TOKENS"] ?? 12_000),
+        maxRetries: 0,
         providerOptions: {
           openai: {
             store: false,
-            reasoningEffort: process.env["OPENAI_REGULATORY_REASONING_EFFORT"] ?? "xhigh",
+            reasoningEffort: process.env["OPENAI_REGULATORY_REASONING_EFFORT"] ?? "low",
           },
         },
       });
@@ -118,6 +121,6 @@ describe.skipIf(!enabled)("regulatory applicability OpenAI live", () => {
         );
       }
     },
-    120_000,
+    240_000,
   );
 });

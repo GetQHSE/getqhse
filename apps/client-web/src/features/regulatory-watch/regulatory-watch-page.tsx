@@ -522,6 +522,7 @@ function ReviewState({
   onRerun: () => void;
 }) {
   const candidates = watch.currentAnalysis?.candidates ?? [];
+  const partial = watch.currentAnalysis?.status === "PARTIAL";
   const groups = [
     { value: "ADDED", label: "Ajouts" },
     { value: "MODIFIED", label: "Modifications" },
@@ -546,6 +547,7 @@ function ReviewState({
     (candidate) => candidate.requirement.status === "SOURCE_REVIEW_REQUIRED",
   );
   const canPublish =
+    !partial &&
     blocked.length === 0 &&
     remaining === 0 &&
     candidates.some((candidate) => candidate.decision === "APPLICABLE");
@@ -553,7 +555,7 @@ function ReviewState({
     <StateShell tone="light">
       <div className="mx-auto max-w-4xl py-3">
         <Badge className="border-violet-200 bg-violet-50 text-violet-700" variant="outline">
-          <SparklesIcon /> Proposition prête
+          <SparklesIcon /> {partial ? "Résultats partiels" : "Proposition prête"}
         </Badge>
         <div className="mt-4 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
@@ -569,6 +571,32 @@ function ReviewState({
             {remaining} décision{remaining === 1 ? "" : "s"} restante{remaining === 1 ? "" : "s"}
           </span>
         </div>
+        {partial && watch.currentAnalysis && (
+          <div
+            role="alert"
+            className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900"
+          >
+            <p className="font-semibold">Budget d’analyse atteint</p>
+            <p className="mt-1 text-xs leading-5 text-amber-800">
+              {watch.currentAnalysis.coverage.completed} disposition
+              {watch.currentAnalysis.coverage.completed === 1 ? "" : "s"} sur{" "}
+              {watch.currentAnalysis.coverage.total} terminée
+              {watch.currentAnalysis.coverage.completed === 1 ? "" : "s"}. Coût estimé :{" "}
+              {watch.currentAnalysis.usage.estimatedCostUsd.toFixed(3)} $ sur{" "}
+              {watch.currentAnalysis.usage.budgetUsd.toFixed(2)} $. Vous pouvez examiner les
+              résultats terminés, mais seule une analyse complète peut être publiée.
+            </p>
+            <Button
+              className="mt-3 bg-white"
+              disabled={deciding || publishing}
+              onClick={onRerun}
+              size="sm"
+              variant="outline"
+            >
+              <RefreshCwIcon /> Lancer une nouvelle analyse
+            </Button>
+          </div>
+        )}
         {blocked.length > 0 && (
           <div
             role="alert"
@@ -744,7 +772,9 @@ function ReviewState({
         )}
         <div className="mt-6 flex items-center justify-between gap-4 border-t border-slate-100 pt-5">
           <p className="text-xs text-slate-500">
-            La publication crée un référentiel immuable lié à cette version du profil.
+            {partial
+              ? "La publication reste bloquée tant que l’analyse n’est pas complète."
+              : "La publication crée un référentiel immuable lié à cette version du profil."}
           </p>
           <Button
             className="h-11 rounded-xl bg-violet-600 px-5 hover:bg-violet-500"
@@ -1162,7 +1192,7 @@ export function RegulatoryWatchPage() {
         onSubmit={(answers) => clarificationMutation.mutate(answers)}
       />
     );
-  if (!hasBaseline && analysisStatus === "READY_FOR_REVIEW")
+  if (!hasBaseline && ["READY_FOR_REVIEW", "PARTIAL"].includes(analysisStatus ?? ""))
     return (
       <ReviewState
         watch={watch}
@@ -1236,7 +1266,7 @@ export function RegulatoryWatchPage() {
           onSubmit={(answers) => clarificationMutation.mutate(answers)}
         />
       )}
-      {analysisStatus === "READY_FOR_REVIEW" && (
+      {["READY_FOR_REVIEW", "PARTIAL"].includes(analysisStatus ?? "") && (
         <ReviewState
           watch={watch}
           deciding={decisionMutation.isPending}

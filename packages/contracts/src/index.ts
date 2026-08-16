@@ -553,6 +553,7 @@ export const regulatoryAnalysisStatusSchema = z.enum([
   "QUEUED",
   "RUNNING",
   "AWAITING_CLARIFICATION",
+  "PARTIAL",
   "READY_FOR_REVIEW",
   "COMPLETED",
   "SUPERSEDED",
@@ -740,6 +741,10 @@ export const regulatoryAnalysisErrorCodeSchema = z.enum([
   "QUEUE_ERROR",
   /** The configured regulatory model is unavailable or rejected. */
   "REGULATORY_MODEL_UNAVAILABLE",
+  /** No worker is registered to consume regulatory analysis jobs. */
+  "REGULATORY_WORKER_UNAVAILABLE",
+  /** The configured per-run OpenAI budget was exhausted. */
+  "REGULATORY_BUDGET_LIMIT",
   /** Anything else. */
   "ANALYSIS_FAILED",
 ]);
@@ -763,6 +768,10 @@ export const regulatoryAnalysisErrorMessages: Record<RegulatoryAnalysisErrorCode
   QUEUE_ERROR: "L’analyse n’a pas pu être mise en file d’attente. Relancez l’analyse.",
   REGULATORY_MODEL_UNAVAILABLE:
     "Le modèle d’analyse réglementaire configuré est indisponible. Contactez votre administrateur.",
+  REGULATORY_WORKER_UNAVAILABLE:
+    "Le service de veille réglementaire n’est pas disponible. Contactez votre administrateur.",
+  REGULATORY_BUDGET_LIMIT:
+    "La limite de coût de cette analyse a été atteinte. Les résultats terminés restent consultables.",
   ANALYSIS_FAILED: "Vous pouvez relancer l’analyse sans modifier le profil.",
 };
 
@@ -791,6 +800,17 @@ export const regulatoryAnalysisRunSchema = z.object({
   languages: z.array(z.enum(["fr", "ar"])),
   phase: z.string(),
   progressPercent: z.number().int().min(0).max(100),
+  coverage: z.object({
+    completed: z.number().int().nonnegative(),
+    total: z.number().int().nonnegative(),
+  }),
+  usage: z.object({
+    inputTokens: z.number().int().nonnegative(),
+    outputTokens: z.number().int().nonnegative(),
+    reasoningTokens: z.number().int().nonnegative(),
+    estimatedCostUsd: z.number().nonnegative(),
+    budgetUsd: z.number().positive(),
+  }),
   clarificationRevision: z.number().int().nonnegative(),
   clarifications: z.array(
     z.object({ key: z.string(), question: z.string(), answer: z.unknown().nullable() }),
@@ -877,7 +897,7 @@ export const regulatoryWatchSchema = z.object({
     })
     .nullable(),
   synchronization: z.object({
-    state: z.enum(["IDLE", "QUEUED", "RUNNING", "CHANGES_READY", "FAILED", "STALE"]),
+    state: z.enum(["IDLE", "QUEUED", "RUNNING", "PARTIAL", "CHANGES_READY", "FAILED", "STALE"]),
     trigger: regulatoryRunTriggerSchema.nullable(),
     sourceBaselineId: idSchema.nullable(),
     progressPercent: z.number().int().min(0).max(100),

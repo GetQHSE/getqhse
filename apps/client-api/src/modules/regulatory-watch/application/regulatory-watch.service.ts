@@ -7,6 +7,7 @@ import {
   Inject,
   Injectable,
   NotFoundException,
+  ServiceUnavailableException,
 } from "@nestjs/common";
 import type {
   AnswerRegulatoryClarifications,
@@ -217,6 +218,17 @@ export class RegulatoryWatchService {
           ),
           phase: analysis.phase,
           progressPercent: analysis.progressPercent,
+          coverage: {
+            completed: analysis.completedProvisions,
+            total: analysis.totalProvisions,
+          },
+          usage: {
+            inputTokens: analysis.inputTokens,
+            outputTokens: analysis.outputTokens,
+            reasoningTokens: analysis.reasoningTokens,
+            estimatedCostUsd: analysis.spentMicroUsd / 1_000_000,
+            budgetUsd: analysis.budgetMicroUsd / 1_000_000,
+          },
           clarificationRevision: analysis.clarificationRevision,
           clarifications: analysis.scopeFacts.map((fact) => ({
             key: fact.key,
@@ -345,9 +357,11 @@ export class RegulatoryWatchService {
                 ? "QUEUED"
                 : analysis?.status === "RUNNING" || analysis?.status === "AWAITING_CLARIFICATION"
                   ? "RUNNING"
-                  : analysis?.status === "READY_FOR_REVIEW"
-                    ? "CHANGES_READY"
-                    : "IDLE",
+                  : analysis?.status === "PARTIAL"
+                    ? "PARTIAL"
+                    : analysis?.status === "READY_FOR_REVIEW"
+                      ? "CHANGES_READY"
+                      : "IDLE",
         trigger: analysis?.triggerType ?? null,
         sourceBaselineId: analysis?.baseBaselineId ?? null,
         progressPercent: analysis?.progressPercent ?? 0,
@@ -369,6 +383,13 @@ export class RegulatoryWatchService {
     input: StartRegulatoryAnalysis,
   ) {
     if (!canContribute(tenant.role)) throw new ForbiddenException("Regulatory access is required");
+    if (process.env["NORMATIVE_RAG_ENABLED"] !== "true" || !process.env["OPENAI_API_KEY"]) {
+      throw new ServiceUnavailableException({
+        code: "REGULATORY_WORKER_UNAVAILABLE",
+        message: "Regulatory analysis is not configured",
+      });
+    }
+    await this.queue.assertWorkerAvailable("regulatory-analysis");
     const { project, watch } = await this.ensureWatch(tenant, projectIdOrSlug);
     const snapshot = project.profile?.snapshots[0];
     if (!project.profile || project.profile.status !== "COMPLETE" || !snapshot) {
@@ -382,9 +403,9 @@ export class RegulatoryWatchService {
     }
     const asOf = new Date(`${input.asOf ?? new Date().toISOString().slice(0, 10)}T00:00:00.000Z`);
     const run = await this.database.$transaction(async (tx) => {
-      if (watch.analyses[0]?.status === "READY_FOR_REVIEW") {
+      if (["READY_FOR_REVIEW", "PARTIAL"].includes(watch.analyses[0]?.status ?? "")) {
         await tx.regulatoryAnalysisRun.update({
-          where: { id: watch.analyses[0].id },
+          where: { id: watch.analyses[0]!.id },
           data: { status: "SUPERSEDED", phase: "superseded", supersededAt: new Date() },
         });
       }
@@ -398,6 +419,9 @@ export class RegulatoryWatchService {
           triggerKey: randomUUID(),
           asOf,
           languages: input.languages,
+          budgetMicroUsd: Math.round(
+            Number(process.env["OPENAI_REGULATORY_RUN_BUDGET_USD"] ?? 1) * 1_000_000,
+          ),
         },
       });
       await tx.projectRegulatoryWatch.update({
@@ -511,7 +535,7 @@ export class RegulatoryWatchService {
       where: {
         id: candidateId,
         requiresReview: true,
-        run: { watchId: watch.id, status: "READY_FOR_REVIEW" },
+        run: { watchId: watch.id, status: { in: ["READY_FOR_REVIEW", "PARTIAL"] } },
       },
     });
     if (!candidate) throw new NotFoundException("Regulatory candidate not found");

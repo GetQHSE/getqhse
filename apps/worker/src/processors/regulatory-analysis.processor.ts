@@ -54,14 +54,61 @@ type ClassifiedCandidate = CandidateInput & {
   requirementStatus: "READY" | "SOURCE_REVIEW_REQUIRED" | "NOT_REQUIRED";
   requirementSupportingExcerpts: string[];
   requirementIssues: string[];
-  requirementSource: "AI" | "CARRIED_FORWARD" | null;
+  requirementSource: "AI" | "HUMAN" | "CARRIED_FORWARD" | null;
 };
 
-type ClassificationModelStage = "drafting" | "verification";
+export type ClassificationModelStage = "drafting" | "verification";
+
+type ReservedModelCall = {
+  id: string;
+  reservedMicroUsd: number;
+};
+
+class RegulatoryBudgetLimitError extends Error {
+  constructor() {
+    super("The regulatory analysis budget is exhausted");
+    this.name = "RegulatoryBudgetLimitError";
+  }
+}
 
 const CLASSIFICATION_PROGRESS_START = 50;
 const CLASSIFICATION_PROGRESS_END = 92;
 const MODEL_HEARTBEAT_INTERVAL_MS = 30_000;
+const CONSERVATIVE_PROMPT_OVERHEAD_TOKENS = 16_384;
+
+function positiveNumber(name: string, fallback: number): number {
+  const parsed = Number(process.env[name] ?? fallback);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+export function regulatoryModelLimits(stage: ClassificationModelStage) {
+  return {
+    timeoutMs: positiveNumber("OPENAI_REGULATORY_TIMEOUT_MS", 180_000),
+    maxOutputTokens:
+      stage === "drafting"
+        ? positiveNumber("OPENAI_REGULATORY_DRAFT_MAX_OUTPUT_TOKENS", 12_000)
+        : positiveNumber("OPENAI_REGULATORY_VERIFICATION_MAX_OUTPUT_TOKENS", 6_000),
+  };
+}
+
+export function regulatoryCostMicroUsd(inputTokens: number, outputTokens: number): number {
+  const inputRate = positiveNumber("OPENAI_REGULATORY_INPUT_USD_PER_MTOK", 0.25);
+  const outputRate = positiveNumber("OPENAI_REGULATORY_OUTPUT_USD_PER_MTOK", 2);
+  return Math.ceil(inputTokens * inputRate + outputTokens * outputRate);
+}
+
+function conservativeInputTokens(prompt: { system: string; context: string }): number {
+  return (
+    Buffer.byteLength(prompt.system, "utf8") +
+    Buffer.byteLength(prompt.context, "utf8") +
+    CONSERVATIVE_PROMPT_OVERHEAD_TOKENS
+  );
+}
+
+function isTimeoutError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  return /timeout|timed out|abort/iu.test(`${error.name} ${error.message}`);
+}
 
 export function regulatoryClassificationProgress(completed: number, total: number): number {
   if (total <= 0) return CLASSIFICATION_PROGRESS_END;
@@ -345,6 +392,145 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
   private readonly database: DatabaseClient = createPrismaClient();
   private readonly logger = createLogger({ base: { service: "qhse-worker" } });
 
+  private async reserveModelCall(input: {
+    runId: string;
+    provisionId: string;
+    clarificationRevision: number;
+    stage: ClassificationModelStage;
+    attempt: number;
+    model: string;
+    prompt: { system: string; context: string };
+    maxOutputTokens: number;
+  }): Promise<ReservedModelCall> {
+    const reservedMicroUsd = regulatoryCostMicroUsd(
+      conservativeInputTokens(input.prompt),
+      input.maxOutputTokens,
+    );
+    const reservation = await this.database.$transaction(async (tx) => {
+      const run = await tx.regulatoryAnalysisRun.findUnique({
+        where: { id: input.runId },
+        select: {
+          status: true,
+          budgetMicroUsd: true,
+          spentMicroUsd: true,
+          reservedMicroUsd: true,
+        },
+      });
+      if (!run || run.status !== "RUNNING") return null;
+      if (run.spentMicroUsd + run.reservedMicroUsd + reservedMicroUsd > run.budgetMicroUsd) {
+        return null;
+      }
+      const call = await tx.regulatoryModelCall.create({
+        data: {
+          runId: input.runId,
+          provisionId: input.provisionId,
+          clarificationRevision: input.clarificationRevision,
+          stage: input.stage,
+          attempt: input.attempt,
+          model: input.model,
+          reservedMicroUsd,
+        },
+        select: { id: true },
+      });
+      await tx.regulatoryAnalysisRun.update({
+        where: { id: input.runId },
+        data: { reservedMicroUsd: { increment: reservedMicroUsd } },
+      });
+      return { id: call.id, reservedMicroUsd };
+    });
+    if (!reservation) throw new RegulatoryBudgetLimitError();
+    return reservation;
+  }
+
+  private async settleModelCall(
+    runId: string,
+    reservation: ReservedModelCall,
+    result:
+      | {
+          status: "SUCCEEDED";
+          inputTokens: number;
+          outputTokens: number;
+          reasoningTokens: number;
+          latencyMs: number;
+        }
+      | {
+          status: "FAILED" | "TIMED_OUT";
+          latencyMs: number;
+          errorCode: string;
+        },
+  ): Promise<void> {
+    const succeeded = result.status === "SUCCEEDED";
+    const chargedMicroUsd = succeeded
+      ? regulatoryCostMicroUsd(result.inputTokens, result.outputTokens)
+      : reservation.reservedMicroUsd;
+    await this.database.$transaction(async (tx) => {
+      const call = await tx.regulatoryModelCall.findUnique({
+        where: { id: reservation.id },
+        select: { status: true },
+      });
+      if (!call || call.status !== "RUNNING") return;
+      await tx.regulatoryModelCall.update({
+        where: { id: reservation.id },
+        data: {
+          status: result.status,
+          costMicroUsd: chargedMicroUsd,
+          latencyMs: result.latencyMs,
+          completedAt: new Date(),
+          ...(succeeded
+            ? {
+                inputTokens: result.inputTokens,
+                outputTokens: result.outputTokens,
+                reasoningTokens: result.reasoningTokens,
+              }
+            : { errorCode: result.errorCode }),
+        },
+      });
+      await tx.regulatoryAnalysisRun.update({
+        where: { id: runId },
+        data: {
+          reservedMicroUsd: { decrement: reservation.reservedMicroUsd },
+          spentMicroUsd: { increment: chargedMicroUsd },
+          ...(succeeded
+            ? {
+                inputTokens: { increment: result.inputTokens },
+                outputTokens: { increment: result.outputTokens },
+                reasoningTokens: { increment: result.reasoningTokens },
+              }
+            : {}),
+        },
+      });
+    });
+  }
+
+  private async recoverAbandonedModelCalls(runId: string): Promise<void> {
+    await this.database.$transaction(async (tx) => {
+      const abandoned = await tx.regulatoryModelCall.findMany({
+        where: { runId, status: "RUNNING" },
+        select: { id: true, reservedMicroUsd: true },
+      });
+      if (!abandoned.length) return;
+      const chargedMicroUsd = abandoned.reduce((total, call) => total + call.reservedMicroUsd, 0);
+      for (const call of abandoned) {
+        await tx.regulatoryModelCall.update({
+          where: { id: call.id },
+          data: {
+            status: "FAILED",
+            costMicroUsd: call.reservedMicroUsd,
+            errorCode: "WORKER_RESTARTED",
+            completedAt: new Date(),
+          },
+        });
+      }
+      await tx.regulatoryAnalysisRun.update({
+        where: { id: runId },
+        data: {
+          reservedMicroUsd: 0,
+          spentMicroUsd: { increment: chargedMicroUsd },
+        },
+      });
+    });
+  }
+
   private async reportProgress(
     runId: string,
     job: Job<JobEnvelope>,
@@ -492,7 +678,10 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
       where: { id: runId },
       select: { status: true },
     });
-    return Boolean(run && !["SUPERSEDED", "FAILED", "COMPLETED"].includes(run.status));
+    return Boolean(
+      run &&
+      !["SUPERSEDED", "FAILED", "PARTIAL", "READY_FOR_REVIEW", "COMPLETED"].includes(run.status),
+    );
   }
 
   private async analyze(runId: string, job: Job<JobEnvelope>): Promise<void> {
@@ -526,6 +715,8 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
     });
     if (!run) throw new Error("Regulatory analysis run not found");
     if (!["QUEUED", "RUNNING"].includes(run.status)) return;
+
+    await this.recoverAbandonedModelCalls(run.id);
 
     await this.database.regulatoryAnalysisRun.update({
       where: { id: run.id },
@@ -734,6 +925,25 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
       ),
       ...additions,
     ];
+    const totalProvisions = deterministic.length + toClassify.length;
+    await this.database.$transaction([
+      this.database.regulatoryApplicabilityCandidate.deleteMany({
+        where: {
+          runId: run.id,
+          classificationRevision: { not: run.clarificationRevision },
+        },
+      }),
+      this.database.regulatoryAnalysisRun.update({
+        where: { id: run.id },
+        data: {
+          totalProvisions,
+          model: process.env["OPENAI_REGULATORY_MODEL"] ?? "gpt-5-mini",
+          promptKey: regulatoryApplicabilityPrompt.key,
+          promptVersion: regulatoryApplicabilityPrompt.version,
+        },
+      }),
+    ]);
+    await this.persistCandidates(run.id, run.clarificationRevision, deterministic);
     this.logger.info(
       {
         event: "regulatory_classification_started",
@@ -744,7 +954,8 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
       },
       "regulatory provision classification started",
     );
-    const classified = await this.classifyProvisions(run, toClassify, profileChanges, job);
+    const classification = await this.classifyProvisions(run, toClassify, profileChanges, job);
+    const classified = classification.results;
     this.logger.info(
       {
         event: "regulatory_classification_finished",
@@ -755,6 +966,11 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
       },
       "regulatory provision classification finished",
     );
+    if (classification.budgetExhausted) {
+      if (!(await this.stillCurrent(run.id))) return;
+      await this.completePartial(run.id, run.watchId, job);
+      return;
+    }
     const byProvision = new Map(classified.map((item) => [item.provisionId, item]));
     for (const candidate of toClassify) {
       if (!byProvision.has(candidate.provisionId)) {
@@ -808,7 +1024,7 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
       },
       "regulatory analysis finalization started",
     );
-    await this.persistCandidates(run.id, finalCandidates);
+    await this.persistCandidates(run.id, run.clarificationRevision, finalCandidates);
     if (!(await this.stillCurrent(run.id))) return;
 
     const questions = finalCandidates
@@ -1055,6 +1271,7 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
   private async classifyProvisions(
     run: {
       id: string;
+      clarificationRevision: number;
       profileSnapshot: { data: Prisma.JsonValue };
       baseBaseline: {
         profileSnapshot: { data: Prisma.JsonValue };
@@ -1070,14 +1287,31 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
     candidates: CandidateInput[],
     profileChanges: Array<{ key: string; previous: unknown; current: unknown }>,
     job: Job<JobEnvelope>,
-  ): Promise<ClassifiedCandidate[]> {
-    if (!candidates.length) return [];
-    const model = process.env["OPENAI_REGULATORY_MODEL"] ?? "gpt-5.6-sol";
-    const reasoningEffort = (process.env["OPENAI_REGULATORY_REASONING_EFFORT"] ?? "xhigh") as
+  ): Promise<{ results: ClassifiedCandidate[]; budgetExhausted: boolean }> {
+    if (!candidates.length) return { results: [], budgetExhausted: false };
+    const model = process.env["OPENAI_REGULATORY_MODEL"] ?? "gpt-5-mini";
+    const reasoningEffort = (process.env["OPENAI_REGULATORY_REASONING_EFFORT"] ?? "low") as
       "none" | "low" | "medium" | "high" | "xhigh" | "max";
     const results: ClassifiedCandidate[] = [];
-    let inputTokens = 0;
-    let outputTokens = 0;
+    const savedCandidates = await this.database.regulatoryApplicabilityCandidate.findMany({
+      where: { runId: run.id, classificationRevision: run.clarificationRevision },
+      select: {
+        provisionId: true,
+        suggestion: true,
+        rationale: true,
+        matchedProfileKeys: true,
+        confidence: true,
+        clarificationQuestion: true,
+        requirementText: true,
+        requirementStatus: true,
+        requirementSupportingExcerpts: true,
+        requirementIssues: true,
+        requirementSource: true,
+      },
+    });
+    const checkpoints = new Map(
+      savedCandidates.map((candidate) => [candidate.provisionId, candidate]),
+    );
     const generate = async <T extends z.ZodTypeAny>(
       prompt: { system: string; context: string },
       schema: T,
@@ -1110,6 +1344,17 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
         attempt: context.attempt,
         stage: context.stage,
       });
+      const limits = regulatoryModelLimits(context.stage);
+      const reservation = await this.reserveModelCall({
+        runId: run.id,
+        provisionId: context.candidate.provisionId,
+        clarificationRevision: run.clarificationRevision,
+        stage: context.stage,
+        attempt: context.attempt,
+        model,
+        prompt,
+        maxOutputTokens: limits.maxOutputTokens,
+      });
       const callStartedAt = Date.now();
       const logContext = {
         runId: run.id,
@@ -1124,6 +1369,9 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
         attempt: context.attempt,
         model,
         reasoningEffort,
+        timeoutMs: limits.timeoutMs,
+        maxOutputTokens: limits.maxOutputTokens,
+        reservedMicroUsd: reservation.reservedMicroUsd,
       };
       this.logger.info(
         { event: "regulatory_model_call_started", ...logContext },
@@ -1146,14 +1394,22 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
           system: prompt.system,
           prompt: prompt.context,
           output: Output.object({ schema }),
-          maxRetries: 2,
+          timeout: limits.timeoutMs,
+          maxOutputTokens: limits.maxOutputTokens,
+          maxRetries: 0,
           providerOptions: { openai: { store: false, reasoningEffort } },
           telemetry: { isEnabled: false },
         });
         const callInputTokens = generated.totalUsage.inputTokens ?? 0;
         const callOutputTokens = generated.totalUsage.outputTokens ?? 0;
-        inputTokens += callInputTokens;
-        outputTokens += callOutputTokens;
+        const reasoningTokens = generated.totalUsage.outputTokenDetails?.reasoningTokens ?? 0;
+        await this.settleModelCall(run.id, reservation, {
+          status: "SUCCEEDED",
+          inputTokens: callInputTokens,
+          outputTokens: callOutputTokens,
+          reasoningTokens,
+          latencyMs: Date.now() - callStartedAt,
+        });
         this.logger.info(
           {
             event: "regulatory_model_call_finished",
@@ -1161,11 +1417,18 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
             durationMs: Date.now() - callStartedAt,
             inputTokens: callInputTokens,
             outputTokens: callOutputTokens,
+            reasoningTokens,
           },
           "regulatory model call finished",
         );
         return generated.output as z.infer<T>;
       } catch (error) {
+        const timedOut = isTimeoutError(error);
+        await this.settleModelCall(run.id, reservation, {
+          status: timedOut ? "TIMED_OUT" : "FAILED",
+          latencyMs: Date.now() - callStartedAt,
+          errorCode: timedOut ? "REGULATORY_MODEL_TIMEOUT" : "REGULATORY_MODEL_UNAVAILABLE",
+        });
         this.logger.error(
           {
             event: "regulatory_model_call_failed",
@@ -1185,46 +1448,231 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
       }
     };
 
-    for (const [candidateIndex, candidate] of candidates.entries()) {
-      if (!(await this.stillCurrent(run.id))) return results;
-      const provisionStartedAt = Date.now();
-      this.logger.info(
-        {
-          event: "regulatory_provision_started",
-          runId: run.id,
-          jobId: job.id,
-          candidateIndex: candidateIndex + 1,
-          candidateTotal: candidates.length,
-          provisionId: candidate.provisionId,
-          identifier: candidate.identifier,
-          documentId: candidate.documentId,
-          referenceNumber: candidate.referenceNumber,
-          language: candidate.language,
-          changeType: candidate.changeType,
-        },
-        "regulatory provision analysis started",
-      );
-      const initialIssues = structuralIssues(candidate);
-      if (candidate.content.length > 30_000) {
-        initialIssues.push(
-          "La disposition dépasse 30 000 caractères et ne peut pas être envoyée sans troncature.",
+    try {
+      for (const [candidateIndex, candidate] of candidates.entries()) {
+        if (!(await this.stillCurrent(run.id))) {
+          return { results, budgetExhausted: false };
+        }
+        const checkpoint = checkpoints.get(candidate.provisionId);
+        if (checkpoint) {
+          results.push({
+            ...candidate,
+            suggestion: checkpoint.suggestion,
+            rationale: checkpoint.rationale,
+            matchedProfileKeys: checkpoint.matchedProfileKeys,
+            confidence: Number(checkpoint.confidence),
+            clarificationQuestion: checkpoint.clarificationQuestion,
+            requirementText: checkpoint.requirementText,
+            requirementStatus: checkpoint.requirementStatus,
+            requirementSupportingExcerpts: checkpoint.requirementSupportingExcerpts,
+            requirementIssues: checkpoint.requirementIssues,
+            requirementSource: checkpoint.requirementSource,
+          });
+          await this.reportProgress(run.id, job, {
+            phase: "classification",
+            percent: regulatoryClassificationProgress(candidateIndex + 1, candidates.length),
+            completed: candidateIndex + 1,
+            total: candidates.length,
+            provisionId: candidate.provisionId,
+            identifier: candidate.identifier,
+            documentId: candidate.documentId,
+            stage: "checkpoint_recovered",
+          });
+          continue;
+        }
+        const provisionStartedAt = Date.now();
+        this.logger.info(
+          {
+            event: "regulatory_provision_started",
+            runId: run.id,
+            jobId: job.id,
+            candidateIndex: candidateIndex + 1,
+            candidateTotal: candidates.length,
+            provisionId: candidate.provisionId,
+            identifier: candidate.identifier,
+            documentId: candidate.documentId,
+            referenceNumber: candidate.referenceNumber,
+            language: candidate.language,
+            changeType: candidate.changeType,
+          },
+          "regulatory provision analysis started",
         );
-      }
-      if (initialIssues.length) {
-        const blocked: ClassifiedCandidate = {
-          ...candidate,
-          suggestion: candidate.previousEntryId ? "APPLICABLE" : "TO_CONFIRM",
-          rationale: "La qualité ou la structure de la source ne permet pas une analyse fiable.",
-          matchedProfileKeys: [],
-          confidence: 0,
-          clarificationQuestion: null,
-          requirementText: null,
-          requirementStatus: "SOURCE_REVIEW_REQUIRED",
-          requirementSupportingExcerpts: [],
-          requirementIssues: [...new Set(initialIssues)],
-          requirementSource: null,
-        };
-        results.push(blocked);
+        const initialIssues = structuralIssues(candidate);
+        if (candidate.content.length > 30_000) {
+          initialIssues.push(
+            "La disposition dépasse 30 000 caractères et ne peut pas être envoyée sans troncature.",
+          );
+        }
+        if (initialIssues.length) {
+          const blocked: ClassifiedCandidate = {
+            ...candidate,
+            suggestion: candidate.previousEntryId ? "APPLICABLE" : "TO_CONFIRM",
+            rationale: "La qualité ou la structure de la source ne permet pas une analyse fiable.",
+            matchedProfileKeys: [],
+            confidence: 0,
+            clarificationQuestion: null,
+            requirementText: null,
+            requirementStatus: "SOURCE_REVIEW_REQUIRED",
+            requirementSupportingExcerpts: [],
+            requirementIssues: [...new Set(initialIssues)],
+            requirementSource: null,
+          };
+          results.push(blocked);
+          await this.persistCandidate(run.id, run.clarificationRevision, blocked);
+          await this.reportProgress(run.id, job, {
+            phase: "classification",
+            percent: regulatoryClassificationProgress(candidateIndex + 1, candidates.length),
+            completed: candidateIndex + 1,
+            total: candidates.length,
+            provisionId: candidate.provisionId,
+            identifier: candidate.identifier,
+            documentId: candidate.documentId,
+            stage: "source_quality_blocked",
+          });
+          this.logger.warn(
+            {
+              event: "regulatory_provision_finished",
+              runId: run.id,
+              jobId: job.id,
+              candidateIndex: candidateIndex + 1,
+              candidateTotal: candidates.length,
+              provisionId: candidate.provisionId,
+              identifier: candidate.identifier,
+              documentId: candidate.documentId,
+              status: blocked.requirementStatus,
+              issueCount: blocked.requirementIssues.length,
+              durationMs: Date.now() - provisionStartedAt,
+            },
+            "regulatory provision blocked by source quality",
+          );
+          continue;
+        }
+
+        const previous = candidate.previousEntryId
+          ? (run.baseBaseline?.entries ?? []).find(
+              (entry) => entry.id === candidate.previousEntryId,
+            )
+          : null;
+        let verifierFeedback: string[] = [];
+        let classified: ClassifiedCandidate | null = null;
+        for (let attempt = 0; attempt < 2; attempt += 1) {
+          const prompt = regulatoryApplicabilityPrompt.build({
+            profileContext: run.profileSnapshot.data,
+            previousProfileContext: run.baseBaseline?.profileSnapshot.data ?? null,
+            profileChanges,
+            clarificationContext: run.scopeFacts.map(({ key, question, answer }) => ({
+              key,
+              question,
+              answer,
+            })),
+            previousDecision: previous
+              ? {
+                  previousEntryId: previous.id,
+                  decision: "APPLICABLE",
+                  rationale: previous.applicabilityRationale.slice(0, 800),
+                  requirementText: previous.requirementText,
+                }
+              : null,
+            candidate: {
+              provisionId: candidate.provisionId,
+              previousEntryId: candidate.previousEntryId,
+              changeType: candidate.changeType,
+              documentFamily: candidate.documentFamily,
+              provisionType: candidate.provisionType,
+              document: [candidate.referenceNumber, candidate.documentTitle]
+                .filter(Boolean)
+                .join(" — "),
+              identifier: candidate.identifier,
+              title: candidate.title,
+              content: candidate.content,
+            },
+            verifierFeedback,
+          });
+          const draft = await generate(prompt, classificationSchema, {
+            candidate,
+            candidateIndex,
+            candidateTotal: candidates.length,
+            attempt: attempt + 1,
+            stage: "drafting",
+          });
+          const draftIssues = [
+            ...draft.qualityIssues,
+            ...(draft.sourceQuality === "BLOCKED"
+              ? ["Le modèle a signalé une source inexploitable."]
+              : []),
+          ];
+          const needsRequirement =
+            draft.sourceQuality === "PASS" &&
+            draft.normativeRequirement &&
+            draft.suggestion !== "NOT_APPLICABLE";
+          if (!needsRequirement) {
+            classified = {
+              ...candidate,
+              suggestion: draft.suggestion,
+              rationale: draft.rationale,
+              matchedProfileKeys: draft.matchedProfileKeys,
+              confidence: draft.confidence,
+              clarificationQuestion: draft.clarificationQuestion,
+              requirementText: draft.requirementText,
+              requirementStatus:
+                draft.sourceQuality === "BLOCKED" ? "SOURCE_REVIEW_REQUIRED" : "NOT_REQUIRED",
+              requirementSupportingExcerpts: draft.supportingExcerpts,
+              requirementIssues: [...new Set(draftIssues)],
+              requirementSource: draft.requirementText ? "AI" : null,
+            };
+            break;
+          }
+
+          const deterministicIssues = validateRequirementDraft(
+            candidate.content,
+            draft.requirementText,
+            draft.supportingExcerpts,
+          );
+          let verificationIssues = deterministicIssues;
+          if (!verificationIssues.length && draft.requirementText) {
+            const verificationPrompt = regulatoryRequirementVerificationPrompt.build({
+              document: [candidate.referenceNumber, candidate.documentTitle]
+                .filter(Boolean)
+                .join(" — "),
+              identifier: candidate.identifier,
+              content: candidate.content,
+              requirementText: draft.requirementText,
+              supportingExcerpts: draft.supportingExcerpts,
+            });
+            const verification = await generate(verificationPrompt, verificationSchema, {
+              candidate,
+              candidateIndex,
+              candidateTotal: candidates.length,
+              attempt: attempt + 1,
+              stage: "verification",
+            });
+            verificationIssues = verification.supported
+              ? []
+              : verification.issues.length
+                ? verification.issues
+                : ["Le vérificateur indépendant n’a pas confirmé le support de l’exigence."];
+          }
+          const allIssues = [...new Set([...draftIssues, ...verificationIssues])];
+          classified = {
+            ...candidate,
+            suggestion: draft.suggestion,
+            rationale: draft.rationale,
+            matchedProfileKeys: draft.matchedProfileKeys,
+            confidence: draft.confidence,
+            clarificationQuestion: draft.clarificationQuestion,
+            requirementText: draft.requirementText,
+            requirementStatus: allIssues.length ? "SOURCE_REVIEW_REQUIRED" : "READY",
+            requirementSupportingExcerpts: draft.supportingExcerpts,
+            requirementIssues: allIssues,
+            requirementSource: "AI",
+          };
+          if (!allIssues.length) break;
+          verifierFeedback = allIssues;
+        }
+        if (classified) {
+          results.push(classified);
+          await this.persistCandidate(run.id, run.clarificationRevision, classified);
+        }
         await this.reportProgress(run.id, job, {
           phase: "classification",
           percent: regulatoryClassificationProgress(candidateIndex + 1, candidates.length),
@@ -1233,9 +1681,9 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
           provisionId: candidate.provisionId,
           identifier: candidate.identifier,
           documentId: candidate.documentId,
-          stage: "source_quality_blocked",
+          stage: "provision_completed",
         });
-        this.logger.warn(
+        this.logger.info(
           {
             event: "regulatory_provision_finished",
             runId: run.id,
@@ -1245,162 +1693,29 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
             provisionId: candidate.provisionId,
             identifier: candidate.identifier,
             documentId: candidate.documentId,
-            status: blocked.requirementStatus,
-            issueCount: blocked.requirementIssues.length,
+            suggestion: classified?.suggestion,
+            status: classified?.requirementStatus,
+            issueCount: classified?.requirementIssues.length ?? 0,
             durationMs: Date.now() - provisionStartedAt,
           },
-          "regulatory provision blocked by source quality",
+          "regulatory provision analysis finished",
         );
-        continue;
       }
-
-      const previous = candidate.previousEntryId
-        ? (run.baseBaseline?.entries ?? []).find((entry) => entry.id === candidate.previousEntryId)
-        : null;
-      let verifierFeedback: string[] = [];
-      let classified: ClassifiedCandidate | null = null;
-      for (let attempt = 0; attempt < 2; attempt += 1) {
-        const prompt = regulatoryApplicabilityPrompt.build({
-          profileContext: run.profileSnapshot.data,
-          previousProfileContext: run.baseBaseline?.profileSnapshot.data ?? null,
-          profileChanges,
-          clarificationContext: run.scopeFacts.map(({ key, question, answer }) => ({
-            key,
-            question,
-            answer,
-          })),
-          previousDecision: previous
-            ? {
-                previousEntryId: previous.id,
-                decision: "APPLICABLE",
-                rationale: previous.applicabilityRationale.slice(0, 800),
-                requirementText: previous.requirementText,
-              }
-            : null,
-          candidate: {
-            provisionId: candidate.provisionId,
-            previousEntryId: candidate.previousEntryId,
-            changeType: candidate.changeType,
-            documentFamily: candidate.documentFamily,
-            provisionType: candidate.provisionType,
-            document: [candidate.referenceNumber, candidate.documentTitle]
-              .filter(Boolean)
-              .join(" — "),
-            identifier: candidate.identifier,
-            title: candidate.title,
-            content: candidate.content,
+    } catch (error) {
+      if (error instanceof RegulatoryBudgetLimitError) {
+        this.logger.warn(
+          {
+            event: "regulatory_budget_exhausted",
+            runId: run.id,
+            jobId: job.id,
+            completed: results.length,
+            total: candidates.length,
           },
-          verifierFeedback,
-        });
-        const draft = await generate(prompt, classificationSchema, {
-          candidate,
-          candidateIndex,
-          candidateTotal: candidates.length,
-          attempt: attempt + 1,
-          stage: "drafting",
-        });
-        const draftIssues = [
-          ...draft.qualityIssues,
-          ...(draft.sourceQuality === "BLOCKED"
-            ? ["Le modèle a signalé une source inexploitable."]
-            : []),
-        ];
-        const needsRequirement =
-          draft.sourceQuality === "PASS" &&
-          draft.normativeRequirement &&
-          draft.suggestion !== "NOT_APPLICABLE";
-        if (!needsRequirement) {
-          classified = {
-            ...candidate,
-            suggestion: draft.suggestion,
-            rationale: draft.rationale,
-            matchedProfileKeys: draft.matchedProfileKeys,
-            confidence: draft.confidence,
-            clarificationQuestion: draft.clarificationQuestion,
-            requirementText: draft.requirementText,
-            requirementStatus:
-              draft.sourceQuality === "BLOCKED" ? "SOURCE_REVIEW_REQUIRED" : "NOT_REQUIRED",
-            requirementSupportingExcerpts: draft.supportingExcerpts,
-            requirementIssues: [...new Set(draftIssues)],
-            requirementSource: draft.requirementText ? "AI" : null,
-          };
-          break;
-        }
-
-        const deterministicIssues = validateRequirementDraft(
-          candidate.content,
-          draft.requirementText,
-          draft.supportingExcerpts,
+          "regulatory analysis stopped before exceeding its run budget",
         );
-        let verificationIssues = deterministicIssues;
-        if (!verificationIssues.length && draft.requirementText) {
-          const verificationPrompt = regulatoryRequirementVerificationPrompt.build({
-            document: [candidate.referenceNumber, candidate.documentTitle]
-              .filter(Boolean)
-              .join(" — "),
-            identifier: candidate.identifier,
-            content: candidate.content,
-            requirementText: draft.requirementText,
-            supportingExcerpts: draft.supportingExcerpts,
-          });
-          const verification = await generate(verificationPrompt, verificationSchema, {
-            candidate,
-            candidateIndex,
-            candidateTotal: candidates.length,
-            attempt: attempt + 1,
-            stage: "verification",
-          });
-          verificationIssues = verification.supported
-            ? []
-            : verification.issues.length
-              ? verification.issues
-              : ["Le vérificateur indépendant n’a pas confirmé le support de l’exigence."];
-        }
-        const allIssues = [...new Set([...draftIssues, ...verificationIssues])];
-        classified = {
-          ...candidate,
-          suggestion: draft.suggestion,
-          rationale: draft.rationale,
-          matchedProfileKeys: draft.matchedProfileKeys,
-          confidence: draft.confidence,
-          clarificationQuestion: draft.clarificationQuestion,
-          requirementText: draft.requirementText,
-          requirementStatus: allIssues.length ? "SOURCE_REVIEW_REQUIRED" : "READY",
-          requirementSupportingExcerpts: draft.supportingExcerpts,
-          requirementIssues: allIssues,
-          requirementSource: "AI",
-        };
-        if (!allIssues.length) break;
-        verifierFeedback = allIssues;
+        return { results, budgetExhausted: true };
       }
-      if (classified) results.push(classified);
-      await this.reportProgress(run.id, job, {
-        phase: "classification",
-        percent: regulatoryClassificationProgress(candidateIndex + 1, candidates.length),
-        completed: candidateIndex + 1,
-        total: candidates.length,
-        provisionId: candidate.provisionId,
-        identifier: candidate.identifier,
-        documentId: candidate.documentId,
-        stage: "provision_completed",
-      });
-      this.logger.info(
-        {
-          event: "regulatory_provision_finished",
-          runId: run.id,
-          jobId: job.id,
-          candidateIndex: candidateIndex + 1,
-          candidateTotal: candidates.length,
-          provisionId: candidate.provisionId,
-          identifier: candidate.identifier,
-          documentId: candidate.documentId,
-          suggestion: classified?.suggestion,
-          status: classified?.requirementStatus,
-          issueCount: classified?.requirementIssues.length ?? 0,
-          durationMs: Date.now() - provisionStartedAt,
-        },
-        "regulatory provision analysis finished",
-      );
+      throw error;
     }
     await this.database.regulatoryAnalysisRun.update({
       where: { id: run.id },
@@ -1408,45 +1723,109 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
         model,
         promptKey: regulatoryApplicabilityPrompt.key,
         promptVersion: regulatoryApplicabilityPrompt.version,
-        inputTokens,
-        outputTokens,
       },
     });
-    return results;
+    return { results, budgetExhausted: false };
   }
 
-  private async persistCandidates(runId: string, candidates: ClassifiedCandidate[]): Promise<void> {
-    await this.database.$transaction(async (tx) => {
-      await tx.regulatoryApplicabilityCandidate.deleteMany({ where: { runId } });
-      for (const candidate of candidates) {
-        const unchanged =
-          candidate.changeType === "UNCHANGED" && candidate.requirementStatus === "READY";
-        const systemExcluded =
-          candidate.changeType === "ADDED" &&
-          candidate.suggestion === "NOT_APPLICABLE" &&
-          candidate.requirementStatus === "NOT_REQUIRED";
-        await tx.regulatoryApplicabilityCandidate.create({
-          data: {
-            runId,
-            provisionId: candidate.provisionId,
-            previousEntryId: candidate.previousEntryId,
-            changeType: candidate.changeType,
-            changeSummary: candidate.changeSummary,
-            requiresReview: !unchanged && !systemExcluded,
-            suggestion: candidate.suggestion,
-            rationale: candidate.rationale,
-            matchedProfileKeys: candidate.matchedProfileKeys,
-            confidence: candidate.confidence,
-            requirementText: candidate.requirementText,
-            requirementStatus: candidate.requirementStatus,
-            requirementSupportingExcerpts: candidate.requirementSupportingExcerpts,
-            requirementIssues: candidate.requirementIssues,
-            requirementSource: candidate.requirementSource,
-            decision: unchanged ? "APPLICABLE" : systemExcluded ? "NOT_APPLICABLE" : null,
-            decisionSource: unchanged || systemExcluded ? "SYSTEM" : null,
-          },
-        });
-      }
+  private async persistCandidate(
+    runId: string,
+    clarificationRevision: number,
+    candidate: ClassifiedCandidate,
+  ): Promise<void> {
+    const unchanged =
+      candidate.changeType === "UNCHANGED" && candidate.requirementStatus === "READY";
+    const systemExcluded =
+      candidate.changeType === "ADDED" &&
+      candidate.suggestion === "NOT_APPLICABLE" &&
+      candidate.requirementStatus === "NOT_REQUIRED";
+    const values = {
+      previousEntryId: candidate.previousEntryId,
+      changeType: candidate.changeType,
+      changeSummary: candidate.changeSummary,
+      requiresReview: !unchanged && !systemExcluded,
+      suggestion: candidate.suggestion,
+      rationale: candidate.rationale,
+      matchedProfileKeys: candidate.matchedProfileKeys,
+      confidence: candidate.confidence,
+      clarificationQuestion: candidate.clarificationQuestion,
+      requirementText: candidate.requirementText,
+      requirementStatus: candidate.requirementStatus,
+      requirementSupportingExcerpts: candidate.requirementSupportingExcerpts,
+      requirementIssues: candidate.requirementIssues,
+      requirementSource: candidate.requirementSource,
+      decision: unchanged
+        ? ("APPLICABLE" as const)
+        : systemExcluded
+          ? ("NOT_APPLICABLE" as const)
+          : null,
+      decisionSource: unchanged || systemExcluded ? ("SYSTEM" as const) : null,
+      decisionNote: null,
+      reviewedById: null,
+      reviewedAt: null,
+      classificationRevision: clarificationRevision,
+    };
+    await this.database.regulatoryApplicabilityCandidate.upsert({
+      where: { runId_provisionId: { runId, provisionId: candidate.provisionId } },
+      create: { runId, provisionId: candidate.provisionId, ...values },
+      update: values,
+    });
+    const completed = await this.database.regulatoryApplicabilityCandidate.count({
+      where: { runId, classificationRevision: clarificationRevision },
+    });
+    await this.database.regulatoryAnalysisRun.update({
+      where: { id: runId },
+      data: { completedProvisions: completed },
+    });
+  }
+
+  private async persistCandidates(
+    runId: string,
+    clarificationRevision: number,
+    candidates: ClassifiedCandidate[],
+  ): Promise<void> {
+    for (const candidate of candidates) {
+      await this.persistCandidate(runId, clarificationRevision, candidate);
+    }
+  }
+
+  private async completePartial(
+    runId: string,
+    watchId: string,
+    job: Job<JobEnvelope>,
+  ): Promise<void> {
+    const run = await this.database.regulatoryAnalysisRun.findUnique({
+      where: { id: runId },
+      select: { completedProvisions: true, totalProvisions: true },
+    });
+    const completed = run?.completedProvisions ?? 0;
+    const total = run?.totalProvisions ?? 0;
+    const progress = regulatoryClassificationProgress(completed, total);
+    const now = new Date();
+    await this.database.$transaction([
+      this.database.regulatoryAnalysisRun.update({
+        where: { id: runId },
+        data: {
+          status: "PARTIAL",
+          phase: "budget-limit",
+          progressPercent: progress,
+          errorCode: "REGULATORY_BUDGET_LIMIT",
+          errorMessage: "The run stopped before another model call to preserve its budget ceiling.",
+          completedAt: now,
+        },
+      }),
+      this.database.projectRegulatoryWatch.update({
+        where: { id: watchId },
+        data: { status: "REVIEW_REQUIRED", lastCheckedAt: now },
+      }),
+    ]);
+    await job.updateProgress({
+      phase: "budget-limit",
+      progress,
+      completed,
+      total,
+      stopReason: "REGULATORY_BUDGET_LIMIT",
+      updatedAt: now.toISOString(),
     });
   }
 

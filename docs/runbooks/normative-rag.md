@@ -24,10 +24,19 @@ retrieval logs.
 
 ## Accuracy-first regulatory analysis
 
-The regulatory worker uses `OPENAI_REGULATORY_MODEL=gpt-5.6-sol` and
-`OPENAI_REGULATORY_REASONING_EFFORT=xhigh` by default. Keep both values explicit in production. A
+The regulatory worker uses `OPENAI_REGULATORY_MODEL=gpt-5-mini` and
+`OPENAI_REGULATORY_REASONING_EFFORT=low` by default. Keep both values explicit in production. A
 configured model failure stops the run with `REGULATORY_MODEL_UNAVAILABLE`; the worker never falls
-back silently to a smaller model. Requests use `store=false`.
+back silently to another model. Requests use `store=false`, a 180-second timeout, zero SDK retries,
+and output ceilings of 12,000 tokens for drafting and 6,000 tokens for verification. The only retry
+is one explicit corrected draft after verifier feedback.
+
+Every generation call has a durable ledger row containing its candidate, stage, attempt, status,
+duration, token and reasoning-token usage, reserved cost, and reconciled cost. Before a call, the
+worker reserves a conservative worst-case amount against the run's `$1` default budget. A timed-out
+call with unknown usage consumes its full reservation. When another call would exceed the budget,
+the run becomes `PARTIAL` with stop reason `REGULATORY_BUDGET_LIMIT`; completed candidates remain
+reviewable, publication stays disabled, and a new analysis may supersede the partial run.
 
 Each run expands queries from the validated project profile, fuses keyword and vector ranks,
 expands the best 20 documents, deduplicates logical provisions, and analyzes at most 100 provisions.
@@ -43,8 +52,9 @@ document is corrected, reprocessed, reindexed, and the analysis is rerun.
 
 Published baselines are immutable. There is no automatic backfill: an older entry without approved
 requirement wording displays **Exigence à régénérer** and cannot be exported. Use **Actualiser
-l’analyse** to supersede an unpublished `READY_FOR_REVIEW` run, review the newly drafted requirements,
-and publish a successor baseline. Queued, running, and clarification runs cannot be superseded.
+l’analyse** to supersede an unpublished `READY_FOR_REVIEW` or `PARTIAL` run, review the newly drafted
+requirements, and publish a successor baseline. Queued, running, and clarification runs cannot be
+superseded.
 
 Activating a profile atomically retires the prior profile. Its vectors remain available for
 rollback. A revision is returned only when it is published, human-validated, effective for the
@@ -56,10 +66,13 @@ and permitted by every required rights flag.
 ### Following a running analysis
 
 The customer page polls every two seconds. Retrieval advances from 10–45%, provision-by-provision
-classification advances from 50–92%, and candidate persistence is reported at 95%. During a model
+classification advances from 50–92%, and finalization is reported at 95%. Exactly 50% means retrieval
+finished and the worker is at the first classification candidate; it is not itself evidence of a
+deadlock. During a model
 call the phase identifies whether the worker is drafting, independently verifying, or retrying an
 exigence. A percentage that changes confirms completed work; the worker log heartbeat confirms a
-long-running model request is still alive.
+long-running model request is still alive. Each completed candidate is persisted immediately, so a
+worker restart resumes from its checkpoints instead of repeating completed OpenAI calls.
 
 Follow the structured worker log locally:
 
@@ -79,6 +92,8 @@ worker are running:
 ```bash
 docker compose ps postgres redis worker
 docker compose logs --tail=100 worker
+docker compose exec -T worker wget -q -O - http://127.0.0.1:4002/health/live
+docker compose exec -T worker wget -q -O - http://127.0.0.1:4002/health/ready
 ```
 
 When applications run on the host with `pnpm dev`, use that terminal's `qhse-worker` JSON output
@@ -104,6 +119,8 @@ curl -s --cookie "$ADMIN_COOKIE" https://<admin-api>/v1/documents/embedding-prof
 | `EMBEDDING_PROFILE_NOT_ACTIVATED` | A profile is READY but step 7 was skipped.                | `POST /v1/documents/embedding-profiles/{profileId}/activate`.                          |
 | `EMBEDDING_PROFILE_STALE`         | Content was published after the active profile was built. | Reindex the new revisions, then activate the refreshed profile.                        |
 | `REGULATORY_MODEL_UNAVAILABLE`    | The configured accuracy model failed or was rejected.     | Verify model access and both regulatory model variables; restart the worker.           |
+| `REGULATORY_WORKER_UNAVAILABLE`   | No BullMQ regulatory worker is registered.                | Check worker readiness/logs and its Redis connection before retrying.                  |
+| `REGULATORY_BUDGET_LIMIT`         | The run stopped before exceeding its configured budget.   | Review completed candidates, then start a new run or explicitly revise the budget.     |
 
 ### Driving the rollout
 

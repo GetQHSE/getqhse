@@ -2,6 +2,7 @@ import { BullModule } from "@nestjs/bullmq";
 import { Module } from "@nestjs/common";
 
 import { queueNames } from "./queues.js";
+import { WorkerHealthServer } from "./health-server.js";
 import { DocumentIngestionProcessor } from "./processors/document-ingestion.processor.js";
 import { DocumentProcessingProcessor } from "./processors/document-processing.processor.js";
 import { RegulatoryAnalysisProcessor } from "./processors/regulatory-analysis.processor.js";
@@ -41,6 +42,7 @@ const redisUrl = new URL(process.env["REDIS_URL"] ?? "redis://localhost:6379");
     EvidenceAnalysisProcessor,
     ReportGenerationProcessor,
     NotificationProcessor,
+    WorkerHealthServer,
   ],
 })
 export class WorkerModule {}

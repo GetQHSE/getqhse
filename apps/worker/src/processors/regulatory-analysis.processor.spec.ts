@@ -9,12 +9,30 @@ import {
   isStructurallyEligibleProvision,
   matchProvisionRevision,
   regulatoryClassificationProgress,
+  regulatoryCostMicroUsd,
+  regulatoryModelLimits,
   RegulatoryAnalysisProcessor,
   validateRequirementDraft,
 } from "./regulatory-analysis.processor.js";
 import { regulatoryProvisionGoldenFixtures } from "./fixtures/regulatory-provisions.golden.js";
 
 describe("regulatory analysis query planning", () => {
+  it("applies stage-specific output bounds and the three-minute timeout", () => {
+    expect(regulatoryModelLimits("drafting")).toEqual({
+      timeoutMs: 180_000,
+      maxOutputTokens: 12_000,
+    });
+    expect(regulatoryModelLimits("verification")).toEqual({
+      timeoutMs: 180_000,
+      maxOutputTokens: 6_000,
+    });
+  });
+
+  it("calculates GPT-5 mini cost in integer micro-dollars", () => {
+    expect(regulatoryCostMicroUsd(1_000_000, 1_000_000)).toBe(2_250_000);
+    expect(regulatoryCostMicroUsd(1_000, 500)).toBe(1_250);
+  });
+
   it("advances classification progress from 50 to 92 percent", () => {
     expect(regulatoryClassificationProgress(0, 10)).toBe(50);
     expect(regulatoryClassificationProgress(1, 10)).toBeGreaterThan(50);
@@ -81,6 +99,106 @@ describe("regulatory analysis query planning", () => {
       changeType: "REMOVAL_PROPOSED",
       ambiguous: true,
     });
+  });
+});
+
+describe("regulatory model-call ledger", () => {
+  const previousDatabaseUrl = process.env["DATABASE_URL"];
+
+  beforeEach(() => {
+    process.env["DATABASE_URL"] ??= "postgresql://postgres:postgres@localhost:5432/qhse_test";
+  });
+
+  afterEach(() => {
+    if (previousDatabaseUrl === undefined) delete process.env["DATABASE_URL"];
+    else process.env["DATABASE_URL"] = previousDatabaseUrl;
+  });
+
+  it("charges the full reservation when usage is unknown after a timeout", async () => {
+    const processor = new RegulatoryAnalysisProcessor();
+    const callUpdate = vi.fn().mockResolvedValue({});
+    const runUpdate = vi.fn().mockResolvedValue({});
+    const transactionClient = {
+      regulatoryModelCall: {
+        findUnique: vi.fn().mockResolvedValue({ status: "RUNNING" }),
+        update: callUpdate,
+      },
+      regulatoryAnalysisRun: { update: runUpdate },
+    };
+    (processor as unknown as { database: object }).database = {
+      $transaction: vi.fn(async (callback: (tx: typeof transactionClient) => Promise<void>) =>
+        callback(transactionClient),
+      ),
+    };
+    const settle = (
+      processor as unknown as {
+        settleModelCall(
+          runId: string,
+          reservation: { id: string; reservedMicroUsd: number },
+          result: { status: "TIMED_OUT"; latencyMs: number; errorCode: string },
+        ): Promise<void>;
+      }
+    ).settleModelCall.bind(processor);
+
+    await settle(
+      "run-1",
+      { id: "call-1", reservedMicroUsd: 25_000 },
+      { status: "TIMED_OUT", latencyMs: 180_001, errorCode: "REGULATORY_MODEL_TIMEOUT" },
+    );
+
+    expect(callUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ status: "TIMED_OUT", costMicroUsd: 25_000 }),
+      }),
+    );
+    expect(runUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: {
+          reservedMicroUsd: { decrement: 25_000 },
+          spentMicroUsd: { increment: 25_000 },
+        },
+      }),
+    );
+  });
+
+  it("stops before creating a call whose reservation would exceed the run budget", async () => {
+    const processor = new RegulatoryAnalysisProcessor();
+    const create = vi.fn();
+    const transactionClient = {
+      regulatoryAnalysisRun: {
+        findUnique: vi.fn().mockResolvedValue({
+          status: "RUNNING",
+          budgetMicroUsd: 10_000,
+          spentMicroUsd: 9_900,
+          reservedMicroUsd: 0,
+        }),
+      },
+      regulatoryModelCall: { create },
+    };
+    (processor as unknown as { database: object }).database = {
+      $transaction: vi.fn(async (callback: (tx: typeof transactionClient) => Promise<unknown>) =>
+        callback(transactionClient),
+      ),
+    };
+    const reserve = (
+      processor as unknown as {
+        reserveModelCall(input: Record<string, unknown>): Promise<unknown>;
+      }
+    ).reserveModelCall.bind(processor);
+
+    await expect(
+      reserve({
+        runId: "run-1",
+        provisionId: "article-1",
+        clarificationRevision: 0,
+        stage: "drafting",
+        attempt: 1,
+        model: "gpt-5-mini",
+        prompt: { system: "system", context: "context" },
+        maxOutputTokens: 12_000,
+      }),
+    ).rejects.toThrow("budget is exhausted");
+    expect(create).not.toHaveBeenCalled();
   });
 });
 
