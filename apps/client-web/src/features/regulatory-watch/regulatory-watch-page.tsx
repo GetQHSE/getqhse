@@ -547,7 +547,6 @@ function ReviewState({
     (candidate) => candidate.requirement.status === "SOURCE_REVIEW_REQUIRED",
   );
   const canPublish =
-    !partial &&
     blocked.length === 0 &&
     remaining === 0 &&
     candidates.some((candidate) => candidate.decision === "APPLICABLE");
@@ -583,8 +582,9 @@ function ReviewState({
               {watch.currentAnalysis.coverage.total} terminée
               {watch.currentAnalysis.coverage.completed === 1 ? "" : "s"}. Coût estimé :{" "}
               {watch.currentAnalysis.usage.estimatedCostUsd.toFixed(3)} $ sur{" "}
-              {watch.currentAnalysis.usage.budgetUsd.toFixed(2)} $. Vous pouvez examiner les
-              résultats terminés, mais seule une analyse complète peut être publiée.
+              {watch.currentAnalysis.usage.budgetUsd.toFixed(2)} $. Vous pouvez examiner et publier
+              les résultats terminés; les dispositions restantes seront traitées lors d’une nouvelle
+              analyse.
             </p>
             <Button
               className="mt-3 bg-white"
@@ -773,7 +773,7 @@ function ReviewState({
         <div className="mt-6 flex items-center justify-between gap-4 border-t border-slate-100 pt-5">
           <p className="text-xs text-slate-500">
             {partial
-              ? "La publication reste bloquée tant que l’analyse n’est pas complète."
+              ? "La publication crée un référentiel immuable limité aux dispositions déjà analysées."
               : "La publication crée un référentiel immuable lié à cette version du profil."}
           </p>
           <Button

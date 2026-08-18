@@ -503,7 +503,7 @@ describe("RegulatoryWatchPage", () => {
     expect(screen.getByRole("button", { name: /Publier le référentiel/ })).toBeDisabled();
   });
 
-  it("keeps completed candidates reviewable but blocks publication for a partial run", async () => {
+  it("keeps completed candidates reviewable and still requires a decision before publishing a partial run", async () => {
     vi.mocked(clientApi.regulatoryWatch).mockResolvedValue({
       ...notStartedWatch,
       status: "REVIEW_REQUIRED",
@@ -563,6 +563,69 @@ describe("RegulatoryWatchPage", () => {
     expect(await screen.findByText("Budget d’analyse atteint")).toBeInTheDocument();
     expect(screen.getByText(/1 disposition sur 2 terminée/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Applicable" })).toBeEnabled();
+    // The one completed candidate hasn't been decided yet, so publishing is still blocked —
+    // not because the run is partial.
     expect(screen.getByRole("button", { name: /Publier le référentiel/ })).toBeDisabled();
+  });
+
+  it("allows publishing a partial run once every completed candidate has been reviewed", async () => {
+    vi.mocked(clientApi.regulatoryWatch).mockResolvedValue({
+      ...notStartedWatch,
+      status: "REVIEW_REQUIRED",
+      currentAnalysis: {
+        ...analysis,
+        status: "PARTIAL",
+        phase: "budget-limit",
+        progressPercent: 71,
+        coverage: { completed: 1, total: 2 },
+        usage: {
+          inputTokens: 1_200,
+          outputTokens: 600,
+          reasoningTokens: 200,
+          estimatedCostUsd: 0.42,
+          budgetUsd: 1,
+        },
+        diff: { added: 1, unchanged: 0, modified: 0, removalProposed: 0, requiresReview: 0 },
+        candidates: [
+          {
+            id: "candidate-partial",
+            changeType: "ADDED",
+            changeSummary: "Résultat terminé avant la limite de budget.",
+            previousEntryId: null,
+            previousSource: null,
+            requiresReview: true,
+            suggestion: "APPLICABLE",
+            decision: "APPLICABLE",
+            decisionSource: "HUMAN",
+            rationale: "Applicable à l’activité déclarée.",
+            matchedProfileKeys: ["operations.keyProcesses"],
+            confidence: 0.9,
+            decisionNote: null,
+            reviewedAt: "2026-08-10T13:05:00.000Z",
+            requirement: {
+              text: "L’organisme doit maîtriser les ressources nécessaires aux activités réglementées.",
+              status: "READY",
+              supportingExcerpts: ["ressources nécessaires aux activités réglementées"],
+              issues: [],
+              source: "AI",
+              editedAt: null,
+            },
+            source: activeWatch.currentBaseline.entries[0]!.source,
+          },
+        ],
+      },
+      synchronization: {
+        state: "PARTIAL",
+        trigger: "MANUAL",
+        sourceBaselineId: null,
+        progressPercent: 71,
+        lastCheckedAt: "2026-08-10T13:00:00.000Z",
+        lastSuccessfulSyncAt: null,
+      },
+    } as never);
+    renderPage();
+
+    expect(await screen.findByText("Budget d’analyse atteint")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Publier le référentiel/ })).toBeEnabled();
   });
 });

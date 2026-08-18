@@ -226,14 +226,15 @@ describe("accuracy-first regulatory review gates", () => {
     expect(ensureWatch).not.toHaveBeenCalled();
   });
 
-  it("rejects publication of a partial run", async () => {
+  it("looks up a run by READY_FOR_REVIEW or PARTIAL status so a partial run can be published", async () => {
     const service = new RegulatoryWatchService({} as never);
     (service as unknown as { loadedWatch(): Promise<unknown> }).loadedWatch = async () => ({
       id: "watch-1",
       revision: 3,
     });
+    const findFirst = vi.fn().mockResolvedValue(null);
     (service as unknown as { database: object }).database = {
-      regulatoryAnalysisRun: { findFirst: vi.fn().mockResolvedValue(null) },
+      regulatoryAnalysisRun: { findFirst },
     };
 
     await expect(
@@ -242,6 +243,11 @@ describe("accuracy-first regulatory review gates", () => {
         watchRevision: 3,
       }),
     ).rejects.toThrow("Reviewable regulatory analysis not found");
+    expect(findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ status: { in: ["READY_FOR_REVIEW", "PARTIAL"] } }),
+      }),
+    );
   });
 
   it("refuses XLSX export for a legacy baseline without approved requirement text", async () => {

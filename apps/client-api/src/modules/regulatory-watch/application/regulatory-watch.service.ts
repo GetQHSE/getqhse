@@ -591,7 +591,11 @@ export class RegulatoryWatchService {
     if (!canApprove(tenant.role)) throw new ForbiddenException("Regulatory approval is required");
     const watch = await this.loadedWatch(tenant, projectIdOrSlug);
     const run = await this.database.regulatoryAnalysisRun.findFirst({
-      where: { id: input.analysisRunId, watchId: watch.id, status: "READY_FOR_REVIEW" },
+      where: {
+        id: input.analysisRunId,
+        watchId: watch.id,
+        status: { in: ["READY_FOR_REVIEW", "PARTIAL"] },
+      },
       include: {
         candidates: {
           include: {
