@@ -456,7 +456,7 @@ describe("RegulatoryWatchPage", () => {
     );
   });
 
-  it("disables approval and publication when the normative source is blocked", async () => {
+  it("still allows deciding a candidate when the normative source needs review", async () => {
     vi.mocked(clientApi.regulatoryWatch).mockResolvedValue({
       ...notStartedWatch,
       status: "REVIEW_REQUIRED",
@@ -497,10 +497,18 @@ describe("RegulatoryWatchPage", () => {
     } as never);
     renderPage();
 
-    expect(await screen.findByText(/Publication bloquée par 1 source/)).toBeInTheDocument();
+    expect(await screen.findByText(/1 source à vérifier/)).toBeInTheDocument();
+    // Not decided yet, and no draft text: "Applicable" needs a written requirement first.
     expect(screen.getByRole("button", { name: "Applicable" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Non applicable" })).toBeDisabled();
+    // "Non applicable" no longer requires a resolved source to be usable.
+    expect(screen.getByRole("button", { name: "Non applicable" })).toBeEnabled();
     expect(screen.getByRole("button", { name: /Publier le référentiel/ })).toBeDisabled();
+
+    await userEvent.type(
+      screen.getByRole("textbox", { name: /Exigence/ }),
+      "L’organisme doit corriger et retraiter cette source normative.",
+    );
+    expect(screen.getByRole("button", { name: "Applicable" })).toBeEnabled();
   });
 
   it("keeps completed candidates reviewable and still requires a decision before publishing a partial run", async () => {

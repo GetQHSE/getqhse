@@ -547,9 +547,7 @@ function ReviewState({
     (candidate) => candidate.requirement.status === "SOURCE_REVIEW_REQUIRED",
   );
   const canPublish =
-    blocked.length === 0 &&
-    remaining === 0 &&
-    candidates.some((candidate) => candidate.decision === "APPLICABLE");
+    remaining === 0 && candidates.some((candidate) => candidate.decision === "APPLICABLE");
   return (
     <StateShell tone="light">
       <div className="mx-auto max-w-4xl py-3">
@@ -602,10 +600,13 @@ function ReviewState({
             role="alert"
             className="mt-5 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800"
           >
-            <p className="font-semibold">Publication bloquée par {blocked.length} source(s)</p>
+            <p className="font-semibold">
+              {blocked.length} source{blocked.length === 1 ? "" : "s"} à vérifier
+            </p>
             <p className="mt-1 text-xs leading-5 text-rose-700">
-              Le document normatif doit être corrigé puis retraité. Relancez ensuite l’analyse;
-              aucune approbation n’est possible sur une source tronquée ou corrompue.
+              Le document normatif présente un problème de qualité. Vous pouvez tout de même
+              approuver ou rejeter ces dispositions, mais il est recommandé de corriger et retraiter
+              la source dès que possible.
             </p>
             <Button
               className="mt-3 bg-white"
@@ -681,9 +682,7 @@ function ReviewState({
                           <Textarea
                             aria-label={`Exigence ${candidate.source.provisionIdentifier ?? candidate.id}`}
                             className="mt-2 min-h-28 resize-y border-violet-200 bg-white text-xs leading-5"
-                            disabled={
-                              candidate.requirement.status === "SOURCE_REVIEW_REQUIRED" || deciding
-                            }
+                            disabled={deciding}
                             maxLength={1200}
                             onChange={(event) =>
                               setDrafts((current) => ({
@@ -716,9 +715,7 @@ function ReviewState({
                             candidate.decision === "NOT_APPLICABLE" &&
                               "border-rose-200 bg-rose-50 text-rose-700",
                           )}
-                          disabled={
-                            deciding || candidate.requirement.status === "SOURCE_REVIEW_REQUIRED"
-                          }
+                          disabled={deciding}
                           onClick={() => onDecision(candidate.id, "NOT_APPLICABLE")}
                           variant="outline"
                         >
@@ -734,11 +731,7 @@ function ReviewState({
                               ? "bg-emerald-600 hover:bg-emerald-600"
                               : "bg-slate-950 hover:bg-slate-800",
                           )}
-                          disabled={
-                            deciding ||
-                            candidate.requirement.status === "SOURCE_REVIEW_REQUIRED" ||
-                            (drafts[candidate.id]?.trim().length ?? 0) < 20
-                          }
+                          disabled={deciding || (drafts[candidate.id]?.trim().length ?? 0) < 20}
                           onClick={() =>
                             onDecision(candidate.id, "APPLICABLE", drafts[candidate.id]?.trim())
                           }

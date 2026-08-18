@@ -1,8 +1,4 @@
-import {
-  BadRequestException,
-  ForbiddenException,
-  ServiceUnavailableException,
-} from "@nestjs/common";
+import { ForbiddenException, ServiceUnavailableException } from "@nestjs/common";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { evaluationCarryForward, RegulatoryWatchService } from "./regulatory-watch.service.js";
@@ -109,18 +105,21 @@ describe("accuracy-first regulatory review gates", () => {
     return { service, candidateUpdate };
   }
 
-  it("blocks reviewer decisions when source quality must be repaired", async () => {
-    const { service } = serviceWithLoadedWatch({
+  it("allows deciding a candidate even when its source quality must still be repaired", async () => {
+    const { service, candidateUpdate } = serviceWithLoadedWatch({
       id: "candidate-1",
       requirementStatus: "SOURCE_REVIEW_REQUIRED",
       requirementText: null,
     });
-    await expect(
-      service.decideCandidate(tenant, "project-1", "candidate-1", {
-        watchRevision: 3,
-        decision: "NOT_APPLICABLE",
+    await service.decideCandidate(tenant, "project-1", "candidate-1", {
+      watchRevision: 3,
+      decision: "NOT_APPLICABLE",
+    });
+    expect(candidateUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ decision: "NOT_APPLICABLE" }),
       }),
-    ).rejects.toBeInstanceOf(BadRequestException);
+    );
   });
 
   it("records edited AI wording as human-approved provenance", async () => {
@@ -147,7 +146,7 @@ describe("accuracy-first regulatory review gates", () => {
     );
   });
 
-  it("blocks publication when any candidate has unresolved source quality", async () => {
+  it("no longer blocks publication for a candidate with unresolved source quality", async () => {
     process.env["DATABASE_URL"] ??= "postgresql://postgres:postgres@localhost:5432/qhse_test";
     const service = new RegulatoryWatchService({} as never);
     (service as unknown as { loadedWatch(): Promise<unknown> }).loadedWatch = async () => ({
@@ -158,16 +157,21 @@ describe("accuracy-first regulatory review gates", () => {
       regulatoryAnalysisRun: {
         findFirst: vi.fn().mockResolvedValue({
           id: "run-1",
-          candidates: [{ requirementStatus: "SOURCE_REVIEW_REQUIRED" }],
+          candidates: [
+            { requirementStatus: "SOURCE_REVIEW_REQUIRED", requiresReview: true, decision: null },
+          ],
         }),
       },
     };
+    // The source-quality gate no longer short-circuits publication with "Publication is
+    // blocked" — it now falls through to the ordinary review-completeness gate, since this
+    // candidate is still undecided.
     await expect(
       service.publish(tenant, "project-1", {
         analysisRunId: "run-1",
         watchRevision: 3,
       }),
-    ).rejects.toThrow("Publication is blocked");
+    ).rejects.toThrow("Every regulatory change must be reviewed before publishing");
   });
 
   it("supersedes a partial run during an explicit rerun", async () => {

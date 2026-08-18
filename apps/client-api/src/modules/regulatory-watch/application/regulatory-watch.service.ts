@@ -539,11 +539,6 @@ export class RegulatoryWatchService {
       },
     });
     if (!candidate) throw new NotFoundException("Regulatory candidate not found");
-    if (candidate.requirementStatus === "SOURCE_REVIEW_REQUIRED") {
-      throw new BadRequestException(
-        "The normative source must be corrected and reprocessed before this candidate can be approved",
-      );
-    }
     if (input.decision === "APPLICABLE" && !input.requirementText) {
       throw new BadRequestException("requirementText is required for an applicable provision");
     }
@@ -610,13 +605,6 @@ export class RegulatoryWatchService {
       },
     });
     if (!run) throw new NotFoundException("Reviewable regulatory analysis not found");
-    if (
-      run.candidates.some((candidate) => candidate.requirementStatus === "SOURCE_REVIEW_REQUIRED")
-    ) {
-      throw new BadRequestException(
-        "Publication is blocked: a normative source must be corrected and reprocessed",
-      );
-    }
     if (
       run.candidates.some((candidate) => candidate.requiresReview && candidate.decision === null)
     ) {

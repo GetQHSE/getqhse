@@ -1,18 +1,18 @@
-import { Processor, WorkerHost } from "@nestjs/bullmq";
 import { openai } from "@ai-sdk/openai";
+import { Processor, WorkerHost } from "@nestjs/bullmq";
 import { regulatoryApplicabilityPrompt, regulatoryRequirementVerificationPrompt } from "@qhse/ai";
 import { RegulatoryAnalysisError, type JobEnvelope } from "@qhse/contracts";
 import {
-  createPrismaClient,
   Prisma,
+  createPrismaClient,
   unindexedSearchableChunkFilter,
   type DatabaseClient,
 } from "@qhse/database";
-import { embed, generateText, Output } from "ai";
-import type { Job } from "bullmq";
-import { z } from "zod";
 import { reciprocalRankFusion } from "@qhse/knowledge";
 import { createLogger, currentTraceId } from "@qhse/observability";
+import { Output, embed, generateText } from "ai";
+import type { Job } from "bullmq";
+import { z } from "zod";
 
 import { queueNames } from "../queues.js";
 
@@ -884,7 +884,7 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
           !mandatoryKeys.has(logicalKey(candidate)) &&
           !previouslyExcludedIds.has(candidate.provisionId),
       )
-      .slice(0, 20)
+      .slice(0, 10)
       .map((candidate) => ({
         ...candidate,
         previousEntryId: null,
@@ -1218,7 +1218,7 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
     }
     const documentIds = [...documentScores.entries()]
       .sort((left, right) => right[1] - left[1])
-      .slice(0, 20)
+      .slice(0, 10)
       .map(([documentId]) => documentId);
     if (!documentIds.length) {
       this.logger.info(
@@ -1258,7 +1258,7 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
     }
     const eligible = dedupeRegulatoryProvisions([...combined.values()])
       .filter(isStructurallyEligibleProvision)
-      .slice(0, 20);
+      .slice(0, 10);
     this.logger.info(
       {
         event: "regulatory_retrieval_expansion_finished",
