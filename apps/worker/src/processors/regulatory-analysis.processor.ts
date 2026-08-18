@@ -884,7 +884,7 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
           !mandatoryKeys.has(logicalKey(candidate)) &&
           !previouslyExcludedIds.has(candidate.provisionId),
       )
-      .slice(0, 100)
+      .slice(0, 20)
       .map((candidate) => ({
         ...candidate,
         previousEntryId: null,
@@ -1258,7 +1258,7 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
     }
     const eligible = dedupeRegulatoryProvisions([...combined.values()])
       .filter(isStructurallyEligibleProvision)
-      .slice(0, 100);
+      .slice(0, 20);
     this.logger.info(
       {
         event: "regulatory_retrieval_expansion_finished",
