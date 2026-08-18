@@ -74,6 +74,7 @@ class RegulatoryBudgetLimitError extends Error {
 const CLASSIFICATION_PROGRESS_START = 50;
 const CLASSIFICATION_PROGRESS_END = 92;
 const MODEL_HEARTBEAT_INTERVAL_MS = 30_000;
+const CLASSIFICATION_CONCURRENCY = 5;
 const CONSERVATIVE_PROMPT_OVERHEAD_TOKENS = 16_384;
 
 function positiveNumber(name: string, fallback: number): number {
@@ -407,15 +408,20 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
       input.maxOutputTokens,
     );
     const reservation = await this.database.$transaction(async (tx) => {
-      const run = await tx.regulatoryAnalysisRun.findUnique({
-        where: { id: input.runId },
-        select: {
-          status: true,
-          budgetMicroUsd: true,
-          spentMicroUsd: true,
-          reservedMicroUsd: true,
-        },
-      });
+      // Locks the run row for the transaction so concurrent candidate classifications
+      // can't all read the same spent/reserved snapshot and jointly overshoot the budget.
+      const [run] = await tx.$queryRaw<
+        Array<{
+          status: string;
+          budgetMicroUsd: number;
+          spentMicroUsd: number;
+          reservedMicroUsd: number;
+        }>
+      >(Prisma.sql`
+        SELECT status, budget_micro_usd AS "budgetMicroUsd", spent_micro_usd AS "spentMicroUsd",
+          reserved_micro_usd AS "reservedMicroUsd"
+        FROM regulatory_analysis_runs WHERE id = ${input.runId} FOR UPDATE
+      `);
       if (!run || run.status !== "RUNNING") return null;
       if (run.spentMicroUsd + run.reservedMicroUsd + reservedMicroUsd > run.budgetMicroUsd) {
         return null;
@@ -1448,242 +1454,93 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
       }
     };
 
-    try {
-      for (const [candidateIndex, candidate] of candidates.entries()) {
-        if (!(await this.stillCurrent(run.id))) {
-          return { results, budgetExhausted: false };
-        }
-        const checkpoint = checkpoints.get(candidate.provisionId);
-        if (checkpoint) {
-          results.push({
-            ...candidate,
-            suggestion: checkpoint.suggestion,
-            rationale: checkpoint.rationale,
-            matchedProfileKeys: checkpoint.matchedProfileKeys,
-            confidence: Number(checkpoint.confidence),
-            clarificationQuestion: checkpoint.clarificationQuestion,
-            requirementText: checkpoint.requirementText,
-            requirementStatus: checkpoint.requirementStatus,
-            requirementSupportingExcerpts: checkpoint.requirementSupportingExcerpts,
-            requirementIssues: checkpoint.requirementIssues,
-            requirementSource: checkpoint.requirementSource,
-          });
-          await this.reportProgress(run.id, job, {
-            phase: "classification",
-            percent: regulatoryClassificationProgress(candidateIndex + 1, candidates.length),
-            completed: candidateIndex + 1,
-            total: candidates.length,
-            provisionId: candidate.provisionId,
-            identifier: candidate.identifier,
-            documentId: candidate.documentId,
-            stage: "checkpoint_recovered",
-          });
-          continue;
-        }
-        const provisionStartedAt = Date.now();
-        this.logger.info(
-          {
-            event: "regulatory_provision_started",
-            runId: run.id,
-            jobId: job.id,
-            candidateIndex: candidateIndex + 1,
-            candidateTotal: candidates.length,
-            provisionId: candidate.provisionId,
-            identifier: candidate.identifier,
-            documentId: candidate.documentId,
-            referenceNumber: candidate.referenceNumber,
-            language: candidate.language,
-            changeType: candidate.changeType,
-          },
-          "regulatory provision analysis started",
-        );
-        const initialIssues = structuralIssues(candidate);
-        if (candidate.content.length > 30_000) {
-          initialIssues.push(
-            "La disposition dépasse 30 000 caractères et ne peut pas être envoyée sans troncature.",
-          );
-        }
-        if (initialIssues.length) {
-          const blocked: ClassifiedCandidate = {
-            ...candidate,
-            suggestion: candidate.previousEntryId ? "APPLICABLE" : "TO_CONFIRM",
-            rationale: "La qualité ou la structure de la source ne permet pas une analyse fiable.",
-            matchedProfileKeys: [],
-            confidence: 0,
-            clarificationQuestion: null,
-            requirementText: null,
-            requirementStatus: "SOURCE_REVIEW_REQUIRED",
-            requirementSupportingExcerpts: [],
-            requirementIssues: [...new Set(initialIssues)],
-            requirementSource: null,
-          };
-          results.push(blocked);
-          await this.persistCandidate(run.id, run.clarificationRevision, blocked);
-          await this.reportProgress(run.id, job, {
-            phase: "classification",
-            percent: regulatoryClassificationProgress(candidateIndex + 1, candidates.length),
-            completed: candidateIndex + 1,
-            total: candidates.length,
-            provisionId: candidate.provisionId,
-            identifier: candidate.identifier,
-            documentId: candidate.documentId,
-            stage: "source_quality_blocked",
-          });
-          this.logger.warn(
-            {
-              event: "regulatory_provision_finished",
-              runId: run.id,
-              jobId: job.id,
-              candidateIndex: candidateIndex + 1,
-              candidateTotal: candidates.length,
-              provisionId: candidate.provisionId,
-              identifier: candidate.identifier,
-              documentId: candidate.documentId,
-              status: blocked.requirementStatus,
-              issueCount: blocked.requirementIssues.length,
-              durationMs: Date.now() - provisionStartedAt,
-            },
-            "regulatory provision blocked by source quality",
-          );
-          continue;
-        }
+    let completedCount = 0;
+    let cancelled = false;
+    let budgetExhausted = false;
 
-        const previous = candidate.previousEntryId
-          ? (run.baseBaseline?.entries ?? []).find(
-              (entry) => entry.id === candidate.previousEntryId,
-            )
-          : null;
-        let verifierFeedback: string[] = [];
-        let classified: ClassifiedCandidate | null = null;
-        for (let attempt = 0; attempt < 2; attempt += 1) {
-          const prompt = regulatoryApplicabilityPrompt.build({
-            profileContext: run.profileSnapshot.data,
-            previousProfileContext: run.baseBaseline?.profileSnapshot.data ?? null,
-            profileChanges,
-            clarificationContext: run.scopeFacts.map(({ key, question, answer }) => ({
-              key,
-              question,
-              answer,
-            })),
-            previousDecision: previous
-              ? {
-                  previousEntryId: previous.id,
-                  decision: "APPLICABLE",
-                  rationale: previous.applicabilityRationale.slice(0, 800),
-                  requirementText: previous.requirementText,
-                }
-              : null,
-            candidate: {
-              provisionId: candidate.provisionId,
-              previousEntryId: candidate.previousEntryId,
-              changeType: candidate.changeType,
-              documentFamily: candidate.documentFamily,
-              provisionType: candidate.provisionType,
-              document: [candidate.referenceNumber, candidate.documentTitle]
-                .filter(Boolean)
-                .join(" — "),
-              identifier: candidate.identifier,
-              title: candidate.title,
-              content: candidate.content,
-            },
-            verifierFeedback,
-          });
-          const draft = await generate(prompt, classificationSchema, {
-            candidate,
-            candidateIndex,
-            candidateTotal: candidates.length,
-            attempt: attempt + 1,
-            stage: "drafting",
-          });
-          const draftIssues = [
-            ...draft.qualityIssues,
-            ...(draft.sourceQuality === "BLOCKED"
-              ? ["Le modèle a signalé une source inexploitable."]
-              : []),
-          ];
-          const needsRequirement =
-            draft.sourceQuality === "PASS" &&
-            draft.normativeRequirement &&
-            draft.suggestion !== "NOT_APPLICABLE";
-          if (!needsRequirement) {
-            classified = {
-              ...candidate,
-              suggestion: draft.suggestion,
-              rationale: draft.rationale,
-              matchedProfileKeys: draft.matchedProfileKeys,
-              confidence: draft.confidence,
-              clarificationQuestion: draft.clarificationQuestion,
-              requirementText: draft.requirementText,
-              requirementStatus:
-                draft.sourceQuality === "BLOCKED" ? "SOURCE_REVIEW_REQUIRED" : "NOT_REQUIRED",
-              requirementSupportingExcerpts: draft.supportingExcerpts,
-              requirementIssues: [...new Set(draftIssues)],
-              requirementSource: draft.requirementText ? "AI" : null,
-            };
-            break;
-          }
-
-          const deterministicIssues = validateRequirementDraft(
-            candidate.content,
-            draft.requirementText,
-            draft.supportingExcerpts,
-          );
-          let verificationIssues = deterministicIssues;
-          if (!verificationIssues.length && draft.requirementText) {
-            const verificationPrompt = regulatoryRequirementVerificationPrompt.build({
-              document: [candidate.referenceNumber, candidate.documentTitle]
-                .filter(Boolean)
-                .join(" — "),
-              identifier: candidate.identifier,
-              content: candidate.content,
-              requirementText: draft.requirementText,
-              supportingExcerpts: draft.supportingExcerpts,
-            });
-            const verification = await generate(verificationPrompt, verificationSchema, {
-              candidate,
-              candidateIndex,
-              candidateTotal: candidates.length,
-              attempt: attempt + 1,
-              stage: "verification",
-            });
-            verificationIssues = verification.supported
-              ? []
-              : verification.issues.length
-                ? verification.issues
-                : ["Le vérificateur indépendant n’a pas confirmé le support de l’exigence."];
-          }
-          const allIssues = [...new Set([...draftIssues, ...verificationIssues])];
-          classified = {
-            ...candidate,
-            suggestion: draft.suggestion,
-            rationale: draft.rationale,
-            matchedProfileKeys: draft.matchedProfileKeys,
-            confidence: draft.confidence,
-            clarificationQuestion: draft.clarificationQuestion,
-            requirementText: draft.requirementText,
-            requirementStatus: allIssues.length ? "SOURCE_REVIEW_REQUIRED" : "READY",
-            requirementSupportingExcerpts: draft.supportingExcerpts,
-            requirementIssues: allIssues,
-            requirementSource: "AI",
-          };
-          if (!allIssues.length) break;
-          verifierFeedback = allIssues;
-        }
-        if (classified) {
-          results.push(classified);
-          await this.persistCandidate(run.id, run.clarificationRevision, classified);
-        }
+    const processCandidate = async (
+      candidateIndex: number,
+      candidate: CandidateInput,
+    ): Promise<void> => {
+      const checkpoint = checkpoints.get(candidate.provisionId);
+      if (checkpoint) {
+        results.push({
+          ...candidate,
+          suggestion: checkpoint.suggestion,
+          rationale: checkpoint.rationale,
+          matchedProfileKeys: checkpoint.matchedProfileKeys,
+          confidence: Number(checkpoint.confidence),
+          clarificationQuestion: checkpoint.clarificationQuestion,
+          requirementText: checkpoint.requirementText,
+          requirementStatus: checkpoint.requirementStatus,
+          requirementSupportingExcerpts: checkpoint.requirementSupportingExcerpts,
+          requirementIssues: checkpoint.requirementIssues,
+          requirementSource: checkpoint.requirementSource,
+        });
+        completedCount += 1;
         await this.reportProgress(run.id, job, {
           phase: "classification",
-          percent: regulatoryClassificationProgress(candidateIndex + 1, candidates.length),
-          completed: candidateIndex + 1,
+          percent: regulatoryClassificationProgress(completedCount, candidates.length),
+          completed: completedCount,
           total: candidates.length,
           provisionId: candidate.provisionId,
           identifier: candidate.identifier,
           documentId: candidate.documentId,
-          stage: "provision_completed",
+          stage: "checkpoint_recovered",
         });
-        this.logger.info(
+        return;
+      }
+      const provisionStartedAt = Date.now();
+      this.logger.info(
+        {
+          event: "regulatory_provision_started",
+          runId: run.id,
+          jobId: job.id,
+          candidateIndex: candidateIndex + 1,
+          candidateTotal: candidates.length,
+          provisionId: candidate.provisionId,
+          identifier: candidate.identifier,
+          documentId: candidate.documentId,
+          referenceNumber: candidate.referenceNumber,
+          language: candidate.language,
+          changeType: candidate.changeType,
+        },
+        "regulatory provision analysis started",
+      );
+      const initialIssues = structuralIssues(candidate);
+      if (candidate.content.length > 30_000) {
+        initialIssues.push(
+          "La disposition dépasse 30 000 caractères et ne peut pas être envoyée sans troncature.",
+        );
+      }
+      if (initialIssues.length) {
+        const blocked: ClassifiedCandidate = {
+          ...candidate,
+          suggestion: candidate.previousEntryId ? "APPLICABLE" : "TO_CONFIRM",
+          rationale: "La qualité ou la structure de la source ne permet pas une analyse fiable.",
+          matchedProfileKeys: [],
+          confidence: 0,
+          clarificationQuestion: null,
+          requirementText: null,
+          requirementStatus: "SOURCE_REVIEW_REQUIRED",
+          requirementSupportingExcerpts: [],
+          requirementIssues: [...new Set(initialIssues)],
+          requirementSource: null,
+        };
+        results.push(blocked);
+        await this.persistCandidate(run.id, run.clarificationRevision, blocked);
+        completedCount += 1;
+        await this.reportProgress(run.id, job, {
+          phase: "classification",
+          percent: regulatoryClassificationProgress(completedCount, candidates.length),
+          completed: completedCount,
+          total: candidates.length,
+          provisionId: candidate.provisionId,
+          identifier: candidate.identifier,
+          documentId: candidate.documentId,
+          stage: "source_quality_blocked",
+        });
+        this.logger.warn(
           {
             event: "regulatory_provision_finished",
             runId: run.id,
@@ -1693,29 +1550,221 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
             provisionId: candidate.provisionId,
             identifier: candidate.identifier,
             documentId: candidate.documentId,
-            suggestion: classified?.suggestion,
-            status: classified?.requirementStatus,
-            issueCount: classified?.requirementIssues.length ?? 0,
+            status: blocked.requirementStatus,
+            issueCount: blocked.requirementIssues.length,
             durationMs: Date.now() - provisionStartedAt,
           },
-          "regulatory provision analysis finished",
+          "regulatory provision blocked by source quality",
         );
+        return;
       }
-    } catch (error) {
-      if (error instanceof RegulatoryBudgetLimitError) {
-        this.logger.warn(
-          {
-            event: "regulatory_budget_exhausted",
-            runId: run.id,
-            jobId: job.id,
-            completed: results.length,
-            total: candidates.length,
+
+      const previous = candidate.previousEntryId
+        ? (run.baseBaseline?.entries ?? []).find((entry) => entry.id === candidate.previousEntryId)
+        : null;
+      let verifierFeedback: string[] = [];
+      let classified: ClassifiedCandidate | null = null;
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        const prompt = regulatoryApplicabilityPrompt.build({
+          profileContext: run.profileSnapshot.data,
+          previousProfileContext: run.baseBaseline?.profileSnapshot.data ?? null,
+          profileChanges,
+          clarificationContext: run.scopeFacts.map(({ key, question, answer }) => ({
+            key,
+            question,
+            answer,
+          })),
+          previousDecision: previous
+            ? {
+                previousEntryId: previous.id,
+                decision: "APPLICABLE",
+                rationale: previous.applicabilityRationale.slice(0, 800),
+                requirementText: previous.requirementText,
+              }
+            : null,
+          candidate: {
+            provisionId: candidate.provisionId,
+            previousEntryId: candidate.previousEntryId,
+            changeType: candidate.changeType,
+            documentFamily: candidate.documentFamily,
+            provisionType: candidate.provisionType,
+            document: [candidate.referenceNumber, candidate.documentTitle]
+              .filter(Boolean)
+              .join(" — "),
+            identifier: candidate.identifier,
+            title: candidate.title,
+            content: candidate.content,
           },
-          "regulatory analysis stopped before exceeding its run budget",
+          verifierFeedback,
+        });
+        const draft = await generate(prompt, classificationSchema, {
+          candidate,
+          candidateIndex,
+          candidateTotal: candidates.length,
+          attempt: attempt + 1,
+          stage: "drafting",
+        });
+        const draftIssues = [
+          ...draft.qualityIssues,
+          ...(draft.sourceQuality === "BLOCKED"
+            ? ["Le modèle a signalé une source inexploitable."]
+            : []),
+        ];
+        const needsRequirement =
+          draft.sourceQuality === "PASS" &&
+          draft.normativeRequirement &&
+          draft.suggestion !== "NOT_APPLICABLE";
+        if (!needsRequirement) {
+          classified = {
+            ...candidate,
+            suggestion: draft.suggestion,
+            rationale: draft.rationale,
+            matchedProfileKeys: draft.matchedProfileKeys,
+            confidence: draft.confidence,
+            clarificationQuestion: draft.clarificationQuestion,
+            requirementText: draft.requirementText,
+            requirementStatus:
+              draft.sourceQuality === "BLOCKED" ? "SOURCE_REVIEW_REQUIRED" : "NOT_REQUIRED",
+            requirementSupportingExcerpts: draft.supportingExcerpts,
+            requirementIssues: [...new Set(draftIssues)],
+            requirementSource: draft.requirementText ? "AI" : null,
+          };
+          break;
+        }
+
+        const deterministicIssues = validateRequirementDraft(
+          candidate.content,
+          draft.requirementText,
+          draft.supportingExcerpts,
         );
-        return { results, budgetExhausted: true };
+        let verificationIssues = deterministicIssues;
+        if (!verificationIssues.length && draft.requirementText) {
+          const verificationPrompt = regulatoryRequirementVerificationPrompt.build({
+            document: [candidate.referenceNumber, candidate.documentTitle]
+              .filter(Boolean)
+              .join(" — "),
+            identifier: candidate.identifier,
+            content: candidate.content,
+            requirementText: draft.requirementText,
+            supportingExcerpts: draft.supportingExcerpts,
+          });
+          const verification = await generate(verificationPrompt, verificationSchema, {
+            candidate,
+            candidateIndex,
+            candidateTotal: candidates.length,
+            attempt: attempt + 1,
+            stage: "verification",
+          });
+          verificationIssues = verification.supported
+            ? []
+            : verification.issues.length
+              ? verification.issues
+              : ["Le vérificateur indépendant n’a pas confirmé le support de l’exigence."];
+        }
+        const allIssues = [...new Set([...draftIssues, ...verificationIssues])];
+        classified = {
+          ...candidate,
+          suggestion: draft.suggestion,
+          rationale: draft.rationale,
+          matchedProfileKeys: draft.matchedProfileKeys,
+          confidence: draft.confidence,
+          clarificationQuestion: draft.clarificationQuestion,
+          requirementText: draft.requirementText,
+          requirementStatus: allIssues.length ? "SOURCE_REVIEW_REQUIRED" : "READY",
+          requirementSupportingExcerpts: draft.supportingExcerpts,
+          requirementIssues: allIssues,
+          requirementSource: "AI",
+        };
+        if (!allIssues.length) break;
+        verifierFeedback = allIssues;
       }
-      throw error;
+      if (classified) {
+        results.push(classified);
+        await this.persistCandidate(run.id, run.clarificationRevision, classified);
+      }
+      completedCount += 1;
+      await this.reportProgress(run.id, job, {
+        phase: "classification",
+        percent: regulatoryClassificationProgress(completedCount, candidates.length),
+        completed: completedCount,
+        total: candidates.length,
+        provisionId: candidate.provisionId,
+        identifier: candidate.identifier,
+        documentId: candidate.documentId,
+        stage: "provision_completed",
+      });
+      this.logger.info(
+        {
+          event: "regulatory_provision_finished",
+          runId: run.id,
+          jobId: job.id,
+          candidateIndex: candidateIndex + 1,
+          candidateTotal: candidates.length,
+          provisionId: candidate.provisionId,
+          identifier: candidate.identifier,
+          documentId: candidate.documentId,
+          suggestion: classified?.suggestion,
+          status: classified?.requirementStatus,
+          issueCount: classified?.requirementIssues.length ?? 0,
+          durationMs: Date.now() - provisionStartedAt,
+        },
+        "regulatory provision analysis finished",
+      );
+    };
+
+    // Bounded worker pool: each lane pulls the next candidate off a shared cursor so up to
+    // CLASSIFICATION_CONCURRENCY provisions are drafted/verified concurrently instead of one
+    // at a time. Budget reservation is safe under this concurrency because reserveModelCall
+    // locks the run row (SELECT ... FOR UPDATE) for its check-and-increment transaction.
+    let cursor = 0;
+    const worker = async (): Promise<void> => {
+      for (;;) {
+        if (cancelled || budgetExhausted) return;
+        if (!(await this.stillCurrent(run.id))) {
+          cancelled = true;
+          return;
+        }
+        if (cursor >= candidates.length) return;
+        const candidateIndex = cursor;
+        cursor += 1;
+        const candidate = candidates[candidateIndex]!;
+        try {
+          await processCandidate(candidateIndex, candidate);
+        } catch (error) {
+          if (error instanceof RegulatoryBudgetLimitError) {
+            budgetExhausted = true;
+            return;
+          }
+          throw error;
+        }
+      }
+    };
+
+    const outcomes = await Promise.allSettled(
+      Array.from({ length: Math.min(CLASSIFICATION_CONCURRENCY, candidates.length) }, () =>
+        worker(),
+      ),
+    );
+    const failure = outcomes.find(
+      (outcome): outcome is PromiseRejectedResult => outcome.status === "rejected",
+    );
+    if (failure) throw failure.reason;
+
+    if (budgetExhausted) {
+      this.logger.warn(
+        {
+          event: "regulatory_budget_exhausted",
+          runId: run.id,
+          jobId: job.id,
+          completed: results.length,
+          total: candidates.length,
+        },
+        "regulatory analysis stopped before exceeding its run budget",
+      );
+      return { results, budgetExhausted: true };
+    }
+    if (cancelled) {
+      return { results, budgetExhausted: false };
     }
     await this.database.regulatoryAnalysisRun.update({
       where: { id: run.id },

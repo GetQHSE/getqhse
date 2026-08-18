@@ -86,6 +86,14 @@ describe("independent regulatory requirement verification", () => {
     const update = vi.fn().mockResolvedValue({});
     let modelCallSequence = 0;
     const database = {
+      $queryRaw: vi.fn().mockResolvedValue([
+        {
+          status: "RUNNING",
+          budgetMicroUsd: 1_000_000,
+          spentMicroUsd: 0,
+          reservedMicroUsd: 0,
+        },
+      ]),
       regulatoryAnalysisRun: {
         findUnique: vi.fn().mockResolvedValue({
           status: "RUNNING",

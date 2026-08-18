@@ -165,6 +165,14 @@ describe("regulatory model-call ledger", () => {
     const processor = new RegulatoryAnalysisProcessor();
     const create = vi.fn();
     const transactionClient = {
+      $queryRaw: vi.fn().mockResolvedValue([
+        {
+          status: "RUNNING",
+          budgetMicroUsd: 10_000,
+          spentMicroUsd: 9_900,
+          reservedMicroUsd: 0,
+        },
+      ]),
       regulatoryAnalysisRun: {
         findUnique: vi.fn().mockResolvedValue({
           status: "RUNNING",
