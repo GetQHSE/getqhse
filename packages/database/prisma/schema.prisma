@@ -1260,8 +1260,8 @@ model RegulatoryModelCall {
   status                RegulatoryModelCallStatus @default(RUNNING)
   reservedMicroUsd      Int                       @map("reserved_micro_usd")
   costMicroUsd          Int?                      @map("cost_micro_usd")
-  inputTokens           Int?
-  outputTokens          Int?
+  inputTokens           Int?                      @map("input_tokens")
+  outputTokens          Int?                      @map("output_tokens")
   reasoningTokens       Int?                      @map("reasoning_tokens")
   latencyMs             Int?                      @map("latency_ms")
   errorCode             String?                   @map("error_code")
