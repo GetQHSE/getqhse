@@ -15,6 +15,8 @@ vi.mock("../../app/client-api.js", () => ({
     answerRegulatoryClarifications: vi.fn(),
     decideRegulatoryCandidate: vi.fn(),
     publishRegulatoryBaseline: vi.fn(),
+    startRegulatoryEvaluation: vi.fn(),
+    updateRegulatoryEvaluation: vi.fn(),
     exportRegulatoryWatch: vi.fn(),
   },
 }));
@@ -161,6 +163,26 @@ const activeWatch = {
           comment: null,
           evaluatedAt: "2026-08-10T12:00:00.000Z",
           requiresReevaluation: false,
+          aiAssessment: {
+            status: "COMPLETED",
+            suggestedResult: "PARTIAL",
+            rationale: "Le registre est présent mais son exhaustivité doit être vérifiée.",
+            confidence: 0.86,
+            matchedProfileKeys: ["operations.orderToDeliveryFlow"],
+            missingInformation: [],
+            remediationPlan: "Compléter l’identification de tous les équipements de mesure.",
+            action: {
+              title: "Compléter le registre de métrologie",
+              resources: null,
+              startDate: null,
+              dueDate: null,
+              responsible: null,
+              effectivenessCriteria: "Tous les équipements utilisés sont identifiés.",
+            },
+            evaluatedAt: "2026-08-10T12:00:00.000Z",
+            errorMessage: null,
+            updatedAt: "2026-08-10T12:00:00.000Z",
+          },
           evidence: [],
           actions: [
             {
@@ -211,6 +233,12 @@ beforeEach(() => {
     queue: "regulatory-analysis",
     correlationId: "correlation-1",
   });
+  vi.mocked(clientApi.startRegulatoryEvaluation).mockResolvedValue({
+    jobId: "evaluation-job-1",
+    queue: "regulatory-evaluation",
+    correlationId: "correlation-2",
+  });
+  vi.mocked(clientApi.updateRegulatoryEvaluation).mockResolvedValue(activeWatch as never);
 });
 
 describe("RegulatoryWatchPage", () => {
@@ -291,6 +319,167 @@ describe("RegulatoryWatchPage", () => {
     await user.click(screen.getByRole("tab", { name: /Évaluation réglementaire et normative/ }));
     expect(screen.getAllByText(/7\.1\.5/).length).toBeGreaterThan(0);
     expect(screen.getAllByText("Partiel").length).toBeGreaterThan(0);
+  });
+
+  it("shows and validates an AI conformity recommendation", async () => {
+    const pendingWatch = {
+      ...activeWatch,
+      currentBaseline: {
+        ...activeWatch.currentBaseline,
+        entries: activeWatch.currentBaseline.entries.map((entry) => ({
+          ...entry,
+          evaluation: {
+            ...entry.evaluation,
+            result: "NOT_ASSESSED",
+            evaluatedAt: null,
+            aiAssessment: {
+              ...entry.evaluation.aiAssessment,
+              suggestedResult: "NON_CONFORMING",
+              confidence: 0.61,
+              missingInformation: ["La preuve d’étalonnage n’est pas disponible."],
+              remediationPlan: "Créer et tenir à jour un registre de métrologie vérifiable.",
+            },
+          },
+        })),
+      },
+    };
+    vi.mocked(clientApi.regulatoryWatch).mockResolvedValue(pendingWatch as never);
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(
+      await screen.findByRole("tab", { name: /Évaluation réglementaire et normative/ }),
+    );
+    await user.click(screen.getAllByText(/L’organisme doit déterminer et fournir/)[0]!);
+    expect(await screen.findByText("Analyse IA à valider")).toBeInTheDocument();
+    expect(screen.getByText("La preuve d’étalonnage n’est pas disponible.")).toBeInTheDocument();
+    expect(screen.getByText(/Créer et tenir à jour un registre/)).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Valider l’évaluation" }));
+    await waitFor(() =>
+      expect(clientApi.updateRegulatoryEvaluation).toHaveBeenCalledWith(
+        "atlas-industrie",
+        "evaluation-1",
+        expect.objectContaining({ revision: 1, result: "NON_CONFORMING" }),
+      ),
+    );
+  });
+
+  it("re-enables the AI evaluation after a pass dies mid-run", async () => {
+    const strandedWatch = {
+      ...activeWatch,
+      currentBaseline: {
+        ...activeWatch.currentBaseline,
+        entries: activeWatch.currentBaseline.entries.map((entry) => ({
+          ...entry,
+          evaluation: {
+            ...entry.evaluation,
+            result: "NOT_ASSESSED",
+            evaluatedAt: null,
+            aiAssessment: {
+              ...entry.evaluation.aiAssessment,
+              status: "PENDING",
+              suggestedResult: null,
+              // Far older than staleAiEvaluationMs: no worker can still be on it.
+              updatedAt: new Date(Date.now() - 60 * 60_000).toISOString(),
+            },
+          },
+        })),
+      },
+    };
+    vi.mocked(clientApi.regulatoryWatch).mockResolvedValue(strandedWatch as never);
+    const user = userEvent.setup();
+    renderPage();
+
+    const retry = await screen.findByRole("button", { name: /Relancer l’évaluation IA/ });
+    expect(retry).toBeEnabled();
+    await user.click(retry);
+    await waitFor(() => expect(clientApi.startRegulatoryEvaluation).toHaveBeenCalled());
+  });
+
+  it("keeps the AI evaluation locked while a pass is still making progress", async () => {
+    const runningWatch = {
+      ...activeWatch,
+      currentBaseline: {
+        ...activeWatch.currentBaseline,
+        entries: activeWatch.currentBaseline.entries.map((entry) => ({
+          ...entry,
+          evaluation: {
+            ...entry.evaluation,
+            result: "NOT_ASSESSED",
+            evaluatedAt: null,
+            aiAssessment: {
+              ...entry.evaluation.aiAssessment,
+              status: "RUNNING",
+              suggestedResult: null,
+              updatedAt: new Date().toISOString(),
+            },
+          },
+        })),
+      },
+    };
+    vi.mocked(clientApi.regulatoryWatch).mockResolvedValue(runningWatch as never);
+    renderPage();
+
+    expect(await screen.findByRole("button", { name: /Évaluation IA en cours/ })).toBeDisabled();
+  });
+
+  it("marks an unaccepted AI action proposal in the register", async () => {
+    const proposedWatch = {
+      ...activeWatch,
+      currentBaseline: {
+        ...activeWatch.currentBaseline,
+        entries: activeWatch.currentBaseline.entries.map((entry) => ({
+          ...entry,
+          evaluation: {
+            ...entry.evaluation,
+            result: "NOT_ASSESSED",
+            evaluatedAt: null,
+            actions: [],
+            aiAssessment: {
+              ...entry.evaluation.aiAssessment,
+              action: {
+                ...entry.evaluation.aiAssessment.action,
+                responsible: "Responsable qualité",
+                dueDate: "2026-09-30",
+              },
+            },
+          },
+        })),
+      },
+    };
+    vi.mocked(clientApi.regulatoryWatch).mockResolvedValue(proposedWatch as never);
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(
+      await screen.findByRole("tab", { name: /Évaluation réglementaire et normative/ }),
+    );
+    expect(screen.getAllByText(/Proposition IA — non validée/).length).toBeGreaterThan(0);
+  });
+
+  it("shows the official source text next to the AI recommendation", async () => {
+    const pendingWatch = {
+      ...activeWatch,
+      currentBaseline: {
+        ...activeWatch.currentBaseline,
+        entries: activeWatch.currentBaseline.entries.map((entry) => ({
+          ...entry,
+          evaluation: { ...entry.evaluation, result: "NOT_ASSESSED", evaluatedAt: null },
+        })),
+      },
+    };
+    vi.mocked(clientApi.regulatoryWatch).mockResolvedValue(pendingWatch as never);
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(
+      await screen.findByRole("tab", { name: /Évaluation réglementaire et normative/ }),
+    );
+    await user.click(screen.getAllByText(/L’organisme doit déterminer et fournir/)[0]!);
+    expect(await screen.findByText("Traçabilité — texte officiel")).toBeInTheDocument();
+    expect(screen.getByText("ISO 9001:2015, 7.1.5, p. 18")).toBeInTheDocument();
+    expect(screen.getByText("Preuve associée")).toBeInTheDocument();
   });
 
   it("shows a non-blocking synchronization indicator without hiding published data", () => {

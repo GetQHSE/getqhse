@@ -66,6 +66,138 @@ describe("regulatory baseline carry-forward", () => {
   });
 });
 
+describe("AI-assisted conformity evaluation", () => {
+  const tenant = { organizationId: "org-1", userId: "reviewer-1", role: "owner" };
+
+  it("resets pending recommendations and enqueues a baseline evaluation", async () => {
+    const assertWorkerAvailable = vi.fn().mockResolvedValue(undefined);
+    const enqueue = vi.fn().mockResolvedValue({
+      jobId: "job-1",
+      queue: "regulatory-evaluation",
+      correlationId: "correlation-1",
+    });
+    const updateMany = vi.fn().mockResolvedValue({ count: 2 });
+    const service = new RegulatoryWatchService({ assertWorkerAvailable, enqueue } as never);
+    (service as unknown as { loadedWatch(): Promise<unknown> }).loadedWatch = async () => ({
+      currentBaselineId: "baseline-1",
+    });
+    (service as unknown as { database: object }).database = {
+      regulatoryEvaluation: { updateMany },
+    };
+
+    await service.startEvaluation(tenant, "project-1");
+
+    expect(assertWorkerAvailable).toHaveBeenCalledWith("regulatory-evaluation");
+    expect(updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ result: "NOT_ASSESSED", evaluatedAt: null }),
+        data: expect.objectContaining({ aiStatus: "PENDING", aiSuggestedResult: null }),
+      }),
+    );
+    expect(enqueue).toHaveBeenCalledWith(
+      "regulatory-evaluation",
+      "evaluate-regulatory-baseline",
+      expect.objectContaining({ payload: { baselineId: "baseline-1" } }),
+    );
+  });
+
+  it("never resets a completed recommendation when the baseline is re-run", async () => {
+    const assertWorkerAvailable = vi.fn().mockResolvedValue(undefined);
+    const enqueue = vi.fn().mockResolvedValue({
+      jobId: "job-1",
+      queue: "regulatory-evaluation",
+      correlationId: "correlation-1",
+    });
+    const updateMany = vi.fn().mockResolvedValue({ count: 1 });
+    const service = new RegulatoryWatchService({ assertWorkerAvailable, enqueue } as never);
+    (service as unknown as { loadedWatch(): Promise<unknown> }).loadedWatch = async () => ({
+      currentBaselineId: "baseline-1",
+    });
+    (service as unknown as { database: object }).database = {
+      regulatoryEvaluation: { updateMany },
+    };
+
+    await service.startEvaluation(tenant, "project-1");
+
+    expect(updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          OR: [
+            { aiStatus: { in: ["PENDING", "FAILED"] } },
+            { aiStatus: "RUNNING", updatedAt: { lt: expect.any(Date) } },
+          ],
+        }),
+      }),
+    );
+  });
+
+  it("only fails what it just reset when the evaluation queue is unavailable", async () => {
+    const assertWorkerAvailable = vi.fn().mockResolvedValue(undefined);
+    const enqueue = vi.fn().mockRejectedValue(new Error("Evaluation worker is unavailable"));
+    const updateMany = vi.fn().mockResolvedValue({ count: 1 });
+    const service = new RegulatoryWatchService({ assertWorkerAvailable, enqueue } as never);
+    (service as unknown as { loadedWatch(): Promise<unknown> }).loadedWatch = async () => ({
+      currentBaselineId: "baseline-1",
+    });
+    (service as unknown as { database: object }).database = {
+      regulatoryEvaluation: { updateMany },
+    };
+
+    await expect(service.startEvaluation(tenant, "project-1")).rejects.toThrow(
+      "Evaluation worker is unavailable",
+    );
+
+    expect(updateMany).toHaveBeenLastCalledWith({
+      where: {
+        entry: { baselineId: "baseline-1" },
+        result: "NOT_ASSESSED",
+        evaluatedAt: null,
+        aiStatus: "PENDING",
+      },
+      data: { aiStatus: "FAILED", aiErrorMessage: "Evaluation worker is unavailable" },
+    });
+  });
+
+  it("creates the AI-proposed corrective action after a gap is human-validated", async () => {
+    const actionCreate = vi.fn().mockResolvedValue({});
+    const service = new RegulatoryWatchService({} as never);
+    (service as unknown as { currentEvaluation(): Promise<unknown> }).currentEvaluation =
+      async () => ({
+        id: "evaluation-1",
+        aiActionTitle: "Formaliser le registre de contrôle",
+        aiActionResources: null,
+        aiActionDueDate: null,
+        aiEffectivenessCriteria: "Le registre couvre tous les contrôles requis.",
+        aiResponsible: null,
+      });
+    (service as unknown as { get(): Promise<unknown> }).get = async () => ({ id: "watch-1" });
+    (service as unknown as { database: object }).database = {
+      regulatoryEvaluation: { updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
+      regulatoryEvaluationAction: {
+        count: vi.fn().mockResolvedValue(0),
+        create: actionCreate,
+      },
+    };
+
+    await service.updateEvaluation(tenant, "project-1", "evaluation-1", {
+      revision: 1,
+      result: "NON_CONFORMING",
+      comment: "Écart confirmé",
+    });
+
+    expect(actionCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          evaluationId: "evaluation-1",
+          title: "Formaliser le registre de contrôle",
+          assigneeId: null,
+          dueDate: null,
+        }),
+      }),
+    );
+  });
+});
+
 describe("accuracy-first regulatory review gates", () => {
   const tenant = { organizationId: "org-1", userId: "reviewer-1", role: "owner" };
   const previousRagFlag = process.env["NORMATIVE_RAG_ENABLED"];

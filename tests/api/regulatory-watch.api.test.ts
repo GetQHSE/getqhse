@@ -21,6 +21,7 @@ describe("regulatory watch API", () => {
     answerClarifications: vi.fn(),
     decideCandidate: vi.fn(),
     publish: vi.fn(),
+    startEvaluation: vi.fn(),
     updateEvaluation: vi.fn(),
     addEvidence: vi.fn(),
     addAction: vi.fn(),
@@ -103,5 +104,23 @@ describe("regulatory watch API", () => {
         /application\/vnd\.openxmlformats-officedocument\.spreadsheetml\.sheet/,
       )
       .expect("content-disposition", /veille-reglementaire\.xlsx/);
+  });
+
+  it("starts a separate conformity evaluation for the published baseline", async () => {
+    regulatory.startEvaluation.mockResolvedValue({
+      jobId: "evaluation-job-1",
+      queue: "regulatory-evaluation",
+      correlationId: "correlation-1",
+    });
+
+    await request(app.getHttpServer())
+      .post("/v1/projects/project-1/regulatory-watch/evaluation-runs")
+      .expect(201)
+      .expect({
+        jobId: "evaluation-job-1",
+        queue: "regulatory-evaluation",
+        correlationId: "correlation-1",
+      });
+    expect(regulatory.startEvaluation).toHaveBeenCalledWith(tenant, "project-1");
   });
 });

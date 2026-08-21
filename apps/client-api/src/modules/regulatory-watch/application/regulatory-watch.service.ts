@@ -9,6 +9,7 @@ import {
   NotFoundException,
   ServiceUnavailableException,
 } from "@nestjs/common";
+import { staleAiEvaluationMs } from "@qhse/contracts";
 import type {
   AnswerRegulatoryClarifications,
   CreateRegulatoryAction,
@@ -312,6 +313,33 @@ export class RegulatoryWatchService {
                 comment: entry.evaluation.comment,
                 evaluatedAt: dateTime(entry.evaluation.evaluatedAt),
                 requiresReevaluation: entry.evaluation.requiresReevaluation,
+                aiAssessment: {
+                  status: entry.evaluation.aiStatus,
+                  suggestedResult: entry.evaluation.aiSuggestedResult,
+                  rationale: entry.evaluation.aiRationale,
+                  confidence:
+                    entry.evaluation.aiConfidence === null
+                      ? null
+                      : Number(entry.evaluation.aiConfidence),
+                  matchedProfileKeys: entry.evaluation.aiMatchedProfileKeys,
+                  missingInformation: entry.evaluation.aiMissingInformation,
+                  remediationPlan: entry.evaluation.aiRemediationPlan,
+                  action: {
+                    title: entry.evaluation.aiActionTitle,
+                    resources: entry.evaluation.aiActionResources,
+                    startDate: entry.evaluation.aiActionStartDate
+                      ? dateOnly(entry.evaluation.aiActionStartDate)
+                      : null,
+                    dueDate: entry.evaluation.aiActionDueDate
+                      ? dateOnly(entry.evaluation.aiActionDueDate)
+                      : null,
+                    responsible: entry.evaluation.aiResponsible,
+                    effectivenessCriteria: entry.evaluation.aiEffectivenessCriteria,
+                  },
+                  evaluatedAt: dateTime(entry.evaluation.aiEvaluatedAt),
+                  errorMessage: entry.evaluation.aiErrorMessage,
+                  updatedAt: entry.evaluation.updatedAt.toISOString(),
+                },
                 evidence: entry.evaluation.evidence.map((evidence) => ({
                   id: evidence.id,
                   kind: evidence.kind,
@@ -578,6 +606,68 @@ export class RegulatoryWatchService {
     return this.get(tenant, projectIdOrSlug);
   }
 
+  async startEvaluation(tenant: TenantContext, projectIdOrSlug: string) {
+    if (!canContribute(tenant.role))
+      throw new ForbiddenException("Regulatory contribution is required");
+    const watch = await this.loadedWatch(tenant, projectIdOrSlug);
+    if (!watch.currentBaselineId) throw new BadRequestException("No regulatory baseline exists");
+    await this.queue.assertWorkerAvailable("regulatory-evaluation");
+    // Only recommendations that never landed are retried. A COMPLETED one is a reviewer's
+    // working material: re-running the baseline must not silently discard it. A RUNNING one is
+    // only retried once it is stale enough that no worker can still be holding it.
+    const retryable: Prisma.RegulatoryEvaluationWhereInput = {
+      entry: { baselineId: watch.currentBaselineId },
+      result: "NOT_ASSESSED",
+      evaluatedAt: null,
+      OR: [
+        { aiStatus: { in: ["PENDING", "FAILED"] } },
+        { aiStatus: "RUNNING", updatedAt: { lt: new Date(Date.now() - staleAiEvaluationMs) } },
+      ],
+    };
+    await this.database.regulatoryEvaluation.updateMany({
+      where: retryable,
+      data: {
+        aiStatus: "PENDING",
+        aiSuggestedResult: null,
+        aiRationale: null,
+        aiConfidence: null,
+        aiMatchedProfileKeys: [],
+        aiMissingInformation: [],
+        aiRemediationPlan: null,
+        aiActionTitle: null,
+        aiActionResources: null,
+        aiActionStartDate: null,
+        aiActionDueDate: null,
+        aiResponsible: null,
+        aiEffectivenessCriteria: null,
+        aiEvaluatedAt: null,
+        aiErrorMessage: null,
+      },
+    });
+    try {
+      return await this.queue.enqueue("regulatory-evaluation", "evaluate-regulatory-baseline", {
+        organizationId: tenant.organizationId,
+        correlationId: randomUUID(),
+        idempotencyKey: `${watch.currentBaselineId}:evaluation:${randomUUID()}`,
+        payload: { baselineId: watch.currentBaselineId },
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Evaluation queue unavailable";
+      // Scoped to what this call just reset, so a failed enqueue cannot mark recommendations
+      // that already completed as failed.
+      await this.database.regulatoryEvaluation.updateMany({
+        where: {
+          entry: { baselineId: watch.currentBaselineId },
+          result: "NOT_ASSESSED",
+          evaluatedAt: null,
+          aiStatus: "PENDING",
+        },
+        data: { aiStatus: "FAILED", aiErrorMessage: message.slice(0, 2_000) },
+      });
+      throw error;
+    }
+  }
+
   async publish(
     tenant: TenantContext,
     projectIdOrSlug: string,
@@ -637,7 +727,7 @@ export class RegulatoryWatchService {
       );
     }
 
-    await this.database.$transaction(async (tx) => {
+    const publishedBaselineId = await this.database.$transaction(async (tx) => {
       const claimed = await tx.projectRegulatoryWatch.updateMany({
         where: {
           id: watch.id,
@@ -754,7 +844,27 @@ export class RegulatoryWatchService {
           completedAt: now,
         },
       });
+      return baseline.id;
     });
+    try {
+      await this.queue.assertWorkerAvailable("regulatory-evaluation");
+      await this.queue.enqueue("regulatory-evaluation", "evaluate-regulatory-baseline", {
+        organizationId: tenant.organizationId,
+        correlationId: randomUUID(),
+        idempotencyKey: `${publishedBaselineId}:initial-evaluation`,
+        payload: { baselineId: publishedBaselineId },
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Evaluation queue unavailable";
+      await this.database.regulatoryEvaluation.updateMany({
+        where: {
+          entry: { baselineId: publishedBaselineId },
+          evaluatedAt: null,
+          aiStatus: "PENDING",
+        },
+        data: { aiStatus: "FAILED", aiErrorMessage: message.slice(0, 2_000) },
+      });
+    }
     return this.get(tenant, projectIdOrSlug);
   }
 
@@ -796,7 +906,7 @@ export class RegulatoryWatchService {
   ): Promise<RegulatoryWatch> {
     if (!canContribute(tenant.role))
       throw new ForbiddenException("Regulatory contribution is required");
-    await this.currentEvaluation(tenant, projectIdOrSlug, evaluationId);
+    const evaluation = await this.currentEvaluation(tenant, projectIdOrSlug, evaluationId);
     const claimed = await this.database.regulatoryEvaluation.updateMany({
       where: { id: evaluationId, revision: input.revision },
       data: {
@@ -809,6 +919,32 @@ export class RegulatoryWatchService {
       },
     });
     if (claimed.count !== 1) throw new ConflictException("Regulatory evaluation changed");
+    if (
+      input.result !== "CONFORMING" &&
+      input.result !== "NOT_ASSESSED" &&
+      evaluation.aiActionTitle
+    ) {
+      const existingActions = await this.database.regulatoryEvaluationAction.count({
+        where: { evaluationId },
+      });
+      if (existingActions === 0) {
+        await this.database.regulatoryEvaluationAction.create({
+          data: {
+            evaluationId,
+            title: evaluation.aiActionTitle,
+            assigneeId: null,
+            resources: evaluation.aiActionResources,
+            dueDate: evaluation.aiActionDueDate,
+            status: "OPEN",
+            effectivenessCriteria: evaluation.aiEffectivenessCriteria,
+            effectiveness: "PENDING",
+            comment: evaluation.aiResponsible
+              ? `Responsable proposé par l’IA : ${evaluation.aiResponsible}`
+              : null,
+          },
+        });
+      }
+    }
     return this.get(tenant, projectIdOrSlug);
   }
 
@@ -941,6 +1077,18 @@ export class RegulatoryWatchService {
         sourceText: entry.provision.content,
         requirement: entry.requirementText ?? "",
         result: entry.evaluation.result,
+        aiSuggestedResult: entry.evaluation.aiSuggestedResult,
+        aiRationale: entry.evaluation.aiRationale,
+        aiRemediationPlan: entry.evaluation.aiRemediationPlan,
+        aiAction: {
+          title: entry.evaluation.aiActionTitle,
+          assignee: entry.evaluation.aiResponsible,
+          resources: entry.evaluation.aiActionResources,
+          dueDate: entry.evaluation.aiActionDueDate
+            ? dateOnly(entry.evaluation.aiActionDueDate)
+            : null,
+          effectivenessCriteria: entry.evaluation.aiEffectivenessCriteria,
+        },
         evidence: entry.evaluation.evidence.map(
           (evidence) =>
             evidence.label ?? evidence.note ?? evidence.url ?? evidence.fileId ?? "Preuve",

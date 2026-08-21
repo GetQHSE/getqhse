@@ -1,6 +1,7 @@
 import {
   regulatoryAnalysisErrorMessages,
   regulatoryAnalysisErrorCodeSchema,
+  staleAiEvaluationMs,
   type ProjectProfile,
   type RegulatoryWatch,
 } from "@qhse/contracts";
@@ -9,6 +10,14 @@ import { Button } from "@qhse/ui/components/button";
 import { Input } from "@qhse/ui/components/input";
 import { Progress } from "@qhse/ui/components/progress";
 import { Skeleton } from "@qhse/ui/components/skeleton";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+} from "@qhse/ui/components/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@qhse/ui/components/tabs";
 import { Textarea } from "@qhse/ui/components/textarea";
 import { cn } from "@qhse/ui/lib/utils";
@@ -32,6 +41,7 @@ import {
   SearchCheckIcon,
   ShieldCheckIcon,
   SparklesIcon,
+  TargetIcon,
   XIcon,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -48,6 +58,19 @@ import {
 } from "./regulatory-watch-test-page.js";
 
 const activeAnalysisStatuses = new Set(["QUEUED", "RUNNING"]);
+
+/** A pass counts as live only while it is still making progress. Without the staleness check a
+ *  worker that died mid-pass would leave PENDING rows behind that disable the re-run button and
+ *  pin the poller at 2s forever — exactly when the user needs to recover. */
+function aiEvaluationActive(watch: RegulatoryWatch | undefined): boolean {
+  const rows = (watch?.currentBaseline?.entries ?? [])
+    .filter((entry) => entry.evaluation.result === "NOT_ASSESSED")
+    .map((entry) => entry.evaluation.aiAssessment)
+    .filter((assessment) => assessment.status === "PENDING" || assessment.status === "RUNNING");
+  if (!rows.length) return false;
+  const lastActivity = Math.max(...rows.map((row) => Date.parse(row.updatedAt)));
+  return Number.isFinite(lastActivity) && Date.now() - lastActivity < staleAiEvaluationMs;
+}
 const analysisPhaseLabels: Record<string, string> = {
   queued: "Préparation de l’analyse",
   planning: "Lecture du profil",
@@ -153,31 +176,58 @@ export function regulatoryViewData(watch: RegulatoryWatch) {
   const evaluationItems: RegulatoryEvaluation[] = entries.map((entry) => {
     const evidence = entry.evaluation.evidence[0];
     const action = entry.evaluation.actions[0];
+    const ai = entry.evaluation.aiAssessment;
+    // Only stand in for a real action when there is none at all: mixing a committed action's
+    // title with an AI-proposed responsible would produce a row nobody could tell apart from
+    // an assigned plan.
+    const proposedAction = action ? undefined : ai?.action;
     return {
       id: entry.evaluation.id,
+      revision: entry.evaluation.revision,
+      result: entry.evaluation.result,
       source: entry.source.referenceNumber ?? entry.source.documentTitle,
       provision: entry.source.provisionIdentifier ?? entry.source.provisionType,
       requirement: entry.requirement?.text ?? "Exigence à régénérer",
       citation: entry.source.citationLabel,
       officialSourceText: entry.source.excerpt,
-      status: mapEvaluationStatus(entry.evaluation.result),
+      status:
+        entry.evaluation.result === "NOT_ASSESSED" && ai?.status === "COMPLETED"
+          ? "À valider"
+          : mapEvaluationStatus(entry.evaluation.result),
       evidence: evidence?.label ?? evidence?.note ?? evidence?.url ?? "Aucune preuve liée",
-      action: action?.title ?? "Aucune action définie",
-      owner: action?.assigneeName ?? "Non attribué",
-      dueDate: formatDate(action?.dueDate),
+      action: action?.title ?? proposedAction?.title ?? "Aucune action définie",
+      owner: action?.assigneeName ?? proposedAction?.responsible ?? "Non attribué",
+      dueDate: formatDate(action?.dueDate ?? proposedAction?.dueDate),
+      actionSource: action
+        ? ("HUMAN" as const)
+        : proposedAction?.title
+          ? ("AI" as const)
+          : undefined,
       effectiveness:
         action?.effectiveness === "EFFECTIVE"
           ? "Action efficace"
           : action?.effectiveness === "INEFFECTIVE"
             ? "Action non efficace"
             : "À vérifier",
+      aiStatus: ai?.status ?? "PENDING",
+      aiSuggestedStatus: ai?.suggestedResult ? mapEvaluationStatus(ai.suggestedResult) : undefined,
+      aiSuggestedResult: ai?.suggestedResult ?? null,
+      aiRationale: ai?.rationale ?? null,
+      aiConfidence: ai?.confidence ?? null,
+      aiMatchedProfileKeys: ai?.matchedProfileKeys ?? [],
+      aiMissingInformation: ai?.missingInformation ?? [],
+      aiRemediationPlan: ai?.remediationPlan ?? null,
+      aiAction: ai?.action,
     };
   });
 
-  const evaluated = evaluationItems.filter((item) => item.status !== "À évaluer").length;
+  const evaluated = evaluationItems.filter(
+    (item) => item.status !== "À évaluer" && item.status !== "À valider",
+  ).length;
   const conforming = evaluationItems.filter((item) => item.status === "Conforme").length;
   const partial = evaluationItems.filter((item) => item.status === "Partiel").length;
   const nonConforming = evaluationItems.filter((item) => item.status === "Non conforme").length;
+  const aiAssessed = evaluationItems.filter((item) => item.aiStatus === "COMPLETED").length;
   const openActions = entries
     .flatMap((entry) => entry.evaluation.actions)
     .filter((action) => action.status !== "DONE" && action.status !== "VERIFIED").length;
@@ -191,6 +241,7 @@ export function regulatoryViewData(watch: RegulatoryWatch) {
       conforming,
       partial,
       nonConforming,
+      aiAssessed,
       compliancePercent: evaluated === 0 ? 0 : Math.round((conforming / evaluated) * 100),
       openActions,
     },
@@ -783,6 +834,255 @@ function ReviewState({
   );
 }
 
+function AiEvaluationSheet({
+  evaluation,
+  saving,
+  onClose,
+  onSave,
+}: {
+  evaluation: RegulatoryEvaluation | null;
+  saving: boolean;
+  onClose: () => void;
+  onSave: (input: {
+    evaluationId: string;
+    revision: number;
+    result: "CONFORMING" | "PARTIAL" | "NON_CONFORMING";
+    comment: string | null;
+  }) => Promise<void>;
+}) {
+  const [result, setResult] = useState<"CONFORMING" | "PARTIAL" | "NON_CONFORMING">(
+    "NON_CONFORMING",
+  );
+  const [comment, setComment] = useState("");
+  const evaluationId = evaluation?.id;
+  const suggestedResult = evaluation?.aiSuggestedResult;
+  const humanResult = evaluation?.result;
+
+  // Seeded from the identity and the assessment rather than from the object, because the sheet
+  // now reads live data: a plain `[evaluation]` dependency would reset the reviewer's choice on
+  // every 2s poll. Re-seeding when the suggestion lands is intentional — it is what the sheet
+  // was waiting for — but the comment survives it.
+  useEffect(() => {
+    if (!evaluationId) return;
+    setResult(
+      suggestedResult && suggestedResult !== "NOT_ASSESSED"
+        ? suggestedResult
+        : humanResult && humanResult !== "NOT_ASSESSED"
+          ? humanResult
+          : "NON_CONFORMING",
+    );
+  }, [evaluationId, suggestedResult, humanResult]);
+
+  useEffect(() => {
+    setComment("");
+  }, [evaluationId]);
+
+  const ai = evaluation?.aiStatus;
+  return (
+    <Sheet open={Boolean(evaluation)} onOpenChange={(open) => !open && onClose()}>
+      <SheetContent className="w-[min(96vw,680px)]! sm:max-w-[680px]!">
+        {evaluation && (
+          <>
+            <SheetHeader className="border-b border-slate-100 pr-16">
+              <div className="mb-2 flex flex-wrap items-center gap-2">
+                <Badge variant="outline">{evaluation.status}</Badge>
+                {evaluation.aiSuggestedStatus && (
+                  <Badge
+                    className="border-violet-200 bg-violet-50 text-violet-700"
+                    variant="outline"
+                  >
+                    <SparklesIcon /> IA : {evaluation.aiSuggestedStatus}
+                  </Badge>
+                )}
+              </div>
+              <SheetTitle className="text-lg font-semibold">{evaluation.provision}</SheetTitle>
+              <SheetDescription>{evaluation.source}</SheetDescription>
+            </SheetHeader>
+            <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-6">
+              <section>
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                  Exigence applicable
+                </p>
+                <p className="mt-2 text-sm leading-6 text-slate-800">{evaluation.requirement}</p>
+              </section>
+
+              {evaluation.officialSourceText && (
+                <section className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                    Traçabilité — texte officiel
+                  </p>
+                  {evaluation.citation && (
+                    <p className="mt-2 text-xs font-semibold text-slate-700">
+                      {evaluation.citation}
+                    </p>
+                  )}
+                  <p className="mt-2 whitespace-pre-wrap text-xs leading-5 text-slate-600">
+                    {evaluation.officialSourceText}
+                  </p>
+                </section>
+              )}
+
+              <section className="rounded-2xl border border-emerald-100 bg-emerald-50/60 p-4">
+                <p className="flex items-center gap-2 text-xs font-semibold text-emerald-800">
+                  <FileCheck2Icon className="size-4" /> Preuve associée
+                </p>
+                <p className="mt-2 text-sm text-emerald-950/80">{evaluation.evidence}</p>
+              </section>
+
+              {(ai === "PENDING" || ai === "RUNNING") && (
+                <section className="flex items-center gap-3 rounded-2xl border border-violet-200 bg-violet-50 p-4 text-sm text-violet-800">
+                  <LoaderCircleIcon className="size-4 animate-spin" /> Pré-évaluation de conformité
+                  en cours…
+                </section>
+              )}
+              {ai === "FAILED" && (
+                <section className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
+                  L’évaluation IA n’a pas abouti. Vous pouvez la relancer depuis la page.
+                </section>
+              )}
+              {ai === "COMPLETED" && (
+                <section className="space-y-4 rounded-2xl border border-violet-200 bg-violet-50/60 p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="flex items-center gap-2 text-xs font-semibold text-violet-900">
+                        <BotIcon className="size-4" /> Analyse IA à valider
+                      </p>
+                      <p className="mt-2 text-sm leading-6 text-violet-950/80">
+                        {evaluation.aiRationale}
+                      </p>
+                    </div>
+                    {evaluation.aiConfidence !== null && evaluation.aiConfidence !== undefined && (
+                      <Badge className="shrink-0 bg-white text-violet-700" variant="outline">
+                        {Math.round(evaluation.aiConfidence * 100)} %
+                      </Badge>
+                    )}
+                  </div>
+                  {(evaluation.aiMatchedProfileKeys?.length ?? 0) > 0 && (
+                    <div>
+                      <p className="text-xs font-semibold text-slate-800">
+                        Éléments du profil utilisés
+                      </p>
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        {evaluation.aiMatchedProfileKeys?.map((key) => (
+                          <Badge
+                            className="bg-white font-normal text-slate-600"
+                            key={key}
+                            variant="outline"
+                          >
+                            {key}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {(evaluation.aiMissingInformation?.length ?? 0) > 0 && (
+                    <div>
+                      <p className="text-xs font-semibold text-slate-800">
+                        Informations manquantes
+                      </p>
+                      <ul className="mt-2 list-disc space-y-1 pl-5 text-xs leading-5 text-slate-600">
+                        {evaluation.aiMissingInformation?.map((item) => (
+                          <li key={item}>{item}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </section>
+              )}
+
+              {evaluation.aiRemediationPlan && (
+                <section className="rounded-2xl border border-amber-200 bg-amber-50/70 p-4">
+                  <p className="flex items-center gap-2 text-xs font-semibold text-amber-900">
+                    <TargetIcon className="size-4" /> Comment atteindre la conformité
+                  </p>
+                  <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-amber-950/80">
+                    {evaluation.aiRemediationPlan}
+                  </p>
+                  {evaluation.aiAction?.title && (
+                    <div className="mt-4 border-t border-amber-200 pt-4 text-xs text-slate-700">
+                      <p className="font-semibold">{evaluation.aiAction.title}</p>
+                      <dl className="mt-3 grid gap-3 sm:grid-cols-2">
+                        <div>
+                          <dt className="text-slate-400">Responsable proposé</dt>
+                          <dd className="mt-1">{evaluation.aiAction.responsible ?? "—"}</dd>
+                        </div>
+                        <div>
+                          <dt className="text-slate-400">Ressources</dt>
+                          <dd className="mt-1">{evaluation.aiAction.resources ?? "—"}</dd>
+                        </div>
+                        <div>
+                          <dt className="text-slate-400">Date de début</dt>
+                          <dd className="mt-1">{formatDate(evaluation.aiAction.startDate)}</dd>
+                        </div>
+                        <div>
+                          <dt className="text-slate-400">Date prévue</dt>
+                          <dd className="mt-1">{formatDate(evaluation.aiAction.dueDate)}</dd>
+                        </div>
+                      </dl>
+                      {evaluation.aiAction.effectivenessCriteria && (
+                        <p className="mt-3">
+                          <span className="text-slate-400">Critère d’efficacité : </span>
+                          {evaluation.aiAction.effectivenessCriteria}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </section>
+              )}
+
+              <section className="rounded-2xl border border-slate-200 p-4">
+                <p className="text-xs font-semibold text-slate-900">Décision humaine finale</p>
+                <label className="mt-3 block text-xs text-slate-500" htmlFor="evaluation-result">
+                  Résultat
+                </label>
+                <select
+                  className="mt-1 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm"
+                  id="evaluation-result"
+                  onChange={(event) =>
+                    setResult(event.target.value as "CONFORMING" | "PARTIAL" | "NON_CONFORMING")
+                  }
+                  value={result}
+                >
+                  <option value="CONFORMING">Conforme</option>
+                  <option value="PARTIAL">Partiellement conforme</option>
+                  <option value="NON_CONFORMING">Non conforme</option>
+                </select>
+                <label className="mt-3 block text-xs text-slate-500" htmlFor="evaluation-comment">
+                  Commentaire
+                </label>
+                <Textarea
+                  className="mt-1 min-h-24"
+                  id="evaluation-comment"
+                  onChange={(event) => setComment(event.target.value)}
+                  placeholder="Justification ou réserves de la validation"
+                  value={comment}
+                />
+              </section>
+            </div>
+            <SheetFooter className="border-t border-slate-100 bg-slate-50">
+              <Button
+                className="h-10 rounded-xl bg-slate-950 hover:bg-slate-800"
+                disabled={saving || !evaluation.revision}
+                onClick={() =>
+                  void onSave({
+                    evaluationId: evaluation.id,
+                    revision: evaluation.revision ?? 1,
+                    result,
+                    comment: comment.trim() || null,
+                  })
+                }
+              >
+                {saving ? <LoaderCircleIcon className="animate-spin" /> : <CheckIcon />} Valider
+                l’évaluation
+              </Button>
+            </SheetFooter>
+          </>
+        )}
+      </SheetContent>
+    </Sheet>
+  );
+}
+
 export function DataPage({
   profile,
   watch,
@@ -791,6 +1091,10 @@ export function DataPage({
   refreshing,
   onExport,
   exporting,
+  evaluating = false,
+  savingEvaluation = false,
+  onStartEvaluation = () => undefined,
+  onSaveEvaluation = async () => undefined,
 }: {
   profile: ProjectProfile;
   watch: RegulatoryWatch;
@@ -799,16 +1103,34 @@ export function DataPage({
   refreshing: boolean;
   onExport: () => void;
   exporting: boolean;
+  evaluating?: boolean;
+  savingEvaluation?: boolean;
+  onStartEvaluation?: () => void;
+  onSaveEvaluation?: (input: {
+    evaluationId: string;
+    revision: number;
+    result: "CONFORMING" | "PARTIAL" | "NON_CONFORMING";
+    comment: string | null;
+  }) => Promise<void>;
 }) {
   const [selectedDocument, setSelectedDocument] = useState<RegulatoryDocument | null>(null);
-  const [selectedEvaluation, setSelectedEvaluation] = useState<RegulatoryEvaluation | null>(null);
+  // Held by id, not by value: the open sheet has to follow the 2s poll so a pass completing
+  // while it is open shows its recommendation, and so the submitted revision is the current
+  // one rather than whatever it was at click time.
+  const [selectedEvaluationId, setSelectedEvaluationId] = useState<string | null>(null);
   const data = useMemo(() => regulatoryViewData(watch), [watch]);
+  const selectedEvaluation = useMemo(
+    () => data.evaluations.find((item) => item.id === selectedEvaluationId) ?? null,
+    [data.evaluations, selectedEvaluationId],
+  );
   const hasLegacyRequirements = Boolean(
     watch.currentBaseline?.entries.some((entry) => entry.requirement === null),
   );
   const analysisActive = Boolean(
     watch.currentAnalysis && activeAnalysisStatuses.has(watch.currentAnalysis.status),
   );
+  const aiAnalysisActive = aiEvaluationActive(watch);
+  const evaluationBusy = evaluating || aiAnalysisActive;
   return (
     <section className="mx-auto w-full max-w-[1440px] space-y-5">
       <header className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
@@ -834,6 +1156,15 @@ export function DataPage({
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <Button
+            className="h-10 rounded-xl bg-white"
+            disabled={evaluationBusy || analysisActive}
+            onClick={onStartEvaluation}
+            variant="outline"
+          >
+            {evaluationBusy ? <LoaderCircleIcon className="animate-spin" /> : <SearchCheckIcon />}{" "}
+            {aiAnalysisActive ? "Évaluation IA en cours" : "Relancer l’évaluation IA"}
+          </Button>
           <Button
             className="h-10 rounded-xl bg-white"
             disabled={refreshing || analysisActive}
@@ -899,6 +1230,20 @@ export function DataPage({
           </div>
         </div>
       )}
+      {aiAnalysisActive && (
+        <div className="flex items-start gap-3 rounded-2xl border border-violet-200 bg-violet-50 p-4">
+          <LoaderCircleIcon className="mt-0.5 size-4 shrink-0 animate-spin text-violet-700" />
+          <div>
+            <p className="text-sm font-semibold text-violet-950">
+              Pré-évaluation de conformité en cours
+            </p>
+            <p className="mt-1 text-xs leading-5 text-violet-800/70">
+              L’IA compare les exigences publiées avec le profil du projet. Les résultats resteront
+              à valider par un responsable.
+            </p>
+          </div>
+        </div>
+      )}
       {watch.status === "STALE" && !analysisActive && (
         <div className="flex flex-col gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-start gap-3">
@@ -939,7 +1284,7 @@ export function DataPage({
           icon={ListChecksIcon}
           label="Exigences identifiées"
           value={String(data.summary.total)}
-          detail={`${data.summary.evaluated} déjà évaluées`}
+          detail={`${data.summary.evaluated} validées · ${data.summary.aiAssessed} analysées par IA`}
           tone="bg-violet-50 text-violet-700"
         />
         <MetricCard
@@ -1002,7 +1347,7 @@ export function DataPage({
           <DocumentList
             items={data.documents}
             onOpen={(item) => {
-              setSelectedEvaluation(null);
+              setSelectedEvaluationId(null);
               setSelectedDocument(item);
             }}
           />
@@ -1013,19 +1358,28 @@ export function DataPage({
             summary={data.summary}
             onOpen={(item) => {
               setSelectedDocument(null);
-              setSelectedEvaluation(item);
+              setSelectedEvaluationId(item.id);
             }}
           />
         </TabsContent>
       </Tabs>
       <DetailSheet
         document={selectedDocument}
-        evaluation={selectedEvaluation}
+        evaluation={null}
         onOpenChange={(open) => {
           if (!open) {
             setSelectedDocument(null);
-            setSelectedEvaluation(null);
+            setSelectedEvaluationId(null);
           }
+        }}
+      />
+      <AiEvaluationSheet
+        evaluation={selectedEvaluation}
+        saving={savingEvaluation}
+        onClose={() => setSelectedEvaluationId(null)}
+        onSave={async (input) => {
+          await onSaveEvaluation(input);
+          setSelectedEvaluationId(null);
         }}
       />
     </section>
@@ -1050,9 +1404,10 @@ export function RegulatoryWatchPage() {
     refetchOnWindowFocus: true,
     refetchInterval: (query) => {
       const watch = query.state.data;
-      return watch?.currentAnalysis && activeAnalysisStatuses.has(watch.currentAnalysis.status)
-        ? 2_000
-        : false;
+      const regulatoryAnalysisActive = Boolean(
+        watch?.currentAnalysis && activeAnalysisStatuses.has(watch.currentAnalysis.status),
+      );
+      return regulatoryAnalysisActive || aiEvaluationActive(watch) ? 2_000 : false;
     },
   });
   const synchronizing = useDelayedVisibility(
@@ -1136,6 +1491,36 @@ export function RegulatoryWatchPage() {
       );
       void watchQuery.refetch();
     },
+  });
+  const evaluationRunMutation = useMutation({
+    mutationFn: () => clientApi.startRegulatoryEvaluation(projectId),
+    onMutate: () => setActionError(undefined),
+    onSuccess: async () => {
+      await watchQuery.refetch();
+    },
+    onError: (error) =>
+      setActionError(
+        error instanceof Error ? error.message : "L’évaluation IA n’a pas pu démarrer.",
+      ),
+  });
+  const evaluationMutation = useMutation({
+    mutationFn: (input: {
+      evaluationId: string;
+      revision: number;
+      result: "CONFORMING" | "PARTIAL" | "NON_CONFORMING";
+      comment: string | null;
+    }) =>
+      clientApi.updateRegulatoryEvaluation(projectId, input.evaluationId, {
+        revision: input.revision,
+        result: input.result,
+        comment: input.comment,
+      }),
+    onMutate: () => setActionError(undefined),
+    onSuccess: (watch) => queryClient.setQueryData(["regulatory-watch", projectId], watch),
+    onError: (error) =>
+      setActionError(
+        error instanceof Error ? error.message : "L’évaluation n’a pas pu être validée.",
+      ),
   });
 
   if ((profileQuery.isPending && !profileQuery.data) || (watchQuery.isPending && !watchQuery.data))
@@ -1304,8 +1689,14 @@ export function RegulatoryWatchPage() {
         synchronizing={synchronizing}
         refreshing={startMutation.isPending}
         exporting={exporting}
+        evaluating={evaluationRunMutation.isPending}
+        savingEvaluation={evaluationMutation.isPending}
         onRefresh={() => startMutation.mutate()}
         onExport={() => void exportWorkbook()}
+        onStartEvaluation={() => evaluationRunMutation.mutate()}
+        onSaveEvaluation={async (input) => {
+          await evaluationMutation.mutateAsync(input);
+        }}
       />
       {actionError && (
         <div

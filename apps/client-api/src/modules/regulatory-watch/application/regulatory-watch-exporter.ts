@@ -6,6 +6,16 @@ export type RegulatoryExportEntry = {
   sourceText: string;
   requirement: string;
   result: "CONFORMING" | "PARTIAL" | "NON_CONFORMING" | "NOT_ASSESSED";
+  aiSuggestedResult?: "CONFORMING" | "PARTIAL" | "NON_CONFORMING" | "NOT_ASSESSED" | null;
+  aiRationale?: string | null;
+  aiRemediationPlan?: string | null;
+  aiAction?: {
+    title: string | null;
+    assignee: string | null;
+    resources: string | null;
+    dueDate: string | null;
+    effectivenessCriteria: string | null;
+  };
   evidence: string[];
   comment: string | null;
   actions: Array<{
@@ -233,13 +243,27 @@ export async function buildRegulatoryWatchWorkbook(
 
   let evaluationRow = headerBottom + 1;
   for (const entry of entries) {
-    const actions = entry.actions.length ? entry.actions : [null];
+    const suggestedAction = entry.aiAction?.title
+      ? {
+          title: `[Suggestion IA] ${entry.aiAction.title}`,
+          assignee: entry.aiAction.assignee,
+          resources: entry.aiAction.resources,
+          dueDate: entry.aiAction.dueDate,
+          completedDate: null,
+          effectivenessCriteria: entry.aiAction.effectivenessCriteria,
+          effectiveness: "PENDING" as const,
+          comment: null,
+        }
+      : null;
+    const actions = entry.actions.length ? entry.actions : [suggestedAction];
     for (const action of actions) {
       const row = sheet.getRow(evaluationRow);
       row.values = [
         entry.documentLabel,
         `${entry.provisionIdentifier}\n${entry.requirement}`.trim(),
-        resultLabels[entry.result],
+        entry.result === "NOT_ASSESSED" && entry.aiSuggestedResult
+          ? `À valider — suggestion IA : ${resultLabels[entry.aiSuggestedResult]}`
+          : resultLabels[entry.result],
         entry.evidence.length ? entry.evidence.join("\n") : null,
         action?.title ?? null,
         action?.assignee ?? null,
@@ -248,7 +272,14 @@ export async function buildRegulatoryWatchWorkbook(
         isoDate(action?.completedDate ?? null),
         action?.effectivenessCriteria ?? null,
         action ? effectivenessLabels[action.effectiveness] : null,
-        [entry.comment, action?.comment].filter(Boolean).join("\n") || null,
+        [
+          entry.comment,
+          entry.aiRationale ? `Analyse IA : ${entry.aiRationale}` : null,
+          entry.aiRemediationPlan ? `Mise en conformité : ${entry.aiRemediationPlan}` : null,
+          action?.comment,
+        ]
+          .filter(Boolean)
+          .join("\n") || null,
       ];
       row.height = dynamicRowHeight(
         [
@@ -258,7 +289,9 @@ export async function buildRegulatoryWatchWorkbook(
           action?.title,
           action?.resources,
           action?.effectivenessCriteria,
-          [entry.comment, action?.comment].filter(Boolean).join("\n"),
+          [entry.comment, entry.aiRationale, entry.aiRemediationPlan, action?.comment]
+            .filter(Boolean)
+            .join("\n"),
         ],
         [32, 40, 22, 22, 20, 24, 24],
       );

@@ -261,6 +261,13 @@ enum RegulatoryEffectiveness {
   INEFFECTIVE
 }
 
+enum RegulatoryAiEvaluationStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
 enum FileUploadStatus {
   PENDING
   READY
@@ -1332,17 +1339,35 @@ model RegulatoryRegisterEntry {
 }
 
 model RegulatoryEvaluation {
-  id                   String           @id @default(cuid())
-  entryId              String           @unique @map("entry_id")
-  previousEvaluationId String?          @map("previous_evaluation_id")
-  requiresReevaluation Boolean          @default(false) @map("requires_reevaluation")
-  result               AssessmentResult @default(NOT_ASSESSED)
-  comment              String?
-  revision             Int              @default(1)
-  evaluatedById        String?          @map("evaluated_by_id")
-  evaluatedAt          DateTime?        @map("evaluated_at")
-  createdAt            DateTime         @default(now()) @map("created_at")
-  updatedAt            DateTime         @updatedAt @map("updated_at")
+  id                      String                       @id @default(cuid())
+  entryId                 String                       @unique @map("entry_id")
+  previousEvaluationId    String?                      @map("previous_evaluation_id")
+  requiresReevaluation    Boolean                      @default(false) @map("requires_reevaluation")
+  result                  AssessmentResult             @default(NOT_ASSESSED)
+  comment                 String?
+  revision                Int                          @default(1)
+  evaluatedById           String?                      @map("evaluated_by_id")
+  evaluatedAt             DateTime?                    @map("evaluated_at")
+  aiStatus                RegulatoryAiEvaluationStatus @default(PENDING) @map("ai_status")
+  aiSuggestedResult       AssessmentResult?            @map("ai_suggested_result")
+  aiRationale             String?                      @map("ai_rationale")
+  aiConfidence            Decimal?                     @map("ai_confidence") @db.Decimal(5, 4)
+  aiMatchedProfileKeys    String[]                     @default([]) @map("ai_matched_profile_keys")
+  aiMissingInformation    String[]                     @default([]) @map("ai_missing_information")
+  aiRemediationPlan       String?                      @map("ai_remediation_plan")
+  aiActionTitle           String?                      @map("ai_action_title")
+  aiActionResources       String?                      @map("ai_action_resources")
+  aiActionStartDate       DateTime?                    @map("ai_action_start_date") @db.Date
+  aiActionDueDate         DateTime?                    @map("ai_action_due_date") @db.Date
+  aiResponsible           String?                      @map("ai_responsible")
+  aiEffectivenessCriteria String?                      @map("ai_effectiveness_criteria")
+  aiModel                 String?                      @map("ai_model")
+  aiPromptKey             String?                      @map("ai_prompt_key")
+  aiPromptVersion         Int?                         @map("ai_prompt_version")
+  aiEvaluatedAt           DateTime?                    @map("ai_evaluated_at")
+  aiErrorMessage          String?                      @map("ai_error_message")
+  createdAt               DateTime                     @default(now()) @map("created_at")
+  updatedAt               DateTime                     @updatedAt @map("updated_at")
 
   entry                RegulatoryRegisterEntry        @relation(fields: [entryId], references: [id], onDelete: Cascade)
   previousEvaluation   RegulatoryEvaluation?          @relation("RegulatoryEvaluationLineage", fields: [previousEvaluationId], references: [id], onDelete: Restrict)
@@ -1352,6 +1377,7 @@ model RegulatoryEvaluation {
   actions              RegulatoryEvaluationAction[]
 
   @@index([result, updatedAt])
+  @@index([aiStatus, updatedAt])
   @@map("regulatory_evaluations")
 }
 

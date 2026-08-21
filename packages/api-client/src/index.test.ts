@@ -57,3 +57,29 @@ describe("QhseApiClient project profile", () => {
     },
   );
 });
+
+describe("QhseApiClient regulatory evaluation", () => {
+  it("starts the separate conformity evaluation queue", async () => {
+    const request = vi.fn().mockResolvedValue({
+      data: {
+        jobId: "evaluation-job-1",
+        queue: "regulatory-evaluation",
+        correlationId: "correlation-1",
+      },
+    });
+    const client = new QhseApiClient({
+      baseUrl: "http://localhost:3000",
+      axios: { request } as unknown as AxiosInstance,
+    });
+
+    await expect(client.startRegulatoryEvaluation("atlas/projet")).resolves.toMatchObject({
+      queue: "regulatory-evaluation",
+    });
+    expect(request).toHaveBeenCalledWith(
+      expect.objectContaining({
+        url: "/v1/projects/atlas%2Fprojet/regulatory-watch/evaluation-runs",
+        method: "POST",
+      }),
+    );
+  });
+});

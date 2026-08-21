@@ -602,6 +602,32 @@
         "tags": ["regulatory-watch"]
       }
     },
+    "/v1/projects/{projectIdOrSlug}/regulatory-watch/evaluation-runs": {
+      "post": {
+        "operationId": "RegulatoryWatchController_startEvaluation",
+        "parameters": [
+          {
+            "name": "x-organization-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["regulatory-watch"]
+      }
+    },
     "/v1/projects/{projectIdOrSlug}/regulatory-watch/evaluations/{evaluationId}": {
       "patch": {
         "operationId": "RegulatoryWatchController_updateEvaluation",

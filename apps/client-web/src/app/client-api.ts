@@ -105,6 +105,12 @@ export const clientApi = {
     idOrSlug: string,
     input: Parameters<QhseApiClient["publishRegulatoryBaseline"]>[1],
   ) => qhseApi.publishRegulatoryBaseline(idOrSlug, input),
+  startRegulatoryEvaluation: (idOrSlug: string) => qhseApi.startRegulatoryEvaluation(idOrSlug),
+  updateRegulatoryEvaluation: (
+    idOrSlug: string,
+    evaluationId: string,
+    input: Parameters<QhseApiClient["updateRegulatoryEvaluation"]>[2],
+  ) => qhseApi.updateRegulatoryEvaluation(idOrSlug, evaluationId, input),
   exportRegulatoryWatch: (idOrSlug: string) => qhseApi.exportRegulatoryWatch(idOrSlug),
   createFileUpload: (input: CreateFileUpload): Promise<FileUploadResponse> =>
     request("/v1/files/uploads", (value) => fileUploadResponseSchema.parse(value), {

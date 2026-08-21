@@ -6,6 +6,7 @@ import { WorkerHealthServer } from "./health-server.js";
 import { DocumentIngestionProcessor } from "./processors/document-ingestion.processor.js";
 import { DocumentProcessingProcessor } from "./processors/document-processing.processor.js";
 import { RegulatoryAnalysisProcessor } from "./processors/regulatory-analysis.processor.js";
+import { RegulatoryEvaluationProcessor } from "./processors/regulatory-evaluation.processor.js";
 import {
   RegulatoryImpactDispatcher,
   RegulatoryImpactProcessor,
@@ -36,6 +37,7 @@ const redisUrl = new URL(process.env["REDIS_URL"] ?? "redis://localhost:6379");
     DocumentIngestionProcessor,
     DocumentProcessingProcessor,
     RegulatoryAnalysisProcessor,
+    RegulatoryEvaluationProcessor,
     RegulatoryImpactProcessor,
     RegulatoryImpactDispatcher,
     EmbeddingGenerationProcessor,

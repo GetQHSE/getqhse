@@ -113,6 +113,11 @@ export class RegulatoryWatchController {
     );
   }
 
+  @Post("evaluation-runs")
+  startEvaluation(@Req() request: QhseRequest, @Param("projectIdOrSlug") projectIdOrSlug: string) {
+    return this.regulatory.startEvaluation(request.tenant!, projectIdOrSlug);
+  }
+
   @Patch("evaluations/:evaluationId")
   updateEvaluation(
     @Req() request: QhseRequest,

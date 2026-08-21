@@ -580,6 +580,17 @@ export const assessmentResultSchema = z.enum([
   "NON_CONFORMING",
   "NOT_ASSESSED",
 ]);
+export const regulatoryAiEvaluationStatusSchema = z.enum([
+  "PENDING",
+  "RUNNING",
+  "COMPLETED",
+  "FAILED",
+]);
+/** A PENDING or RUNNING AI assessment untouched for this long belongs to a pass that died.
+ *  Both the API (when deciding what a re-run may reset) and the web client (when deciding
+ *  whether a pass is still live) read it, so they can never disagree about what "in progress"
+ *  means. Comfortably above one model timeout plus BullMQ's exponential backoff. */
+export const staleAiEvaluationMs = 10 * 60_000;
 
 export const startRegulatoryAnalysisSchema = z.object({
   asOf: z.iso.date().optional(),
@@ -835,6 +846,28 @@ export const regulatoryEvaluationSchema = z.object({
   comment: z.string().nullable(),
   evaluatedAt: isoDateTimeSchema.nullable(),
   requiresReevaluation: z.boolean(),
+  aiAssessment: z.object({
+    status: regulatoryAiEvaluationStatusSchema,
+    suggestedResult: assessmentResultSchema.nullable(),
+    rationale: z.string().nullable(),
+    confidence: z.number().min(0).max(1).nullable(),
+    matchedProfileKeys: z.array(z.string()),
+    missingInformation: z.array(z.string()),
+    remediationPlan: z.string().nullable(),
+    action: z.object({
+      title: z.string().nullable(),
+      resources: z.string().nullable(),
+      startDate: z.iso.date().nullable(),
+      dueDate: z.iso.date().nullable(),
+      responsible: z.string().nullable(),
+      effectivenessCriteria: z.string().nullable(),
+    }),
+    evaluatedAt: isoDateTimeSchema.nullable(),
+    errorMessage: z.string().nullable(),
+    /** Last time the pass touched this row. Combined with `staleAiEvaluationMs` it separates a
+     *  PENDING row a worker is still working towards from one left behind by a dead pass. */
+    updatedAt: isoDateTimeSchema,
+  }),
   evidence: z.array(
     z.object({
       id: idSchema,
@@ -917,6 +950,12 @@ export const regulatoryAnalysisJobSchema = z.object({
   correlationId: z.string().min(1),
 });
 export type RegulatoryAnalysisJob = z.infer<typeof regulatoryAnalysisJobSchema>;
+export const regulatoryEvaluationJobSchema = z.object({
+  jobId: z.string().min(1),
+  queue: z.literal("regulatory-evaluation"),
+  correlationId: z.string().min(1),
+});
+export type RegulatoryEvaluationJob = z.infer<typeof regulatoryEvaluationJobSchema>;
 
 export const correctiveActionSchema = tenantEntitySchema.extend({
   findingId: idSchema,
@@ -952,6 +991,7 @@ export const workQueueNames = {
   embeddingGeneration: "embedding-generation",
   regulatoryAnalysis: "regulatory-analysis",
   regulatoryImpact: "regulatory-impact",
+  regulatoryEvaluation: "regulatory-evaluation",
   evidenceAnalysis: "evidence-analysis",
   reportGeneration: "report-generation",
   notifications: "notifications",

@@ -50,6 +50,34 @@ It retries drafting once with verifier feedback. A remaining failure becomes
 `SOURCE_REVIEW_REQUIRED` and blocks both reviewer approval and baseline publication until the source
 document is corrected, reprocessed, reindexed, and the analysis is rerun.
 
+Publishing an approved baseline automatically queues a second, separate conformity pass. That pass
+compares each newly assessable requirement with the baseline's immutable project-profile snapshot and
+the evidence already linked to the evaluation. It stores an AI recommendation separately from the
+human-approved result. Recommendations below 70% confidence are conservatively normalized to
+`NON_CONFORMING`, and the missing information is listed explicitly. Responsible, resource, start-date,
+and due-date suggestions are discarded unless confidence is at least 80% and the exact value appears in
+the supplied project context. A reviewer must still validate or override the recommendation. Validating
+a partial or non-conforming recommendation creates the proposed corrective action; unsupported planning
+fields remain empty. Use **Relancer l’évaluation IA** to retry pending or failed recommendations without
+overwriting human-approved evaluations.
+
+The conformity pass never aborts on a single bad requirement: a failure marks that one evaluation
+`FAILED` with its error message and the pass continues. Failed evaluations are skipped by the job’s
+own retries, so a deterministically failing requirement cannot starve the rest of the baseline — only
+an explicit **Relancer l’évaluation IA** resets them to pending. Five consecutive failures are read as
+a provider outage and stop the pass; the remainder is retried by BullMQ and, on the last attempt,
+marked `FAILED` rather than left pending forever. A recommendation stuck `PENDING` or `RUNNING` with
+no activity for `staleAiEvaluationMs` (10 minutes) is treated as dead: the button re-enables, the
+2-second polling stops, and the re-run may reset it.
+
+Every conformity model call is reserved and settled in the `regulatory_model_calls` ledger under
+stage `conformity_evaluation`, against the baseline’s analysis run. Spend is capped cumulatively per
+baseline by `REGULATORY_EVALUATION_BUDGET_MICRO_USD` (default 10 000 000 µUSD = $10), which covers
+re-runs and job retries as well as the initial pass. When the cap is reached the remaining
+evaluations are marked `FAILED` with an explicit budget message instead of the job retrying; raise
+the variable to re-run a large baseline. Reservations left `RUNNING` by a crashed worker are settled
+at their reserved amount after 15 minutes so they stop consuming the cap.
+
 Published baselines are immutable. There is no automatic backfill: an older entry without approved
 requirement wording displays **Exigence à régénérer** and cannot be exported. Use **Actualiser
 l’analyse** to supersede an unpublished `READY_FOR_REVIEW` or `PARTIAL` run, review the newly drafted

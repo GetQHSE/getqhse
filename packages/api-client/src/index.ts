@@ -24,6 +24,7 @@ import {
   decideRegulatoryCandidateSchema,
   publishRegulatoryBaselineSchema,
   regulatoryAnalysisJobSchema,
+  regulatoryEvaluationJobSchema,
   regulatoryWatchSchema,
   startRegulatoryAnalysisSchema,
   updateRegulatoryActionSchema,
@@ -49,6 +50,7 @@ import {
   type DecideRegulatoryCandidate,
   type PublishRegulatoryBaseline,
   type RegulatoryAnalysisJob,
+  type RegulatoryEvaluationJob,
   type RegulatoryWatch,
   type StartRegulatoryAnalysis,
   type UpdateRegulatoryAction,
@@ -290,6 +292,14 @@ export class QhseApiClient {
       `/v1/projects/${encodeURIComponent(projectIdOrSlug)}/regulatory-watch/baselines`,
       regulatoryWatchSchema,
       { method: "POST", body: JSON.stringify(publishRegulatoryBaselineSchema.parse(input)) },
+    );
+  }
+
+  startRegulatoryEvaluation(projectIdOrSlug: string): Promise<RegulatoryEvaluationJob> {
+    return this.#request(
+      `/v1/projects/${encodeURIComponent(projectIdOrSlug)}/regulatory-watch/evaluation-runs`,
+      regulatoryEvaluationJobSchema,
+      { method: "POST" },
     );
   }
 

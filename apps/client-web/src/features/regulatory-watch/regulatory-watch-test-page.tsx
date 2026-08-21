@@ -47,7 +47,7 @@ import { useMemo, useState } from "react";
 import { BrandLogo } from "@qhse/ui/components/brand-logo";
 
 type DocumentStatus = "Validé" | "À confirmer";
-type EvaluationStatus = "Conforme" | "Partiel" | "Non conforme" | "À évaluer";
+type EvaluationStatus = "Conforme" | "Partiel" | "Non conforme" | "À valider" | "À évaluer";
 
 export type RegulatoryDocument = {
   id: string;
@@ -64,6 +64,8 @@ export type RegulatoryDocument = {
 
 export type RegulatoryEvaluation = {
   id: string;
+  revision?: number;
+  result?: "CONFORMING" | "PARTIAL" | "NON_CONFORMING" | "NOT_ASSESSED";
   source: string;
   provision: string;
   requirement: string;
@@ -75,6 +77,26 @@ export type RegulatoryEvaluation = {
   owner: string;
   dueDate: string;
   effectiveness: string;
+  /** "AI" means action/owner/dueDate carry an unaccepted AI proposal, not a committed plan. */
+  actionSource?: "HUMAN" | "AI" | undefined;
+  aiStatus?: "PENDING" | "RUNNING" | "COMPLETED" | "FAILED";
+  aiSuggestedStatus?: EvaluationStatus | undefined;
+  aiSuggestedResult?: "CONFORMING" | "PARTIAL" | "NON_CONFORMING" | "NOT_ASSESSED" | null;
+  aiRationale?: string | null;
+  aiConfidence?: number | null;
+  aiMatchedProfileKeys?: string[];
+  aiMissingInformation?: string[];
+  aiRemediationPlan?: string | null;
+  aiAction?:
+    | {
+        title: string | null;
+        resources: string | null;
+        startDate: string | null;
+        dueDate: string | null;
+        responsible: string | null;
+        effectivenessCriteria: string | null;
+      }
+    | undefined;
 };
 
 const documents: RegulatoryDocument[] = [
@@ -213,10 +235,19 @@ const evaluations: RegulatoryEvaluation[] = [
   },
 ];
 
+function ProposedByAiTag() {
+  return (
+    <span className="mb-1 flex items-center gap-1 text-[10px] font-semibold text-violet-700">
+      <SparklesIcon className="size-3" /> Proposition IA — non validée
+    </span>
+  );
+}
+
 const evaluationStatusStyles: Record<EvaluationStatus, string> = {
   Conforme: "border-emerald-200 bg-emerald-50 text-emerald-700",
   Partiel: "border-amber-200 bg-amber-50 text-amber-800",
   "Non conforme": "border-rose-200 bg-rose-50 text-rose-700",
+  "À valider": "border-violet-200 bg-violet-50 text-violet-700",
   "À évaluer": "border-slate-200 bg-slate-100 text-slate-600",
 };
 
@@ -531,23 +562,23 @@ export function EvaluationList({
             </div>
             <div className="flex max-w-full items-center gap-1 overflow-x-auto rounded-xl border border-slate-200 bg-slate-50 p-1">
               <FilterIcon className="ml-2 size-3.5 shrink-0 text-slate-400" />
-              {(["Toutes", "Conforme", "Partiel", "Non conforme", "À évaluer"] as const).map(
-                (item) => (
-                  <button
-                    className={cn(
-                      "h-8 shrink-0 rounded-lg px-3 text-xs font-medium transition",
-                      status === item
-                        ? "bg-white text-slate-950 shadow-sm"
-                        : "text-slate-500 hover:text-slate-800",
-                    )}
-                    key={item}
-                    onClick={() => setStatus(item)}
-                    type="button"
-                  >
-                    {item}
-                  </button>
-                ),
-              )}
+              {(
+                ["Toutes", "Conforme", "Partiel", "Non conforme", "À valider", "À évaluer"] as const
+              ).map((item) => (
+                <button
+                  className={cn(
+                    "h-8 shrink-0 rounded-lg px-3 text-xs font-medium transition",
+                    status === item
+                      ? "bg-white text-slate-950 shadow-sm"
+                      : "text-slate-500 hover:text-slate-800",
+                  )}
+                  key={item}
+                  onClick={() => setStatus(item)}
+                  type="button"
+                >
+                  {item}
+                </button>
+              ))}
             </div>
           </div>
         </div>
@@ -593,17 +624,31 @@ export function EvaluationList({
                   </TableCell>
                   <TableCell className="px-4 py-5">
                     <EvaluationBadge status={evaluation.status} />
+                    {["À évaluer", "À valider"].includes(evaluation.status) &&
+                      evaluation.aiSuggestedStatus && (
+                        <p className="mt-1 text-[10px] font-medium text-violet-700">
+                          Suggestion IA : {evaluation.aiSuggestedStatus}
+                        </p>
+                      )}
+                    {evaluation.aiStatus === "RUNNING" && (
+                      <p className="mt-1 text-[10px] font-medium text-violet-700">
+                        Analyse IA en cours…
+                      </p>
+                    )}
                   </TableCell>
                   <TableCell className="max-w-52 whitespace-normal px-4 py-5 text-xs leading-5 text-slate-600">
                     {evaluation.evidence}
                   </TableCell>
                   <TableCell className="max-w-64 whitespace-normal px-4 py-5 text-xs leading-5 text-slate-600">
+                    {evaluation.actionSource === "AI" && <ProposedByAiTag />}
                     {evaluation.action}
                   </TableCell>
                   <TableCell className="px-4 py-5 text-xs text-slate-600">
+                    {evaluation.actionSource === "AI" && <ProposedByAiTag />}
                     {evaluation.owner}
                   </TableCell>
                   <TableCell className="px-4 py-5 text-xs text-slate-600">
+                    {evaluation.actionSource === "AI" && <ProposedByAiTag />}
                     {evaluation.dueDate}
                   </TableCell>
                   <TableCell className="px-5 py-5 text-right">
@@ -637,6 +682,7 @@ export function EvaluationList({
                 </div>
                 <div>
                   <p className="text-[10px] uppercase tracking-wider text-slate-400">Action</p>
+                  {evaluation.actionSource === "AI" && <ProposedByAiTag />}
                   <p className="mt-1 text-slate-600">{evaluation.action}</p>
                 </div>
               </div>
