@@ -1504,8 +1504,8 @@ export class DocumentsService {
     });
     const entryIds = registerEntries.map(({ id }) => id);
 
-    const [chunks, embeddings, candidates, syncEvents, relationships, activity] = await Promise.all(
-      [
+    const [chunks, embeddings, candidates, modelCalls, syncEvents, relationships, activity] =
+      await Promise.all([
         this.database.documentChunk.count({ where: { documentVersionId: { in: versionIds } } }),
         this.database.documentEmbedding.count({
           where: { chunk: { documentVersionId: { in: versionIds } } },
@@ -1515,13 +1515,15 @@ export class DocumentsService {
             OR: [{ provisionId: { in: provisionIds } }, { previousEntryId: { in: entryIds } }],
           },
         }),
+        this.database.regulatoryModelCall.count({
+          where: { provisionId: { in: provisionIds } },
+        }),
         this.database.regulatorySyncEvent.count({ where: { documentId } }),
         this.database.documentRelationship.count({
           where: { OR: [{ sourceDocumentId: documentId }, { targetDocumentId: documentId }] },
         }),
         this.database.documentActivity.count({ where: { documentId } }),
-      ],
-    );
+      ]);
 
     const impact = {
       document: { id: document.id, title: document.title, status: document.status },
@@ -1535,15 +1537,17 @@ export class DocumentsService {
       regulatorySyncEvents: syncEvents,
       regulatoryRegisterEntries: entryIds.length,
       regulatoryCandidates: candidates,
+      regulatoryModelCalls: modelCalls,
     };
     if (!options.confirm) {
       return { purged: false, impact };
     }
 
     await this.database.$transaction(async (tx) => {
-      // Regulatory data first: register entries and candidates hold RESTRICT
-      // references onto this document's provisions. Self-referencing lineage
-      // pointers are cleared before the rows they point at are removed.
+      // Regulatory data first: register entries, candidates and model calls
+      // hold RESTRICT references onto this document's provisions.
+      // Self-referencing lineage pointers are cleared before the rows they
+      // point at are removed.
       await tx.regulatoryEvaluation.updateMany({
         where: { previousEvaluation: { entryId: { in: entryIds } } },
         data: { previousEvaluationId: null },
@@ -1553,6 +1557,9 @@ export class DocumentsService {
         data: { previousEntryId: null },
       });
       await tx.regulatoryApplicabilityCandidate.deleteMany({
+        where: { provisionId: { in: provisionIds } },
+      });
+      await tx.regulatoryModelCall.deleteMany({
         where: { provisionId: { in: provisionIds } },
       });
       await tx.regulatoryRegisterEntry.updateMany({

@@ -33,6 +33,7 @@ type PurgeImpact = {
   regulatorySyncEvents: number;
   regulatoryRegisterEntries: number;
   regulatoryCandidates: number;
+  regulatoryModelCalls: number;
 };
 
 type Version = {
@@ -205,6 +206,7 @@ export function DocumentDetailPage() {
         `${impact.embeddings} embedding(s)`,
         `${impact.regulatoryRegisterEntries} regulatory register entr(ies)`,
         `${impact.regulatoryCandidates} regulatory candidate(s)`,
+        `${impact.regulatoryModelCalls} regulatory model call(s)`,
       ].join("\n• ");
       if (
         !window.confirm(

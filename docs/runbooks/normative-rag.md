@@ -191,10 +191,11 @@ exact string `true`. It requires the `delete` permission (`super_admin` or `plat
 **This is available in every environment, including production, and cannot be undone.** It deletes
 the audit trail along with the document, so the only record of a purge is the warning line the
 admin API logs with the actor, the caller IP and the full impact — export those logs if you need a
-durable trail. Read the dry-run impact before confirming: `regulatoryRegisterEntries` and
-`regulatoryCandidates` are customer register rows in live projects, and they are destroyed too,
-because they hold RESTRICT references to the provisions being removed. Prefer
-`POST /v1/documents/{id}/archive` whenever the goal is to retire a document rather than erase it.
+durable trail. Read the dry-run impact before confirming: `regulatoryRegisterEntries`,
+`regulatoryCandidates`, and `regulatoryModelCalls` are customer analysis rows in live projects,
+and they are destroyed too, because they hold RESTRICT references to the provisions being removed.
+Prefer `POST /v1/documents/{id}/archive` whenever the goal is to retire a document rather than
+erase it.
 
 Purging content that an ACTIVE embedding profile had indexed leaves the profile complete — the
 chunks are gone along with their embeddings — but a profile can be left covering nothing. Re-check

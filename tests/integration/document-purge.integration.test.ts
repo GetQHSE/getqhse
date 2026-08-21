@@ -197,6 +197,12 @@ suite("document purge", () => {
       [now],
     );
     await raw.query(
+      `INSERT INTO regulatory_model_calls (id,run_id,provision_id,stage,attempt,model,status,reserved_micro_usd,
+        cost_micro_usd,created_at,completed_at)
+       VALUES ('call1','run1','prov1','classification',1,'fake','SUCCEEDED',100,100,$1,$1)`,
+      [now],
+    );
+    await raw.query(
       `INSERT INTO regulatory_baselines (id,watch_id,analysis_run_id,profile_snapshot_id,sequence,status,published_by_id,published_at,created_at)
        VALUES ('base1','w1','run1','snap1',1,'PUBLISHED','u1',$1,$1)`,
       [now],
@@ -240,6 +246,7 @@ suite("document purge", () => {
         regulatorySyncEvents: 1,
         regulatoryRegisterEntries: 1,
         regulatoryCandidates: 1,
+        regulatoryModelCalls: 1,
       },
     });
     expect(await count("documents", "id = 'd1'")).toBe(1);
@@ -262,6 +269,7 @@ suite("document purge", () => {
     expect(await count("regulatory_sync_events")).toBe(0);
     expect(await count("regulatory_register_entries")).toBe(0);
     expect(await count("regulatory_applicability_candidates")).toBe(0);
+    expect(await count("regulatory_model_calls")).toBe(0);
     expect(await count("regulatory_evaluations")).toBe(0);
     expect(deleteObjects).toHaveBeenCalledWith(["documents/d1/versions/v-d1/f.pdf"]);
   });

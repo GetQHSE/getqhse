@@ -561,6 +561,7 @@ describe("DocumentsService document purge", () => {
       documentChunk: { count: one },
       documentEmbedding: { count: one },
       regulatoryApplicabilityCandidate: { count: one },
+      regulatoryModelCall: { count: one },
       regulatorySyncEvent: { count: one },
       documentRelationship: { count: one },
       documentActivity: { count: one },
@@ -588,6 +589,7 @@ describe("DocumentsService document purge", () => {
         embeddings: 1,
         regulatoryRegisterEntries: 1,
         regulatoryCandidates: 1,
+        regulatoryModelCalls: 1,
       },
     });
     expect(database.$transaction).not.toHaveBeenCalled();
@@ -616,8 +618,8 @@ describe("DocumentsService document purge", () => {
   });
 
   it("clears restricting references before removing the document", async () => {
-    // Register entries and candidates hold RESTRICT foreign keys onto the
-    // document's provisions; deleting out of order aborts the transaction.
+    // Register entries, candidates and model calls hold RESTRICT foreign keys
+    // onto the document's provisions; deleting out of order aborts the transaction.
     const calls: string[] = [];
     const track = (name: string) =>
       vi.fn(() => {
@@ -630,6 +632,7 @@ describe("DocumentsService document purge", () => {
         updateMany: track("candidate.updateMany"),
         deleteMany: track("candidate.deleteMany"),
       },
+      regulatoryModelCall: { deleteMany: track("modelCall.deleteMany") },
       regulatoryRegisterEntry: {
         updateMany: track("entry.updateMany"),
         deleteMany: track("entry.deleteMany"),
@@ -649,6 +652,7 @@ describe("DocumentsService document purge", () => {
       "evaluation.updateMany",
       "candidate.updateMany",
       "candidate.deleteMany",
+      "modelCall.deleteMany",
       "entry.updateMany",
       "entry.deleteMany",
       "syncEvent.deleteMany",
