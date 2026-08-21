@@ -36,6 +36,7 @@ import {
   FilterIcon,
   LinkIcon,
   ListChecksIcon,
+  LoaderCircleIcon,
   RefreshCwIcon,
   SearchIcon,
   ShieldCheckIcon,
@@ -77,8 +78,6 @@ export type RegulatoryEvaluation = {
   owner: string;
   dueDate: string;
   effectiveness: string;
-  /** "AI" means action/owner/dueDate carry an unaccepted AI proposal, not a committed plan. */
-  actionSource?: "HUMAN" | "AI" | undefined;
   aiStatus?: "PENDING" | "RUNNING" | "COMPLETED" | "FAILED";
   aiSuggestedStatus?: EvaluationStatus | undefined;
   aiSuggestedResult?: "CONFORMING" | "PARTIAL" | "NON_CONFORMING" | "NOT_ASSESSED" | null;
@@ -234,14 +233,6 @@ const evaluations: RegulatoryEvaluation[] = [
     effectiveness: "Non évaluée",
   },
 ];
-
-function ProposedByAiTag() {
-  return (
-    <span className="mb-1 flex items-center gap-1 text-[10px] font-semibold text-violet-700">
-      <SparklesIcon className="size-3" /> Proposition IA — non validée
-    </span>
-  );
-}
 
 const evaluationStatusStyles: Record<EvaluationStatus, string> = {
   Conforme: "border-emerald-200 bg-emerald-50 text-emerald-700",
@@ -496,7 +487,15 @@ export function DocumentList({
 export function EvaluationList({
   onOpen,
   items = evaluations,
-  summary = { total: 36, evaluated: 26, conforming: 18, partial: 5, nonConforming: 3 },
+  summary = {
+    total: 36,
+    evaluated: 26,
+    conforming: 18,
+    partial: 5,
+    nonConforming: 3,
+    aiAssessed: 26,
+  },
+  aiActive = false,
 }: {
   onOpen: (evaluation: RegulatoryEvaluation) => void;
   items?: RegulatoryEvaluation[];
@@ -506,7 +505,9 @@ export function EvaluationList({
     conforming: number;
     partial: number;
     nonConforming: number;
+    aiAssessed?: number;
   };
+  aiActive?: boolean;
 }) {
   const [status, setStatus] = useState<"Toutes" | EvaluationStatus>("Toutes");
   const filteredEvaluations = items.filter(
@@ -514,6 +515,23 @@ export function EvaluationList({
   );
   const progressPercent =
     summary.total === 0 ? 0 : Math.round((summary.evaluated / summary.total) * 100);
+  const aiAssessed = summary.aiAssessed ?? 0;
+  const aiPercent = summary.total === 0 ? 0 : Math.round((aiAssessed / summary.total) * 100);
+  const toValidate = items.filter((evaluation) => evaluation.status === "À valider").length;
+  // The headline used to be a fixed "Évaluation en cours", which kept claiming work was running
+  // after a finished AI pass left every requirement waiting on a human instead.
+  const phase = aiActive
+    ? "Pré-évaluation IA en cours"
+    : toValidate > 0
+      ? `${toValidate} recommandation${toValidate > 1 ? "s" : ""} IA à valider`
+      : summary.total > 0 && summary.evaluated === summary.total
+        ? "Évaluation terminée"
+        : "Évaluation en cours";
+  const hint = aiActive
+    ? "L’IA compare chaque exigence au profil du projet. Les résultats resteront à valider."
+    : toValidate > 0
+      ? "Ouvrez chaque exigence pour accepter ou corriger la recommandation de l’IA."
+      : "Priorisez les non-conformités, liez les preuves et suivez l’efficacité des actions.";
 
   return (
     <div className="space-y-4">
@@ -522,18 +540,21 @@ export function EvaluationList({
           <div className="absolute -right-20 -top-24 size-72 rounded-full bg-violet-600/25 blur-3xl" />
           <div className="relative">
             <span className="inline-flex items-center gap-2 text-xs font-semibold text-violet-300">
-              <SparklesIcon className="size-3.5" /> Évaluation en cours
+              {aiActive ? (
+                <LoaderCircleIcon className="size-3.5 animate-spin" />
+              ) : (
+                <SparklesIcon className="size-3.5" />
+              )}{" "}
+              {phase}
             </span>
             <h2 className="mt-2 text-xl font-semibold tracking-tight sm:text-2xl">
-              {summary.evaluated} exigences évaluées sur {summary.total}
+              {summary.evaluated} exigences validées sur {summary.total}
             </h2>
-            <p className="mt-2 max-w-2xl text-xs leading-5 text-slate-400 sm:text-sm">
-              Priorisez les non-conformités, liez les preuves et suivez l’efficacité des actions.
-            </p>
+            <p className="mt-2 max-w-2xl text-xs leading-5 text-slate-400 sm:text-sm">{hint}</p>
           </div>
           <div className="relative rounded-2xl border border-white/10 bg-white/5 p-4">
             <div className="flex items-center justify-between text-xs">
-              <span className="text-slate-300">Avancement global</span>
+              <span className="text-slate-300">Validation humaine</span>
               <span className="font-semibold tabular-nums text-white">{progressPercent} %</span>
             </div>
             <Progress
@@ -544,6 +565,19 @@ export function EvaluationList({
               <span>{summary.conforming} conformes</span>
               <span>{summary.partial} partielles</span>
               <span>{summary.nonConforming} non conformes</span>
+            </div>
+            <div className="mt-4 border-t border-white/10 pt-3">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-slate-300">Pré-évaluation IA</span>
+                <span className="font-semibold tabular-nums text-white">{aiPercent} %</span>
+              </div>
+              <Progress
+                className="mt-3 [&_[data-slot=progress-indicator]]:bg-sky-400 [&_[data-slot=progress-track]]:bg-white/10"
+                value={aiPercent}
+              />
+              <p className="mt-3 text-[10px] text-slate-400">
+                {aiAssessed} analysées · {toValidate} en attente de validation
+              </p>
             </div>
           </div>
         </div>
@@ -624,12 +658,6 @@ export function EvaluationList({
                   </TableCell>
                   <TableCell className="px-4 py-5">
                     <EvaluationBadge status={evaluation.status} />
-                    {["À évaluer", "À valider"].includes(evaluation.status) &&
-                      evaluation.aiSuggestedStatus && (
-                        <p className="mt-1 text-[10px] font-medium text-violet-700">
-                          Suggestion IA : {evaluation.aiSuggestedStatus}
-                        </p>
-                      )}
                     {evaluation.aiStatus === "RUNNING" && (
                       <p className="mt-1 text-[10px] font-medium text-violet-700">
                         Analyse IA en cours…
@@ -640,15 +668,12 @@ export function EvaluationList({
                     {evaluation.evidence}
                   </TableCell>
                   <TableCell className="max-w-64 whitespace-normal px-4 py-5 text-xs leading-5 text-slate-600">
-                    {evaluation.actionSource === "AI" && <ProposedByAiTag />}
                     {evaluation.action}
                   </TableCell>
                   <TableCell className="px-4 py-5 text-xs text-slate-600">
-                    {evaluation.actionSource === "AI" && <ProposedByAiTag />}
                     {evaluation.owner}
                   </TableCell>
                   <TableCell className="px-4 py-5 text-xs text-slate-600">
-                    {evaluation.actionSource === "AI" && <ProposedByAiTag />}
                     {evaluation.dueDate}
                   </TableCell>
                   <TableCell className="px-5 py-5 text-right">
@@ -682,7 +707,6 @@ export function EvaluationList({
                 </div>
                 <div>
                   <p className="text-[10px] uppercase tracking-wider text-slate-400">Action</p>
-                  {evaluation.actionSource === "AI" && <ProposedByAiTag />}
                   <p className="mt-1 text-slate-600">{evaluation.action}</p>
                 </div>
               </div>

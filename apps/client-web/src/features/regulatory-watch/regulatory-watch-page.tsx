@@ -177,10 +177,6 @@ export function regulatoryViewData(watch: RegulatoryWatch) {
     const evidence = entry.evaluation.evidence[0];
     const action = entry.evaluation.actions[0];
     const ai = entry.evaluation.aiAssessment;
-    // Only stand in for a real action when there is none at all: mixing a committed action's
-    // title with an AI-proposed responsible would produce a row nobody could tell apart from
-    // an assigned plan.
-    const proposedAction = action ? undefined : ai?.action;
     return {
       id: entry.evaluation.id,
       revision: entry.evaluation.revision,
@@ -195,14 +191,12 @@ export function regulatoryViewData(watch: RegulatoryWatch) {
           ? "À valider"
           : mapEvaluationStatus(entry.evaluation.result),
       evidence: evidence?.label ?? evidence?.note ?? evidence?.url ?? "Aucune preuve liée",
-      action: action?.title ?? proposedAction?.title ?? "Aucune action définie",
-      owner: action?.assigneeName ?? proposedAction?.responsible ?? "Non attribué",
-      dueDate: formatDate(action?.dueDate ?? proposedAction?.dueDate),
-      actionSource: action
-        ? ("HUMAN" as const)
-        : proposedAction?.title
-          ? ("AI" as const)
-          : undefined,
+      // Only committed actions reach the register's action columns. An AI proposal is shown in
+      // the review sheet and becomes a real action once the reviewer validates it — putting it
+      // here unlabelled would read as an assigned plan that does not exist.
+      action: action?.title ?? "Aucune action définie",
+      owner: action?.assigneeName ?? "Non attribué",
+      dueDate: formatDate(action?.dueDate),
       effectiveness:
         action?.effectiveness === "EFFECTIVE"
           ? "Action efficace"
@@ -1354,6 +1348,7 @@ export function DataPage({
         </TabsContent>
         <TabsContent value="evaluation">
           <EvaluationList
+            aiActive={aiAnalysisActive}
             items={data.evaluations}
             summary={data.summary}
             onOpen={(item) => {

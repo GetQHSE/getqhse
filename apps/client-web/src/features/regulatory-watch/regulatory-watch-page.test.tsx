@@ -424,7 +424,7 @@ describe("RegulatoryWatchPage", () => {
     expect(await screen.findByRole("button", { name: /Évaluation IA en cours/ })).toBeDisabled();
   });
 
-  it("marks an unaccepted AI action proposal in the register", async () => {
+  it("keeps an unaccepted AI action proposal out of the register columns", async () => {
     const proposedWatch = {
       ...activeWatch,
       currentBaseline: {
@@ -455,7 +455,32 @@ describe("RegulatoryWatchPage", () => {
     await user.click(
       await screen.findByRole("tab", { name: /Évaluation réglementaire et normative/ }),
     );
-    expect(screen.getAllByText(/Proposition IA — non validée/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Aucune action définie").length).toBeGreaterThan(0);
+    expect(screen.queryByText("Responsable qualité")).not.toBeInTheDocument();
+    expect(screen.queryByText("Compléter le registre de métrologie")).not.toBeInTheDocument();
+  });
+
+  it("reports a finished AI pass as awaiting validation, not as still running", async () => {
+    const awaitingWatch = {
+      ...activeWatch,
+      currentBaseline: {
+        ...activeWatch.currentBaseline,
+        entries: activeWatch.currentBaseline.entries.map((entry) => ({
+          ...entry,
+          evaluation: { ...entry.evaluation, result: "NOT_ASSESSED", evaluatedAt: null },
+        })),
+      },
+    };
+    vi.mocked(clientApi.regulatoryWatch).mockResolvedValue(awaitingWatch as never);
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(
+      await screen.findByRole("tab", { name: /Évaluation réglementaire et normative/ }),
+    );
+    expect(screen.getByText("1 recommandation IA à valider")).toBeInTheDocument();
+    expect(screen.queryByText("Évaluation en cours")).not.toBeInTheDocument();
+    expect(screen.getByText(/1 analysées · 1 en attente de validation/)).toBeInTheDocument();
   });
 
   it("shows the official source text next to the AI recommendation", async () => {
