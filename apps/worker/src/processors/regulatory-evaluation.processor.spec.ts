@@ -112,7 +112,10 @@ describe("regulatory conformity normalization", () => {
 
 type AiStatus = "PENDING" | "RUNNING" | "COMPLETED" | "FAILED";
 
-function conformityOutput(suggestedResult: "CONFORMING" | "NON_CONFORMING" = "CONFORMING") {
+function conformityOutput(
+  suggestedResult: "CONFORMING" | "NON_CONFORMING" = "CONFORMING",
+  actionTitle: string | null = null,
+) {
   return {
     output: {
       suggestedResult,
@@ -125,7 +128,7 @@ function conformityOutput(suggestedResult: "CONFORMING" | "NON_CONFORMING" = "CO
           ? null
           : "Formaliser puis vérifier la pratique attendue par l’exigence.",
       action: {
-        title: null,
+        title: actionTitle,
         resources: null,
         startDate: null,
         dueDate: null,
@@ -158,6 +161,7 @@ function baselineWith(entries: Array<{ id: string; aiStatus: AiStatus }>) {
         result: "NOT_ASSESSED",
         aiStatus: entry.aiStatus,
         evidence: [],
+        actions: [],
       },
     })),
   };
@@ -166,12 +170,14 @@ function baselineWith(entries: Array<{ id: string; aiStatus: AiStatus }>) {
 function harness(baseline: ReturnType<typeof baselineWith>) {
   const processor = new RegulatoryEvaluationProcessor();
   const evaluationUpdateMany = vi.fn().mockResolvedValue({ count: 1 });
+  const actionCreate = vi.fn().mockResolvedValue({});
   let callSequence = 0;
   const database = {
     $executeRaw: vi.fn().mockResolvedValue(0),
     $queryRaw: vi.fn().mockResolvedValue([]),
     regulatoryBaseline: { findFirst: vi.fn().mockResolvedValue(baseline) },
     regulatoryEvaluation: { updateMany: evaluationUpdateMany },
+    regulatoryEvaluationAction: { count: vi.fn().mockResolvedValue(0), create: actionCreate },
     regulatoryModelCall: {
       aggregate: vi.fn().mockResolvedValue({ _sum: {} }),
       create: vi.fn().mockImplementation(async () => ({ id: `call-${++callSequence}` })),
@@ -205,7 +211,7 @@ function harness(baseline: ReturnType<typeof baselineWith>) {
           : Boolean(where.id?.in.includes(evaluationId));
       })
       .map((call) => (call[0].data as { aiStatus: string }).aiStatus);
-  return { processor, job, database, statusFor };
+  return { processor, job, database, statusFor, actionCreate };
 }
 
 describe("regulatory conformity evaluation pass", () => {
@@ -263,6 +269,50 @@ describe("regulatory conformity evaluation pass", () => {
     expect(statusFor("evaluation-1")).toEqual([]);
     expect(statusFor("evaluation-2")).toEqual([]);
     expect(statusFor("evaluation-3")).toContain("COMPLETED");
+  });
+
+  it("writes the assessment into the evaluation result and creates the proposed action", async () => {
+    generated.mockResolvedValue(
+      conformityOutput("NON_CONFORMING", "Compléter le registre de métrologie"),
+    );
+    const { processor, job, database, actionCreate } = harness(
+      baselineWith([{ id: "evaluation-1", aiStatus: "PENDING" }]),
+    );
+
+    await processor.process(job as never);
+
+    expect(database.regulatoryEvaluation.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          result: "NON_CONFORMING",
+          aiStatus: "COMPLETED",
+          revision: { increment: 1 },
+        }),
+      }),
+    );
+    expect(actionCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          evaluationId: "evaluation-1",
+          title: "Compléter le registre de métrologie",
+          status: "OPEN",
+        }),
+      }),
+    );
+  });
+
+  it("leaves a requirement a human signed off on during the call alone", async () => {
+    generated.mockResolvedValue(conformityOutput("NON_CONFORMING", "Compléter le registre"));
+    const { processor, job, database, actionCreate } = harness(
+      baselineWith([{ id: "evaluation-1", aiStatus: "PENDING" }]),
+    );
+    database.regulatoryEvaluation.updateMany.mockImplementation(async (args: { data: object }) =>
+      "result" in args.data ? { count: 0 } : { count: 1 },
+    );
+
+    await processor.process(job as never);
+
+    expect(actionCreate).not.toHaveBeenCalled();
   });
 
   it("records every model call in the ledger and stops at the budget ceiling", async () => {

@@ -884,6 +884,8 @@ export const regulatoryEvaluationSchema = z.object({
       id: idSchema,
       title: z.string(),
       assigneeId: idSchema.nullable(),
+      /** The assigned member's name, or the free-text responsible the conformity pass proposed
+       *  when no platform user has been assigned yet. */
       assigneeName: z.string().nullable(),
       resources: z.string().nullable(),
       dueDate: z.iso.date().nullable(),

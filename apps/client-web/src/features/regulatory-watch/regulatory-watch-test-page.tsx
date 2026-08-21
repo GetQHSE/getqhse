@@ -48,7 +48,7 @@ import { useMemo, useState } from "react";
 import { BrandLogo } from "@qhse/ui/components/brand-logo";
 
 type DocumentStatus = "Validé" | "À confirmer";
-type EvaluationStatus = "Conforme" | "Partiel" | "Non conforme" | "À valider" | "À évaluer";
+type EvaluationStatus = "Conforme" | "Partiel" | "Non conforme" | "À évaluer";
 
 export type RegulatoryDocument = {
   id: string;
@@ -238,7 +238,6 @@ const evaluationStatusStyles: Record<EvaluationStatus, string> = {
   Conforme: "border-emerald-200 bg-emerald-50 text-emerald-700",
   Partiel: "border-amber-200 bg-amber-50 text-amber-800",
   "Non conforme": "border-rose-200 bg-rose-50 text-rose-700",
-  "À valider": "border-violet-200 bg-violet-50 text-violet-700",
   "À évaluer": "border-slate-200 bg-slate-100 text-slate-600",
 };
 
@@ -494,6 +493,7 @@ export function EvaluationList({
     partial: 5,
     nonConforming: 3,
     aiAssessed: 26,
+    humanValidated: 12,
   },
   aiActive = false,
 }: {
@@ -506,6 +506,7 @@ export function EvaluationList({
     partial: number;
     nonConforming: number;
     aiAssessed?: number;
+    humanValidated?: number;
   };
   aiActive?: boolean;
 }) {
@@ -516,22 +517,18 @@ export function EvaluationList({
   const progressPercent =
     summary.total === 0 ? 0 : Math.round((summary.evaluated / summary.total) * 100);
   const aiAssessed = summary.aiAssessed ?? 0;
+  const humanValidated = summary.humanValidated ?? 0;
   const aiPercent = summary.total === 0 ? 0 : Math.round((aiAssessed / summary.total) * 100);
-  const toValidate = items.filter((evaluation) => evaluation.status === "À valider").length;
   // The headline used to be a fixed "Évaluation en cours", which kept claiming work was running
-  // after a finished AI pass left every requirement waiting on a human instead.
+  // long after the pass had finished.
   const phase = aiActive
-    ? "Pré-évaluation IA en cours"
-    : toValidate > 0
-      ? `${toValidate} recommandation${toValidate > 1 ? "s" : ""} IA à valider`
-      : summary.total > 0 && summary.evaluated === summary.total
-        ? "Évaluation terminée"
-        : "Évaluation en cours";
+    ? "Évaluation IA en cours"
+    : summary.total > 0 && summary.evaluated === summary.total
+      ? "Évaluation terminée"
+      : "Évaluation en cours";
   const hint = aiActive
-    ? "L’IA compare chaque exigence au profil du projet. Les résultats resteront à valider."
-    : toValidate > 0
-      ? "Ouvrez chaque exigence pour accepter ou corriger la recommandation de l’IA."
-      : "Priorisez les non-conformités, liez les preuves et suivez l’efficacité des actions.";
+    ? "L’IA compare chaque exigence au profil du projet et renseigne le résultat et le plan d’action."
+    : "Relisez les résultats, ajustez ce qui doit l’être, liez les preuves et suivez l’efficacité des actions.";
 
   return (
     <div className="space-y-4">
@@ -548,13 +545,13 @@ export function EvaluationList({
               {phase}
             </span>
             <h2 className="mt-2 text-xl font-semibold tracking-tight sm:text-2xl">
-              {summary.evaluated} exigences validées sur {summary.total}
+              {summary.evaluated} exigences évaluées sur {summary.total}
             </h2>
             <p className="mt-2 max-w-2xl text-xs leading-5 text-slate-400 sm:text-sm">{hint}</p>
           </div>
           <div className="relative rounded-2xl border border-white/10 bg-white/5 p-4">
             <div className="flex items-center justify-between text-xs">
-              <span className="text-slate-300">Validation humaine</span>
+              <span className="text-slate-300">Avancement global</span>
               <span className="font-semibold tabular-nums text-white">{progressPercent} %</span>
             </div>
             <Progress
@@ -576,7 +573,7 @@ export function EvaluationList({
                 value={aiPercent}
               />
               <p className="mt-3 text-[10px] text-slate-400">
-                {aiAssessed} analysées · {toValidate} en attente de validation
+                {aiAssessed} analysées · {humanValidated} confirmées par un responsable
               </p>
             </div>
           </div>
@@ -596,23 +593,23 @@ export function EvaluationList({
             </div>
             <div className="flex max-w-full items-center gap-1 overflow-x-auto rounded-xl border border-slate-200 bg-slate-50 p-1">
               <FilterIcon className="ml-2 size-3.5 shrink-0 text-slate-400" />
-              {(
-                ["Toutes", "Conforme", "Partiel", "Non conforme", "À valider", "À évaluer"] as const
-              ).map((item) => (
-                <button
-                  className={cn(
-                    "h-8 shrink-0 rounded-lg px-3 text-xs font-medium transition",
-                    status === item
-                      ? "bg-white text-slate-950 shadow-sm"
-                      : "text-slate-500 hover:text-slate-800",
-                  )}
-                  key={item}
-                  onClick={() => setStatus(item)}
-                  type="button"
-                >
-                  {item}
-                </button>
-              ))}
+              {(["Toutes", "Conforme", "Partiel", "Non conforme", "À évaluer"] as const).map(
+                (item) => (
+                  <button
+                    className={cn(
+                      "h-8 shrink-0 rounded-lg px-3 text-xs font-medium transition",
+                      status === item
+                        ? "bg-white text-slate-950 shadow-sm"
+                        : "text-slate-500 hover:text-slate-800",
+                    )}
+                    key={item}
+                    onClick={() => setStatus(item)}
+                    type="button"
+                  >
+                    {item}
+                  </button>
+                ),
+              )}
             </div>
           </div>
         </div>

@@ -6,16 +6,8 @@ export type RegulatoryExportEntry = {
   sourceText: string;
   requirement: string;
   result: "CONFORMING" | "PARTIAL" | "NON_CONFORMING" | "NOT_ASSESSED";
-  aiSuggestedResult?: "CONFORMING" | "PARTIAL" | "NON_CONFORMING" | "NOT_ASSESSED" | null;
   aiRationale?: string | null;
   aiRemediationPlan?: string | null;
-  aiAction?: {
-    title: string | null;
-    assignee: string | null;
-    resources: string | null;
-    dueDate: string | null;
-    effectivenessCriteria: string | null;
-  };
   evidence: string[];
   comment: string | null;
   actions: Array<{
@@ -243,27 +235,15 @@ export async function buildRegulatoryWatchWorkbook(
 
   let evaluationRow = headerBottom + 1;
   for (const entry of entries) {
-    const suggestedAction = entry.aiAction?.title
-      ? {
-          title: `[Suggestion IA] ${entry.aiAction.title}`,
-          assignee: entry.aiAction.assignee,
-          resources: entry.aiAction.resources,
-          dueDate: entry.aiAction.dueDate,
-          completedDate: null,
-          effectivenessCriteria: entry.aiAction.effectivenessCriteria,
-          effectiveness: "PENDING" as const,
-          comment: null,
-        }
-      : null;
-    const actions = entry.actions.length ? entry.actions : [suggestedAction];
+    // The conformity pass writes its proposal into a real action, so there is nothing left to
+    // synthesise here — the export shows the same plan the register does.
+    const actions = entry.actions.length ? entry.actions : [null];
     for (const action of actions) {
       const row = sheet.getRow(evaluationRow);
       row.values = [
         entry.documentLabel,
         `${entry.provisionIdentifier}\n${entry.requirement}`.trim(),
-        entry.result === "NOT_ASSESSED" && entry.aiSuggestedResult
-          ? `À valider — suggestion IA : ${resultLabels[entry.aiSuggestedResult]}`
-          : resultLabels[entry.result],
+        resultLabels[entry.result],
         entry.evidence.length ? entry.evidence.join("\n") : null,
         action?.title ?? null,
         action?.assignee ?? null,

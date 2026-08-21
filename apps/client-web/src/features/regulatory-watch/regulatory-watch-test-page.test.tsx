@@ -35,7 +35,7 @@ describe("RegulatoryWatchTestPage", () => {
 
     await user.keyboard("{Escape}");
     await user.click(screen.getByRole("tab", { name: /Évaluation réglementaire et normative/ }));
-    expect(screen.getByText("26 exigences validées sur 36")).toBeInTheDocument();
+    expect(screen.getByText("26 exigences évaluées sur 36")).toBeInTheDocument();
     expect(screen.getAllByText(/Clause 7\.1\.5/).length).toBeGreaterThan(0);
   });
 

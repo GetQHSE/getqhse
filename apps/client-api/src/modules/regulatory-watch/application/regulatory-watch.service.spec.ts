@@ -90,7 +90,7 @@ describe("AI-assisted conformity evaluation", () => {
     expect(assertWorkerAvailable).toHaveBeenCalledWith("regulatory-evaluation");
     expect(updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: expect.objectContaining({ result: "NOT_ASSESSED", evaluatedAt: null }),
+        where: expect.objectContaining({ evaluatedAt: null }),
         data: expect.objectContaining({ aiStatus: "PENDING", aiSuggestedResult: null }),
       }),
     );
@@ -150,7 +150,6 @@ describe("AI-assisted conformity evaluation", () => {
     expect(updateMany).toHaveBeenLastCalledWith({
       where: {
         entry: { baselineId: "baseline-1" },
-        result: "NOT_ASSESSED",
         evaluatedAt: null,
         aiStatus: "PENDING",
       },
@@ -158,43 +157,34 @@ describe("AI-assisted conformity evaluation", () => {
     });
   });
 
-  it("creates the AI-proposed corrective action after a gap is human-validated", async () => {
+  it("records the human decision without recreating the action the pass already made", async () => {
     const actionCreate = vi.fn().mockResolvedValue({});
+    const evaluationUpdateMany = vi.fn().mockResolvedValue({ count: 1 });
     const service = new RegulatoryWatchService({} as never);
     (service as unknown as { currentEvaluation(): Promise<unknown> }).currentEvaluation =
-      async () => ({
-        id: "evaluation-1",
-        aiActionTitle: "Formaliser le registre de contrôle",
-        aiActionResources: null,
-        aiActionDueDate: null,
-        aiEffectivenessCriteria: "Le registre couvre tous les contrôles requis.",
-        aiResponsible: null,
-      });
+      async () => ({ id: "evaluation-1" });
     (service as unknown as { get(): Promise<unknown> }).get = async () => ({ id: "watch-1" });
     (service as unknown as { database: object }).database = {
-      regulatoryEvaluation: { updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
-      regulatoryEvaluationAction: {
-        count: vi.fn().mockResolvedValue(0),
-        create: actionCreate,
-      },
+      regulatoryEvaluation: { updateMany: evaluationUpdateMany },
+      regulatoryEvaluationAction: { count: vi.fn().mockResolvedValue(1), create: actionCreate },
     };
 
     await service.updateEvaluation(tenant, "project-1", "evaluation-1", {
-      revision: 1,
+      revision: 2,
       result: "NON_CONFORMING",
       comment: "Écart confirmé",
     });
 
-    expect(actionCreate).toHaveBeenCalledWith(
+    expect(evaluationUpdateMany).toHaveBeenCalledWith(
       expect.objectContaining({
+        where: { id: "evaluation-1", revision: 2 },
         data: expect.objectContaining({
-          evaluationId: "evaluation-1",
-          title: "Formaliser le registre de contrôle",
-          assigneeId: null,
-          dueDate: null,
+          result: "NON_CONFORMING",
+          evaluatedById: "reviewer-1",
         }),
       }),
     );
+    expect(actionCreate).not.toHaveBeenCalled();
   });
 });
 

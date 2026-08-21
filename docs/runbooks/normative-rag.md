@@ -56,10 +56,13 @@ the evidence already linked to the evaluation. It stores an AI recommendation se
 human-approved result. Recommendations below 70% confidence are conservatively normalized to
 `NON_CONFORMING`, and the missing information is listed explicitly. Responsible, resource, start-date,
 and due-date suggestions are discarded unless confidence is at least 80% and the exact value appears in
-the supplied project context. A reviewer must still validate or override the recommendation. Validating
-a partial or non-conforming recommendation creates the proposed corrective action; unsupported planning
-fields remain empty. Use **Relancer l’évaluation IA** to retry pending or failed recommendations without
-overwriting human-approved evaluations.
+the supplied project context. The pass writes its assessment into the evaluation’s own result and
+creates the proposed corrective action directly, so the register is filled in rather than annotated;
+unsupported planning fields remain empty and a proposed responsible is stored as a free-text name until
+someone assigns a real member. A reviewer reads the register and changes whatever they disagree with —
+`evaluatedAt` stays null until they do, which is what separates an AI-filled result from a confirmed one
+in the counters and the export. Use **Relancer l’évaluation IA** to retry pending or failed
+recommendations without overwriting evaluations a reviewer has already confirmed.
 
 The conformity pass never aborts on a single bad requirement: a failure marks that one evaluation
 `FAILED` with its error message and the pass continues. Failed evaluations are skipped by the job’s

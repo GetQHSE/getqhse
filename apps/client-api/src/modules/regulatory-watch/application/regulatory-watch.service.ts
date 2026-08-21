@@ -353,7 +353,7 @@ export class RegulatoryWatchService {
                   id: action.id,
                   title: action.title,
                   assigneeId: action.assigneeId,
-                  assigneeName: action.assignee?.name ?? null,
+                  assigneeName: action.assignee?.name ?? action.responsibleName ?? null,
                   resources: action.resources,
                   dueDate: action.dueDate ? dateOnly(action.dueDate) : null,
                   completedDate: action.completedDate ? dateOnly(action.completedDate) : null,
@@ -617,7 +617,6 @@ export class RegulatoryWatchService {
     // only retried once it is stale enough that no worker can still be holding it.
     const retryable: Prisma.RegulatoryEvaluationWhereInput = {
       entry: { baselineId: watch.currentBaselineId },
-      result: "NOT_ASSESSED",
       evaluatedAt: null,
       OR: [
         { aiStatus: { in: ["PENDING", "FAILED"] } },
@@ -658,7 +657,6 @@ export class RegulatoryWatchService {
       await this.database.regulatoryEvaluation.updateMany({
         where: {
           entry: { baselineId: watch.currentBaselineId },
-          result: "NOT_ASSESSED",
           evaluatedAt: null,
           aiStatus: "PENDING",
         },
@@ -906,7 +904,7 @@ export class RegulatoryWatchService {
   ): Promise<RegulatoryWatch> {
     if (!canContribute(tenant.role))
       throw new ForbiddenException("Regulatory contribution is required");
-    const evaluation = await this.currentEvaluation(tenant, projectIdOrSlug, evaluationId);
+    await this.currentEvaluation(tenant, projectIdOrSlug, evaluationId);
     const claimed = await this.database.regulatoryEvaluation.updateMany({
       where: { id: evaluationId, revision: input.revision },
       data: {
@@ -919,32 +917,6 @@ export class RegulatoryWatchService {
       },
     });
     if (claimed.count !== 1) throw new ConflictException("Regulatory evaluation changed");
-    if (
-      input.result !== "CONFORMING" &&
-      input.result !== "NOT_ASSESSED" &&
-      evaluation.aiActionTitle
-    ) {
-      const existingActions = await this.database.regulatoryEvaluationAction.count({
-        where: { evaluationId },
-      });
-      if (existingActions === 0) {
-        await this.database.regulatoryEvaluationAction.create({
-          data: {
-            evaluationId,
-            title: evaluation.aiActionTitle,
-            assigneeId: null,
-            resources: evaluation.aiActionResources,
-            dueDate: evaluation.aiActionDueDate,
-            status: "OPEN",
-            effectivenessCriteria: evaluation.aiEffectivenessCriteria,
-            effectiveness: "PENDING",
-            comment: evaluation.aiResponsible
-              ? `Responsable proposé par l’IA : ${evaluation.aiResponsible}`
-              : null,
-          },
-        });
-      }
-    }
     return this.get(tenant, projectIdOrSlug);
   }
 
@@ -1077,18 +1049,8 @@ export class RegulatoryWatchService {
         sourceText: entry.provision.content,
         requirement: entry.requirementText ?? "",
         result: entry.evaluation.result,
-        aiSuggestedResult: entry.evaluation.aiSuggestedResult,
         aiRationale: entry.evaluation.aiRationale,
         aiRemediationPlan: entry.evaluation.aiRemediationPlan,
-        aiAction: {
-          title: entry.evaluation.aiActionTitle,
-          assignee: entry.evaluation.aiResponsible,
-          resources: entry.evaluation.aiActionResources,
-          dueDate: entry.evaluation.aiActionDueDate
-            ? dateOnly(entry.evaluation.aiActionDueDate)
-            : null,
-          effectivenessCriteria: entry.evaluation.aiEffectivenessCriteria,
-        },
         evidence: entry.evaluation.evidence.map(
           (evidence) =>
             evidence.label ?? evidence.note ?? evidence.url ?? evidence.fileId ?? "Preuve",
@@ -1096,7 +1058,7 @@ export class RegulatoryWatchService {
         comment: entry.evaluation.comment,
         actions: entry.evaluation.actions.map((action) => ({
           title: action.title,
-          assignee: action.assignee?.name ?? null,
+          assignee: action.assignee?.name ?? action.responsibleName ?? null,
           resources: action.resources,
           dueDate: action.dueDate ? dateOnly(action.dueDate) : null,
           completedDate: action.completedDate ? dateOnly(action.completedDate) : null,

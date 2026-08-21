@@ -1409,6 +1409,7 @@ model RegulatoryEvaluationAction {
   carriedFromActionId   String?                 @map("carried_from_action_id")
   title                 String
   assigneeId            String?                 @map("assignee_id")
+  responsibleName       String?                 @map("responsible_name")
   resources             String?
   dueDate               DateTime?               @map("due_date") @db.Date
   completedDate         DateTime?               @map("completed_date") @db.Date

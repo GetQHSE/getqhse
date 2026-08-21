@@ -247,7 +247,12 @@ export class RegulatoryEvaluationProcessor extends WorkerHost {
           orderBy: { orderIndex: "asc" },
           include: {
             provision: { include: { version: { include: { document: true } } } },
-            evaluation: { include: { evidence: { orderBy: { createdAt: "asc" } } } },
+            evaluation: {
+              include: {
+                evidence: { orderBy: { createdAt: "asc" } },
+                actions: { select: { id: true }, take: 1 },
+              },
+            },
           },
         },
       },
@@ -261,7 +266,6 @@ export class RegulatoryEvaluationProcessor extends WorkerHost {
       (entry) =>
         entry.evaluation &&
         entry.evaluation.evaluatedAt === null &&
-        entry.evaluation.result === "NOT_ASSESSED" &&
         (entry.evaluation.aiStatus === "PENDING" || entry.evaluation.aiStatus === "RUNNING"),
     );
     const model = process.env["OPENAI_REGULATORY_MODEL"] ?? "gpt-5-mini";
@@ -378,32 +382,58 @@ export class RegulatoryEvaluationProcessor extends WorkerHost {
             evidence: promptInput.evidence,
           }),
         );
-        await this.database.regulatoryEvaluation.updateMany({
-          where: { id: evaluation.id, evaluatedAt: null },
-          data: {
-            aiStatus: "COMPLETED",
-            aiSuggestedResult: normalized.suggestedResult,
-            aiRationale: normalized.rationale,
-            aiConfidence: normalized.confidence,
-            aiMatchedProfileKeys: normalized.matchedProfileKeys,
-            aiMissingInformation: normalized.missingInformation,
-            aiRemediationPlan: normalized.remediationPlan,
-            aiActionTitle: normalized.action.title,
-            aiActionResources: normalized.action.resources,
-            aiActionStartDate: normalized.action.startDate
-              ? new Date(`${normalized.action.startDate}T00:00:00.000Z`)
-              : null,
-            aiActionDueDate: normalized.action.dueDate
-              ? new Date(`${normalized.action.dueDate}T00:00:00.000Z`)
-              : null,
-            aiResponsible: normalized.action.responsible,
-            aiEffectivenessCriteria: normalized.action.effectivenessCriteria,
-            aiModel: model,
-            aiPromptKey: regulatoryConformityPrompt.key,
-            aiPromptVersion: regulatoryConformityPrompt.version,
-            aiEvaluatedAt: new Date(),
-            aiErrorMessage: null,
-          },
+        await this.database.$transaction(async (tx) => {
+          const claimed = await tx.regulatoryEvaluation.updateMany({
+            where: { id: evaluation.id, evaluatedAt: null },
+            data: {
+              // The assessment is written straight into the evaluation's own result. A reviewer
+              // opens the requirement to change it, not to transcribe it.
+              result: normalized.suggestedResult,
+              revision: { increment: 1 },
+              aiStatus: "COMPLETED",
+              aiSuggestedResult: normalized.suggestedResult,
+              aiRationale: normalized.rationale,
+              aiConfidence: normalized.confidence,
+              aiMatchedProfileKeys: normalized.matchedProfileKeys,
+              aiMissingInformation: normalized.missingInformation,
+              aiRemediationPlan: normalized.remediationPlan,
+              aiActionTitle: normalized.action.title,
+              aiActionResources: normalized.action.resources,
+              aiActionStartDate: normalized.action.startDate
+                ? new Date(`${normalized.action.startDate}T00:00:00.000Z`)
+                : null,
+              aiActionDueDate: normalized.action.dueDate
+                ? new Date(`${normalized.action.dueDate}T00:00:00.000Z`)
+                : null,
+              aiResponsible: normalized.action.responsible,
+              aiEffectivenessCriteria: normalized.action.effectivenessCriteria,
+              aiModel: model,
+              aiPromptKey: regulatoryConformityPrompt.key,
+              aiPromptVersion: regulatoryConformityPrompt.version,
+              aiEvaluatedAt: new Date(),
+              aiErrorMessage: null,
+            },
+          });
+          // A human may have signed the requirement off while the model call was in flight; that
+          // decision wins, and no proposed action is created behind it.
+          if (claimed.count !== 1 || !normalized.action.title) return;
+          if (await tx.regulatoryEvaluationAction.count({ where: { evaluationId: evaluation.id } }))
+            return;
+          await tx.regulatoryEvaluationAction.create({
+            data: {
+              evaluationId: evaluation.id,
+              title: normalized.action.title,
+              assigneeId: null,
+              responsibleName: normalized.action.responsible,
+              resources: normalized.action.resources,
+              dueDate: normalized.action.dueDate
+                ? new Date(`${normalized.action.dueDate}T00:00:00.000Z`)
+                : null,
+              status: "OPEN",
+              effectivenessCriteria: normalized.action.effectivenessCriteria,
+              effectiveness: "PENDING",
+            },
+          });
         });
         evaluated += 1;
         consecutiveFailures = 0;

@@ -424,8 +424,8 @@ describe("RegulatoryWatchPage", () => {
     expect(await screen.findByRole("button", { name: /Évaluation IA en cours/ })).toBeDisabled();
   });
 
-  it("keeps an unaccepted AI action proposal out of the register columns", async () => {
-    const proposedWatch = {
+  it("shows the AI assessment as the requirement's own result and action", async () => {
+    const assessedWatch = {
       ...activeWatch,
       currentBaseline: {
         ...activeWatch.currentBaseline,
@@ -433,54 +433,54 @@ describe("RegulatoryWatchPage", () => {
           ...entry,
           evaluation: {
             ...entry.evaluation,
-            result: "NOT_ASSESSED",
+            result: "NON_CONFORMING",
             evaluatedAt: null,
-            actions: [],
-            aiAssessment: {
-              ...entry.evaluation.aiAssessment,
-              action: {
-                ...entry.evaluation.aiAssessment.action,
-                responsible: "Responsable qualité",
+            actions: [
+              {
+                ...entry.evaluation.actions[0],
+                assigneeName: "Responsable QHSE",
                 dueDate: "2026-09-30",
               },
-            },
+            ],
           },
         })),
       },
     };
-    vi.mocked(clientApi.regulatoryWatch).mockResolvedValue(proposedWatch as never);
+    vi.mocked(clientApi.regulatoryWatch).mockResolvedValue(assessedWatch as never);
     const user = userEvent.setup();
     renderPage();
 
     await user.click(
       await screen.findByRole("tab", { name: /Évaluation réglementaire et normative/ }),
     );
-    expect(screen.getAllByText("Aucune action définie").length).toBeGreaterThan(0);
-    expect(screen.queryByText("Responsable qualité")).not.toBeInTheDocument();
-    expect(screen.queryByText("Compléter le registre de métrologie")).not.toBeInTheDocument();
+    expect(screen.getAllByText("Non conforme").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Compléter le registre de métrologie").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Responsable QHSE").length).toBeGreaterThan(0);
+    expect(screen.queryByText(/Suggestion IA/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Proposition IA/)).not.toBeInTheDocument();
   });
 
-  it("reports a finished AI pass as awaiting validation, not as still running", async () => {
-    const awaitingWatch = {
+  it("reports a finished AI pass as complete and separates confirmed results", async () => {
+    const assessedWatch = {
       ...activeWatch,
       currentBaseline: {
         ...activeWatch.currentBaseline,
         entries: activeWatch.currentBaseline.entries.map((entry) => ({
           ...entry,
-          evaluation: { ...entry.evaluation, result: "NOT_ASSESSED", evaluatedAt: null },
+          evaluation: { ...entry.evaluation, result: "PARTIAL", evaluatedAt: null },
         })),
       },
     };
-    vi.mocked(clientApi.regulatoryWatch).mockResolvedValue(awaitingWatch as never);
+    vi.mocked(clientApi.regulatoryWatch).mockResolvedValue(assessedWatch as never);
     const user = userEvent.setup();
     renderPage();
 
     await user.click(
       await screen.findByRole("tab", { name: /Évaluation réglementaire et normative/ }),
     );
-    expect(screen.getByText("1 recommandation IA à valider")).toBeInTheDocument();
-    expect(screen.queryByText("Évaluation en cours")).not.toBeInTheDocument();
-    expect(screen.getByText(/1 analysées · 1 en attente de validation/)).toBeInTheDocument();
+    expect(screen.getByText("Évaluation terminée")).toBeInTheDocument();
+    expect(screen.getByText("1 exigences évaluées sur 1")).toBeInTheDocument();
+    expect(screen.getByText(/1 analysées · 0 confirmées par un responsable/)).toBeInTheDocument();
   });
 
   it("shows the official source text next to the AI recommendation", async () => {

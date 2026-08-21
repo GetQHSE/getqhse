@@ -186,14 +186,8 @@ export function regulatoryViewData(watch: RegulatoryWatch) {
       requirement: entry.requirement?.text ?? "Exigence à régénérer",
       citation: entry.source.citationLabel,
       officialSourceText: entry.source.excerpt,
-      status:
-        entry.evaluation.result === "NOT_ASSESSED" && ai?.status === "COMPLETED"
-          ? "À valider"
-          : mapEvaluationStatus(entry.evaluation.result),
+      status: mapEvaluationStatus(entry.evaluation.result),
       evidence: evidence?.label ?? evidence?.note ?? evidence?.url ?? "Aucune preuve liée",
-      // Only committed actions reach the register's action columns. An AI proposal is shown in
-      // the review sheet and becomes a real action once the reviewer validates it — putting it
-      // here unlabelled would read as an assigned plan that does not exist.
       action: action?.title ?? "Aucune action définie",
       owner: action?.assigneeName ?? "Non attribué",
       dueDate: formatDate(action?.dueDate),
@@ -215,9 +209,10 @@ export function regulatoryViewData(watch: RegulatoryWatch) {
     };
   });
 
-  const evaluated = evaluationItems.filter(
-    (item) => item.status !== "À évaluer" && item.status !== "À valider",
-  ).length;
+  const evaluated = evaluationItems.filter((item) => item.status !== "À évaluer").length;
+  // The conformity pass writes the result itself, so "assessed" and "confirmed by a person" are
+  // different numbers and the register reports both.
+  const humanValidated = entries.filter((entry) => entry.evaluation.evaluatedAt !== null).length;
   const conforming = evaluationItems.filter((item) => item.status === "Conforme").length;
   const partial = evaluationItems.filter((item) => item.status === "Partiel").length;
   const nonConforming = evaluationItems.filter((item) => item.status === "Non conforme").length;
@@ -236,6 +231,7 @@ export function regulatoryViewData(watch: RegulatoryWatch) {
       partial,
       nonConforming,
       aiAssessed,
+      humanValidated,
       compliancePercent: evaluated === 0 ? 0 : Math.round((conforming / evaluated) * 100),
       openActions,
     },
@@ -1278,7 +1274,7 @@ export function DataPage({
           icon={ListChecksIcon}
           label="Exigences identifiées"
           value={String(data.summary.total)}
-          detail={`${data.summary.evaluated} validées · ${data.summary.aiAssessed} analysées par IA`}
+          detail={`${data.summary.aiAssessed} analysées par IA · ${data.summary.humanValidated} confirmées`}
           tone="bg-violet-50 text-violet-700"
         />
         <MetricCard
