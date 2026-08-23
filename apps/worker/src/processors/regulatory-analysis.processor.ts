@@ -242,6 +242,17 @@ function structuralIssues(
   return [...new Set(issues)];
 }
 
+// A provision retrieval picked up can be deleted or reprocessed (reindex, purge) before
+// classification reaches it, minutes later. That insert then fails this specific foreign
+// key rather than some unrelated one, so this candidate can be skipped without guessing at
+// what else P2003 might mean.
+export function isMissingProvisionForeignKeyError(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  if ((error as { code?: unknown }).code !== "P2003") return false;
+  const meta = (error as { meta?: { modelName?: unknown } }).meta;
+  return meta?.modelName === "RegulatoryModelCall";
+}
+
 export function splitReservedCost(totalMicroUsd: number, count: number): number[] {
   const base = Math.floor(totalMicroUsd / count);
   const remainder = totalMicroUsd - base * count;
@@ -1466,7 +1477,7 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
         })),
       });
 
-      let reservation: { ids: string[]; shares: number[] };
+      let reservation: { ids: string[]; shares: number[] } | null = null;
       try {
         reservation = await this.reserveTriageBatchCall({
           runId: run.id,
@@ -1485,93 +1496,108 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
           );
           return { survivors: [], budgetExhausted: true };
         }
-        throw error;
-      }
-
-      const callStartedAt = Date.now();
-      const heartbeatContext = {
-        runId: run.id,
-        jobId: job.id,
-        stage: "triage" as const,
-        batchIndex: batchIndex + 1,
-        batchTotal: batches.length,
-        batchSize: batch.length,
-        model,
-      };
-      const heartbeat = setInterval(() => {
-        this.logger.info(
-          {
-            event: "regulatory_model_call_heartbeat",
-            ...heartbeatContext,
-            durationMs: Date.now() - callStartedAt,
-          },
-          "regulatory model call is still running",
-        );
-      }, MODEL_HEARTBEAT_INTERVAL_MS);
-      heartbeat.unref();
-      try {
-        const generated = await generateText({
-          model: openai.responses(model),
-          system: prompt.system,
-          prompt: prompt.context,
-          output: Output.object({ schema: triageBatchSchema }),
-          timeout: limits.timeoutMs,
-          maxOutputTokens: limits.maxOutputTokens,
-          maxRetries: 0,
-          providerOptions: { openai: { store: false, reasoningEffort: "none" } },
-          telemetry: { isEnabled: false },
-        });
-        const latencyMs = Date.now() - callStartedAt;
-        const inputShares = splitReservedCost(generated.totalUsage.inputTokens ?? 0, batch.length);
-        const outputShares = splitReservedCost(
-          generated.totalUsage.outputTokens ?? 0,
-          batch.length,
-        );
-        const reasoningShares = splitReservedCost(
-          generated.totalUsage.outputTokenDetails?.reasoningTokens ?? 0,
-          batch.length,
-        );
-        for (const [index, id] of reservation.ids.entries()) {
-          await this.settleModelCall(
-            run.id,
-            { id, reservedMicroUsd: reservation.shares[index]! },
-            {
-              status: "SUCCEEDED",
-              inputTokens: inputShares[index]!,
-              outputTokens: outputShares[index]!,
-              reasoningTokens: reasoningShares[index]!,
-              latencyMs,
-            },
-          );
-        }
-        decisions.push(...normalizeTriageDecisions(batch, generated.output.decisions));
-      } catch (error) {
-        const timedOut = isTimeoutError(error);
-        const latencyMs = Date.now() - callStartedAt;
-        for (const [index, id] of reservation.ids.entries()) {
-          await this.settleModelCall(
-            run.id,
-            { id, reservedMicroUsd: reservation.shares[index]! },
-            {
-              status: timedOut ? "TIMED_OUT" : "FAILED",
-              latencyMs,
-              errorCode: timedOut ? "REGULATORY_MODEL_TIMEOUT" : "REGULATORY_MODEL_UNAVAILABLE",
-            },
-          );
-        }
+        if (!isMissingProvisionForeignKeyError(error)) throw error;
         this.logger.warn(
           {
-            event: "regulatory_triage_batch_failed",
+            event: "regulatory_triage_batch_source_missing",
             runId: run.id,
             jobId: job.id,
             batchIndex: batchIndex + 1,
             batchTotal: batches.length,
-            err: error,
           },
-          "regulatory triage batch failed; its candidates proceed to full review",
+          "regulatory triage batch contained a provision deleted or reprocessed mid-run; its candidates proceed to full review",
         );
-      } finally {
-        clearInterval(heartbeat);
+      }
+
+      if (reservation) {
+        const callStartedAt = Date.now();
+        const heartbeatContext = {
+          runId: run.id,
+          jobId: job.id,
+          stage: "triage" as const,
+          batchIndex: batchIndex + 1,
+          batchTotal: batches.length,
+          batchSize: batch.length,
+          model,
+        };
+        const heartbeat = setInterval(() => {
+          this.logger.info(
+            {
+              event: "regulatory_model_call_heartbeat",
+              ...heartbeatContext,
+              durationMs: Date.now() - callStartedAt,
+            },
+            "regulatory model call is still running",
+          );
+        }, MODEL_HEARTBEAT_INTERVAL_MS);
+        heartbeat.unref();
+        try {
+          const generated = await generateText({
+            model: openai.responses(model),
+            system: prompt.system,
+            prompt: prompt.context,
+            output: Output.object({ schema: triageBatchSchema }),
+            timeout: limits.timeoutMs,
+            maxOutputTokens: limits.maxOutputTokens,
+            maxRetries: 0,
+            providerOptions: { openai: { store: false, reasoningEffort: "none" } },
+            telemetry: { isEnabled: false },
+          });
+          const latencyMs = Date.now() - callStartedAt;
+          const inputShares = splitReservedCost(
+            generated.totalUsage.inputTokens ?? 0,
+            batch.length,
+          );
+          const outputShares = splitReservedCost(
+            generated.totalUsage.outputTokens ?? 0,
+            batch.length,
+          );
+          const reasoningShares = splitReservedCost(
+            generated.totalUsage.outputTokenDetails?.reasoningTokens ?? 0,
+            batch.length,
+          );
+          for (const [index, id] of reservation.ids.entries()) {
+            await this.settleModelCall(
+              run.id,
+              { id, reservedMicroUsd: reservation.shares[index]! },
+              {
+                status: "SUCCEEDED",
+                inputTokens: inputShares[index]!,
+                outputTokens: outputShares[index]!,
+                reasoningTokens: reasoningShares[index]!,
+                latencyMs,
+              },
+            );
+          }
+          decisions.push(...normalizeTriageDecisions(batch, generated.output.decisions));
+        } catch (error) {
+          const timedOut = isTimeoutError(error);
+          const latencyMs = Date.now() - callStartedAt;
+          for (const [index, id] of reservation.ids.entries()) {
+            await this.settleModelCall(
+              run.id,
+              { id, reservedMicroUsd: reservation.shares[index]! },
+              {
+                status: timedOut ? "TIMED_OUT" : "FAILED",
+                latencyMs,
+                errorCode: timedOut ? "REGULATORY_MODEL_TIMEOUT" : "REGULATORY_MODEL_UNAVAILABLE",
+              },
+            );
+          }
+          this.logger.warn(
+            {
+              event: "regulatory_triage_batch_failed",
+              runId: run.id,
+              jobId: job.id,
+              batchIndex: batchIndex + 1,
+              batchTotal: batches.length,
+              err: error,
+            },
+            "regulatory triage batch failed; its candidates proceed to full review",
+          );
+        } finally {
+          clearInterval(heartbeat);
+        }
       }
 
       await this.reportProgress(run.id, job, {
@@ -2049,6 +2075,48 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
           if (error instanceof RegulatoryBudgetLimitError) {
             budgetExhausted = true;
             return;
+          }
+          if (isMissingProvisionForeignKeyError(error)) {
+            this.logger.warn(
+              {
+                event: "regulatory_provision_source_missing",
+                runId: run.id,
+                jobId: job.id,
+                provisionId: candidate.provisionId,
+                identifier: candidate.identifier,
+                documentId: candidate.documentId,
+              },
+              "regulatory provision source was deleted or reprocessed mid-run; skipping it",
+            );
+            const blocked: ClassifiedCandidate = {
+              ...candidate,
+              suggestion: candidate.previousEntryId ? "APPLICABLE" : "TO_CONFIRM",
+              rationale: "La disposition source a été supprimée ou modifiée pendant l'analyse.",
+              matchedProfileKeys: [],
+              confidence: 0,
+              clarificationQuestion: null,
+              requirementText: null,
+              requirementStatus: "SOURCE_REVIEW_REQUIRED",
+              requirementSupportingExcerpts: [],
+              requirementIssues: [
+                "La disposition source a été supprimée ou modifiée pendant l'analyse.",
+              ],
+              requirementSource: null,
+            };
+            results.push(blocked);
+            await this.persistCandidate(run.id, run.clarificationRevision, blocked);
+            completedCount += 1;
+            await this.reportProgress(run.id, job, {
+              phase: "classification",
+              percent: regulatoryClassificationProgress(completedCount, candidates.length),
+              completed: completedCount,
+              total: candidates.length,
+              provisionId: candidate.provisionId,
+              identifier: candidate.identifier,
+              documentId: candidate.documentId,
+              stage: "provision_source_missing",
+            });
+            continue;
           }
           throw error;
         }

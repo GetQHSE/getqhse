@@ -11,6 +11,7 @@ import {
   regulatoryClassificationProgress,
   regulatoryCostMicroUsd,
   batchForTriage,
+  isMissingProvisionForeignKeyError,
   normalizeTriageDecisions,
   regulatoryModelLimits,
   RegulatoryAnalysisProcessor,
@@ -123,6 +124,22 @@ describe("regulatory triage", () => {
     ]);
     expect(batchForTriage(candidates, 10)).toEqual([candidates]);
     expect(batchForTriage([], 10)).toEqual([]);
+  });
+
+  it("recognizes a regulatory_model_calls foreign key violation on a deleted provision", () => {
+    const prismaError = {
+      code: "P2003",
+      meta: { modelName: "RegulatoryModelCall" },
+      message:
+        "Foreign key constraint violated on the constraint: `regulatory_model_calls_provision_id_fkey`",
+    };
+    expect(isMissingProvisionForeignKeyError(prismaError)).toBe(true);
+    expect(isMissingProvisionForeignKeyError({ code: "P2003", meta: { modelName: "Other" } })).toBe(
+      false,
+    );
+    expect(isMissingProvisionForeignKeyError({ code: "P2002" })).toBe(false);
+    expect(isMissingProvisionForeignKeyError(new Error("boom"))).toBe(false);
+    expect(isMissingProvisionForeignKeyError(null)).toBe(false);
   });
 
   it("splits a shared batch cost across its members, exactly and without remainder loss", () => {
