@@ -39,12 +39,24 @@ the run becomes `PARTIAL` with stop reason `REGULATORY_BUDGET_LIMIT`; completed 
 reviewable, publication stays disabled, and a new analysis may supersede the partial run.
 
 Each run expands queries from the validated project profile, fuses keyword and vector ranks,
-expands the best 20 documents, deduplicates logical provisions, and analyzes at most 100 provisions.
+expands the best `REGULATORY_RETRIEVAL_MAX_DOCUMENTS` documents (default 40), deduplicates logical
+provisions, and retrieves at most `REGULATORY_RETRIEVAL_MAX_PROVISIONS` provisions (default 150).
 Cover pages, tables of contents, notes, definitions, tables, introductory `0.x` clauses, heading-only
 clauses, and informative annexes are removed before model review. Regulations require an identified
 article; standards require an identified clause or an explicitly normative annex.
 
-Every provision is drafted alone from its complete source text. The worker validates exact supporting
+Before the newly discovered provisions reach the expensive per-provision pipeline below, a triage
+pass narrows them. Provisions are grouped into batches of `REGULATORY_TRIAGE_BATCH_SIZE` (default 25) and each batch gets one cheap, no-reasoning model call asking only whether it plausibly applies
+to the project's profile — no drafting, no citations. A provision the triage call marks `NO` is
+dropped; `UNSURE` is kept unless `REGULATORY_TRIAGE_INCLUDE_UNSURE=false`; a provision the call
+never returned a decision for (missing from the response, or the whole batch call failed/timed out)
+is always kept. This stage can only ever reduce cost — it never removes a provision the full pipeline
+wasn't already going to see, since anything uncertain or undecided falls through to it. Provisions
+already carried over from the prior baseline skip triage entirely; only newly discovered candidates
+are triaged. Its ledger rows use `stage = 'triage'`; a batch's reserved and settled cost is split
+evenly across the provisions in that batch.
+
+Every provision that survives triage is drafted alone from its complete source text. The worker validates exact supporting
 excerpts, rejects copied passages and corrupted/truncated input, then runs an independent verification.
 It retries drafting once with verifier feedback. A remaining failure becomes
 `SOURCE_REVIEW_REQUIRED` and blocks both reviewer approval and baseline publication until the source
@@ -96,22 +108,24 @@ and permitted by every required rights flag.
 
 ### Following a running analysis
 
-The customer page polls every two seconds. Retrieval advances from 10–45%, provision-by-provision
-classification advances from 50–92%, and finalization is reported at 95%. Exactly 50% means retrieval
-finished and the worker is at the first classification candidate; it is not itself evidence of a
-deadlock. During a model
-call the phase identifies whether the worker is drafting, independently verifying, or retrying an
-exigence. A percentage that changes confirms completed work; the worker log heartbeat confirms a
-long-running model request is still alive. Each completed candidate is persisted immediately, so a
-worker restart resumes from its checkpoints instead of repeating completed OpenAI calls.
+The customer page polls every two seconds. Retrieval advances from 10–35%, the triage pass over newly
+discovered provisions advances from 35–50%, provision-by-provision classification advances from
+50–92%, and finalization is reported at 95%. Exactly 50% means triage finished and the worker is at
+the first classification candidate; it is not itself evidence of a deadlock. During a model
+call the phase identifies whether the worker is triaging a batch, drafting, independently verifying,
+or retrying an exigence. A percentage that changes confirms completed work; the worker log heartbeat
+confirms a long-running model request is still alive. Each completed candidate (and each completed
+triage batch) is persisted immediately, so a worker restart resumes from its checkpoints instead of
+repeating completed OpenAI calls.
 
 Follow the structured worker log locally:
 
 ```bash
-docker compose logs -f worker | rg 'regulatory_(analysis|retrieval|provision|model|finalization)'
+docker compose logs -f worker | rg 'regulatory_(analysis|retrieval|triage|provision|model|finalization)'
 ```
 
-Useful events are `regulatory_provision_started`, `regulatory_model_call_started`, the 30-second
+Useful events are `regulatory_triage_started`, `regulatory_triage_finished`,
+`regulatory_triage_batch_failed`, `regulatory_provision_started`, `regulatory_model_call_started`, the 30-second
 `regulatory_model_call_heartbeat`, `regulatory_model_call_finished`, and
 `regulatory_provision_finished`. Records contain run/job IDs, provision identifiers, candidate
 position and total, attempt, duration, token usage, and error details. They deliberately never

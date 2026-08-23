@@ -35,7 +35,7 @@ export default tseslint.config(
     },
   },
   {
-    files: ["*.js", "*.mjs", "*.cjs", "scripts/*.mjs", "tests/*.ts", "tests/*/vitest.config.ts"],
+    files: ["**/*.js", "**/*.mjs", "**/*.cjs", "tests/*.ts", "tests/*/vitest.config.ts"],
     languageOptions: {
       ...tseslint.configs.disableTypeChecked.languageOptions,
       globals: {

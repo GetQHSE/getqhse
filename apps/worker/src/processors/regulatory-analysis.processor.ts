@@ -1,6 +1,10 @@
 import { openai } from "@ai-sdk/openai";
 import { Processor, WorkerHost } from "@nestjs/bullmq";
-import { regulatoryApplicabilityPrompt, regulatoryRequirementVerificationPrompt } from "@qhse/ai";
+import {
+  regulatoryApplicabilityPrompt,
+  regulatoryRequirementVerificationPrompt,
+  regulatoryTriagePrompt,
+} from "@qhse/ai";
 import { RegulatoryAnalysisError, type JobEnvelope } from "@qhse/contracts";
 import {
   Prisma,
@@ -65,7 +69,7 @@ type ClassifiedCandidate = CandidateInput & {
   requirementSource: "AI" | "HUMAN" | "CARRIED_FORWARD" | null;
 };
 
-export type ClassificationModelStage = "drafting" | "verification";
+export type ClassificationModelStage = "drafting" | "verification" | "triage";
 
 type ReservedModelCall = {
   id: string;
@@ -79,6 +83,8 @@ class RegulatoryBudgetLimitError extends Error {
   }
 }
 
+const TRIAGE_PROGRESS_START = 35;
+const TRIAGE_PROGRESS_END = 50;
 const CLASSIFICATION_PROGRESS_START = 50;
 const CLASSIFICATION_PROGRESS_END = 92;
 const MODEL_HEARTBEAT_INTERVAL_MS = 30_000;
@@ -90,8 +96,19 @@ export function regulatoryModelLimits(stage: ClassificationModelStage) {
     maxOutputTokens:
       stage === "drafting"
         ? positiveNumber("OPENAI_REGULATORY_DRAFT_MAX_OUTPUT_TOKENS", 12_000)
-        : positiveNumber("OPENAI_REGULATORY_VERIFICATION_MAX_OUTPUT_TOKENS", 6_000),
+        : stage === "verification"
+          ? positiveNumber("OPENAI_REGULATORY_VERIFICATION_MAX_OUTPUT_TOKENS", 6_000)
+          : positiveNumber("OPENAI_REGULATORY_TRIAGE_MAX_OUTPUT_TOKENS", 2_000),
   };
+}
+
+export function regulatoryTriageProgress(completed: number, total: number): number {
+  if (total <= 0) return TRIAGE_PROGRESS_END;
+  const boundedCompleted = Math.min(Math.max(completed, 0), total);
+  return (
+    TRIAGE_PROGRESS_START +
+    Math.floor((boundedCompleted / total) * (TRIAGE_PROGRESS_END - TRIAGE_PROGRESS_START))
+  );
 }
 
 export function regulatoryClassificationProgress(completed: number, total: number): number {
@@ -121,6 +138,17 @@ const classificationSchema = z.object({
 const verificationSchema = z.object({
   supported: z.boolean(),
   issues: z.array(z.string().trim().min(1).max(300)).max(8),
+});
+
+const triageBatchSchema = z.object({
+  decisions: z
+    .array(
+      z.object({
+        provisionId: z.string(),
+        likelyApplicable: z.enum(["YES", "NO", "UNSURE"]),
+      }),
+    )
+    .max(60),
 });
 
 function profileFields(data: unknown): Record<string, unknown> {
@@ -212,6 +240,57 @@ function structuralIssues(
     }
   }
   return [...new Set(issues)];
+}
+
+export function splitReservedCost(totalMicroUsd: number, count: number): number[] {
+  const base = Math.floor(totalMicroUsd / count);
+  const remainder = totalMicroUsd - base * count;
+  return Array.from({ length: count }, (_, index) => base + (index < remainder ? 1 : 0));
+}
+
+export function batchForTriage<T>(candidates: T[], batchSize: number): T[][] {
+  const batches: T[][] = [];
+  for (let index = 0; index < candidates.length; index += batchSize) {
+    batches.push(candidates.slice(index, index + batchSize));
+  }
+  return batches;
+}
+
+export type TriageDecision = {
+  provisionId: string;
+  likelyApplicable: "YES" | "NO" | "UNSURE";
+};
+
+export function normalizeTriageDecisions<T extends { provisionId: string }>(
+  batch: T[],
+  rawDecisions: TriageDecision[],
+): TriageDecision[] {
+  const batchIds = new Set(batch.map((candidate) => candidate.provisionId));
+  const seen = new Set<string>();
+  const normalized: TriageDecision[] = [];
+  for (const decision of rawDecisions) {
+    if (!batchIds.has(decision.provisionId)) continue;
+    if (seen.has(decision.provisionId)) continue;
+    seen.add(decision.provisionId);
+    normalized.push(decision);
+  }
+  return normalized;
+}
+
+export function selectTriageSurvivors<T extends { provisionId: string }>(
+  candidates: T[],
+  decisions: TriageDecision[],
+  includeUnsure: boolean,
+): T[] {
+  const byProvisionId = new Map(
+    decisions.map((decision) => [decision.provisionId, decision.likelyApplicable]),
+  );
+  return candidates.filter((candidate) => {
+    const decision = byProvisionId.get(candidate.provisionId);
+    if (decision === undefined || decision === "YES") return true;
+    if (decision === "NO") return false;
+    return includeUnsure;
+  });
 }
 
 export function isStructurallyEligibleProvision(
@@ -426,6 +505,68 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
         data: { reservedMicroUsd: { increment: reservedMicroUsd } },
       });
       return { id: call.id, reservedMicroUsd };
+    });
+    if (!reservation) throw new RegulatoryBudgetLimitError();
+    return reservation;
+  }
+
+  // One triage call covers a batch of provisions, but the ledger's regulatory_model_call
+  // rows are per-provision. Reserve the batch's total cost once (one lock, one budget
+  // check), then record it as one ledger row per provisionId with its even split of the
+  // reservation, so the run's budget accounting stays exact and per-provision cost stays
+  // queryable like every other stage.
+  private async reserveTriageBatchCall(input: {
+    runId: string;
+    provisionIds: string[];
+    clarificationRevision: number;
+    attempt: number;
+    model: string;
+    prompt: { system: string; context: string };
+    maxOutputTokens: number;
+  }): Promise<{ ids: string[]; shares: number[] }> {
+    const totalReservedMicroUsd = regulatoryCostMicroUsd(
+      conservativeInputTokens(input.prompt),
+      input.maxOutputTokens,
+    );
+    const shares = splitReservedCost(totalReservedMicroUsd, input.provisionIds.length);
+    const reservation = await this.database.$transaction(async (tx) => {
+      const [run] = await tx.$queryRaw<
+        Array<{
+          status: string;
+          budgetMicroUsd: number;
+          spentMicroUsd: number;
+          reservedMicroUsd: number;
+        }>
+      >(Prisma.sql`
+        SELECT status, budget_micro_usd AS "budgetMicroUsd", spent_micro_usd AS "spentMicroUsd",
+          reserved_micro_usd AS "reservedMicroUsd"
+        FROM regulatory_analysis_runs WHERE id = ${input.runId} FOR UPDATE
+      `);
+      if (!run || run.status !== "RUNNING") return null;
+      if (run.spentMicroUsd + run.reservedMicroUsd + totalReservedMicroUsd > run.budgetMicroUsd) {
+        return null;
+      }
+      const ids: string[] = [];
+      for (const [index, provisionId] of input.provisionIds.entries()) {
+        const call = await tx.regulatoryModelCall.create({
+          data: {
+            runId: input.runId,
+            provisionId,
+            clarificationRevision: input.clarificationRevision,
+            stage: "triage",
+            attempt: input.attempt,
+            model: input.model,
+            reservedMicroUsd: shares[index]!,
+          },
+          select: { id: true },
+        });
+        ids.push(call.id);
+      }
+      await tx.regulatoryAnalysisRun.update({
+        where: { id: input.runId },
+        data: { reservedMicroUsd: { increment: totalReservedMicroUsd } },
+      });
+      return { ids, shares };
     });
     if (!reservation) throw new RegulatoryBudgetLimitError();
     return reservation;
@@ -861,13 +1002,12 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
         .filter((candidate) => candidate.decision === "NOT_APPLICABLE")
         .map((candidate) => candidate.provisionId),
     );
-    const additions: CandidateInput[] = discovered
+    const discoveredAdditions: CandidateInput[] = discovered
       .filter(
         (candidate) =>
           !mandatoryKeys.has(logicalKey(candidate)) &&
           !previouslyExcludedIds.has(candidate.provisionId),
       )
-      .slice(0, 10)
       .map((candidate) => ({
         ...candidate,
         previousEntryId: null,
@@ -877,6 +1017,35 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
         changeType: "ADDED",
         changeSummary: "Nouvelle disposition potentiellement applicable.",
       }));
+
+    if (!(await this.stillCurrent(run.id))) return;
+    await this.reportProgress(run.id, job, { phase: "triage", percent: TRIAGE_PROGRESS_START });
+    this.logger.info(
+      {
+        event: "regulatory_triage_started",
+        runId: run.id,
+        jobId: job.id,
+        discovered: discoveredAdditions.length,
+      },
+      "regulatory triage started",
+    );
+    const triage = await this.triageAdditions(run, discoveredAdditions, job);
+    if (triage.budgetExhausted) {
+      if (!(await this.stillCurrent(run.id))) return;
+      await this.completePartial(run.id, run.watchId, job);
+      return;
+    }
+    const additions = triage.survivors;
+    this.logger.info(
+      {
+        event: "regulatory_triage_finished",
+        runId: run.id,
+        jobId: job.id,
+        discovered: discoveredAdditions.length,
+        survivors: additions.length,
+      },
+      "regulatory triage finished",
+    );
 
     if (!(await this.stillCurrent(run.id))) return;
     await this.reportProgress(run.id, job, {
@@ -1168,7 +1337,7 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
         if (!existing || score > Number(existing.score))
           seeds.set(row.provisionId, { ...row, score });
       }
-      const progress = 10 + Math.round(((index + 1) / queries.length) * 35);
+      const progress = 10 + Math.round(((index + 1) / queries.length) * 25);
       await this.reportProgress(run.id, job, {
         phase: "retrieval",
         percent: progress,
@@ -1201,7 +1370,7 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
     }
     const documentIds = [...documentScores.entries()]
       .sort((left, right) => right[1] - left[1])
-      .slice(0, 10)
+      .slice(0, positiveNumber("REGULATORY_RETRIEVAL_MAX_DOCUMENTS", 40))
       .map(([documentId]) => documentId);
     if (!documentIds.length) {
       this.logger.info(
@@ -1241,7 +1410,7 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
     }
     const eligible = dedupeRegulatoryProvisions([...combined.values()])
       .filter(isStructurallyEligibleProvision)
-      .slice(0, 10);
+      .slice(0, positiveNumber("REGULATORY_RETRIEVAL_MAX_PROVISIONS", 150));
     this.logger.info(
       {
         event: "regulatory_retrieval_expansion_finished",
@@ -1255,6 +1424,169 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
       "regulatory document expansion finished",
     );
     return eligible;
+  }
+
+  // Cheap first pass over the wide, retrieval-scored pool of newly discovered provisions:
+  // one batched, no-reasoning model call per group asks only "does this look applicable?"
+  // instead of the full per-provision drafting+verification pipeline. A batch that errors,
+  // or a provision the model didn't return a decision for, fails open (kept for full
+  // review) so this stage can only ever save cost — it can never be why a real
+  // requirement gets missed. See selectTriageSurvivors for that policy.
+  private async triageAdditions(
+    run: {
+      id: string;
+      clarificationRevision: number;
+      profileSnapshot: { data: Prisma.JsonValue };
+    },
+    additions: CandidateInput[],
+    job: Job<JobEnvelope>,
+  ): Promise<{ survivors: CandidateInput[]; budgetExhausted: boolean }> {
+    if (!additions.length) return { survivors: [], budgetExhausted: false };
+    const includeUnsure = process.env["REGULATORY_TRIAGE_INCLUDE_UNSURE"] !== "false";
+    const batchSize = Math.round(positiveNumber("REGULATORY_TRIAGE_BATCH_SIZE", 25));
+    const batches = batchForTriage(additions, batchSize);
+    const model = process.env["OPENAI_REGULATORY_MODEL"] ?? "gpt-5-mini";
+    const limits = regulatoryModelLimits("triage");
+    const decisions: TriageDecision[] = [];
+
+    for (const [batchIndex, batch] of batches.entries()) {
+      if (!(await this.stillCurrent(run.id))) break;
+      const prompt = regulatoryTriagePrompt.build({
+        profileContext: run.profileSnapshot.data,
+        batch: batch.map((candidate) => ({
+          provisionId: candidate.provisionId,
+          documentFamily: candidate.documentFamily,
+          provisionType: candidate.provisionType,
+          document: [candidate.referenceNumber, candidate.documentTitle]
+            .filter(Boolean)
+            .join(" — "),
+          identifier: candidate.identifier,
+          title: candidate.title,
+          excerpt: candidate.content.slice(0, 600),
+        })),
+      });
+
+      let reservation: { ids: string[]; shares: number[] };
+      try {
+        reservation = await this.reserveTriageBatchCall({
+          runId: run.id,
+          provisionIds: batch.map((candidate) => candidate.provisionId),
+          clarificationRevision: run.clarificationRevision,
+          attempt: 1,
+          model,
+          prompt,
+          maxOutputTokens: limits.maxOutputTokens,
+        });
+      } catch (error) {
+        if (error instanceof RegulatoryBudgetLimitError) {
+          this.logger.warn(
+            { event: "regulatory_triage_budget_exhausted", runId: run.id, jobId: job.id },
+            "regulatory triage stopped before exceeding its run budget",
+          );
+          return { survivors: [], budgetExhausted: true };
+        }
+        throw error;
+      }
+
+      const callStartedAt = Date.now();
+      const heartbeatContext = {
+        runId: run.id,
+        jobId: job.id,
+        stage: "triage" as const,
+        batchIndex: batchIndex + 1,
+        batchTotal: batches.length,
+        batchSize: batch.length,
+        model,
+      };
+      const heartbeat = setInterval(() => {
+        this.logger.info(
+          {
+            event: "regulatory_model_call_heartbeat",
+            ...heartbeatContext,
+            durationMs: Date.now() - callStartedAt,
+          },
+          "regulatory model call is still running",
+        );
+      }, MODEL_HEARTBEAT_INTERVAL_MS);
+      heartbeat.unref();
+      try {
+        const generated = await generateText({
+          model: openai.responses(model),
+          system: prompt.system,
+          prompt: prompt.context,
+          output: Output.object({ schema: triageBatchSchema }),
+          timeout: limits.timeoutMs,
+          maxOutputTokens: limits.maxOutputTokens,
+          maxRetries: 0,
+          providerOptions: { openai: { store: false, reasoningEffort: "none" } },
+          telemetry: { isEnabled: false },
+        });
+        const latencyMs = Date.now() - callStartedAt;
+        const inputShares = splitReservedCost(generated.totalUsage.inputTokens ?? 0, batch.length);
+        const outputShares = splitReservedCost(
+          generated.totalUsage.outputTokens ?? 0,
+          batch.length,
+        );
+        const reasoningShares = splitReservedCost(
+          generated.totalUsage.outputTokenDetails?.reasoningTokens ?? 0,
+          batch.length,
+        );
+        for (const [index, id] of reservation.ids.entries()) {
+          await this.settleModelCall(
+            run.id,
+            { id, reservedMicroUsd: reservation.shares[index]! },
+            {
+              status: "SUCCEEDED",
+              inputTokens: inputShares[index]!,
+              outputTokens: outputShares[index]!,
+              reasoningTokens: reasoningShares[index]!,
+              latencyMs,
+            },
+          );
+        }
+        decisions.push(...normalizeTriageDecisions(batch, generated.output.decisions));
+      } catch (error) {
+        const timedOut = isTimeoutError(error);
+        const latencyMs = Date.now() - callStartedAt;
+        for (const [index, id] of reservation.ids.entries()) {
+          await this.settleModelCall(
+            run.id,
+            { id, reservedMicroUsd: reservation.shares[index]! },
+            {
+              status: timedOut ? "TIMED_OUT" : "FAILED",
+              latencyMs,
+              errorCode: timedOut ? "REGULATORY_MODEL_TIMEOUT" : "REGULATORY_MODEL_UNAVAILABLE",
+            },
+          );
+        }
+        this.logger.warn(
+          {
+            event: "regulatory_triage_batch_failed",
+            runId: run.id,
+            jobId: job.id,
+            batchIndex: batchIndex + 1,
+            batchTotal: batches.length,
+            err: error,
+          },
+          "regulatory triage batch failed; its candidates proceed to full review",
+        );
+      } finally {
+        clearInterval(heartbeat);
+      }
+
+      await this.reportProgress(run.id, job, {
+        phase: "triage",
+        percent: regulatoryTriageProgress(batchIndex + 1, batches.length),
+        completed: batchIndex + 1,
+        total: batches.length,
+        stage: "triage_batch_completed",
+      });
+    }
+
+    return {
+      survivors: selectTriageSurvivors(additions, decisions, includeUnsure),
+      budgetExhausted: false,
+    };
   }
 
   private async classifyProvisions(

@@ -10,8 +10,12 @@ import {
   matchProvisionRevision,
   regulatoryClassificationProgress,
   regulatoryCostMicroUsd,
+  batchForTriage,
+  normalizeTriageDecisions,
   regulatoryModelLimits,
   RegulatoryAnalysisProcessor,
+  selectTriageSurvivors,
+  splitReservedCost,
   validateRequirementDraft,
 } from "./regulatory-analysis.processor.js";
 import { regulatoryProvisionGoldenFixtures } from "./fixtures/regulatory-provisions.golden.js";
@@ -99,6 +103,70 @@ describe("regulatory analysis query planning", () => {
       changeType: "REMOVAL_PROPOSED",
       ambiguous: true,
     });
+  });
+});
+
+describe("regulatory triage", () => {
+  it("splits the retrieved candidates into groups of at most batchSize", () => {
+    const candidates = [
+      { provisionId: "a" },
+      { provisionId: "b" },
+      { provisionId: "c" },
+      { provisionId: "d" },
+      { provisionId: "e" },
+    ];
+
+    expect(batchForTriage(candidates, 2)).toEqual([
+      [{ provisionId: "a" }, { provisionId: "b" }],
+      [{ provisionId: "c" }, { provisionId: "d" }],
+      [{ provisionId: "e" }],
+    ]);
+    expect(batchForTriage(candidates, 10)).toEqual([candidates]);
+    expect(batchForTriage([], 10)).toEqual([]);
+  });
+
+  it("splits a shared batch cost across its members, exactly and without remainder loss", () => {
+    expect(splitReservedCost(100, 4)).toEqual([25, 25, 25, 25]);
+    expect(splitReservedCost(10, 3)).toEqual([4, 3, 3]);
+    const shares = splitReservedCost(101, 7);
+    expect(shares).toHaveLength(7);
+    expect(shares.reduce((total, share) => total + share, 0)).toBe(101);
+    expect(splitReservedCost(50, 1)).toEqual([50]);
+  });
+
+  it("ignores decisions outside the batch and drops duplicates, keeping the first", () => {
+    const batch = [{ provisionId: "a" }, { provisionId: "b" }];
+    const rawDecisions = [
+      { provisionId: "a", likelyApplicable: "YES" as const },
+      { provisionId: "hallucinated-id", likelyApplicable: "NO" as const },
+      { provisionId: "a", likelyApplicable: "NO" as const },
+    ];
+
+    expect(normalizeTriageDecisions(batch, rawDecisions)).toEqual([
+      { provisionId: "a", likelyApplicable: "YES" },
+    ]);
+  });
+
+  it("keeps undecided and YES candidates, drops NO, gates UNSURE behind includeUnsure", () => {
+    const candidates = [
+      { provisionId: "no-decision-made" },
+      { provisionId: "said-no" },
+      { provisionId: "said-yes" },
+      { provisionId: "said-unsure" },
+    ];
+    const decisions = [
+      { provisionId: "said-no", likelyApplicable: "NO" as const },
+      { provisionId: "said-yes", likelyApplicable: "YES" as const },
+      { provisionId: "said-unsure", likelyApplicable: "UNSURE" as const },
+    ];
+
+    expect(
+      selectTriageSurvivors(candidates, decisions, true).map((candidate) => candidate.provisionId),
+    ).toEqual(["no-decision-made", "said-yes", "said-unsure"]);
+
+    expect(
+      selectTriageSurvivors(candidates, decisions, false).map((candidate) => candidate.provisionId),
+    ).toEqual(["no-decision-made", "said-yes"]);
   });
 });
 
