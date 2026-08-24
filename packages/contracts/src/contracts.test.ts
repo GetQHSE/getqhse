@@ -78,13 +78,13 @@ describe("public contracts", () => {
     ).toBe(false);
   });
 
-  it("requires approved requirement wording for applicable regulatory decisions", () => {
+  it("allows an applicable regulatory decision to omit an override, defaulting to the AI's wording", () => {
     expect(
       decideRegulatoryCandidateSchema.safeParse({
         watchRevision: 2,
         decision: "APPLICABLE",
       }).success,
-    ).toBe(false);
+    ).toBe(true);
     expect(
       decideRegulatoryCandidateSchema.safeParse({
         watchRevision: 2,
@@ -99,5 +99,15 @@ describe("public contracts", () => {
         decision: "NOT_APPLICABLE",
       }).success,
     ).toBe(true);
+  });
+
+  it("rejects an override that is too short to be genuine wording", () => {
+    expect(
+      decideRegulatoryCandidateSchema.safeParse({
+        watchRevision: 2,
+        decision: "APPLICABLE",
+        requirementText: "Trop court",
+      }).success,
+    ).toBe(false);
   });
 });
