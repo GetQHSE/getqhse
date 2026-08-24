@@ -8,9 +8,10 @@ from docling.datamodel.pipeline_options import PdfPipelineOptions
 from docling.document_converter import DocumentConverter, PdfFormatOption
 from fastapi import FastAPI, File, Header, HTTPException, UploadFile
 from fastapi.concurrency import run_in_threadpool
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from .config import settings
+from .segmentation import ExtractedBlock, ExtractedPage, pages_from_blocks
 
 app = FastAPI(title="QHSE Document Extractor", version="0.1.0")
 pdf_options = PdfPipelineOptions()
@@ -19,18 +20,6 @@ pdf_options.do_table_structure = True
 converter = DocumentConverter(
     format_options={InputFormat.PDF: PdfFormatOption(pipeline_options=pdf_options)}
 )
-
-
-class ExtractedPage(BaseModel):
-    page_number: int = Field(ge=1)
-    text: str
-
-
-class ExtractedBlock(BaseModel):
-    block_type: str
-    text: str
-    page_number: int = Field(ge=1)
-    bounding_box: list[float] | None = None
 
 
 class ExtractionResponse(BaseModel):
@@ -136,17 +125,6 @@ def extract_with_docling(
     path: Path,
 ) -> tuple[list[ExtractedPage], list[ExtractedBlock], str]:
     result = converter.convert(path)
-    page_numbers = sorted(int(number) for number in result.document.pages.keys())
-    pages: list[ExtractedPage] = []
-    for page_number in page_numbers:
-        try:
-            text = result.document.export_to_text(page_no=page_number).strip()
-        except (AttributeError, TypeError):
-            text = ""
-        pages.append(ExtractedPage(page_number=page_number, text=text))
-    if not pages or not any(page.text for page in pages):
-        text = result.document.export_to_text().strip()
-        pages = [ExtractedPage(page_number=1, text=text)]
     blocks: list[ExtractedBlock] = []
     for item, _level in result.document.iterate_items():
         text = str(getattr(item, "text", "")).strip()
@@ -170,6 +148,20 @@ def extract_with_docling(
                 bounding_box=coordinates,
             )
         )
+
+    pages = pages_from_blocks(blocks)
+    if not pages:
+        page_numbers = sorted(int(number) for number in result.document.pages.keys())
+        for page_number in page_numbers:
+            try:
+                text = result.document.export_to_text(page_no=page_number).strip()
+            except (AttributeError, TypeError):
+                text = ""
+            pages.append(ExtractedPage(page_number=page_number, text=text))
+        if not pages or not any(page.text for page in pages):
+            text = result.document.export_to_text().strip()
+            pages = [ExtractedPage(page_number=1, text=text)]
+
     return pages, blocks or page_blocks(pages), "docling"
 
 
