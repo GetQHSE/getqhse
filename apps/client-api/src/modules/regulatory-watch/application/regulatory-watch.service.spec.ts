@@ -1,4 +1,8 @@
-import { ForbiddenException, ServiceUnavailableException } from "@nestjs/common";
+import {
+  BadRequestException,
+  ForbiddenException,
+  ServiceUnavailableException,
+} from "@nestjs/common";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { evaluationCarryForward, RegulatoryWatchService } from "./regulatory-watch.service.js";
@@ -242,6 +246,41 @@ describe("accuracy-first regulatory review gates", () => {
         data: expect.objectContaining({ decision: "NOT_APPLICABLE" }),
       }),
     );
+  });
+
+  it("approves a candidate using the AI's own extracted wording when none is submitted", async () => {
+    const { service, candidateUpdate } = serviceWithLoadedWatch({
+      id: "candidate-1",
+      requirementStatus: "READY",
+      requirementText: "Exigence extraite telle quelle par l’IA depuis le texte source.",
+    });
+    await service.decideCandidate(tenant, "project-1", "candidate-1", {
+      watchRevision: 3,
+      decision: "APPLICABLE",
+    });
+    expect(candidateUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          requirementText: "Exigence extraite telle quelle par l’IA depuis le texte source.",
+          requirementStatus: "READY",
+        }),
+      }),
+    );
+    expect(candidateUpdate.mock.calls[0]?.[0]?.data).not.toHaveProperty("requirementSource");
+  });
+
+  it("rejects approving a candidate with no extractable requirement and no override", async () => {
+    const { service } = serviceWithLoadedWatch({
+      id: "candidate-1",
+      requirementStatus: "SOURCE_REVIEW_REQUIRED",
+      requirementText: null,
+    });
+    await expect(
+      service.decideCandidate(tenant, "project-1", "candidate-1", {
+        watchRevision: 3,
+        decision: "APPLICABLE",
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
   });
 
   it("records edited AI wording as human-approved provenance", async () => {

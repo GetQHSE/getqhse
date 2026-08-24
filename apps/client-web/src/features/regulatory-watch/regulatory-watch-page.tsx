@@ -552,11 +552,7 @@ function ReviewState({
   deciding: boolean;
   publishing: boolean;
   error: string | undefined;
-  onDecision: (
-    candidateId: string,
-    decision: "APPLICABLE" | "NOT_APPLICABLE",
-    requirementText?: string,
-  ) => void;
+  onDecision: (candidateId: string, decision: "APPLICABLE" | "NOT_APPLICABLE") => void;
   onPublish: () => void;
   onRerun: () => void;
 }) {
@@ -573,11 +569,6 @@ function ReviewState({
   )?.value;
   const [selectedGroup, setSelectedGroup] = useState<(typeof groups)[number]["value"]>(
     firstPopulated ?? "ADDED",
-  );
-  const [drafts, setDrafts] = useState<Record<string, string>>(() =>
-    Object.fromEntries(
-      candidates.map((candidate) => [candidate.id, candidate.requirement.text ?? ""]),
-    ),
   );
   const remaining = candidates.filter(
     (candidate) => candidate.requiresReview && candidate.decision == null,
@@ -694,9 +685,6 @@ function ReviewState({
                       <p className="mt-2 text-sm font-semibold text-slate-900">
                         {candidate.source.documentTitle}
                       </p>
-                      <p className="mt-2 line-clamp-2 text-xs leading-5 text-slate-500">
-                        {candidate.rationale}
-                      </p>
                       {candidate.changeSummary && (
                         <p className="mt-2 rounded-lg bg-slate-50 px-2.5 py-2 text-xs text-slate-600">
                           {candidate.changeSummary}
@@ -714,29 +702,29 @@ function ReviewState({
                             {candidate.source.excerpt}
                           </p>
                         </section>
-                        <label className="block rounded-xl border border-violet-200 bg-violet-50/40 p-3">
-                          <span className="text-[10px] font-semibold uppercase tracking-wider text-violet-700">
-                            Projet d’exigence rédigé par l’IA
-                          </span>
-                          <Textarea
-                            aria-label={`Exigence ${candidate.source.provisionIdentifier ?? candidate.id}`}
-                            className="mt-2 min-h-28 resize-y border-violet-200 bg-white text-xs leading-5"
-                            disabled={deciding}
-                            maxLength={1200}
-                            onChange={(event) =>
-                              setDrafts((current) => ({
-                                ...current,
-                                [candidate.id]: event.target.value,
-                              }))
-                            }
-                            placeholder="Rédigez l’exigence applicable en français…"
-                            value={drafts[candidate.id] ?? ""}
-                          />
-                          <span className="mt-1 block text-[10px] text-violet-700/70">
-                            Vous pouvez corriger le projet; votre version sera enregistrée comme
-                            approuvée humainement.
-                          </span>
-                        </label>
+                        <section
+                          aria-label={`Décision de l’IA ${candidate.source.provisionIdentifier ?? candidate.id}`}
+                          className="rounded-xl border border-violet-200 bg-violet-50/40 p-3"
+                        >
+                          <p className="text-[10px] font-semibold uppercase tracking-wider text-violet-700">
+                            Exigence extraite par l’IA
+                          </p>
+                          {candidate.requirement.text ? (
+                            <p className="mt-2 max-h-28 overflow-y-auto whitespace-pre-wrap text-xs leading-5 text-slate-700">
+                              {candidate.requirement.text}
+                            </p>
+                          ) : (
+                            <p className="mt-2 text-xs italic text-slate-400">
+                              Aucune exigence n’a pu être extraite de cette source.
+                            </p>
+                          )}
+                          <p className="mt-3 text-[10px] font-semibold uppercase tracking-wider text-violet-700">
+                            Explication de l’IA
+                          </p>
+                          <p className="mt-2 whitespace-pre-wrap text-xs leading-5 text-slate-600">
+                            {candidate.rationale}
+                          </p>
+                        </section>
                       </div>
                       {candidate.requirement.issues.length > 0 && (
                         <ul className="mt-3 list-disc space-y-1 rounded-xl bg-rose-50 px-7 py-3 text-xs text-rose-700">
@@ -770,10 +758,8 @@ function ReviewState({
                               ? "bg-emerald-600 hover:bg-emerald-600"
                               : "bg-slate-950 hover:bg-slate-800",
                           )}
-                          disabled={deciding || (drafts[candidate.id]?.trim().length ?? 0) < 20}
-                          onClick={() =>
-                            onDecision(candidate.id, "APPLICABLE", drafts[candidate.id]?.trim())
-                          }
+                          disabled={deciding || !candidate.requirement.text}
+                          onClick={() => onDecision(candidate.id, "APPLICABLE")}
                         >
                           <CheckIcon />
                           {candidate.changeType === "REMOVAL_PROPOSED" ? "Conserver" : "Applicable"}
@@ -1439,18 +1425,15 @@ export function RegulatoryWatchPage() {
     mutationFn: ({
       candidateId,
       decision,
-      requirementText,
     }: {
       candidateId: string;
       decision: "APPLICABLE" | "NOT_APPLICABLE";
-      requirementText?: string;
     }) => {
       const watch = watchQuery.data;
       if (!watch) throw new Error("Veille introuvable");
       return clientApi.decideRegulatoryCandidate(projectId, candidateId, {
         watchRevision: watch.revision,
         decision,
-        ...(decision === "APPLICABLE" ? { requirementText } : {}),
       });
     },
     onMutate: () => setActionError(undefined),
@@ -1566,13 +1549,7 @@ export function RegulatoryWatchPage() {
         deciding={decisionMutation.isPending}
         publishing={publishMutation.isPending}
         error={actionError}
-        onDecision={(candidateId, decision, requirementText) =>
-          decisionMutation.mutate({
-            candidateId,
-            decision,
-            ...(requirementText ? { requirementText } : {}),
-          })
-        }
+        onDecision={(candidateId, decision) => decisionMutation.mutate({ candidateId, decision })}
         onPublish={() => publishMutation.mutate()}
         onRerun={() => startMutation.mutate()}
       />
@@ -1639,13 +1616,7 @@ export function RegulatoryWatchPage() {
           deciding={decisionMutation.isPending}
           publishing={publishMutation.isPending}
           error={actionError}
-          onDecision={(candidateId, decision, requirementText) =>
-            decisionMutation.mutate({
-              candidateId,
-              decision,
-              ...(requirementText ? { requirementText } : {}),
-            })
-          }
+          onDecision={(candidateId, decision) => decisionMutation.mutate({ candidateId, decision })}
           onPublish={() => publishMutation.mutate()}
           onRerun={() => startMutation.mutate()}
         />

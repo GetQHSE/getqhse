@@ -332,22 +332,6 @@ export function isStructurallyEligibleProvision(
   return structuralIssues(provision).length === 0;
 }
 
-function normalizedWords(value: string): string[] {
-  return normalized(value).split(" ").filter(Boolean);
-}
-
-function hasLongCopiedPassage(source: string, draft: string, threshold = 25): boolean {
-  const sourceWords = normalizedWords(source);
-  const draftWords = normalizedWords(draft);
-  if (draftWords.length < threshold) return false;
-  const sourceText = ` ${sourceWords.join(" ")} `;
-  for (let index = 0; index <= draftWords.length - threshold; index += 1) {
-    if (sourceText.includes(` ${draftWords.slice(index, index + threshold).join(" ")} `))
-      return true;
-  }
-  return false;
-}
-
 export function validateRequirementDraft(
   source: string,
   requirementText: string | null,
@@ -374,9 +358,6 @@ export function validateRequirementDraft(
     const key = normalized(excerpt);
     if (uniqueExcerpts.has(key)) issues.push("Un extrait justificatif est dupliqué.");
     uniqueExcerpts.add(key);
-  }
-  if (requirementText && hasLongCopiedPassage(source, requirementText)) {
-    issues.push("L’exigence copie un passage trop long de la source au lieu de le reformuler.");
   }
   if (/\uFFFD/u.test(source) || (source.match(/\|/g)?.length ?? 0) > 30) {
     issues.push("Le texte source semble corrompu par l’extraction ou l’OCR.");

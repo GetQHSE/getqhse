@@ -612,22 +612,12 @@ export const answerRegulatoryClarificationsSchema = z.object({
 });
 export type AnswerRegulatoryClarifications = z.infer<typeof answerRegulatoryClarificationsSchema>;
 
-export const decideRegulatoryCandidateSchema = z
-  .object({
-    watchRevision: z.number().int().positive(),
-    decision: z.enum(["APPLICABLE", "NOT_APPLICABLE"]),
-    requirementText: z.string().trim().min(20).max(1_200).optional(),
-    note: z.string().trim().max(2_000).nullable().optional(),
-  })
-  .superRefine((value, context) => {
-    if (value.decision === "APPLICABLE" && !value.requirementText) {
-      context.addIssue({
-        code: "custom",
-        path: ["requirementText"],
-        message: "requirementText is required for an applicable provision",
-      });
-    }
-  });
+export const decideRegulatoryCandidateSchema = z.object({
+  watchRevision: z.number().int().positive(),
+  decision: z.enum(["APPLICABLE", "NOT_APPLICABLE"]),
+  requirementText: z.string().trim().min(20).max(1_200).optional(),
+  note: z.string().trim().max(2_000).nullable().optional(),
+});
 export type DecideRegulatoryCandidate = z.infer<typeof decideRegulatoryCandidateSchema>;
 
 export const publishRegulatoryBaselineSchema = z.object({

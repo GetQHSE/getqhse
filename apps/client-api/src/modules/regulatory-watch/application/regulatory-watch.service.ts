@@ -567,11 +567,17 @@ export class RegulatoryWatchService {
       },
     });
     if (!candidate) throw new NotFoundException("Regulatory candidate not found");
-    if (input.decision === "APPLICABLE" && !input.requirementText) {
+    const requirementText =
+      input.decision === "APPLICABLE"
+        ? (input.requirementText ?? candidate.requirementText ?? undefined)
+        : undefined;
+    if (input.decision === "APPLICABLE" && !requirementText) {
       throw new BadRequestException("requirementText is required for an applicable provision");
     }
     const requirementWasEdited =
-      input.decision === "APPLICABLE" && input.requirementText !== candidate.requirementText;
+      input.decision === "APPLICABLE" &&
+      input.requirementText != null &&
+      input.requirementText !== candidate.requirementText;
     const reviewedAt = new Date();
     await this.database.$transaction(async (tx) => {
       const claimed = await tx.projectRegulatoryWatch.updateMany({
@@ -589,7 +595,7 @@ export class RegulatoryWatchService {
           reviewedAt,
           ...(input.decision === "APPLICABLE"
             ? {
-                requirementText: input.requirementText as string,
+                requirementText: requirementText as string,
                 requirementStatus: "READY" as const,
                 ...(requirementWasEdited
                   ? {

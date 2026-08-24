@@ -379,12 +379,13 @@ describe("accuracy-first provision quality gates", () => {
     ).toContain("Un extrait justificatif n’est pas une citation exacte de la disposition.");
   });
 
-  it("rejects long source copying and inputs that would be truncated", () => {
+  it("accepts a requirement extracted verbatim from its source", () => {
     const source =
       "L’organisme doit déterminer surveiller revoir et mettre à jour les informations nécessaires afin de maîtriser durablement tous les processus opérationnels pertinents pour assurer la conformité constante des produits et services fournis aux clients concernés.";
-    expect(validateRequirementDraft(source, source, [source.slice(0, 80)])).toContain(
-      "L’exigence copie un passage trop long de la source au lieu de le reformuler.",
-    );
+    expect(validateRequirementDraft(source, source, [source.slice(0, 80)])).toEqual([]);
+  });
+
+  it("rejects inputs that would be truncated", () => {
     expect(
       validateRequirementDraft(
         "Article 1 — " + "texte normatif ".repeat(2_500),

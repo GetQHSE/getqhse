@@ -651,26 +651,23 @@ describe("RegulatoryWatchPage", () => {
     expect(screen.getByRole("tab", { name: /Ajouts/ })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: /Inchangés/ })).toBeInTheDocument();
     expect(screen.getAllByText("ISO 9001:2015").length).toBeGreaterThan(0);
-    const requirement = screen.getByRole("textbox", { name: /Exigence 7\.1\.5/ });
-    await user.clear(requirement);
-    await user.type(
-      requirement,
-      "L’organisme doit fournir et maîtriser les ressources nécessaires aux activités de mesure.",
-    );
+    // The requirement extracted by the AI, and its explanation, are shown read-only.
+    expect(
+      screen.getAllByText(
+        "L’organisme doit déterminer et fournir les ressources nécessaires à la surveillance et à la mesure.",
+      ).length,
+    ).toBeGreaterThan(0);
+    expect(screen.getByText("Applicable à la nouvelle activité déclarée.")).toBeInTheDocument();
+    expect(screen.queryByRole("textbox", { name: /Exigence 7\.1\.5/ })).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Applicable" }));
     expect(clientApi.decideRegulatoryCandidate).toHaveBeenCalledWith(
       "atlas-industrie",
       "candidate-added",
-      {
-        watchRevision: 3,
-        decision: "APPLICABLE",
-        requirementText:
-          "L’organisme doit fournir et maîtriser les ressources nécessaires aux activités de mesure.",
-      },
+      { watchRevision: 3, decision: "APPLICABLE" },
     );
   });
 
-  it("still allows deciding a candidate when the normative source needs review", async () => {
+  it("still allows rejecting, but not approving, a candidate whose source needs review", async () => {
     vi.mocked(clientApi.regulatoryWatch).mockResolvedValue({
       ...notStartedWatch,
       status: "REVIEW_REQUIRED",
@@ -712,17 +709,15 @@ describe("RegulatoryWatchPage", () => {
     renderPage();
 
     expect(await screen.findByText(/1 source à vérifier/)).toBeInTheDocument();
-    // Not decided yet, and no draft text: "Applicable" needs a written requirement first.
+    expect(
+      screen.getByText("Aucune exigence n’a pu être extraite de cette source."),
+    ).toBeInTheDocument();
+    // No AI-extracted requirement exists for this source: "Applicable" stays disabled until
+    // the source is repaired and re-analyzed. There is no manual authoring fallback.
     expect(screen.getByRole("button", { name: "Applicable" })).toBeDisabled();
     // "Non applicable" no longer requires a resolved source to be usable.
     expect(screen.getByRole("button", { name: "Non applicable" })).toBeEnabled();
     expect(screen.getByRole("button", { name: /Publier le référentiel/ })).toBeDisabled();
-
-    await userEvent.type(
-      screen.getByRole("textbox", { name: /Exigence/ }),
-      "L’organisme doit corriger et retraiter cette source normative.",
-    );
-    expect(screen.getByRole("button", { name: "Applicable" })).toBeEnabled();
   });
 
   it("keeps completed candidates reviewable and still requires a decision before publishing a partial run", async () => {
