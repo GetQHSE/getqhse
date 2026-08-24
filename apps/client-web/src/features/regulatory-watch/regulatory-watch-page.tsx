@@ -758,7 +758,7 @@ function ReviewState({
                               ? "bg-emerald-600 hover:bg-emerald-600"
                               : "bg-slate-950 hover:bg-slate-800",
                           )}
-                          disabled={deciding || !candidate.requirement.text}
+                          disabled={deciding || candidate.requirement.status !== "READY"}
                           onClick={() => onDecision(candidate.id, "APPLICABLE")}
                         >
                           <CheckIcon />

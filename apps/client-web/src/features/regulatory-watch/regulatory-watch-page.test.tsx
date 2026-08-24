@@ -720,6 +720,54 @@ describe("RegulatoryWatchPage", () => {
     expect(screen.getByRole("button", { name: /Publier le référentiel/ })).toBeDisabled();
   });
 
+  it("keeps Applicable disabled when the AI extracted text but flagged the source for review", async () => {
+    vi.mocked(clientApi.regulatoryWatch).mockResolvedValue({
+      ...notStartedWatch,
+      status: "REVIEW_REQUIRED",
+      currentAnalysis: {
+        ...analysis,
+        status: "READY_FOR_REVIEW",
+        phase: "review",
+        progressPercent: 100,
+        diff: { added: 1, unchanged: 0, modified: 0, removalProposed: 0, requiresReview: 1 },
+        candidates: [
+          {
+            id: "candidate-flagged",
+            changeType: "ADDED",
+            changeSummary: "Nouvelle disposition potentiellement applicable.",
+            previousEntryId: null,
+            previousSource: null,
+            requiresReview: true,
+            suggestion: "APPLICABLE",
+            decision: null,
+            decisionSource: null,
+            rationale: "Le texte prévoit une sanction, mais l’infraction visée n’est pas précisée.",
+            matchedProfileKeys: [],
+            confidence: 0.4,
+            decisionNote: null,
+            reviewedAt: null,
+            requirement: {
+              text: "Si le contrevenant est une personne morale, il sera puni d’une amende de 50.000 à 1.000.000 dirhams.",
+              status: "SOURCE_REVIEW_REQUIRED",
+              supportingExcerpts: ["personne morale"],
+              issues: ["Le texte source est partiellement tronqué."],
+              source: "AI",
+              editedAt: null,
+            },
+            source: activeWatch.currentBaseline.entries[0]!.source,
+          },
+        ],
+      },
+    } as never);
+    renderPage();
+
+    expect(await screen.findByText(/1 source à vérifier/)).toBeInTheDocument();
+    // Text was extracted, but the source itself was flagged as unreliable: approving it
+    // one-click would rubber-stamp a decision the AI itself said it couldn't stand behind.
+    expect(screen.getByRole("button", { name: "Applicable" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Non applicable" })).toBeEnabled();
+  });
+
   it("keeps completed candidates reviewable and still requires a decision before publishing a partial run", async () => {
     vi.mocked(clientApi.regulatoryWatch).mockResolvedValue({
       ...notStartedWatch,
