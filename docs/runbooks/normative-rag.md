@@ -28,8 +28,20 @@ The regulatory worker uses `OPENAI_REGULATORY_MODEL=gpt-5-mini` and
 `OPENAI_REGULATORY_REASONING_EFFORT=low` by default. Keep both values explicit in production. A
 configured model failure stops the run with `REGULATORY_MODEL_UNAVAILABLE`; the worker never falls
 back silently to another model. Requests use `store=false`, a 180-second timeout, zero SDK retries,
-and output ceilings of 12,000 tokens for drafting and 6,000 tokens for verification. The only retry
-is one explicit corrected draft after verifier feedback.
+and output ceilings of 12,000 tokens for drafting, 6,000 tokens for verification, and
+`OPENAI_REGULATORY_TRIAGE_MAX_OUTPUT_TOKENS` (default 2,000) for triage. The only content retry is
+one explicit corrected draft after verifier feedback.
+
+An OpenAI TPM rate limit response is not treated as a failed call: each call site (drafting,
+verification, triage) retries the same request up to `RATE_LIMIT_MAX_ATTEMPTS` (3) times, sleeping
+the delay OpenAI's own error message suggests (falling back to 2s if none is given) between tries.
+Every try still reserves and settles its own ledger row — a rate-limited attempt settles with
+`REGULATORY_MODEL_RATE_LIMITED` and is followed by a separate row for the retry, so nothing is
+double-counted. Retries exhausted still ends the run with `REGULATORY_MODEL_UNAVAILABLE`. This
+raises the account's OpenAI token throughput per run (more provisions retrieved, plus the triage
+pass's own calls); if runs start exhausting retries rather than just absorbing an occasional dip,
+that's a sign the org's TPM limit needs raising, or `CLASSIFICATION_CONCURRENCY` (5) /
+the regulatory-analysis worker's job concurrency (2) need lowering to match it.
 
 Every generation call has a durable ledger row containing its candidate, stage, attempt, status,
 duration, token and reasoning-token usage, reserved cost, and reconciled cost. Before a call, the
@@ -155,17 +167,17 @@ curl -s --cookie "$ADMIN_COOKIE" https://<admin-api>/v1/documents/embedding-prof
 `reason` is `null` when search is healthy; otherwise it is the same code the worker writes to
 `RegulatoryAnalysisRun.errorCode`, and the customer UI renders its French translation:
 
-| `reason`                          | Meaning                                                   | Fix                                                                                    |
-| --------------------------------- | --------------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| `NORMATIVE_RAG_DISABLED`          | The **worker** does not see `NORMATIVE_RAG_ENABLED=true`. | Export it into the worker container; `compose.production.yaml` defaults it to `false`. |
-| `OPENAI_KEY_MISSING`              | `OPENAI_API_KEY` is unset.                                | Set it, restart the worker.                                                            |
-| `EMBEDDING_PROFILE_MISSING`       | The corpus was never indexed.                             | Run rollout steps 6–7.                                                                 |
-| `EMBEDDING_PROFILE_BUILDING`      | Indexing is under way.                                    | Wait for the BullMQ jobs; check `missingChunks` per profile.                           |
-| `EMBEDDING_PROFILE_NOT_ACTIVATED` | A profile is READY but step 7 was skipped.                | `POST /v1/documents/embedding-profiles/{profileId}/activate`.                          |
-| `EMBEDDING_PROFILE_STALE`         | Content was published after the active profile was built. | Reindex the new revisions, then activate the refreshed profile.                        |
-| `REGULATORY_MODEL_UNAVAILABLE`    | The configured accuracy model failed or was rejected.     | Verify model access and both regulatory model variables; restart the worker.           |
-| `REGULATORY_WORKER_UNAVAILABLE`   | No BullMQ regulatory worker is registered.                | Check worker readiness/logs and its Redis connection before retrying.                  |
-| `REGULATORY_BUDGET_LIMIT`         | The run stopped before exceeding its configured budget.   | Review completed candidates, then start a new run or explicitly revise the budget.     |
+| `reason`                          | Meaning                                                                                       | Fix                                                                                                                                               |
+| --------------------------------- | --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `NORMATIVE_RAG_DISABLED`          | The **worker** does not see `NORMATIVE_RAG_ENABLED=true`.                                     | Export it into the worker container; `compose.production.yaml` defaults it to `false`.                                                            |
+| `OPENAI_KEY_MISSING`              | `OPENAI_API_KEY` is unset.                                                                    | Set it, restart the worker.                                                                                                                       |
+| `EMBEDDING_PROFILE_MISSING`       | The corpus was never indexed.                                                                 | Run rollout steps 6–7.                                                                                                                            |
+| `EMBEDDING_PROFILE_BUILDING`      | Indexing is under way.                                                                        | Wait for the BullMQ jobs; check `missingChunks` per profile.                                                                                      |
+| `EMBEDDING_PROFILE_NOT_ACTIVATED` | A profile is READY but step 7 was skipped.                                                    | `POST /v1/documents/embedding-profiles/{profileId}/activate`.                                                                                     |
+| `EMBEDDING_PROFILE_STALE`         | Content was published after the active profile was built.                                     | Reindex the new revisions, then activate the refreshed profile.                                                                                   |
+| `REGULATORY_MODEL_UNAVAILABLE`    | The configured accuracy model failed, was rejected, or a rate limit persisted past 3 retries. | Verify model access and both regulatory model variables; if `regulatory_model_call_rate_limited` logs precede it, see the TPM note above instead. |
+| `REGULATORY_WORKER_UNAVAILABLE`   | No BullMQ regulatory worker is registered.                                                    | Check worker readiness/logs and its Redis connection before retrying.                                                                             |
+| `REGULATORY_BUDGET_LIMIT`         | The run stopped before exceeding its configured budget.                                       | Review completed candidates, then start a new run or explicitly revise the budget.                                                                |
 
 ### Driving the rollout
 

@@ -89,6 +89,11 @@ const CLASSIFICATION_PROGRESS_START = 50;
 const CLASSIFICATION_PROGRESS_END = 92;
 const MODEL_HEARTBEAT_INTERVAL_MS = 30_000;
 const CLASSIFICATION_CONCURRENCY = 5;
+const RATE_LIMIT_MAX_ATTEMPTS = 3;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 export function regulatoryModelLimits(stage: ClassificationModelStage) {
   return {
@@ -240,6 +245,20 @@ function structuralIssues(
     }
   }
   return [...new Set(issues)];
+}
+
+export function isRateLimitError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  return /rate limit|\b429\b/iu.test(`${error.name} ${error.message}`);
+}
+
+export function parseRateLimitRetryDelayMs(error: unknown, fallbackMs: number): number {
+  if (!(error instanceof Error)) return fallbackMs;
+  const match = /try again in\s+([\d.]+)\s*s/iu.exec(error.message);
+  if (!match) return fallbackMs;
+  const seconds = Number(match[1]);
+  if (!Number.isFinite(seconds) || seconds <= 0) return fallbackMs;
+  return Math.ceil(seconds * 1_000) + 250;
 }
 
 // A provision retrieval picked up can be deleted or reprocessed (reindex, purge) before
@@ -1510,93 +1529,120 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
       }
 
       if (reservation) {
-        const callStartedAt = Date.now();
-        const heartbeatContext = {
-          runId: run.id,
-          jobId: job.id,
-          stage: "triage" as const,
-          batchIndex: batchIndex + 1,
-          batchTotal: batches.length,
-          batchSize: batch.length,
-          model,
-        };
-        const heartbeat = setInterval(() => {
-          this.logger.info(
-            {
-              event: "regulatory_model_call_heartbeat",
-              ...heartbeatContext,
-              durationMs: Date.now() - callStartedAt,
-            },
-            "regulatory model call is still running",
-          );
-        }, MODEL_HEARTBEAT_INTERVAL_MS);
-        heartbeat.unref();
-        try {
-          const generated = await generateText({
-            model: openai.responses(model),
-            system: prompt.system,
-            prompt: prompt.context,
-            output: Output.object({ schema: triageBatchSchema }),
-            timeout: limits.timeoutMs,
-            maxOutputTokens: limits.maxOutputTokens,
-            maxRetries: 0,
-            providerOptions: { openai: { store: false, reasoningEffort: "none" } },
-            telemetry: { isEnabled: false },
-          });
-          const latencyMs = Date.now() - callStartedAt;
-          const inputShares = splitReservedCost(
-            generated.totalUsage.inputTokens ?? 0,
-            batch.length,
-          );
-          const outputShares = splitReservedCost(
-            generated.totalUsage.outputTokens ?? 0,
-            batch.length,
-          );
-          const reasoningShares = splitReservedCost(
-            generated.totalUsage.outputTokenDetails?.reasoningTokens ?? 0,
-            batch.length,
-          );
-          for (const [index, id] of reservation.ids.entries()) {
-            await this.settleModelCall(
-              run.id,
-              { id, reservedMicroUsd: reservation.shares[index]! },
+        const activeReservation = reservation;
+        for (let rateLimitAttempt = 1; ; rateLimitAttempt += 1) {
+          const callStartedAt = Date.now();
+          const heartbeatContext = {
+            runId: run.id,
+            jobId: job.id,
+            stage: "triage" as const,
+            batchIndex: batchIndex + 1,
+            batchTotal: batches.length,
+            batchSize: batch.length,
+            model,
+          };
+          const heartbeat = setInterval(() => {
+            this.logger.info(
               {
-                status: "SUCCEEDED",
-                inputTokens: inputShares[index]!,
-                outputTokens: outputShares[index]!,
-                reasoningTokens: reasoningShares[index]!,
-                latencyMs,
+                event: "regulatory_model_call_heartbeat",
+                ...heartbeatContext,
+                durationMs: Date.now() - callStartedAt,
               },
+              "regulatory model call is still running",
             );
-          }
-          decisions.push(...normalizeTriageDecisions(batch, generated.output.decisions));
-        } catch (error) {
-          const timedOut = isTimeoutError(error);
-          const latencyMs = Date.now() - callStartedAt;
-          for (const [index, id] of reservation.ids.entries()) {
-            await this.settleModelCall(
-              run.id,
-              { id, reservedMicroUsd: reservation.shares[index]! },
+          }, MODEL_HEARTBEAT_INTERVAL_MS);
+          heartbeat.unref();
+          try {
+            const generated = await generateText({
+              model: openai.responses(model),
+              system: prompt.system,
+              prompt: prompt.context,
+              output: Output.object({ schema: triageBatchSchema }),
+              timeout: limits.timeoutMs,
+              maxOutputTokens: limits.maxOutputTokens,
+              maxRetries: 0,
+              providerOptions: { openai: { store: false, reasoningEffort: "none" } },
+              telemetry: { isEnabled: false },
+            });
+            const latencyMs = Date.now() - callStartedAt;
+            const inputShares = splitReservedCost(
+              generated.totalUsage.inputTokens ?? 0,
+              batch.length,
+            );
+            const outputShares = splitReservedCost(
+              generated.totalUsage.outputTokens ?? 0,
+              batch.length,
+            );
+            const reasoningShares = splitReservedCost(
+              generated.totalUsage.outputTokenDetails?.reasoningTokens ?? 0,
+              batch.length,
+            );
+            for (const [index, id] of activeReservation.ids.entries()) {
+              await this.settleModelCall(
+                run.id,
+                { id, reservedMicroUsd: activeReservation.shares[index]! },
+                {
+                  status: "SUCCEEDED",
+                  inputTokens: inputShares[index]!,
+                  outputTokens: outputShares[index]!,
+                  reasoningTokens: reasoningShares[index]!,
+                  latencyMs,
+                },
+              );
+            }
+            decisions.push(...normalizeTriageDecisions(batch, generated.output.decisions));
+          } catch (error) {
+            const timedOut = isTimeoutError(error);
+            const rateLimited = !timedOut && isRateLimitError(error);
+            const latencyMs = Date.now() - callStartedAt;
+            for (const [index, id] of activeReservation.ids.entries()) {
+              await this.settleModelCall(
+                run.id,
+                { id, reservedMicroUsd: activeReservation.shares[index]! },
+                {
+                  status: timedOut ? "TIMED_OUT" : "FAILED",
+                  latencyMs,
+                  errorCode: timedOut
+                    ? "REGULATORY_MODEL_TIMEOUT"
+                    : rateLimited
+                      ? "REGULATORY_MODEL_RATE_LIMITED"
+                      : "REGULATORY_MODEL_UNAVAILABLE",
+                },
+              );
+            }
+            if (rateLimited && rateLimitAttempt < RATE_LIMIT_MAX_ATTEMPTS) {
+              const delayMs = parseRateLimitRetryDelayMs(error, 2_000);
+              this.logger.warn(
+                {
+                  event: "regulatory_triage_batch_rate_limited",
+                  runId: run.id,
+                  jobId: job.id,
+                  batchIndex: batchIndex + 1,
+                  batchTotal: batches.length,
+                  rateLimitAttempt,
+                  delayMs,
+                },
+                "regulatory triage batch rate limited; retrying after backoff",
+              );
+              clearInterval(heartbeat);
+              await sleep(delayMs);
+              continue;
+            }
+            this.logger.warn(
               {
-                status: timedOut ? "TIMED_OUT" : "FAILED",
-                latencyMs,
-                errorCode: timedOut ? "REGULATORY_MODEL_TIMEOUT" : "REGULATORY_MODEL_UNAVAILABLE",
+                event: "regulatory_triage_batch_failed",
+                runId: run.id,
+                jobId: job.id,
+                batchIndex: batchIndex + 1,
+                batchTotal: batches.length,
+                err: error,
               },
+              "regulatory triage batch failed; its candidates proceed to full review",
             );
+          } finally {
+            clearInterval(heartbeat);
           }
-          this.logger.warn(
-            {
-              event: "regulatory_triage_batch_failed",
-              runId: run.id,
-              jobId: job.id,
-              batchIndex: batchIndex + 1,
-              batchTotal: batches.length,
-              err: error,
-            },
-            "regulatory triage batch failed; its candidates proceed to full review",
-          );
-        } finally {
-          clearInterval(heartbeat);
+          break;
         }
       }
 
@@ -1692,18 +1738,7 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
         stage: context.stage,
       });
       const limits = regulatoryModelLimits(context.stage);
-      const reservation = await this.reserveModelCall({
-        runId: run.id,
-        provisionId: context.candidate.provisionId,
-        clarificationRevision: run.clarificationRevision,
-        stage: context.stage,
-        attempt: context.attempt,
-        model,
-        prompt,
-        maxOutputTokens: limits.maxOutputTokens,
-      });
-      const callStartedAt = Date.now();
-      const logContext = {
+      const logContextBase = {
         runId: run.id,
         jobId: job.id,
         candidateIndex: context.candidateIndex + 1,
@@ -1718,80 +1753,117 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
         reasoningEffort,
         timeoutMs: limits.timeoutMs,
         maxOutputTokens: limits.maxOutputTokens,
-        reservedMicroUsd: reservation.reservedMicroUsd,
       };
-      this.logger.info(
-        { event: "regulatory_model_call_started", ...logContext },
-        "regulatory model call started",
-      );
-      const heartbeat = setInterval(() => {
-        this.logger.info(
-          {
-            event: "regulatory_model_call_heartbeat",
-            ...logContext,
-            durationMs: Date.now() - callStartedAt,
-          },
-          "regulatory model call is still running",
-        );
-      }, MODEL_HEARTBEAT_INTERVAL_MS);
-      heartbeat.unref();
-      try {
-        const generated = await generateText({
-          model: openai.responses(model),
-          system: prompt.system,
-          prompt: prompt.context,
-          output: Output.object({ schema }),
-          timeout: limits.timeoutMs,
+
+      // A rate limit is a same-request retry, distinct from the attempt/verifierFeedback
+      // loop above (which redrafts with different content). Each try still reserves and
+      // settles its own ledger row, so a rate-limited row and the eventual successful one
+      // both stay individually auditable instead of one call silently swallowing retries.
+      for (let rateLimitAttempt = 1; ; rateLimitAttempt += 1) {
+        const reservation = await this.reserveModelCall({
+          runId: run.id,
+          provisionId: context.candidate.provisionId,
+          clarificationRevision: run.clarificationRevision,
+          stage: context.stage,
+          attempt: context.attempt,
+          model,
+          prompt,
           maxOutputTokens: limits.maxOutputTokens,
-          maxRetries: 0,
-          providerOptions: { openai: { store: false, reasoningEffort } },
-          telemetry: { isEnabled: false },
         });
-        const callInputTokens = generated.totalUsage.inputTokens ?? 0;
-        const callOutputTokens = generated.totalUsage.outputTokens ?? 0;
-        const reasoningTokens = generated.totalUsage.outputTokenDetails?.reasoningTokens ?? 0;
-        await this.settleModelCall(run.id, reservation, {
-          status: "SUCCEEDED",
-          inputTokens: callInputTokens,
-          outputTokens: callOutputTokens,
-          reasoningTokens,
-          latencyMs: Date.now() - callStartedAt,
-        });
+        const callStartedAt = Date.now();
+        const logContext = { ...logContextBase, reservedMicroUsd: reservation.reservedMicroUsd };
         this.logger.info(
-          {
-            event: "regulatory_model_call_finished",
-            ...logContext,
-            durationMs: Date.now() - callStartedAt,
+          { event: "regulatory_model_call_started", ...logContext },
+          "regulatory model call started",
+        );
+        const heartbeat = setInterval(() => {
+          this.logger.info(
+            {
+              event: "regulatory_model_call_heartbeat",
+              ...logContext,
+              durationMs: Date.now() - callStartedAt,
+            },
+            "regulatory model call is still running",
+          );
+        }, MODEL_HEARTBEAT_INTERVAL_MS);
+        heartbeat.unref();
+        try {
+          const generated = await generateText({
+            model: openai.responses(model),
+            system: prompt.system,
+            prompt: prompt.context,
+            output: Output.object({ schema }),
+            timeout: limits.timeoutMs,
+            maxOutputTokens: limits.maxOutputTokens,
+            maxRetries: 0,
+            providerOptions: { openai: { store: false, reasoningEffort } },
+            telemetry: { isEnabled: false },
+          });
+          const callInputTokens = generated.totalUsage.inputTokens ?? 0;
+          const callOutputTokens = generated.totalUsage.outputTokens ?? 0;
+          const reasoningTokens = generated.totalUsage.outputTokenDetails?.reasoningTokens ?? 0;
+          await this.settleModelCall(run.id, reservation, {
+            status: "SUCCEEDED",
             inputTokens: callInputTokens,
             outputTokens: callOutputTokens,
             reasoningTokens,
-          },
-          "regulatory model call finished",
-        );
-        return generated.output as z.infer<T>;
-      } catch (error) {
-        const timedOut = isTimeoutError(error);
-        await this.settleModelCall(run.id, reservation, {
-          status: timedOut ? "TIMED_OUT" : "FAILED",
-          latencyMs: Date.now() - callStartedAt,
-          errorCode: timedOut ? "REGULATORY_MODEL_TIMEOUT" : "REGULATORY_MODEL_UNAVAILABLE",
-        });
-        this.logger.error(
-          {
-            event: "regulatory_model_call_failed",
-            ...logContext,
-            durationMs: Date.now() - callStartedAt,
-            err: error,
-          },
-          "regulatory model call failed",
-        );
-        const message = error instanceof Error ? error.message : "Unknown model error";
-        throw new RegulatoryAnalysisError(
-          "REGULATORY_MODEL_UNAVAILABLE",
-          `Regulatory model ${model} failed without fallback: ${message}`,
-        );
-      } finally {
-        clearInterval(heartbeat);
+            latencyMs: Date.now() - callStartedAt,
+          });
+          this.logger.info(
+            {
+              event: "regulatory_model_call_finished",
+              ...logContext,
+              durationMs: Date.now() - callStartedAt,
+              inputTokens: callInputTokens,
+              outputTokens: callOutputTokens,
+              reasoningTokens,
+            },
+            "regulatory model call finished",
+          );
+          return generated.output as z.infer<T>;
+        } catch (error) {
+          const timedOut = isTimeoutError(error);
+          const rateLimited = !timedOut && isRateLimitError(error);
+          await this.settleModelCall(run.id, reservation, {
+            status: timedOut ? "TIMED_OUT" : "FAILED",
+            latencyMs: Date.now() - callStartedAt,
+            errorCode: timedOut
+              ? "REGULATORY_MODEL_TIMEOUT"
+              : rateLimited
+                ? "REGULATORY_MODEL_RATE_LIMITED"
+                : "REGULATORY_MODEL_UNAVAILABLE",
+          });
+          if (rateLimited && rateLimitAttempt < RATE_LIMIT_MAX_ATTEMPTS) {
+            const delayMs = parseRateLimitRetryDelayMs(error, 2_000);
+            this.logger.warn(
+              {
+                event: "regulatory_model_call_rate_limited",
+                ...logContext,
+                rateLimitAttempt,
+                delayMs,
+              },
+              "regulatory model call rate limited; retrying after backoff",
+            );
+            await sleep(delayMs);
+            continue;
+          }
+          this.logger.error(
+            {
+              event: "regulatory_model_call_failed",
+              ...logContext,
+              durationMs: Date.now() - callStartedAt,
+              err: error,
+            },
+            "regulatory model call failed",
+          );
+          const message = error instanceof Error ? error.message : "Unknown model error";
+          throw new RegulatoryAnalysisError(
+            "REGULATORY_MODEL_UNAVAILABLE",
+            `Regulatory model ${model} failed without fallback: ${message}`,
+          );
+        } finally {
+          clearInterval(heartbeat);
+        }
       }
     };
 

@@ -12,7 +12,9 @@ import {
   regulatoryCostMicroUsd,
   batchForTriage,
   isMissingProvisionForeignKeyError,
+  isRateLimitError,
   normalizeTriageDecisions,
+  parseRateLimitRetryDelayMs,
   regulatoryModelLimits,
   RegulatoryAnalysisProcessor,
   selectTriageSurvivors,
@@ -124,6 +126,20 @@ describe("regulatory triage", () => {
     ]);
     expect(batchForTriage(candidates, 10)).toEqual([candidates]);
     expect(batchForTriage([], 10)).toEqual([]);
+  });
+
+  it("recognizes an OpenAI TPM rate limit error and parses its suggested retry delay", () => {
+    const rateLimitError = new Error(
+      "Rate limit reached for gpt-5-mini in organization org-x on tokens per min (TPM): " +
+        "Limit 500000, Used 471107, Requested 38350. Please try again in 1.134s. Visit https://platform.openai.com/account/rate-limits to learn more.",
+    );
+    expect(isRateLimitError(rateLimitError)).toBe(true);
+    expect(isRateLimitError(new Error("boom"))).toBe(false);
+    expect(isRateLimitError("not an error")).toBe(false);
+
+    expect(parseRateLimitRetryDelayMs(rateLimitError, 5_000)).toBe(1_384);
+    expect(parseRateLimitRetryDelayMs(new Error("Please try again in 0s."), 5_000)).toBe(5_000);
+    expect(parseRateLimitRetryDelayMs(new Error("no hint here"), 5_000)).toBe(5_000);
   });
 
   it("recognizes a regulatory_model_calls foreign key violation on a deleted provision", () => {
