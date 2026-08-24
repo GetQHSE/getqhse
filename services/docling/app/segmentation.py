@@ -19,6 +19,34 @@ class ExtractedBlock(BaseModel):
 NOISE_BLOCK_TYPES = {"page_header", "page_footer", "footnote"}
 
 
+def block_label(item) -> str:
+    """Read an item's layout label, whether it is an enum or already a plain string."""
+    label = getattr(item, "label", None)
+    return str(getattr(label, "value", label) or "text")
+
+
+def block_text(item, document) -> str:
+    """Read an item's text, keeping a table's grid instead of flattening it.
+
+    A table's `.text` is linear, so a penalty grid collapses into a run of words and the
+    pairing between an offence and its fine is lost — which is exactly the context a
+    downstream reader needs to tell whether a sanction applies. Markdown keeps the rows
+    and columns intact. Docling's exporter signature has moved between releases, so both
+    arities are attempted before falling back to the flattened text.
+    """
+    if block_label(item) == "table":
+        exporter = getattr(item, "export_to_markdown", None)
+        if callable(exporter):
+            for arguments in ((document,), ()):
+                try:
+                    markdown = str(exporter(*arguments)).strip()
+                except Exception:
+                    continue
+                if markdown:
+                    return markdown
+    return str(getattr(item, "text", "")).strip()
+
+
 def pages_from_blocks(blocks: list[ExtractedBlock]) -> list[ExtractedPage]:
     """Rebuild per-page text from labeled blocks instead of Docling's flattened export.
 

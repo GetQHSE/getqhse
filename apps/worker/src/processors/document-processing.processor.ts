@@ -6,7 +6,9 @@ import {
   assertRevisionRight,
   chunkNormativeProvisions,
   detectNormativeProvisions,
+  detectNormativeProvisionsFromBlocks,
   normalizeExtractedText,
+  type ExtractedBlock,
   type ExtractedPage,
   type NormativeLanguage,
   type ProvisionType,
@@ -407,12 +409,18 @@ export class DocumentProcessingProcessor extends WorkerHost {
         };
       case "structure_detection": {
         const text = await this.getText(version.normalizedTextLocation);
-        const pages = await this.getExtractedPages(version.documentId, version.id, text);
+        const language = normativeLanguage(version.document.language);
         const sections = detectSections(text);
-        const provisions = detectNormativeProvisions(
-          pages,
-          normativeLanguage(version.document.language),
-        );
+        // Labeled blocks carry the layout facts that flattened page text has already lost:
+        // page furniture, table boundaries, and which headings group provisions rather than
+        // open one. Versions extracted before blocks were stored fall back to page text.
+        const blocks = await this.getExtractedBlocks(version.documentId, version.id);
+        const provisions = blocks.length
+          ? detectNormativeProvisionsFromBlocks(blocks, language)
+          : detectNormativeProvisions(
+              await this.getExtractedPages(version.documentId, version.id, text),
+              language,
+            );
         await this.database.$transaction([
           this.database.documentChunk.deleteMany({ where: { documentVersionId: versionId } }),
           this.database.documentProvision.deleteMany({ where: { documentVersionId: versionId } }),
@@ -534,7 +542,7 @@ export class DocumentProcessingProcessor extends WorkerHost {
               pageStart: content.pageStart,
               pageEnd: content.pageEnd,
               contentHash: content.contentHash,
-              chunkingVersion: "normative-v1",
+              chunkingVersion: "normative-v2",
               embeddingStatus: "PENDING",
               sourceLocation: {
                 provisionOrderIndex: content.provisionOrderIndex,
@@ -545,11 +553,11 @@ export class DocumentProcessingProcessor extends WorkerHost {
           }),
           this.database.documentVersion.update({
             where: { id: versionId },
-            data: { chunkingVersion: "normative-v1" },
+            data: { chunkingVersion: "normative-v2" },
           }),
         ]);
         return {
-          metadata: { provider: "normative-v1", chunks: String(chunks.length) },
+          metadata: { provider: "normative-v2", chunks: String(chunks.length) },
           quality: 0.9,
         };
       }
@@ -709,6 +717,36 @@ export class DocumentProcessingProcessor extends WorkerHost {
       return parsed.length ? parsed : [{ pageNumber: 1, text: fallbackText }];
     } catch {
       return [{ pageNumber: 1, text: fallbackText }];
+    }
+  }
+
+  /** Empty when the version predates block storage, or its extractor produced no labels. */
+  private async getExtractedBlocks(
+    documentId: string,
+    versionId: string,
+  ): Promise<ExtractedBlock[]> {
+    const key = `documents/${documentId}/versions/${versionId}/extracted/blocks.json`;
+    try {
+      const object = await this.storage.send(
+        new GetObjectCommand({ Bucket: this.bucket, Key: key }),
+      );
+      if (!object.Body) return [];
+      const parsed: unknown = JSON.parse(await object.Body.transformToString());
+      if (!Array.isArray(parsed)) return [];
+      return parsed.flatMap((entry): ExtractedBlock[] => {
+        if (typeof entry !== "object" || entry === null) return [];
+        const { blockType, text, pageNumber } = entry as Record<string, unknown>;
+        if (typeof text !== "string" || !text.trim()) return [];
+        return [
+          {
+            blockType: typeof blockType === "string" ? blockType : "text",
+            text,
+            pageNumber: typeof pageNumber === "number" ? pageNumber : 1,
+          },
+        ];
+      });
+    } catch {
+      return [];
     }
   }
 

@@ -1,6 +1,55 @@
 import unittest
 
-from app.segmentation import ExtractedBlock, pages_from_blocks
+from app.segmentation import ExtractedBlock, block_text, pages_from_blocks
+
+
+class FakeLabel:
+    def __init__(self, value):
+        self.value = value
+
+
+class FakeTable:
+    """Duck-typed stand-in for docling's TableItem."""
+
+    def __init__(self, markdown, text=""):
+        self.label = FakeLabel("table")
+        self.text = text
+        self._markdown = markdown
+
+    def export_to_markdown(self, doc):  # docling passes the owning document
+        return self._markdown
+
+
+class FakeText:
+    def __init__(self, text, label="text"):
+        self.label = FakeLabel(label)
+        self.text = text
+
+
+class BlockTextTests(unittest.TestCase):
+    def test_exports_a_table_as_markdown_so_rows_and_columns_survive(self):
+        table = FakeTable("| Infraction | Amende |\n| --- | --- |\n| Défaut | 1.200 |")
+
+        self.assertEqual(
+            block_text(table, object()),
+            "| Infraction | Amende |\n| --- | --- |\n| Défaut | 1.200 |",
+        )
+
+    def test_prefers_markdown_over_a_tables_flattened_text(self):
+        # Docling's flattened .text loses the row pairing that makes a penalty table readable.
+        table = FakeTable("| Infraction | Amende |", text="Infraction Amende Défaut 1.200")
+
+        self.assertEqual(block_text(table, object()), "| Infraction | Amende |")
+
+    def test_falls_back_to_plain_text_when_a_table_cannot_be_exported(self):
+        class Unexportable(FakeTable):
+            def export_to_markdown(self, doc):
+                raise RuntimeError("no converter")
+
+        self.assertEqual(block_text(Unexportable("", text="fallback rows"), object()), "fallback rows")
+
+    def test_reads_ordinary_items_from_their_text(self):
+        self.assertEqual(block_text(FakeText("  L’employeur doit afficher.  "), object()), "L’employeur doit afficher.")
 
 
 class PagesFromBlocksTests(unittest.TestCase):

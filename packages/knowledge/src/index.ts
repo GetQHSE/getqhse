@@ -9,6 +9,13 @@ export type ExtractedPage = {
   text: string;
 };
 
+/** One labeled layout item from the extractor, in reading order. */
+export type ExtractedBlock = {
+  blockType: string;
+  text: string;
+  pageNumber: number;
+};
+
 export type NormativeProvision = {
   type: ProvisionType;
   sourceIdentifier: string | null;
@@ -250,6 +257,166 @@ export function detectNormativeProvisions(
   return provisions;
 }
 
+// Extractor labels for material that repeats on, or interrupts, every page. Inlining it into
+// page text is what interleaved running titles and page numbers into whichever provision
+// happened to span that spot.
+const noiseBlockTypes = new Set(["page_header", "page_footer", "footnote"]);
+const headingBlockTypes = new Set(["section_header", "title", "subtitle", "chapter", "heading"]);
+
+// Container headings group provisions without being one themselves. Keeping them as
+// headingPath ancestors is what lets a provision that refers to its surroundings ("est puni
+// quiconque contrevient au présent chapitre") stay interpretable once retrieved on its own.
+const containerHeadings: Array<{ pattern: RegExp; rank: number }> = [
+  { pattern: /^\s*(?:titre|partie|livre|الباب)\b/iu, rank: 1 },
+  { pattern: /^\s*(?:chapitre|chapter|القسم)\b/iu, rank: 2 },
+  { pattern: /^\s*(?:sous-section|section|الفرع)\b/iu, rank: 3 },
+];
+// A labeled heading naming no article or clause ("Des infractions et des sanctions") is a
+// container too, but its depth is unknown, so it nests below every named container.
+const unnamedContainerRank = 4;
+
+function containerRank(line: string): number | null {
+  return containerHeadings.find(({ pattern }) => pattern.test(line))?.rank ?? null;
+}
+
+type OpenProvision = Omit<
+  NormativeProvision,
+  "content" | "contentHash" | "pageEnd" | "orderIndex"
+> & { lines: string[]; pageEnd: number };
+
+function closeProvision(open: OpenProvision, orderIndex: number): NormativeProvision | null {
+  const content = normalizeExtractedText(open.lines.join("\n"));
+  if (!content) return null;
+  return {
+    type: open.type,
+    sourceIdentifier: open.sourceIdentifier,
+    title: open.title,
+    headingPath: open.headingPath,
+    language: open.language,
+    content,
+    contentHash: sha256(content),
+    pageStart: open.pageStart,
+    pageEnd: open.pageEnd,
+    orderIndex,
+  };
+}
+
+/**
+ * Segments provisions from labeled layout blocks rather than from flattened page text.
+ *
+ * The labels carry three things a line-by-line regex scan over flattened text cannot recover:
+ * which items are page furniture, which heading opens a provision versus merely groups them,
+ * and where a table's boundaries are. Blocks whose label says nothing useful still fall back
+ * to line scanning, so an extractor that only produces paragraphs keeps working.
+ */
+export function detectNormativeProvisionsFromBlocks(
+  blocks: readonly ExtractedBlock[],
+  language: NormativeLanguage,
+): NormativeProvision[] {
+  const provisions: NormativeProvision[] = [];
+  const context: Array<{ rank: number; label: string }> = [];
+  let current: OpenProvision | null = null;
+
+  const flush = () => {
+    if (!current) return;
+    const provision = closeProvision(current, provisions.length);
+    if (provision) provisions.push(provision);
+    current = null;
+  };
+
+  const openProvision = (heading: HeadingMatch, line: string, pageNumber: number) => {
+    flush();
+    const label = [heading.identifier, heading.title].filter(Boolean).join(" — ");
+    current = {
+      type: heading.type,
+      sourceIdentifier: heading.identifier,
+      title: heading.title,
+      headingPath: [...context.map((entry) => entry.label), ...(label ? [label] : [])],
+      language,
+      pageStart: pageNumber,
+      pageEnd: pageNumber,
+      lines: [line],
+    };
+  };
+
+  const openContainer = (label: string, rank: number) => {
+    flush();
+    while (context.length && (context.at(-1)?.rank ?? 0) >= rank) context.pop();
+    context.push({ rank, label });
+  };
+
+  const append = (line: string, pageNumber: number) => {
+    const open = current;
+    if (open) {
+      open.lines.push(line);
+      open.pageEnd = pageNumber;
+      return;
+    }
+    // Material ahead of the first recognizable heading is still normative content.
+    current = {
+      type: "section",
+      sourceIdentifier: null,
+      title: null,
+      headingPath: context.map((entry) => entry.label),
+      language,
+      pageStart: pageNumber,
+      pageEnd: pageNumber,
+      lines: [line],
+    };
+  };
+
+  const separate = () => {
+    const open = current;
+    if (open && open.lines.at(-1) !== "") open.lines.push("");
+  };
+
+  for (const block of blocks) {
+    if (noiseBlockTypes.has(block.blockType)) continue;
+    const blockText = normalizeExtractedText(block.text);
+    if (!blockText) continue;
+
+    // A table is one indivisible unit. Scanning its rows line by line is what tore
+    // "infraction | amende" pairs apart and left sanctions without the offence they punish.
+    if (block.blockType === "table") {
+      append(blockText, block.pageNumber);
+      separate();
+      continue;
+    }
+
+    const declaredHeading = headingBlockTypes.has(block.blockType);
+    let openedHere = false;
+    for (const rawLine of blockText.split("\n")) {
+      const line = rawLine.trim();
+      if (!line) {
+        separate();
+        continue;
+      }
+      const rank = containerRank(line);
+      if (rank !== null) {
+        openContainer(line, rank);
+        continue;
+      }
+      const heading = matchHeading(line);
+      if (heading) {
+        openProvision(heading, line, block.pageNumber);
+        openedHere = true;
+        continue;
+      }
+      if (declaredHeading && !openedHere) {
+        openContainer(line, unnamedContainerRank);
+        continue;
+      }
+      append(line, block.pageNumber);
+    }
+    // Two blocks are two layout items: keeping them in separate paragraphs stops a table row
+    // and the next heading from reading as one run-on sentence.
+    separate();
+  }
+
+  flush();
+  return provisions;
+}
+
 function splitLongContent(content: string, maxCharacters: number): string[] {
   if (content.length <= maxCharacters) return [content];
   const paragraphs = content
@@ -292,13 +459,20 @@ export function chunkNormativeProvisions(
   let chunkIndex = 0;
   return provisions.flatMap((provision) =>
     splitLongContent(provision.content, maxCharacters).map((content) => {
+      // The same label routinely arrives from several sides — a document titled after its
+      // own reference number, an identifier that already ends the heading path. Repeating it
+      // dilutes the embedding, so each distinct label is kept once, in reading order.
       const metadata = [
-        context.documentTitle,
-        context.referenceNumber,
-        context.sourceEdition,
-        ...provision.headingPath,
-        provision.sourceIdentifier,
-      ].filter((value): value is string => Boolean(value));
+        ...new Set(
+          [
+            context.documentTitle,
+            context.referenceNumber,
+            context.sourceEdition,
+            ...provision.headingPath,
+            provision.sourceIdentifier,
+          ].filter((value): value is string => Boolean(value)),
+        ),
+      ];
       const searchText = [...metadata, content].join("\n");
       return {
         provisionOrderIndex: provision.orderIndex,

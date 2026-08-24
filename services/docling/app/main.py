@@ -11,7 +11,13 @@ from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel
 
 from .config import settings
-from .segmentation import ExtractedBlock, ExtractedPage, pages_from_blocks
+from .segmentation import (
+    ExtractedBlock,
+    ExtractedPage,
+    block_label,
+    block_text,
+    pages_from_blocks,
+)
 
 app = FastAPI(title="QHSE Document Extractor", version="0.1.0")
 pdf_options = PdfPipelineOptions()
@@ -127,7 +133,7 @@ def extract_with_docling(
     result = converter.convert(path)
     blocks: list[ExtractedBlock] = []
     for item, _level in result.document.iterate_items():
-        text = str(getattr(item, "text", "")).strip()
+        text = block_text(item, result.document)
         if not text:
             continue
         provenance = getattr(item, "prov", None) or []
@@ -139,10 +145,9 @@ def extract_with_docling(
             coordinates = [
                 float(getattr(bbox, name, 0)) for name in ("l", "t", "r", "b")
             ]
-        label = getattr(item, "label", None)
         blocks.append(
             ExtractedBlock(
-                block_type=str(getattr(label, "value", label) or "text"),
+                block_type=block_label(item),
                 text=text,
                 page_number=page_number,
                 bounding_box=coordinates,
