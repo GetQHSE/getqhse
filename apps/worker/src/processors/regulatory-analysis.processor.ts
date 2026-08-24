@@ -1857,6 +1857,12 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
             "regulatory model call failed",
           );
           const message = error instanceof Error ? error.message : "Unknown model error";
+          if (rateLimited) {
+            throw new RegulatoryAnalysisError(
+              "REGULATORY_MODEL_RATE_LIMITED",
+              `Regulatory model ${model} stayed rate limited past ${RATE_LIMIT_MAX_ATTEMPTS} attempts: ${message}`,
+            );
+          }
           throw new RegulatoryAnalysisError(
             "REGULATORY_MODEL_UNAVAILABLE",
             `Regulatory model ${model} failed without fallback: ${message}`,

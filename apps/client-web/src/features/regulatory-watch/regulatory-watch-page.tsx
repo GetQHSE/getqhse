@@ -88,15 +88,13 @@ function analysisPhaseLabel(phase: string | null | undefined): string {
 
 /**
  * Failure reasons only an operator can clear from server configuration
- * (env vars, deployment) — retrying cannot fix these, so no retry button.
- * Embedding-profile codes are excluded: an admin can now build/activate/
- * reindex a profile from Settings, so retrying after that fix works.
+ * (env vars, deployment) — retrying is *guaranteed* to fail identically, so
+ * no retry button. Everything else, including REGULATORY_MODEL_UNAVAILABLE,
+ * can mean a timeout, a transient OpenAI error, or an actual outage, with no
+ * way to tell them apart from the run's single errorCode — offering retry
+ * costs nothing when it's transient and doesn't make a real outage worse.
  */
-const administrativeErrorCodes = new Set([
-  "NORMATIVE_RAG_DISABLED",
-  "OPENAI_KEY_MISSING",
-  "REGULATORY_MODEL_UNAVAILABLE",
-]);
+const administrativeErrorCodes = new Set(["NORMATIVE_RAG_DISABLED", "OPENAI_KEY_MISSING"]);
 
 /** Translates a persisted `errorCode` into customer-facing French copy. */
 export function analysisErrorMessage(code: string | null | undefined): string {

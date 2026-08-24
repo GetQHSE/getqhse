@@ -752,6 +752,8 @@ export const regulatoryAnalysisErrorCodeSchema = z.enum([
   "QUEUE_ERROR",
   /** The configured regulatory model is unavailable or rejected. */
   "REGULATORY_MODEL_UNAVAILABLE",
+  /** An OpenAI rate limit persisted past every retry; transient, safe to retry. */
+  "REGULATORY_MODEL_RATE_LIMITED",
   /** No worker is registered to consume regulatory analysis jobs. */
   "REGULATORY_WORKER_UNAVAILABLE",
   /** The configured per-run OpenAI budget was exhausted. */
@@ -779,6 +781,8 @@ export const regulatoryAnalysisErrorMessages: Record<RegulatoryAnalysisErrorCode
   QUEUE_ERROR: "L’analyse n’a pas pu être mise en file d’attente. Relancez l’analyse.",
   REGULATORY_MODEL_UNAVAILABLE:
     "Le modèle d’analyse réglementaire configuré est indisponible. Contactez votre administrateur.",
+  REGULATORY_MODEL_RATE_LIMITED:
+    "Le modèle d’analyse est momentanément saturé. Relancez l’analyse dans quelques instants.",
   REGULATORY_WORKER_UNAVAILABLE:
     "Le service de veille réglementaire n’est pas disponible. Contactez votre administrateur.",
   REGULATORY_BUDGET_LIMIT:

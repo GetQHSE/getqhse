@@ -43,4 +43,19 @@ describe("regulatory analysis failure copy", () => {
     expect(analysisIsRetryable("CORPUS_COVERAGE_GAP")).toBe(true);
     expect(analysisIsRetryable(null)).toBe(true);
   });
+
+  it("keeps retry available for every model-call failure, not just rate limits", () => {
+    // REGULATORY_MODEL_UNAVAILABLE covers a timeout, a transient OpenAI 5xx, and a genuine
+    // outage alike, with no way to tell them apart from the run's single errorCode. Only
+    // NORMATIVE_RAG_DISABLED / OPENAI_KEY_MISSING are cases where retrying is *guaranteed*
+    // to fail the same way, so those are the only ones worth hiding the button for.
+    expect(analysisIsRetryable("REGULATORY_MODEL_RATE_LIMITED")).toBe(true);
+    expect(analysisIsRetryable("REGULATORY_MODEL_UNAVAILABLE")).toBe(true);
+    expect(analysisErrorMessage("REGULATORY_MODEL_RATE_LIMITED")).toBe(
+      regulatoryAnalysisErrorMessages.REGULATORY_MODEL_RATE_LIMITED,
+    );
+    expect(analysisErrorMessage("REGULATORY_MODEL_RATE_LIMITED")).not.toBe(
+      regulatoryAnalysisErrorMessages.ANALYSIS_FAILED,
+    );
+  });
 });
