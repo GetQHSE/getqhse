@@ -17,6 +17,7 @@
     "openapi:generate": "tsx src/openapi.ts && prettier --write openapi.json"
   },
   "dependencies": {
+    "@ai-sdk/openai": "^4.0.36",
     "@aws-sdk/client-s3": "^3.1098.0",
     "@aws-sdk/s3-request-presigner": "^3.1098.0",
     "@nestjs/bullmq": "^11.0.4",
@@ -31,7 +32,9 @@
     "@qhse/database": "workspace:*",
     "@qhse/domain": "workspace:*",
     "@qhse/documents": "workspace:*",
+    "@qhse/knowledge": "workspace:*",
     "@qhse/observability": "workspace:*",
+    "ai": "^7.0.58",
     "better-auth": "^1.6.25",
     "bullmq": "^5.81.3",
     "express": "^5.1.0",

@@ -20,6 +20,7 @@
   },
   "dependencies": {
     "@qhse/api-client": "workspace:*",
+    "@qhse/contracts": "workspace:*",
     "@qhse/ui": "workspace:*",
     "better-auth": "^1.6.25",
     "lucide-react": "^1.28.0",

@@ -540,6 +540,20 @@ export const normativeSearchResponseSchema = z.object({
 });
 export type NormativeSearchResponse = z.infer<typeof normativeSearchResponseSchema>;
 
+// Same retrieval as normativeSearch, but for platform operators diagnosing what the AI is
+// actually retrieving: the full chunk content instead of a citation-bounded excerpt.
+export const adminNormativeSearchResultSchema = normativeSearchResultSchema
+  .omit({ excerpt: true })
+  .extend({ content: z.string() });
+export type AdminNormativeSearchResult = z.infer<typeof adminNormativeSearchResultSchema>;
+
+export const adminNormativeSearchResponseSchema = z.object({
+  results: z.array(adminNormativeSearchResultSchema),
+  asOf: z.iso.date(),
+  embeddingProfile: z.object({ id: idSchema, key: z.string(), model: z.string() }),
+});
+export type AdminNormativeSearchResponse = z.infer<typeof adminNormativeSearchResponseSchema>;
+
 export const regulatoryWatchStatusSchema = z.enum([
   "NOT_STARTED",
   "ANALYZING",

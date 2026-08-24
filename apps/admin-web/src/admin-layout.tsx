@@ -15,7 +15,9 @@ export function AdminLayout() {
     ? "Documents"
     : location.pathname.startsWith("/operators")
       ? "Platform operators"
-      : "Overview";
+      : location.pathname.startsWith("/search-testing")
+        ? "Search testing"
+        : "Overview";
 
   return (
     <SidebarProvider
