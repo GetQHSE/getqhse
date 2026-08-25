@@ -101,6 +101,10 @@ export const clientApi = {
     candidateId: string,
     input: Parameters<QhseApiClient["decideRegulatoryCandidate"]>[2],
   ) => qhseApi.decideRegulatoryCandidate(idOrSlug, candidateId, input),
+  decideRegulatoryCandidates: (
+    idOrSlug: string,
+    input: Parameters<QhseApiClient["decideRegulatoryCandidates"]>[1],
+  ) => qhseApi.decideRegulatoryCandidates(idOrSlug, input),
   publishRegulatoryBaseline: (
     idOrSlug: string,
     input: Parameters<QhseApiClient["publishRegulatoryBaseline"]>[1],

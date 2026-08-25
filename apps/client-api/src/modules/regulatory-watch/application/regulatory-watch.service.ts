@@ -15,6 +15,7 @@ import type {
   CreateRegulatoryAction,
   CreateRegulatoryEvidence,
   DecideRegulatoryCandidate,
+  DecideRegulatoryCandidates,
   PublishRegulatoryBaseline,
   RegulatoryWatch,
   StartRegulatoryAnalysis,
@@ -608,6 +609,78 @@ export class RegulatoryWatchService {
             : {}),
         },
       });
+    });
+    return this.get(tenant, projectIdOrSlug);
+  }
+
+  /**
+   * Records every pending decision of a review in a single revision claim. Deciding candidate by
+   * candidate would have the reviewer race their own requests: each decision bumps the watch
+   * revision, so the second of two in-flight calls carries a stale one and loses to a conflict.
+   * One claim also makes the whole batch atomic — a rejected batch leaves nothing half-decided.
+   */
+  async decideCandidates(
+    tenant: TenantContext,
+    projectIdOrSlug: string,
+    input: DecideRegulatoryCandidates,
+  ): Promise<RegulatoryWatch> {
+    if (!canApprove(tenant.role)) throw new ForbiddenException("Regulatory approval is required");
+    const watch = await this.loadedWatch(tenant, projectIdOrSlug);
+    const requested = new Map(input.decisions.map((item) => [item.candidateId, item.decision]));
+    if (requested.size !== input.decisions.length) {
+      throw new BadRequestException("A candidate cannot be decided twice in the same request");
+    }
+    const candidates = await this.database.regulatoryApplicabilityCandidate.findMany({
+      where: {
+        id: { in: [...requested.keys()] },
+        requiresReview: true,
+        run: { watchId: watch.id, status: { in: ["READY_FOR_REVIEW", "PARTIAL"] } },
+      },
+      select: { id: true, requirementText: true },
+    });
+    if (candidates.length !== requested.size) {
+      throw new NotFoundException("Regulatory candidate not found");
+    }
+    const applicable = candidates.filter(
+      (candidate) => requested.get(candidate.id) === "APPLICABLE",
+    );
+    const notApplicable = candidates.filter(
+      (candidate) => requested.get(candidate.id) === "NOT_APPLICABLE",
+    );
+    // Same rule as the single-candidate path: nothing becomes applicable without wording to audit.
+    const withoutRequirement = applicable.filter((candidate) => !candidate.requirementText);
+    if (withoutRequirement.length) {
+      throw new BadRequestException({
+        message: "requirementText is required for an applicable provision",
+        candidateIds: withoutRequirement.map((candidate) => candidate.id),
+      });
+    }
+    const reviewedAt = new Date();
+    const shared = {
+      decisionSource: "HUMAN" as const,
+      decisionNote: null,
+      reviewedById: tenant.userId,
+      reviewedAt,
+    };
+    await this.database.$transaction(async (tx) => {
+      const claimed = await tx.projectRegulatoryWatch.updateMany({
+        where: { id: watch.id, revision: input.watchRevision },
+        data: { revision: { increment: 1 } },
+      });
+      if (claimed.count !== 1) throw new ConflictException("Regulatory watch changed");
+      if (applicable.length) {
+        await tx.regulatoryApplicabilityCandidate.updateMany({
+          where: { id: { in: applicable.map((candidate) => candidate.id) } },
+          // The extracted wording is approved as it stands, so provenance stays with the analysis.
+          data: { ...shared, decision: "APPLICABLE", requirementStatus: "READY" },
+        });
+      }
+      if (notApplicable.length) {
+        await tx.regulatoryApplicabilityCandidate.updateMany({
+          where: { id: { in: notApplicable.map((candidate) => candidate.id) } },
+          data: { ...shared, decision: "NOT_APPLICABLE" },
+        });
+      }
     });
     return this.get(tenant, projectIdOrSlug);
   }

@@ -17,6 +17,7 @@ import {
   createRegulatoryActionSchema,
   createRegulatoryEvidenceSchema,
   decideRegulatoryCandidateSchema,
+  decideRegulatoryCandidatesSchema,
   publishRegulatoryBaselineSchema,
   startRegulatoryAnalysisSchema,
   updateRegulatoryActionSchema,
@@ -82,6 +83,20 @@ export class RegulatoryWatchController {
       projectIdOrSlug,
       runId,
       parse(answerRegulatoryClarificationsSchema, body),
+    );
+  }
+
+  @Patch("candidates")
+  @ApiOkResponse({ description: "Applies every pending review decision in one revision claim" })
+  decideCandidates(
+    @Req() request: QhseRequest,
+    @Param("projectIdOrSlug") projectIdOrSlug: string,
+    @Body() body: unknown,
+  ) {
+    return this.regulatory.decideCandidates(
+      request.tenant!,
+      projectIdOrSlug,
+      parse(decideRegulatoryCandidatesSchema, body),
     );
   }
 

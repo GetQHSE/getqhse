@@ -22,6 +22,7 @@ import {
   createRegulatoryActionSchema,
   createRegulatoryEvidenceSchema,
   decideRegulatoryCandidateSchema,
+  decideRegulatoryCandidatesSchema,
   publishRegulatoryBaselineSchema,
   regulatoryAnalysisJobSchema,
   regulatoryEvaluationJobSchema,
@@ -48,6 +49,7 @@ import {
   type CreateRegulatoryAction,
   type CreateRegulatoryEvidence,
   type DecideRegulatoryCandidate,
+  type DecideRegulatoryCandidates,
   type PublishRegulatoryBaseline,
   type RegulatoryAnalysisJob,
   type RegulatoryEvaluationJob,
@@ -281,6 +283,17 @@ export class QhseApiClient {
       `/v1/projects/${encodeURIComponent(projectIdOrSlug)}/regulatory-watch/candidates/${encodeURIComponent(candidateId)}`,
       regulatoryWatchSchema,
       { method: "PATCH", body: JSON.stringify(decideRegulatoryCandidateSchema.parse(input)) },
+    );
+  }
+
+  decideRegulatoryCandidates(
+    projectIdOrSlug: string,
+    input: DecideRegulatoryCandidates,
+  ): Promise<RegulatoryWatch> {
+    return this.#request(
+      `/v1/projects/${encodeURIComponent(projectIdOrSlug)}/regulatory-watch/candidates`,
+      regulatoryWatchSchema,
+      { method: "PATCH", body: JSON.stringify(decideRegulatoryCandidatesSchema.parse(input)) },
     );
   }
 

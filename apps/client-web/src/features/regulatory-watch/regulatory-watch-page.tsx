@@ -107,6 +107,25 @@ export function analysisIsRetryable(code: string | null | undefined): boolean {
   return !code || !administrativeErrorCodes.has(code);
 }
 
+type RegulatoryCandidate = NonNullable<RegulatoryWatch["currentAnalysis"]>["candidates"][number];
+
+/** The decision the review buttons would record for every candidate still awaiting one, following
+ *  the exact rule those buttons enforce: a provision can only be approved once the analysis has
+ *  extracted a usable requirement, and anything it failed to extract stays out of the baseline. */
+export function pendingAiDecisions(
+  candidates: readonly RegulatoryCandidate[],
+): Array<{ candidateId: string; decision: "APPLICABLE" | "NOT_APPLICABLE" }> {
+  return candidates
+    .filter((candidate) => candidate.requiresReview && candidate.decision == null)
+    .map((candidate) => ({
+      candidateId: candidate.id,
+      decision:
+        candidate.requirement.status === "READY"
+          ? ("APPLICABLE" as const)
+          : ("NOT_APPLICABLE" as const),
+    }));
+}
+
 function useDelayedVisibility(active: boolean, delay = 500): boolean {
   const [visible, setVisible] = useState(false);
   useEffect(() => {
@@ -545,6 +564,7 @@ function ReviewState({
   publishing,
   error,
   onDecision,
+  onDecideAll,
   onPublish,
   onRerun,
 }: {
@@ -553,6 +573,9 @@ function ReviewState({
   publishing: boolean;
   error: string | undefined;
   onDecision: (candidateId: string, decision: "APPLICABLE" | "NOT_APPLICABLE") => void;
+  onDecideAll: (
+    decisions: Array<{ candidateId: string; decision: "APPLICABLE" | "NOT_APPLICABLE" }>,
+  ) => void;
   onPublish: () => void;
   onRerun: () => void;
 }) {
@@ -570,9 +593,9 @@ function ReviewState({
   const [selectedGroup, setSelectedGroup] = useState<(typeof groups)[number]["value"]>(
     firstPopulated ?? "ADDED",
   );
-  const remaining = candidates.filter(
-    (candidate) => candidate.requiresReview && candidate.decision == null,
-  ).length;
+  const pending = pendingAiDecisions(candidates);
+  const remaining = pending.length;
+  const pendingApplicable = pending.filter((item) => item.decision === "APPLICABLE").length;
   const blocked = candidates.filter(
     (candidate) => candidate.requirement.status === "SOURCE_REVIEW_REQUIRED",
   );
@@ -594,9 +617,30 @@ function ReviewState({
               modification ou retrait reste soumis à votre validation.
             </p>
           </div>
-          <span className="text-xs font-semibold text-slate-500">
-            {remaining} décision{remaining === 1 ? "" : "s"} restante{remaining === 1 ? "" : "s"}
-          </span>
+          <div className="flex shrink-0 flex-col gap-2 sm:items-end">
+            <span className="text-xs font-semibold text-slate-500">
+              {remaining} décision{remaining === 1 ? "" : "s"} restante{remaining === 1 ? "" : "s"}
+            </span>
+            {remaining > 0 && (
+              <>
+                <Button
+                  className="h-9 rounded-xl"
+                  disabled={deciding || publishing}
+                  onClick={() => onDecideAll(pending)}
+                  variant="outline"
+                >
+                  {deciding ? <LoaderCircleIcon className="animate-spin" /> : <ListChecksIcon />}{" "}
+                  Tout valider ({remaining})
+                </Button>
+                <p className="max-w-xs text-[11px] leading-4 text-slate-400 sm:text-right">
+                  Applicable pour {pendingApplicable} disposition
+                  {pendingApplicable === 1 ? "" : "s"} dont l’IA a extrait une exigence, non
+                  applicable pour les {remaining - pendingApplicable} autre
+                  {remaining - pendingApplicable === 1 ? "" : "s"}.
+                </p>
+              </>
+            )}
+          </div>
         </div>
         {partial && watch.currentAnalysis && (
           <div
@@ -1445,6 +1489,26 @@ export function RegulatoryWatchPage() {
       void watchQuery.refetch();
     },
   });
+  const bulkDecisionMutation = useMutation({
+    mutationFn: (
+      decisions: Array<{ candidateId: string; decision: "APPLICABLE" | "NOT_APPLICABLE" }>,
+    ) => {
+      const watch = watchQuery.data;
+      if (!watch) throw new Error("Veille introuvable");
+      return clientApi.decideRegulatoryCandidates(projectId, {
+        watchRevision: watch.revision,
+        decisions,
+      });
+    },
+    onMutate: () => setActionError(undefined),
+    onSuccess: (watch) => queryClient.setQueryData(["regulatory-watch", projectId], watch),
+    onError: (error) => {
+      setActionError(
+        error instanceof Error ? error.message : "Les décisions n’ont pas pu être enregistrées.",
+      );
+      void watchQuery.refetch();
+    },
+  });
   const publishMutation = useMutation({
     mutationFn: () => {
       const watch = watchQuery.data;
@@ -1546,10 +1610,11 @@ export function RegulatoryWatchPage() {
     return (
       <ReviewState
         watch={watch}
-        deciding={decisionMutation.isPending}
+        deciding={decisionMutation.isPending || bulkDecisionMutation.isPending}
         publishing={publishMutation.isPending}
         error={actionError}
         onDecision={(candidateId, decision) => decisionMutation.mutate({ candidateId, decision })}
+        onDecideAll={(decisions) => bulkDecisionMutation.mutate(decisions)}
         onPublish={() => publishMutation.mutate()}
         onRerun={() => startMutation.mutate()}
       />
@@ -1613,10 +1678,11 @@ export function RegulatoryWatchPage() {
       {["READY_FOR_REVIEW", "PARTIAL"].includes(analysisStatus ?? "") && (
         <ReviewState
           watch={watch}
-          deciding={decisionMutation.isPending}
+          deciding={decisionMutation.isPending || bulkDecisionMutation.isPending}
           publishing={publishMutation.isPending}
           error={actionError}
           onDecision={(candidateId, decision) => decisionMutation.mutate({ candidateId, decision })}
+          onDecideAll={(decisions) => bulkDecisionMutation.mutate(decisions)}
           onPublish={() => publishMutation.mutate()}
           onRerun={() => startMutation.mutate()}
         />

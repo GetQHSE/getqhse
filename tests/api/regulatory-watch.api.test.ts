@@ -20,6 +20,7 @@ describe("regulatory watch API", () => {
     startAnalysis: vi.fn(),
     answerClarifications: vi.fn(),
     decideCandidate: vi.fn(),
+    decideCandidates: vi.fn(),
     publish: vi.fn(),
     startEvaluation: vi.fn(),
     updateEvaluation: vi.fn(),
@@ -104,6 +105,33 @@ describe("regulatory watch API", () => {
         /application\/vnd\.openxmlformats-officedocument\.spreadsheetml\.sheet/,
       )
       .expect("content-disposition", /veille-reglementaire\.xlsx/);
+  });
+
+  it("routes a bulk review decision to its own validated endpoint", async () => {
+    regulatory.decideCandidates.mockResolvedValue({ id: "watch-1", revision: 4 });
+    await request(app.getHttpServer())
+      .patch("/v1/projects/project-1/regulatory-watch/candidates")
+      .send({
+        watchRevision: 3,
+        decisions: [
+          { candidateId: "candidate-1", decision: "APPLICABLE" },
+          { candidateId: "candidate-2", decision: "NOT_APPLICABLE" },
+        ],
+      })
+      .expect(200);
+    expect(regulatory.decideCandidates).toHaveBeenCalledWith(tenant, "project-1", {
+      watchRevision: 3,
+      decisions: [
+        { candidateId: "candidate-1", decision: "APPLICABLE" },
+        { candidateId: "candidate-2", decision: "NOT_APPLICABLE" },
+      ],
+    });
+    expect(regulatory.decideCandidate).not.toHaveBeenCalled();
+
+    await request(app.getHttpServer())
+      .patch("/v1/projects/project-1/regulatory-watch/candidates")
+      .send({ watchRevision: 3, decisions: [] })
+      .expect(400);
   });
 
   it("starts a separate conformity evaluation for the published baseline", async () => {

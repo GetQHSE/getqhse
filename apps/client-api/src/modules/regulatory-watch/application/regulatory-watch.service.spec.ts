@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ForbiddenException,
+  NotFoundException,
   ServiceUnavailableException,
 } from "@nestjs/common";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -432,5 +433,121 @@ describe("accuracy-first regulatory review gates", () => {
     await expect(service.exportWorkbook(tenant, "project-1")).rejects.toThrow(
       "Exigence à régénérer",
     );
+  });
+});
+
+describe("bulk regulatory review decisions", () => {
+  const tenant = { organizationId: "org-1", userId: "reviewer-1", role: "owner" };
+
+  function serviceWithCandidates(candidates: Array<Record<string, unknown>>) {
+    process.env["DATABASE_URL"] ??= "postgresql://postgres:postgres@localhost:5432/qhse_test";
+    const service = new RegulatoryWatchService({} as never);
+    (service as unknown as { loadedWatch(): Promise<unknown> }).loadedWatch = async () => ({
+      id: "watch-1",
+      revision: 3,
+    });
+    const claim = vi.fn().mockResolvedValue({ count: 1 });
+    const candidateUpdateMany = vi.fn().mockResolvedValue({ count: candidates.length });
+    const transactionClient = {
+      projectRegulatoryWatch: { updateMany: claim },
+      regulatoryApplicabilityCandidate: { updateMany: candidateUpdateMany },
+    };
+    (service as unknown as { database: object }).database = {
+      regulatoryApplicabilityCandidate: { findMany: vi.fn().mockResolvedValue(candidates) },
+      $transaction: vi.fn(async (callback: (tx: typeof transactionClient) => unknown) =>
+        callback(transactionClient),
+      ),
+    };
+    (service as unknown as { get(): Promise<unknown> }).get = async () => ({ id: "watch-1" });
+    return { service, claim, candidateUpdateMany };
+  }
+
+  it("claims the watch revision once for the whole batch", async () => {
+    const { service, claim, candidateUpdateMany } = serviceWithCandidates([
+      { id: "candidate-ready", requirementText: "Une exigence extraite par l’analyse." },
+      { id: "candidate-blocked", requirementText: null },
+    ]);
+
+    await service.decideCandidates(tenant, "project-1", {
+      watchRevision: 3,
+      decisions: [
+        { candidateId: "candidate-ready", decision: "APPLICABLE" },
+        { candidateId: "candidate-blocked", decision: "NOT_APPLICABLE" },
+      ],
+    });
+
+    expect(claim).toHaveBeenCalledOnce();
+    expect(claim).toHaveBeenCalledWith({
+      where: { id: "watch-1", revision: 3 },
+      data: { revision: { increment: 1 } },
+    });
+    expect(candidateUpdateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: { in: ["candidate-ready"] } },
+        data: expect.objectContaining({
+          decision: "APPLICABLE",
+          decisionSource: "HUMAN",
+          requirementStatus: "READY",
+          reviewedById: "reviewer-1",
+        }),
+      }),
+    );
+    expect(candidateUpdateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: { in: ["candidate-blocked"] } },
+        data: expect.objectContaining({ decision: "NOT_APPLICABLE" }),
+      }),
+    );
+    // The AI wording is approved as it stands, so its provenance must not become human-edited.
+    for (const call of candidateUpdateMany.mock.calls) {
+      expect(call[0]?.data).not.toHaveProperty("requirementText");
+      expect(call[0]?.data).not.toHaveProperty("requirementSource");
+    }
+  });
+
+  it("rejects the whole batch when one approval has no requirement to record", async () => {
+    const { service, claim } = serviceWithCandidates([
+      { id: "candidate-ready", requirementText: "Une exigence extraite par l’analyse." },
+      { id: "candidate-blocked", requirementText: null },
+    ]);
+
+    await expect(
+      service.decideCandidates(tenant, "project-1", {
+        watchRevision: 3,
+        decisions: [
+          { candidateId: "candidate-ready", decision: "APPLICABLE" },
+          { candidateId: "candidate-blocked", decision: "APPLICABLE" },
+        ],
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(claim).not.toHaveBeenCalled();
+  });
+
+  it("refuses a batch that names a candidate outside the reviewable run", async () => {
+    const { service } = serviceWithCandidates([
+      { id: "candidate-ready", requirementText: "Une exigence extraite par l’analyse." },
+    ]);
+
+    await expect(
+      service.decideCandidates(tenant, "project-1", {
+        watchRevision: 3,
+        decisions: [
+          { candidateId: "candidate-ready", decision: "APPLICABLE" },
+          { candidateId: "candidate-elsewhere", decision: "NOT_APPLICABLE" },
+        ],
+      }),
+    ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it("rejects bulk approval by regular members before touching persistence", async () => {
+    process.env["DATABASE_URL"] ??= "postgresql://postgres:postgres@localhost:5432/qhse_test";
+    const service = new RegulatoryWatchService({} as never);
+    await expect(
+      service.decideCandidates(
+        { organizationId: "org-1", userId: "user-1", role: "member" },
+        "project-1",
+        { watchRevision: 1, decisions: [{ candidateId: "candidate-1", decision: "APPLICABLE" }] },
+      ),
+    ).rejects.toBeInstanceOf(ForbiddenException);
   });
 });

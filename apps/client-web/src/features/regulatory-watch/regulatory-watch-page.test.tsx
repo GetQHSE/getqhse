@@ -14,6 +14,7 @@ vi.mock("../../app/client-api.js", () => ({
     startRegulatoryAnalysis: vi.fn(),
     answerRegulatoryClarifications: vi.fn(),
     decideRegulatoryCandidate: vi.fn(),
+    decideRegulatoryCandidates: vi.fn(),
     publishRegulatoryBaseline: vi.fn(),
     startRegulatoryEvaluation: vi.fn(),
     updateRegulatoryEvaluation: vi.fn(),
@@ -665,6 +666,78 @@ describe("RegulatoryWatchPage", () => {
       "candidate-added",
       { watchRevision: 3, decision: "APPLICABLE" },
     );
+  });
+
+  it("records every pending decision at once from the AI's own extraction outcome", async () => {
+    const reviewedCandidate = (
+      id: string,
+      requirement: { text: string | null; status: string; issues: string[] },
+    ) => ({
+      id,
+      changeType: "ADDED",
+      changeSummary: "Nouvelle disposition potentiellement applicable.",
+      previousEntryId: null,
+      previousSource: null,
+      requiresReview: true,
+      suggestion: "APPLICABLE",
+      decision: null,
+      decisionSource: null,
+      rationale: "Applicable à la nouvelle activité déclarée.",
+      matchedProfileKeys: [],
+      confidence: 0.9,
+      decisionNote: null,
+      reviewedAt: null,
+      requirement: { ...requirement, supportingExcerpts: [], source: "AI", editedAt: null },
+      source: activeWatch.currentBaseline.entries[0]!.source,
+    });
+    vi.mocked(clientApi.regulatoryWatch).mockResolvedValue({
+      ...notStartedWatch,
+      status: "REVIEW_REQUIRED",
+      currentAnalysis: {
+        ...analysis,
+        status: "READY_FOR_REVIEW",
+        phase: "review",
+        progressPercent: 100,
+        diff: { added: 3, unchanged: 0, modified: 0, removalProposed: 0, requiresReview: 3 },
+        candidates: [
+          reviewedCandidate("candidate-ready", {
+            text: "L’organisme doit fournir les ressources nécessaires à la surveillance.",
+            status: "READY",
+            issues: [],
+          }),
+          reviewedCandidate("candidate-blocked", {
+            text: null,
+            status: "SOURCE_REVIEW_REQUIRED",
+            issues: ["Le texte source semble corrompu par l’OCR."],
+          }),
+          {
+            ...reviewedCandidate("candidate-decided", {
+              text: "L’organisme doit consigner les résultats de surveillance.",
+              status: "READY",
+              issues: [],
+            }),
+            decision: "NOT_APPLICABLE",
+            decisionSource: "HUMAN",
+            reviewedAt: "2026-08-10T13:05:00.000Z",
+          },
+        ],
+      },
+    } as never);
+    vi.mocked(clientApi.decideRegulatoryCandidates).mockResolvedValue(activeWatch as never);
+    const user = userEvent.setup();
+    renderPage();
+
+    // Only the two undecided candidates are counted: a decision already taken by hand is kept.
+    expect(await screen.findByRole("button", { name: /Tout valider \(2\)/ })).toBeEnabled();
+    await user.click(screen.getByRole("button", { name: /Tout valider \(2\)/ }));
+
+    expect(clientApi.decideRegulatoryCandidates).toHaveBeenCalledWith("atlas-industrie", {
+      watchRevision: 1,
+      decisions: [
+        { candidateId: "candidate-ready", decision: "APPLICABLE" },
+        { candidateId: "candidate-blocked", decision: "NOT_APPLICABLE" },
+      ],
+    });
   });
 
   it("still allows rejecting, but not approving, a candidate whose source needs review", async () => {

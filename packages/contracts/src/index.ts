@@ -634,6 +634,23 @@ export const decideRegulatoryCandidateSchema = z.object({
 });
 export type DecideRegulatoryCandidate = z.infer<typeof decideRegulatoryCandidateSchema>;
 
+/** Bulk counterpart of {@link decideRegulatoryCandidateSchema}: one reviewer action that records a
+ *  decision for every pending candidate at once. Wording is never submitted here — a bulk approval
+ *  accepts the requirement the analysis already extracted; editing stays a per-candidate action. */
+export const decideRegulatoryCandidatesSchema = z.object({
+  watchRevision: z.number().int().positive(),
+  decisions: z
+    .array(
+      z.object({
+        candidateId: idSchema,
+        decision: z.enum(["APPLICABLE", "NOT_APPLICABLE"]),
+      }),
+    )
+    .min(1)
+    .max(1_000),
+});
+export type DecideRegulatoryCandidates = z.infer<typeof decideRegulatoryCandidatesSchema>;
+
 export const publishRegulatoryBaselineSchema = z.object({
   analysisRunId: idSchema,
   watchRevision: z.number().int().positive(),

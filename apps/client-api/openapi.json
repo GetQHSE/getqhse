@@ -550,6 +550,32 @@
         "tags": ["regulatory-watch"]
       }
     },
+    "/v1/projects/{projectIdOrSlug}/regulatory-watch/candidates": {
+      "patch": {
+        "operationId": "RegulatoryWatchController_decideCandidates",
+        "parameters": [
+          {
+            "name": "x-organization-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Applies every pending review decision in one revision claim"
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["regulatory-watch"]
+      }
+    },
     "/v1/projects/{projectIdOrSlug}/regulatory-watch/candidates/{candidateId}": {
       "patch": {
         "operationId": "RegulatoryWatchController_decideCandidate",
