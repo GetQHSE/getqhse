@@ -740,7 +740,7 @@ describe("RegulatoryWatchPage", () => {
     });
   });
 
-  it("still allows rejecting, but not approving, a candidate whose source needs review", async () => {
+  it("allows deciding either way on a candidate whose source needs review", async () => {
     vi.mocked(clientApi.regulatoryWatch).mockResolvedValue({
       ...notStartedWatch,
       status: "REVIEW_REQUIRED",
@@ -785,15 +785,13 @@ describe("RegulatoryWatchPage", () => {
     expect(
       screen.getByText("Aucune exigence n’a pu être extraite de cette source."),
     ).toBeInTheDocument();
-    // No AI-extracted requirement exists for this source: "Applicable" stays disabled until
-    // the source is repaired and re-analyzed. There is no manual authoring fallback.
-    expect(screen.getByRole("button", { name: "Applicable" })).toBeDisabled();
-    // "Non applicable" no longer requires a resolved source to be usable.
+    // Reviewers can decide either way at any time, regardless of source/requirement status.
+    expect(screen.getByRole("button", { name: "Applicable" })).toBeEnabled();
     expect(screen.getByRole("button", { name: "Non applicable" })).toBeEnabled();
     expect(screen.getByRole("button", { name: /Publier le référentiel/ })).toBeDisabled();
   });
 
-  it("keeps Applicable disabled when the AI extracted text but flagged the source for review", async () => {
+  it("allows approving a candidate even when the AI flagged the source for review", async () => {
     vi.mocked(clientApi.regulatoryWatch).mockResolvedValue({
       ...notStartedWatch,
       status: "REVIEW_REQUIRED",
@@ -835,9 +833,8 @@ describe("RegulatoryWatchPage", () => {
     renderPage();
 
     expect(await screen.findByText(/1 source à vérifier/)).toBeInTheDocument();
-    // Text was extracted, but the source itself was flagged as unreliable: approving it
-    // one-click would rubber-stamp a decision the AI itself said it couldn't stand behind.
-    expect(screen.getByRole("button", { name: "Applicable" })).toBeDisabled();
+    // Reviewers can decide either way at any time, regardless of source/requirement status.
+    expect(screen.getByRole("button", { name: "Applicable" })).toBeEnabled();
     expect(screen.getByRole("button", { name: "Non applicable" })).toBeEnabled();
   });
 
