@@ -779,6 +779,8 @@ describe("RegulatoryWatchPage", () => {
         ],
       },
     } as never);
+    vi.mocked(clientApi.decideRegulatoryCandidate).mockResolvedValue(activeWatch as never);
+    const user = userEvent.setup();
     renderPage();
 
     expect(await screen.findByText(/1 source à vérifier/)).toBeInTheDocument();
@@ -789,6 +791,19 @@ describe("RegulatoryWatchPage", () => {
     expect(screen.getByRole("button", { name: "Applicable" })).toBeEnabled();
     expect(screen.getByRole("button", { name: "Non applicable" })).toBeEnabled();
     expect(screen.getByRole("button", { name: /Publier le référentiel/ })).toBeDisabled();
+    // With no AI-extracted wording, approving falls back to the source law text so the
+    // decision always carries something to audit.
+    await user.click(screen.getByRole("button", { name: "Applicable" }));
+    expect(clientApi.decideRegulatoryCandidate).toHaveBeenCalledWith(
+      "atlas-industrie",
+      "candidate-blocked",
+      {
+        watchRevision: 1,
+        decision: "APPLICABLE",
+        requirementText:
+          "L’organisme doit déterminer et fournir les ressources nécessaires à la surveillance et à la mesure.",
+      },
+    );
   });
 
   it("allows approving a candidate even when the AI flagged the source for review", async () => {

@@ -572,7 +572,11 @@ function ReviewState({
   deciding: boolean;
   publishing: boolean;
   error: string | undefined;
-  onDecision: (candidateId: string, decision: "APPLICABLE" | "NOT_APPLICABLE") => void;
+  onDecision: (
+    candidateId: string,
+    decision: "APPLICABLE" | "NOT_APPLICABLE",
+    requirementText?: string,
+  ) => void;
   onDecideAll: (
     decisions: Array<{ candidateId: string; decision: "APPLICABLE" | "NOT_APPLICABLE" }>,
   ) => void;
@@ -801,7 +805,13 @@ function ReviewState({
                               ? "bg-emerald-600 hover:bg-emerald-600"
                               : "bg-slate-950 hover:bg-slate-800",
                           )}
-                          onClick={() => onDecision(candidate.id, "APPLICABLE")}
+                          onClick={() =>
+                            onDecision(
+                              candidate.id,
+                              "APPLICABLE",
+                              candidate.requirement.text ? undefined : candidate.source.excerpt,
+                            )
+                          }
                         >
                           <CheckIcon />
                           {candidate.changeType === "REMOVAL_PROPOSED" ? "Conserver" : "Applicable"}
@@ -1467,15 +1477,18 @@ export function RegulatoryWatchPage() {
     mutationFn: ({
       candidateId,
       decision,
+      requirementText,
     }: {
       candidateId: string;
       decision: "APPLICABLE" | "NOT_APPLICABLE";
+      requirementText?: string;
     }) => {
       const watch = watchQuery.data;
       if (!watch) throw new Error("Veille introuvable");
       return clientApi.decideRegulatoryCandidate(projectId, candidateId, {
         watchRevision: watch.revision,
         decision,
+        requirementText,
       });
     },
     onMutate: () => setActionError(undefined),
@@ -1611,7 +1624,9 @@ export function RegulatoryWatchPage() {
         deciding={decisionMutation.isPending || bulkDecisionMutation.isPending}
         publishing={publishMutation.isPending}
         error={actionError}
-        onDecision={(candidateId, decision) => decisionMutation.mutate({ candidateId, decision })}
+        onDecision={(candidateId, decision, requirementText) =>
+          decisionMutation.mutate({ candidateId, decision, requirementText })
+        }
         onDecideAll={(decisions) => bulkDecisionMutation.mutate(decisions)}
         onPublish={() => publishMutation.mutate()}
         onRerun={() => startMutation.mutate()}
@@ -1679,7 +1694,9 @@ export function RegulatoryWatchPage() {
           deciding={decisionMutation.isPending || bulkDecisionMutation.isPending}
           publishing={publishMutation.isPending}
           error={actionError}
-          onDecision={(candidateId, decision) => decisionMutation.mutate({ candidateId, decision })}
+          onDecision={(candidateId, decision, requirementText) =>
+            decisionMutation.mutate({ candidateId, decision, requirementText })
+          }
           onDecideAll={(decisions) => bulkDecisionMutation.mutate(decisions)}
           onPublish={() => publishMutation.mutate()}
           onRerun={() => startMutation.mutate()}
