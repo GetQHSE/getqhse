@@ -786,7 +786,6 @@ function ReviewState({
                             candidate.decision === "NOT_APPLICABLE" &&
                               "border-rose-200 bg-rose-50 text-rose-700",
                           )}
-                          disabled={deciding}
                           onClick={() => onDecision(candidate.id, "NOT_APPLICABLE")}
                           variant="outline"
                         >
@@ -802,7 +801,6 @@ function ReviewState({
                               ? "bg-emerald-600 hover:bg-emerald-600"
                               : "bg-slate-950 hover:bg-slate-800",
                           )}
-                          disabled={deciding || candidate.requirement.status !== "READY"}
                           onClick={() => onDecision(candidate.id, "APPLICABLE")}
                         >
                           <CheckIcon />
