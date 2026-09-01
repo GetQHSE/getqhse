@@ -551,3 +551,120 @@ describe("bulk regulatory review decisions", () => {
     ).rejects.toBeInstanceOf(ForbiddenException);
   });
 });
+
+describe("regulatory action and evidence editing", () => {
+  const tenant = { organizationId: "org-1", userId: "reviewer-1", role: "owner" } as const;
+
+  function serviceWith(database: object) {
+    process.env["DATABASE_URL"] ??= "postgresql://postgres:postgres@localhost:5432/qhse_test";
+    const service = new RegulatoryWatchService({} as never);
+    (service as unknown as { database: object }).database = database;
+    (service as unknown as { get(): Promise<unknown> }).get = async () => ({ id: "watch-1" });
+    (service as unknown as { loadedWatch(): Promise<unknown> }).loadedWatch = async () => ({
+      currentBaselineId: "baseline-1",
+    });
+    return service;
+  }
+
+  it("persists the free-text responsable a reviewer types over the AI proposal", async () => {
+    const update = vi.fn().mockResolvedValue({});
+    const service = serviceWith({
+      regulatoryEvaluationAction: {
+        findFirst: vi.fn().mockResolvedValue({ id: "action-1" }),
+        update,
+      },
+    });
+
+    await service.updateAction(tenant, "project-1", "action-1", {
+      responsibleName: "Responsable QHSE",
+      dueDate: "2026-09-30",
+    });
+
+    expect(update).toHaveBeenCalledWith({
+      where: { id: "action-1" },
+      data: expect.objectContaining({ responsibleName: "Responsable QHSE" }),
+    });
+  });
+
+  it("leaves the responsable alone when the patch does not mention it", async () => {
+    const update = vi.fn().mockResolvedValue({});
+    const service = serviceWith({
+      regulatoryEvaluationAction: {
+        findFirst: vi.fn().mockResolvedValue({ id: "action-1" }),
+        update,
+      },
+    });
+
+    await service.updateAction(tenant, "project-1", "action-1", { title: "Corriger le tri" });
+
+    expect(update.mock.calls[0]![0].data).not.toHaveProperty("responsibleName");
+  });
+
+  it("refuses evidence that does not hang off the current baseline", async () => {
+    const service = serviceWith({
+      regulatoryEvaluationEvidence: { findFirst: vi.fn().mockResolvedValue(null) },
+    });
+
+    await expect(
+      service.updateEvidence(tenant, "project-1", "evidence-1", { label: "Rapport" }),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    await expect(service.deleteEvidence(tenant, "project-1", "evidence-1")).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+  });
+
+  it("rejects a patch that would leave a NOTE preuve without its text", async () => {
+    const service = serviceWith({
+      regulatoryEvaluationEvidence: {
+        findFirst: vi.fn().mockResolvedValue({
+          id: "evidence-1",
+          kind: "NOTE",
+          fileId: null,
+          url: null,
+          note: "Constat terrain",
+        }),
+        update: vi.fn(),
+      },
+    });
+
+    await expect(
+      service.updateEvidence(tenant, "project-1", "evidence-1", { note: null }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it("patches only the preuve fields the reviewer touched", async () => {
+    const update = vi.fn().mockResolvedValue({});
+    const service = serviceWith({
+      regulatoryEvaluationEvidence: {
+        findFirst: vi.fn().mockResolvedValue({
+          id: "evidence-1",
+          kind: "NOTE",
+          fileId: null,
+          url: null,
+          note: "Constat terrain",
+        }),
+        update,
+      },
+    });
+
+    await service.updateEvidence(tenant, "project-1", "evidence-1", { label: "Visite du 8 août" });
+
+    expect(update).toHaveBeenCalledWith({
+      where: { id: "evidence-1" },
+      data: { label: "Visite du 8 août" },
+    });
+  });
+
+  it("rejects evidence editing by read-only roles before touching persistence", async () => {
+    process.env["DATABASE_URL"] ??= "postgresql://postgres:postgres@localhost:5432/qhse_test";
+    const service = new RegulatoryWatchService({} as never);
+    const viewer = { organizationId: "org-1", userId: "user-1", role: "viewer" } as const;
+
+    await expect(
+      service.updateEvidence(viewer, "project-1", "evidence-1", { label: "x" }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(service.deleteEvidence(viewer, "project-1", "evidence-1")).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
+  });
+});

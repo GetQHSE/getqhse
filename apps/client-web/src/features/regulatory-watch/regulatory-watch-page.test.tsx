@@ -18,6 +18,11 @@ vi.mock("../../app/client-api.js", () => ({
     publishRegulatoryBaseline: vi.fn(),
     startRegulatoryEvaluation: vi.fn(),
     updateRegulatoryEvaluation: vi.fn(),
+    addRegulatoryAction: vi.fn(),
+    updateRegulatoryAction: vi.fn(),
+    addRegulatoryEvidence: vi.fn(),
+    updateRegulatoryEvidence: vi.fn(),
+    deleteRegulatoryEvidence: vi.fn(),
     exportRegulatoryWatch: vi.fn(),
   },
 }));
@@ -240,6 +245,11 @@ beforeEach(() => {
     correlationId: "correlation-2",
   });
   vi.mocked(clientApi.updateRegulatoryEvaluation).mockResolvedValue(activeWatch as never);
+  vi.mocked(clientApi.addRegulatoryAction).mockResolvedValue(activeWatch as never);
+  vi.mocked(clientApi.updateRegulatoryAction).mockResolvedValue(activeWatch as never);
+  vi.mocked(clientApi.addRegulatoryEvidence).mockResolvedValue(activeWatch as never);
+  vi.mocked(clientApi.updateRegulatoryEvidence).mockResolvedValue(activeWatch as never);
+  vi.mocked(clientApi.deleteRegulatoryEvidence).mockResolvedValue(activeWatch as never);
 });
 
 describe("RegulatoryWatchPage", () => {
@@ -505,7 +515,7 @@ describe("RegulatoryWatchPage", () => {
     await user.click(screen.getAllByText(/L’organisme doit déterminer et fournir/)[0]!);
     expect(await screen.findByText("Traçabilité — texte officiel")).toBeInTheDocument();
     expect(screen.getByText("ISO 9001:2015, 7.1.5, p. 18")).toBeInTheDocument();
-    expect(screen.getByText("Preuve associée")).toBeInTheDocument();
+    expect(screen.getByText("Preuves associées")).toBeInTheDocument();
   });
 
   it("shows a non-blocking synchronization indicator without hiding published data", () => {
@@ -977,5 +987,184 @@ describe("RegulatoryWatchPage", () => {
 
     expect(await screen.findByText("Budget d’analyse atteint")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Publier le référentiel/ })).toBeEnabled();
+  });
+  it("shows every exported column in the register and lets the reviewer hide one", async () => {
+    vi.mocked(clientApi.regulatoryWatch).mockResolvedValue(activeWatch as never);
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(
+      await screen.findByRole("tab", { name: /Évaluation réglementaire et normative/ }),
+    );
+    // The same columns the XLSX "EVALUATION REGLEMENTAIRE ET NORMATIVE" block carries.
+    for (const heading of [
+      "Texte / exigence applicable",
+      "Conformité",
+      "Preuve",
+      "Action",
+      "Responsable",
+      "Ressources",
+      "Date prévue",
+      "Date réelle",
+      "Critères d’efficacité",
+      "Action efficace",
+      "Commentaire",
+    ]) {
+      expect(screen.getByRole("columnheader", { name: heading })).toBeInTheDocument();
+    }
+    expect(screen.getAllByRole("cell", { name: "Responsable qualité" })[0]).toBeInTheDocument();
+    expect(screen.getAllByRole("cell", { name: "30 sept. 2026" })[0]).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /Colonnes/ }));
+    await user.click(await screen.findByRole("menuitemcheckbox", { name: "Ressources" }));
+
+    await waitFor(() =>
+      expect(screen.queryByRole("columnheader", { name: "Ressources" })).not.toBeInTheDocument(),
+    );
+    expect(screen.getByRole("columnheader", { name: "Responsable" })).toBeInTheDocument();
+  });
+
+  it("saves the whole action plan against the action the conformity pass created", async () => {
+    vi.mocked(clientApi.regulatoryWatch).mockResolvedValue(activeWatch as never);
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(
+      await screen.findByRole("tab", { name: /Évaluation réglementaire et normative/ }),
+    );
+    await user.click(screen.getAllByText(/L’organisme doit déterminer et fournir/)[0]!);
+
+    const responsible = await screen.findByLabelText("Responsable");
+    await user.clear(responsible);
+    await user.type(responsible, "Responsable métrologie");
+    await user.type(screen.getByLabelText("Ressources"), "Prestataire d’étalonnage");
+    await user.selectOptions(screen.getByLabelText("Action efficace"), "EFFECTIVE");
+    await user.click(screen.getByRole("button", { name: "Valider l’évaluation" }));
+
+    await waitFor(() =>
+      expect(clientApi.updateRegulatoryAction).toHaveBeenCalledWith(
+        "atlas-industrie",
+        "action-1",
+        expect.objectContaining({
+          title: "Compléter le registre de métrologie",
+          responsibleName: "Responsable métrologie",
+          resources: "Prestataire d’étalonnage",
+          dueDate: "2026-09-30",
+          effectiveness: "EFFECTIVE",
+        }),
+      ),
+    );
+    expect(clientApi.addRegulatoryAction).not.toHaveBeenCalled();
+    expect(clientApi.updateRegulatoryEvaluation).toHaveBeenCalled();
+  });
+
+  it("creates an action when the exigence had none yet", async () => {
+    const actionlessWatch = {
+      ...activeWatch,
+      currentBaseline: {
+        ...activeWatch.currentBaseline,
+        entries: activeWatch.currentBaseline.entries.map((entry) => ({
+          ...entry,
+          evaluation: { ...entry.evaluation, actions: [] },
+        })),
+      },
+    };
+    vi.mocked(clientApi.regulatoryWatch).mockResolvedValue(actionlessWatch as never);
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(
+      await screen.findByRole("tab", { name: /Évaluation réglementaire et normative/ }),
+    );
+    await user.click(screen.getAllByText(/L’organisme doit déterminer et fournir/)[0]!);
+    await user.type(await screen.findByLabelText("Action"), "Créer le registre");
+    await user.click(screen.getByRole("button", { name: "Valider l’évaluation" }));
+
+    await waitFor(() =>
+      expect(clientApi.addRegulatoryAction).toHaveBeenCalledWith(
+        "atlas-industrie",
+        "evaluation-1",
+        expect.objectContaining({ title: "Créer le registre", status: "OPEN" }),
+      ),
+    );
+    expect(clientApi.updateRegulatoryAction).not.toHaveBeenCalled();
+  });
+
+  it("blocks a plan that names a responsable but no action, instead of sending a 400", async () => {
+    const actionlessWatch = {
+      ...activeWatch,
+      currentBaseline: {
+        ...activeWatch.currentBaseline,
+        entries: activeWatch.currentBaseline.entries.map((entry) => ({
+          ...entry,
+          evaluation: { ...entry.evaluation, actions: [] },
+        })),
+      },
+    };
+    vi.mocked(clientApi.regulatoryWatch).mockResolvedValue(actionlessWatch as never);
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(
+      await screen.findByRole("tab", { name: /Évaluation réglementaire et normative/ }),
+    );
+    await user.click(screen.getAllByText(/L’organisme doit déterminer et fournir/)[0]!);
+    await user.type(await screen.findByLabelText("Responsable"), "Responsable métrologie");
+    await user.click(screen.getByRole("button", { name: "Valider l’évaluation" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(/Renseignez l’intitulé de l’action/);
+    expect(clientApi.addRegulatoryAction).not.toHaveBeenCalled();
+    expect(clientApi.updateRegulatoryEvaluation).not.toHaveBeenCalled();
+  });
+
+  it("adds and removes preuves through the register sheet", async () => {
+    vi.mocked(clientApi.regulatoryWatch).mockResolvedValue({
+      ...activeWatch,
+      currentBaseline: {
+        ...activeWatch.currentBaseline,
+        entries: activeWatch.currentBaseline.entries.map((entry) => ({
+          ...entry,
+          evaluation: {
+            ...entry.evaluation,
+            evidence: [
+              {
+                id: "evidence-1",
+                kind: "NOTE",
+                fileId: null,
+                label: "Registre métrologie",
+                url: null,
+                note: "Registre incomplet",
+                createdAt: "2026-08-10T12:00:00.000Z",
+              },
+            ],
+          },
+        })),
+      },
+    } as never);
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(
+      await screen.findByRole("tab", { name: /Évaluation réglementaire et normative/ }),
+    );
+    await user.click(screen.getAllByText(/L’organisme doit déterminer et fournir/)[0]!);
+    await user.click(await screen.findByRole("button", { name: /Ajouter/ }));
+
+    const noteFields = screen.getAllByLabelText("Note");
+    await user.type(noteFields[noteFields.length - 1]!, "Photo du poste de mesure");
+    await user.click(screen.getAllByRole("button", { name: "Retirer la preuve" })[0]!);
+    await user.click(screen.getByRole("button", { name: "Valider l’évaluation" }));
+
+    await waitFor(() =>
+      expect(clientApi.deleteRegulatoryEvidence).toHaveBeenCalledWith(
+        "atlas-industrie",
+        "evidence-1",
+      ),
+    );
+    expect(clientApi.addRegulatoryEvidence).toHaveBeenCalledWith(
+      "atlas-industrie",
+      "evaluation-1",
+      expect.objectContaining({ kind: "NOTE", note: "Photo du poste de mesure" }),
+    );
   });
 });

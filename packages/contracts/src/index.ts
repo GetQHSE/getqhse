@@ -664,32 +664,51 @@ export const updateRegulatoryEvaluationSchema = z.object({
 });
 export type UpdateRegulatoryEvaluation = z.infer<typeof updateRegulatoryEvaluationSchema>;
 
-export const createRegulatoryEvidenceSchema = z
-  .object({
-    kind: z.enum(["DOCUMENT", "PHOTO", "NOTE", "LINK"]),
-    fileId: idSchema.nullable().optional(),
-    label: z.string().trim().max(300).nullable().optional(),
-    url: z.url().nullable().optional(),
-    note: z.string().trim().max(4_000).nullable().optional(),
-  })
-  .superRefine((value, context) => {
-    if ((value.kind === "DOCUMENT" || value.kind === "PHOTO") && !value.fileId) {
-      context.addIssue({ code: "custom", path: ["fileId"], message: "fileId is required" });
-    }
-    if (value.kind === "LINK" && !value.url) {
-      context.addIssue({ code: "custom", path: ["url"], message: "url is required" });
-    }
-    if (value.kind === "NOTE" && !value.note) {
-      context.addIssue({ code: "custom", path: ["note"], message: "note is required" });
-    }
-  });
+const regulatoryEvidenceFieldsSchema = z.object({
+  kind: z.enum(["DOCUMENT", "PHOTO", "NOTE", "LINK"]),
+  fileId: idSchema.nullable().optional(),
+  label: z.string().trim().max(300).nullable().optional(),
+  url: z.url().nullable().optional(),
+  note: z.string().trim().max(4_000).nullable().optional(),
+});
+
+/** The payload a `kind` requires. Shared so the create schema can check a whole record and the
+ *  service can check the merged record a partial update produces. */
+export function regulatoryEvidencePayloadIssue(value: {
+  kind: "DOCUMENT" | "PHOTO" | "NOTE" | "LINK";
+  fileId?: string | null | undefined;
+  url?: string | null | undefined;
+  note?: string | null | undefined;
+}): { path: "fileId" | "url" | "note"; message: string } | null {
+  if ((value.kind === "DOCUMENT" || value.kind === "PHOTO") && !value.fileId)
+    return { path: "fileId", message: "fileId is required" };
+  if (value.kind === "LINK" && !value.url) return { path: "url", message: "url is required" };
+  if (value.kind === "NOTE" && !value.note) return { path: "note", message: "note is required" };
+  return null;
+}
+
+export const createRegulatoryEvidenceSchema = regulatoryEvidenceFieldsSchema.superRefine(
+  (value, context) => {
+    const issue = regulatoryEvidencePayloadIssue(value);
+    if (issue) context.addIssue({ code: "custom", path: [issue.path], message: issue.message });
+  },
+);
 export type CreateRegulatoryEvidence = z.infer<typeof createRegulatoryEvidenceSchema>;
+
+/** Partial counterpart: `kind` may stay untouched, so the payload rule can only be enforced once
+ *  the patch is merged with the stored row — see `regulatoryEvidencePayloadIssue`. */
+export const updateRegulatoryEvidenceSchema = regulatoryEvidenceFieldsSchema.partial();
+export type UpdateRegulatoryEvidence = z.infer<typeof updateRegulatoryEvidenceSchema>;
 
 export const regulatoryActionStatusSchema = z.enum(["OPEN", "IN_PROGRESS", "DONE", "VERIFIED"]);
 export const regulatoryEffectivenessSchema = z.enum(["PENDING", "EFFECTIVE", "INEFFECTIVE"]);
 export const createRegulatoryActionSchema = z.object({
   title: z.string().trim().min(2).max(500),
   assigneeId: idSchema.nullable().optional(),
+  /** Free-text responsable, used when no platform user is assigned. The conformity pass proposes
+   *  one and a reviewer can correct it; the register and the XLSX export both read
+   *  `assignee?.name ?? responsibleName`. */
+  responsibleName: z.string().trim().max(200).nullable().optional(),
   resources: z.string().trim().max(2_000).nullable().optional(),
   dueDate: z.iso.date().nullable().optional(),
   completedDate: z.iso.date().nullable().optional(),
@@ -698,7 +717,13 @@ export const createRegulatoryActionSchema = z.object({
   effectiveness: regulatoryEffectivenessSchema.default("PENDING"),
   comment: z.string().trim().max(2_000).nullable().optional(),
 });
-export const updateRegulatoryActionSchema = createRegulatoryActionSchema.partial();
+/** `.partial()` alone keeps the `status` / `effectiveness` defaults, so a patch that only names,
+ *  say, the responsable would silently reset a DONE + EFFECTIVE action to OPEN + PENDING. Both are
+ *  re-declared without a default so an absent key really means "leave it alone". */
+export const updateRegulatoryActionSchema = createRegulatoryActionSchema.partial().extend({
+  status: regulatoryActionStatusSchema.optional(),
+  effectiveness: regulatoryEffectivenessSchema.optional(),
+});
 export type CreateRegulatoryAction = z.infer<typeof createRegulatoryActionSchema>;
 export type UpdateRegulatoryAction = z.infer<typeof updateRegulatoryActionSchema>;
 

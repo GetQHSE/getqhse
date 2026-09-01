@@ -6,6 +6,12 @@
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["--filter", "@qhse/admin-web", "dev"],
       "port": 5174
+    },
+    {
+      "name": "client-web",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@qhse/client-web", "dev"],
+      "port": 5173
     }
   ]
 }

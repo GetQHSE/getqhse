@@ -1,5 +1,14 @@
 import { Badge } from "@qhse/ui/components/badge";
 import { Button } from "@qhse/ui/components/button";
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@qhse/ui/components/dropdown-menu";
 import { Input } from "@qhse/ui/components/input";
 import { Progress } from "@qhse/ui/components/progress";
 import {
@@ -29,6 +38,7 @@ import {
   CheckCircle2Icon,
   ChevronRightIcon,
   CircleAlertIcon,
+  Columns3Icon,
   Clock3Icon,
   DownloadIcon,
   FileCheck2Icon,
@@ -63,6 +73,32 @@ export type RegulatoryDocument = {
   reason: string;
 };
 
+export type RegulatoryEvidenceItem = {
+  id: string;
+  kind: "DOCUMENT" | "PHOTO" | "NOTE" | "LINK";
+  fileId: string | null;
+  label: string | null;
+  url: string | null;
+  note: string | null;
+};
+
+/** The action row the register edits. One evaluation can carry several actions; the table and the
+ *  sheet work on the first one and report the rest as a count, while the XLSX export still expands
+ *  every action to its own line. */
+export type RegulatoryActionRow = {
+  id: string;
+  title: string;
+  assigneeId: string | null;
+  assigneeName: string | null;
+  resources: string | null;
+  dueDate: string | null;
+  completedDate: string | null;
+  status: "OPEN" | "IN_PROGRESS" | "DONE" | "VERIFIED";
+  effectivenessCriteria: string | null;
+  effectiveness: "PENDING" | "EFFECTIVE" | "INEFFECTIVE";
+  comment: string | null;
+};
+
 export type RegulatoryEvaluation = {
   id: string;
   revision?: number;
@@ -78,6 +114,16 @@ export type RegulatoryEvaluation = {
   owner: string;
   dueDate: string;
   effectiveness: string;
+  /** Display strings for the columns the XLSX export has always carried but the table did not. */
+  resources?: string;
+  completedDate?: string;
+  effectivenessCriteria?: string;
+  comment?: string;
+  /** Raw values, so the same row object can seed the edit sheet without a second lookup. */
+  evaluationComment?: string | null;
+  evidenceItems?: RegulatoryEvidenceItem[];
+  primaryAction?: RegulatoryActionRow | null;
+  additionalActionCount?: number;
   aiStatus?: "PENDING" | "RUNNING" | "COMPLETED" | "FAILED";
   aiSuggestedStatus?: EvaluationStatus | undefined;
   aiSuggestedResult?: "CONFORMING" | "PARTIAL" | "NON_CONFORMING" | "NOT_ASSESSED" | null;
@@ -179,6 +225,10 @@ const evaluations: RegulatoryEvaluation[] = [
     owner: "Responsable HSE",
     dueDate: "—",
     effectiveness: "Vérifiée",
+    resources: "—",
+    completedDate: "12 juil. 2026",
+    effectivenessCriteria: "Aucun écart relevé sur deux inspections consécutives",
+    comment: "Conformité confirmée lors de la revue HSE de juillet.",
   },
   {
     id: "eval-2",
@@ -192,6 +242,10 @@ const evaluations: RegulatoryEvaluation[] = [
     owner: "Responsable qualité",
     dueDate: "30 sept. 2026",
     effectiveness: "À vérifier",
+    resources: "Budget métrologie 2026 · prestataire externe",
+    completedDate: "—",
+    effectivenessCriteria: "100 % des instruments critiques identifiés et étalonnés",
+    comment: "Atelier pliage non couvert par le registre actuel.",
   },
   {
     id: "eval-3",
@@ -205,6 +259,10 @@ const evaluations: RegulatoryEvaluation[] = [
     owner: "Responsable production",
     dueDate: "15 sept. 2026",
     effectiveness: "Non vérifiée",
+    resources: "Génie civil interne · 2 hommes-jours",
+    completedDate: "—",
+    effectivenessCriteria: "Zone de rétention conforme et bordereaux de suivi archivés",
+    comment: "Écart majeur relevé lors de la visite terrain du 8 août.",
   },
   {
     id: "eval-4",
@@ -218,6 +276,10 @@ const evaluations: RegulatoryEvaluation[] = [
     owner: "Responsable qualité",
     dueDate: "15 janv. 2027",
     effectiveness: "Vérifiée",
+    resources: "—",
+    completedDate: "20 janv. 2026",
+    effectivenessCriteria: "Revue annuelle tracée et instructions à jour",
+    comment: "—",
   },
   {
     id: "eval-5",
@@ -231,6 +293,101 @@ const evaluations: RegulatoryEvaluation[] = [
     owner: "Non attribué",
     dueDate: "—",
     effectiveness: "Non évaluée",
+    resources: "—",
+    completedDate: "—",
+    effectivenessCriteria: "—",
+    comment: "—",
+  },
+];
+
+/** The register grid mirrors the "EVALUATION REGLEMENTAIRE ET NORMATIVE" block of the XLSX export
+ *  column for column, so what a reviewer reads on screen is what lands in the file. The exigence
+ *  column and the chevron are structural and stay pinned; everything else can be hidden through the
+ *  "Colonnes" picker. */
+type EvaluationColumn = {
+  id: string;
+  label: string;
+  className?: string;
+  cell: (evaluation: RegulatoryEvaluation) => React.ReactNode;
+};
+
+function textCell(value: string | undefined): React.ReactNode {
+  return <span className="line-clamp-3 block whitespace-pre-line">{value?.trim() || "—"}</span>;
+}
+
+const optionalEvaluationColumns: EvaluationColumn[] = [
+  {
+    id: "status",
+    label: "Conformité",
+    className: "whitespace-nowrap",
+    cell: (evaluation) => (
+      <>
+        <EvaluationBadge status={evaluation.status} />
+        {evaluation.aiStatus === "RUNNING" && (
+          <p className="mt-1 text-[10px] font-medium text-violet-700">Analyse IA en cours…</p>
+        )}
+      </>
+    ),
+  },
+  {
+    id: "evidence",
+    label: "Preuve",
+    className: "max-w-52",
+    cell: (evaluation) => textCell(evaluation.evidence),
+  },
+  {
+    id: "action",
+    label: "Action",
+    className: "max-w-64",
+    cell: (evaluation) => (
+      <>
+        {textCell(evaluation.action)}
+        {(evaluation.additionalActionCount ?? 0) > 0 && (
+          <span className="mt-1 block text-[10px] font-medium text-violet-700">
+            +{evaluation.additionalActionCount} autre
+            {evaluation.additionalActionCount === 1 ? "" : "s"} action
+            {evaluation.additionalActionCount === 1 ? "" : "s"}
+          </span>
+        )}
+      </>
+    ),
+  },
+  { id: "owner", label: "Responsable", cell: (evaluation) => textCell(evaluation.owner) },
+  {
+    id: "resources",
+    label: "Ressources",
+    className: "max-w-48",
+    cell: (evaluation) => textCell(evaluation.resources),
+  },
+  {
+    id: "dueDate",
+    label: "Date prévue",
+    className: "whitespace-nowrap",
+    cell: (evaluation) => textCell(evaluation.dueDate),
+  },
+  {
+    id: "completedDate",
+    label: "Date réelle",
+    className: "whitespace-nowrap",
+    cell: (evaluation) => textCell(evaluation.completedDate),
+  },
+  {
+    id: "effectivenessCriteria",
+    label: "Critères d’efficacité",
+    className: "max-w-56",
+    cell: (evaluation) => textCell(evaluation.effectivenessCriteria),
+  },
+  {
+    id: "effectiveness",
+    label: "Action efficace",
+    className: "whitespace-nowrap",
+    cell: (evaluation) => textCell(evaluation.effectiveness),
+  },
+  {
+    id: "comment",
+    label: "Commentaire",
+    className: "max-w-64",
+    cell: (evaluation) => textCell(evaluation.comment),
   },
 ];
 
@@ -511,6 +668,12 @@ export function EvaluationList({
   aiActive?: boolean;
 }) {
   const [status, setStatus] = useState<"Toutes" | EvaluationStatus>("Toutes");
+  // Every export column is visible by default — the register is meant to match the XLSX file — and
+  // the picker only ever takes columns away.
+  const [hiddenColumns, setHiddenColumns] = useState<ReadonlySet<string>>(() => new Set());
+  const visibleColumns = optionalEvaluationColumns.filter(
+    (column) => !hiddenColumns.has(column.id),
+  );
   const filteredEvaluations = items.filter(
     (evaluation) => status === "Toutes" || evaluation.status === status,
   );
@@ -588,49 +751,84 @@ export function EvaluationList({
                 Évaluation réglementaire et normative
               </h2>
               <p className="mt-1 text-xs leading-5 text-slate-500">
-                Une ligne par exigence, avec preuve, action, responsable et contrôle d’efficacité.
+                Une ligne par exigence, avec les mêmes colonnes que l’export Excel.
               </p>
             </div>
-            <div className="flex max-w-full items-center gap-1 overflow-x-auto rounded-xl border border-slate-200 bg-slate-50 p-1">
-              <FilterIcon className="ml-2 size-3.5 shrink-0 text-slate-400" />
-              {(["Toutes", "Conforme", "Partiel", "Non conforme", "À évaluer"] as const).map(
-                (item) => (
-                  <button
-                    className={cn(
-                      "h-8 shrink-0 rounded-lg px-3 text-xs font-medium transition",
-                      status === item
-                        ? "bg-white text-slate-950 shadow-sm"
-                        : "text-slate-500 hover:text-slate-800",
-                    )}
-                    key={item}
-                    onClick={() => setStatus(item)}
-                    type="button"
-                  >
-                    {item}
-                  </button>
-                ),
-              )}
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex max-w-full items-center gap-1 overflow-x-auto rounded-xl border border-slate-200 bg-slate-50 p-1">
+                <FilterIcon className="ml-2 size-3.5 shrink-0 text-slate-400" />
+                {(["Toutes", "Conforme", "Partiel", "Non conforme", "À évaluer"] as const).map(
+                  (item) => (
+                    <button
+                      className={cn(
+                        "h-8 shrink-0 rounded-lg px-3 text-xs font-medium transition",
+                        status === item
+                          ? "bg-white text-slate-950 shadow-sm"
+                          : "text-slate-500 hover:text-slate-800",
+                      )}
+                      key={item}
+                      onClick={() => setStatus(item)}
+                      type="button"
+                    >
+                      {item}
+                    </button>
+                  ),
+                )}
+              </div>
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  render={<Button className="h-10 rounded-xl bg-white" variant="outline" />}
+                >
+                  <Columns3Icon /> Colonnes
+                  {hiddenColumns.size > 0 && (
+                    <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-600">
+                      {visibleColumns.length}/{optionalEvaluationColumns.length}
+                    </span>
+                  )}
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-60">
+                  <DropdownMenuGroup>
+                    <DropdownMenuLabel className="text-xs text-slate-500">
+                      Colonnes affichées
+                    </DropdownMenuLabel>
+                  </DropdownMenuGroup>
+                  <DropdownMenuSeparator />
+                  {optionalEvaluationColumns.map((column) => (
+                    <DropdownMenuCheckboxItem
+                      checked={!hiddenColumns.has(column.id)}
+                      closeOnClick={false}
+                      key={column.id}
+                      onCheckedChange={(checked) =>
+                        setHiddenColumns((current) => {
+                          const next = new Set(current);
+                          if (checked) next.delete(column.id);
+                          else next.add(column.id);
+                          return next;
+                        })
+                      }
+                    >
+                      {column.label}
+                    </DropdownMenuCheckboxItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
         </div>
 
         <div className="hidden xl:block">
-          <Table>
+          <Table className="min-w-max">
             <TableHeader className="bg-slate-50/80">
               <TableRow className="hover:bg-slate-50/80">
-                {[
-                  "Texte / exigence applicable",
-                  "Conformité",
-                  "Preuve",
-                  "Action",
-                  "Responsable",
-                  "Date prévue",
-                ].map((heading) => (
+                <TableHead className="h-11 min-w-72 pl-6 pr-3 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+                  Texte / exigence applicable
+                </TableHead>
+                {visibleColumns.map((column) => (
                   <TableHead
-                    className="h-11 px-4 text-[10px] font-semibold uppercase tracking-wider text-slate-500 first:pl-6"
-                    key={heading}
+                    className="h-11 px-3 text-[10px] font-semibold uppercase tracking-wider text-slate-500"
+                    key={column.id}
                   >
-                    {heading}
+                    {column.label}
                   </TableHead>
                 ))}
                 <TableHead className="w-14 px-5">
@@ -645,7 +843,7 @@ export function EvaluationList({
                   key={evaluation.id}
                   onClick={() => onOpen(evaluation)}
                 >
-                  <TableCell className="max-w-md whitespace-normal py-5 pl-6 pr-4">
+                  <TableCell className="min-w-72 max-w-md whitespace-normal py-4 pl-6 pr-3">
                     <p className="text-[11px] font-semibold text-violet-700">
                       {evaluation.source} · {evaluation.provision}
                     </p>
@@ -653,27 +851,18 @@ export function EvaluationList({
                       {evaluation.requirement}
                     </p>
                   </TableCell>
-                  <TableCell className="px-4 py-5">
-                    <EvaluationBadge status={evaluation.status} />
-                    {evaluation.aiStatus === "RUNNING" && (
-                      <p className="mt-1 text-[10px] font-medium text-violet-700">
-                        Analyse IA en cours…
-                      </p>
-                    )}
-                  </TableCell>
-                  <TableCell className="max-w-52 whitespace-normal px-4 py-5 text-xs leading-5 text-slate-600">
-                    {evaluation.evidence}
-                  </TableCell>
-                  <TableCell className="max-w-64 whitespace-normal px-4 py-5 text-xs leading-5 text-slate-600">
-                    {evaluation.action}
-                  </TableCell>
-                  <TableCell className="px-4 py-5 text-xs text-slate-600">
-                    {evaluation.owner}
-                  </TableCell>
-                  <TableCell className="px-4 py-5 text-xs text-slate-600">
-                    {evaluation.dueDate}
-                  </TableCell>
-                  <TableCell className="px-5 py-5 text-right">
+                  {visibleColumns.map((column) => (
+                    <TableCell
+                      className={cn(
+                        "whitespace-normal px-3 py-4 align-top text-xs leading-5 text-slate-600",
+                        column.className,
+                      )}
+                      key={column.id}
+                    >
+                      {column.cell(evaluation)}
+                    </TableCell>
+                  ))}
+                  <TableCell className="px-5 py-4 text-right">
                     <ChevronRightIcon className="size-4 text-slate-300 group-hover:text-violet-700" />
                   </TableCell>
                 </TableRow>
@@ -698,14 +887,26 @@ export function EvaluationList({
               </div>
               <p className="mt-3 text-sm leading-6 text-slate-800">{evaluation.requirement}</p>
               <div className="mt-4 grid gap-3 rounded-2xl bg-slate-50 p-3 text-xs sm:grid-cols-2">
-                <div>
-                  <p className="text-[10px] uppercase tracking-wider text-slate-400">Preuve</p>
-                  <p className="mt-1 text-slate-600">{evaluation.evidence}</p>
-                </div>
-                <div>
-                  <p className="text-[10px] uppercase tracking-wider text-slate-400">Action</p>
-                  <p className="mt-1 text-slate-600">{evaluation.action}</p>
-                </div>
+                {[
+                  { label: "Preuve", value: evaluation.evidence },
+                  { label: "Action", value: evaluation.action },
+                  { label: "Responsable", value: evaluation.owner },
+                  { label: "Ressources", value: evaluation.resources },
+                  { label: "Date prévue", value: evaluation.dueDate },
+                  { label: "Date réelle", value: evaluation.completedDate },
+                  { label: "Critères d’efficacité", value: evaluation.effectivenessCriteria },
+                  { label: "Action efficace", value: evaluation.effectiveness },
+                  { label: "Commentaire", value: evaluation.comment },
+                ].map((field) => (
+                  <div key={field.label}>
+                    <p className="text-[10px] uppercase tracking-wider text-slate-400">
+                      {field.label}
+                    </p>
+                    <p className="mt-1 whitespace-pre-line text-slate-600">
+                      {field.value?.trim() || "—"}
+                    </p>
+                  </div>
+                ))}
               </div>
             </button>
           ))}
@@ -713,7 +914,9 @@ export function EvaluationList({
 
         <footer className="flex items-center justify-between border-t border-slate-100 bg-slate-50/60 px-4 py-3 text-[11px] text-slate-500 sm:px-6">
           <span>{filteredEvaluations.length} exigences affichées</span>
-          <span>Dernière modification aujourd’hui à 14:32</span>
+          <span>
+            {visibleColumns.length + 1} colonnes sur {optionalEvaluationColumns.length + 1}
+          </span>
         </footer>
       </section>
     </div>

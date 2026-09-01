@@ -115,6 +115,28 @@ export const clientApi = {
     evaluationId: string,
     input: Parameters<QhseApiClient["updateRegulatoryEvaluation"]>[2],
   ) => qhseApi.updateRegulatoryEvaluation(idOrSlug, evaluationId, input),
+  addRegulatoryAction: (
+    idOrSlug: string,
+    evaluationId: string,
+    input: Parameters<QhseApiClient["addRegulatoryAction"]>[2],
+  ) => qhseApi.addRegulatoryAction(idOrSlug, evaluationId, input),
+  updateRegulatoryAction: (
+    idOrSlug: string,
+    actionId: string,
+    input: Parameters<QhseApiClient["updateRegulatoryAction"]>[2],
+  ) => qhseApi.updateRegulatoryAction(idOrSlug, actionId, input),
+  addRegulatoryEvidence: (
+    idOrSlug: string,
+    evaluationId: string,
+    input: Parameters<QhseApiClient["addRegulatoryEvidence"]>[2],
+  ) => qhseApi.addRegulatoryEvidence(idOrSlug, evaluationId, input),
+  updateRegulatoryEvidence: (
+    idOrSlug: string,
+    evidenceId: string,
+    input: Parameters<QhseApiClient["updateRegulatoryEvidence"]>[2],
+  ) => qhseApi.updateRegulatoryEvidence(idOrSlug, evidenceId, input),
+  deleteRegulatoryEvidence: (idOrSlug: string, evidenceId: string) =>
+    qhseApi.deleteRegulatoryEvidence(idOrSlug, evidenceId),
   exportRegulatoryWatch: (idOrSlug: string) => qhseApi.exportRegulatoryWatch(idOrSlug),
   createFileUpload: (input: CreateFileUpload): Promise<FileUploadResponse> =>
     request("/v1/files/uploads", (value) => fileUploadResponseSchema.parse(value), {

@@ -9,7 +9,7 @@ import {
   NotFoundException,
   ServiceUnavailableException,
 } from "@nestjs/common";
-import { staleAiEvaluationMs } from "@qhse/contracts";
+import { regulatoryEvidencePayloadIssue, staleAiEvaluationMs } from "@qhse/contracts";
 import type {
   AnswerRegulatoryClarifications,
   CreateRegulatoryAction,
@@ -21,6 +21,7 @@ import type {
   StartRegulatoryAnalysis,
   UpdateRegulatoryAction,
   UpdateRegulatoryEvaluation,
+  UpdateRegulatoryEvidence,
 } from "@qhse/contracts";
 import { createPrismaClient, Prisma, type DatabaseClient } from "@qhse/database";
 import { stableCitationLabel } from "@qhse/knowledge";
@@ -1008,17 +1009,7 @@ export class RegulatoryWatchService {
     if (!canContribute(tenant.role))
       throw new ForbiddenException("Regulatory contribution is required");
     await this.currentEvaluation(tenant, projectIdOrSlug, evaluationId);
-    if (input.fileId) {
-      const file = await this.database.fileObject.findFirst({
-        where: {
-          id: input.fileId,
-          organizationId: tenant.organizationId,
-          uploadStatus: "READY",
-          deletedAt: null,
-        },
-      });
-      if (!file) throw new BadRequestException("Evidence file is unavailable");
-    }
+    await this.assertEvidenceFile(tenant, input.fileId);
     await this.database.regulatoryEvaluationEvidence.create({
       data: {
         evaluationId,
@@ -1030,6 +1021,82 @@ export class RegulatoryWatchService {
         createdById: tenant.userId,
       },
     });
+    return this.get(tenant, projectIdOrSlug);
+  }
+
+  /** Scoped exactly like {@link updateAction}: only evidence hanging off the *current* baseline is
+   *  reachable, so a superseded register stays immutable. */
+  private async currentEvidence(
+    tenant: TenantContext,
+    projectIdOrSlug: string,
+    evidenceId: string,
+  ) {
+    const watch = await this.loadedWatch(tenant, projectIdOrSlug);
+    const evidence = await this.database.regulatoryEvaluationEvidence.findFirst({
+      where: {
+        id: evidenceId,
+        evaluation: { entry: { baselineId: watch.currentBaselineId ?? "missing" } },
+      },
+    });
+    if (!evidence) throw new NotFoundException("Regulatory evidence not found");
+    return evidence;
+  }
+
+  private async assertEvidenceFile(tenant: TenantContext, fileId: string | null | undefined) {
+    if (!fileId) return;
+    const file = await this.database.fileObject.findFirst({
+      where: {
+        id: fileId,
+        organizationId: tenant.organizationId,
+        uploadStatus: "READY",
+        deletedAt: null,
+      },
+    });
+    if (!file) throw new BadRequestException("Evidence file is unavailable");
+  }
+
+  async updateEvidence(
+    tenant: TenantContext,
+    projectIdOrSlug: string,
+    evidenceId: string,
+    input: UpdateRegulatoryEvidence,
+  ): Promise<RegulatoryWatch> {
+    if (!canContribute(tenant.role))
+      throw new ForbiddenException("Regulatory contribution is required");
+    const evidence = await this.currentEvidence(tenant, projectIdOrSlug, evidenceId);
+    if (input.fileId !== undefined) await this.assertEvidenceFile(tenant, input.fileId);
+    // `kind` may be absent from the patch, so the payload rule can only be checked once the patch
+    // is merged with what is stored.
+    const merged = {
+      kind: input.kind ?? evidence.kind,
+      fileId: input.fileId !== undefined ? input.fileId : evidence.fileId,
+      url: input.url !== undefined ? input.url : evidence.url,
+      note: input.note !== undefined ? input.note : evidence.note,
+    };
+    const issue = regulatoryEvidencePayloadIssue(merged);
+    if (issue) throw new BadRequestException({ [issue.path]: [issue.message] });
+    await this.database.regulatoryEvaluationEvidence.update({
+      where: { id: evidence.id },
+      data: {
+        ...(input.kind !== undefined ? { kind: input.kind } : {}),
+        ...(input.fileId !== undefined ? { fileId: input.fileId } : {}),
+        ...(input.label !== undefined ? { label: input.label } : {}),
+        ...(input.url !== undefined ? { url: input.url } : {}),
+        ...(input.note !== undefined ? { note: input.note } : {}),
+      },
+    });
+    return this.get(tenant, projectIdOrSlug);
+  }
+
+  async deleteEvidence(
+    tenant: TenantContext,
+    projectIdOrSlug: string,
+    evidenceId: string,
+  ): Promise<RegulatoryWatch> {
+    if (!canContribute(tenant.role))
+      throw new ForbiddenException("Regulatory contribution is required");
+    const evidence = await this.currentEvidence(tenant, projectIdOrSlug, evidenceId);
+    await this.database.regulatoryEvaluationEvidence.delete({ where: { id: evidence.id } });
     return this.get(tenant, projectIdOrSlug);
   }
 
@@ -1048,6 +1115,7 @@ export class RegulatoryWatchService {
         evaluationId,
         title: input.title,
         assigneeId: input.assigneeId ?? null,
+        responsibleName: input.responsibleName ?? null,
         resources: input.resources ?? null,
         dueDate: input.dueDate ? new Date(`${input.dueDate}T00:00:00.000Z`) : null,
         completedDate: input.completedDate
@@ -1084,6 +1152,7 @@ export class RegulatoryWatchService {
       data: {
         ...(input.title !== undefined ? { title: input.title } : {}),
         ...(input.assigneeId !== undefined ? { assigneeId: input.assigneeId } : {}),
+        ...(input.responsibleName !== undefined ? { responsibleName: input.responsibleName } : {}),
         ...(input.resources !== undefined ? { resources: input.resources } : {}),
         ...(input.dueDate !== undefined
           ? { dueDate: input.dueDate ? new Date(`${input.dueDate}T00:00:00.000Z`) : null }

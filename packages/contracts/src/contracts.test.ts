@@ -2,9 +2,13 @@ import { describe, expect, it } from "vitest";
 
 import {
   apiErrorSchema,
+  createRegulatoryActionSchema,
   createSiteSchema,
   createFileUploadSchema,
   decideRegulatoryCandidateSchema,
+  regulatoryEvidencePayloadIssue,
+  updateRegulatoryActionSchema,
+  updateRegulatoryEvidenceSchema,
   projectProfileAnswerInputSchema,
   projectProfileStreamRequestSchema,
   updateProjectProfileSchema,
@@ -109,5 +113,35 @@ describe("public contracts", () => {
         requirementText: "Trop court",
       }).success,
     ).toBe(false);
+  });
+});
+
+describe("regulatory action and evidence patches", () => {
+  it("leaves an absent status or effectiveness untouched instead of resetting it", () => {
+    expect(updateRegulatoryActionSchema.parse({ responsibleName: "Responsable QHSE" })).toEqual({
+      responsibleName: "Responsable QHSE",
+    });
+    // The create schema still seeds a brand-new action with sensible defaults.
+    expect(createRegulatoryActionSchema.parse({ title: "Créer le registre" })).toMatchObject({
+      status: "OPEN",
+      effectiveness: "PENDING",
+    });
+  });
+
+  it("carries the free-text responsable a reviewer types over the AI proposal", () => {
+    expect(
+      updateRegulatoryActionSchema.safeParse({ responsibleName: "a".repeat(201) }).success,
+    ).toBe(false);
+    expect(updateRegulatoryActionSchema.safeParse({ responsibleName: null }).success).toBe(true);
+  });
+
+  it("defers the preuve payload rule to the merged record on a partial patch", () => {
+    // `kind` may be absent from the patch, so the schema cannot check the pairing on its own.
+    expect(updateRegulatoryEvidenceSchema.safeParse({ label: "Rapport" }).success).toBe(true);
+    expect(regulatoryEvidencePayloadIssue({ kind: "NOTE", note: null })).toEqual({
+      path: "note",
+      message: "note is required",
+    });
+    expect(regulatoryEvidencePayloadIssue({ kind: "LINK", url: "https://x.test" })).toBeNull();
   });
 });

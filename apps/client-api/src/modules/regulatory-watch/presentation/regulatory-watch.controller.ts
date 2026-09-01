@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Delete,
   Get,
   Inject,
   Param,
@@ -22,6 +23,7 @@ import {
   startRegulatoryAnalysisSchema,
   updateRegulatoryActionSchema,
   updateRegulatoryEvaluationSchema,
+  updateRegulatoryEvidenceSchema,
 } from "@qhse/contracts";
 import type { Response } from "express";
 
@@ -161,6 +163,30 @@ export class RegulatoryWatchController {
       evaluationId,
       parse(createRegulatoryEvidenceSchema, body),
     );
+  }
+
+  @Patch("evidence/:evidenceId")
+  updateEvidence(
+    @Req() request: QhseRequest,
+    @Param("projectIdOrSlug") projectIdOrSlug: string,
+    @Param("evidenceId") evidenceId: string,
+    @Body() body: unknown,
+  ) {
+    return this.regulatory.updateEvidence(
+      request.tenant!,
+      projectIdOrSlug,
+      evidenceId,
+      parse(updateRegulatoryEvidenceSchema, body),
+    );
+  }
+
+  @Delete("evidence/:evidenceId")
+  deleteEvidence(
+    @Req() request: QhseRequest,
+    @Param("projectIdOrSlug") projectIdOrSlug: string,
+    @Param("evidenceId") evidenceId: string,
+  ) {
+    return this.regulatory.deleteEvidence(request.tenant!, projectIdOrSlug, evidenceId);
   }
 
   @Post("evaluations/:evaluationId/actions")

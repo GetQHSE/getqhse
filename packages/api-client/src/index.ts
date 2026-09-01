@@ -30,6 +30,7 @@ import {
   startRegulatoryAnalysisSchema,
   updateRegulatoryActionSchema,
   updateRegulatoryEvaluationSchema,
+  updateRegulatoryEvidenceSchema,
   type CreateSite,
   type CreateFileUpload,
   type FileTranscription,
@@ -57,6 +58,7 @@ import {
   type StartRegulatoryAnalysis,
   type UpdateRegulatoryAction,
   type UpdateRegulatoryEvaluation,
+  type UpdateRegulatoryEvidence,
 } from "@qhse/contracts";
 import axios, { isAxiosError, type AxiosInstance, type AxiosRequestConfig } from "axios";
 import type { z } from "zod";
@@ -337,6 +339,26 @@ export class QhseApiClient {
       `/v1/projects/${encodeURIComponent(projectIdOrSlug)}/regulatory-watch/evaluations/${encodeURIComponent(evaluationId)}/evidence`,
       regulatoryWatchSchema,
       { method: "POST", body: JSON.stringify(createRegulatoryEvidenceSchema.parse(input)) },
+    );
+  }
+
+  updateRegulatoryEvidence(
+    projectIdOrSlug: string,
+    evidenceId: string,
+    input: UpdateRegulatoryEvidence,
+  ): Promise<RegulatoryWatch> {
+    return this.#request(
+      `/v1/projects/${encodeURIComponent(projectIdOrSlug)}/regulatory-watch/evidence/${encodeURIComponent(evidenceId)}`,
+      regulatoryWatchSchema,
+      { method: "PATCH", body: JSON.stringify(updateRegulatoryEvidenceSchema.parse(input)) },
+    );
+  }
+
+  deleteRegulatoryEvidence(projectIdOrSlug: string, evidenceId: string): Promise<RegulatoryWatch> {
+    return this.#request(
+      `/v1/projects/${encodeURIComponent(projectIdOrSlug)}/regulatory-watch/evidence/${encodeURIComponent(evidenceId)}`,
+      regulatoryWatchSchema,
+      { method: "DELETE" },
     );
   }
 

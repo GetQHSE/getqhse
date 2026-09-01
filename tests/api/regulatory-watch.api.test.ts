@@ -25,6 +25,8 @@ describe("regulatory watch API", () => {
     startEvaluation: vi.fn(),
     updateEvaluation: vi.fn(),
     addEvidence: vi.fn(),
+    updateEvidence: vi.fn(),
+    deleteEvidence: vi.fn(),
     addAction: vi.fn(),
     updateAction: vi.fn(),
     exportWorkbook: vi.fn(),
@@ -150,5 +152,44 @@ describe("regulatory watch API", () => {
         correlationId: "correlation-1",
       });
     expect(regulatory.startEvaluation).toHaveBeenCalledWith(tenant, "project-1");
+  });
+  it("routes preuve edits and removals through the current baseline", async () => {
+    regulatory.updateEvidence.mockResolvedValue({ id: "watch-1" });
+    regulatory.deleteEvidence.mockResolvedValue({ id: "watch-1" });
+
+    await request(app.getHttpServer())
+      .patch("/v1/projects/project-1/regulatory-watch/evidence/evidence-1")
+      .send({ label: "Visite du 8 août", note: "Zone déchets non conforme" })
+      .expect(200);
+    expect(regulatory.updateEvidence).toHaveBeenCalledWith(tenant, "project-1", "evidence-1", {
+      label: "Visite du 8 août",
+      note: "Zone déchets non conforme",
+    });
+
+    await request(app.getHttpServer())
+      .delete("/v1/projects/project-1/regulatory-watch/evidence/evidence-1")
+      .expect(200);
+    expect(regulatory.deleteEvidence).toHaveBeenCalledWith(tenant, "project-1", "evidence-1");
+  });
+
+  it("rejects a preuve patch whose link is not a URL", async () => {
+    await request(app.getHttpServer())
+      .patch("/v1/projects/project-1/regulatory-watch/evidence/evidence-1")
+      .send({ url: "pas-une-url" })
+      .expect(400);
+    expect(regulatory.updateEvidence).not.toHaveBeenCalled();
+  });
+
+  it("accepts the free-text responsable on an action patch", async () => {
+    regulatory.updateAction.mockResolvedValue({ id: "watch-1" });
+
+    await request(app.getHttpServer())
+      .patch("/v1/projects/project-1/regulatory-watch/actions/action-1")
+      .send({ responsibleName: "Responsable QHSE", dueDate: "2026-09-30" })
+      .expect(200);
+    expect(regulatory.updateAction).toHaveBeenCalledWith(tenant, "project-1", "action-1", {
+      responsibleName: "Responsable QHSE",
+      dueDate: "2026-09-30",
+    });
   });
 });

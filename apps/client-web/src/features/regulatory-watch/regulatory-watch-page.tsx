@@ -36,12 +36,14 @@ import {
   ListChecksIcon,
   LoaderCircleIcon,
   MessageSquareTextIcon,
+  PlusIcon,
   RefreshCwIcon,
   ScaleIcon,
   SearchCheckIcon,
   ShieldCheckIcon,
   SparklesIcon,
   TargetIcon,
+  Trash2Icon,
   XIcon,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -53,8 +55,10 @@ import {
   DocumentList,
   EvaluationList,
   MetricCard,
+  type RegulatoryActionRow,
   type RegulatoryDocument,
   type RegulatoryEvaluation,
+  type RegulatoryEvidenceItem,
 } from "./regulatory-watch-test-page.js";
 
 const activeAnalysisStatuses = new Set(["QUEUED", "RUNNING"]);
@@ -148,6 +152,28 @@ function formatDate(value: string | null | undefined): string {
   }).format(new Date(`${value.slice(0, 10)}T12:00:00.000Z`));
 }
 
+/** Same vocabulary as the XLSX "Action efficace oui/non" column
+ *  (`regulatory-watch-exporter.ts`), so the table and the file never disagree. */
+const effectivenessLabels = {
+  PENDING: "À vérifier",
+  EFFECTIVE: "Oui",
+  INEFFECTIVE: "Non",
+} as const;
+
+const evidenceKindLabels = {
+  DOCUMENT: "Document",
+  PHOTO: "Photo",
+  NOTE: "Note",
+  LINK: "Lien",
+} as const;
+
+const actionStatusLabels = {
+  OPEN: "Ouverte",
+  IN_PROGRESS: "En cours",
+  DONE: "Réalisée",
+  VERIFIED: "Vérifiée",
+} as const;
+
 function mapEvaluationStatus(
   result: "CONFORMING" | "PARTIAL" | "NON_CONFORMING" | "NOT_ASSESSED",
 ): RegulatoryEvaluation["status"] {
@@ -191,9 +217,14 @@ export function regulatoryViewData(watch: RegulatoryWatch) {
   }
 
   const evaluationItems: RegulatoryEvaluation[] = entries.map((entry) => {
-    const evidence = entry.evaluation.evidence[0];
+    const evidenceItems = entry.evaluation.evidence;
     const action = entry.evaluation.actions[0];
     const ai = entry.evaluation.aiAssessment;
+    // The XLSX joins every preuve into one cell; the table now does the same instead of showing
+    // only the first one.
+    const evidenceLabels = evidenceItems.map(
+      (item) => item.label ?? item.note ?? item.url ?? "Preuve",
+    );
     return {
       id: entry.evaluation.id,
       revision: entry.evaluation.revision,
@@ -204,16 +235,40 @@ export function regulatoryViewData(watch: RegulatoryWatch) {
       citation: entry.source.citationLabel,
       officialSourceText: entry.source.excerpt,
       status: mapEvaluationStatus(entry.evaluation.result),
-      evidence: evidence?.label ?? evidence?.note ?? evidence?.url ?? "Aucune preuve liée",
+      evidence: evidenceLabels.length ? evidenceLabels.join(" · ") : "Aucune preuve liée",
       action: action?.title ?? "Aucune action définie",
       owner: action?.assigneeName ?? "Non attribué",
       dueDate: formatDate(action?.dueDate),
-      effectiveness:
-        action?.effectiveness === "EFFECTIVE"
-          ? "Action efficace"
-          : action?.effectiveness === "INEFFECTIVE"
-            ? "Action non efficace"
-            : "À vérifier",
+      effectiveness: effectivenessLabels[action?.effectiveness ?? "PENDING"],
+      resources: action?.resources ?? "—",
+      completedDate: formatDate(action?.completedDate),
+      effectivenessCriteria: action?.effectivenessCriteria ?? "—",
+      comment: [entry.evaluation.comment, action?.comment].filter(Boolean).join("\n") || "—",
+      evaluationComment: entry.evaluation.comment,
+      evidenceItems: evidenceItems.map((item) => ({
+        id: item.id,
+        kind: item.kind,
+        fileId: item.fileId,
+        label: item.label,
+        url: item.url,
+        note: item.note,
+      })),
+      primaryAction: action
+        ? {
+            id: action.id,
+            title: action.title,
+            assigneeId: action.assigneeId,
+            assigneeName: action.assigneeName,
+            resources: action.resources,
+            dueDate: action.dueDate,
+            completedDate: action.completedDate,
+            status: action.status,
+            effectivenessCriteria: action.effectivenessCriteria,
+            effectiveness: action.effectiveness,
+            comment: action.comment,
+          }
+        : null,
+      additionalActionCount: Math.max(0, entry.evaluation.actions.length - 1),
       aiStatus: ai?.status ?? "PENDING",
       aiSuggestedStatus: ai?.suggestedResult ? mapEvaluationStatus(ai.suggestedResult) : undefined,
       aiSuggestedResult: ai?.suggestedResult ?? null,
@@ -860,6 +915,115 @@ function ReviewState({
   );
 }
 
+/** Draft of the single action row the sheet edits, kept as plain strings so the inputs stay
+ *  controlled and an untouched field is byte-identical to what was seeded. */
+type ActionDraft = {
+  title: string;
+  responsibleName: string;
+  resources: string;
+  dueDate: string;
+  completedDate: string;
+  status: "OPEN" | "IN_PROGRESS" | "DONE" | "VERIFIED";
+  effectivenessCriteria: string;
+  effectiveness: "PENDING" | "EFFECTIVE" | "INEFFECTIVE";
+  comment: string;
+};
+
+type EvidenceDraft = {
+  /** `null` for a row the reviewer just added and that has no server id yet. */
+  id: string | null;
+  key: string;
+  kind: "DOCUMENT" | "PHOTO" | "NOTE" | "LINK";
+  label: string;
+  url: string;
+  note: string;
+  removed: boolean;
+};
+
+export type EvaluationSaveInput = {
+  evaluationId: string;
+  revision: number;
+  result: "CONFORMING" | "PARTIAL" | "NON_CONFORMING";
+  comment: string | null;
+  /** `null` when the action block was left untouched — the save then skips the action call. */
+  action: {
+    id: string | null;
+    title: string;
+    responsibleName: string | null;
+    resources: string | null;
+    dueDate: string | null;
+    completedDate: string | null;
+    status: "OPEN" | "IN_PROGRESS" | "DONE" | "VERIFIED";
+    effectivenessCriteria: string | null;
+    effectiveness: "PENDING" | "EFFECTIVE" | "INEFFECTIVE";
+    comment: string | null;
+  } | null;
+  evidence: {
+    created: Array<{
+      kind: "NOTE" | "LINK";
+      label: string | null;
+      url: string | null;
+      note: string | null;
+    }>;
+    updated: Array<{
+      id: string;
+      label: string | null;
+      url?: string | null;
+      note?: string | null;
+    }>;
+    deletedIds: string[];
+  };
+};
+
+const emptyActionDraft: ActionDraft = {
+  title: "",
+  responsibleName: "",
+  resources: "",
+  dueDate: "",
+  completedDate: "",
+  status: "OPEN",
+  effectivenessCriteria: "",
+  effectiveness: "PENDING",
+  comment: "",
+};
+
+function actionDraftFrom(action: RegulatoryActionRow | null | undefined): ActionDraft {
+  if (!action) return emptyActionDraft;
+  return {
+    title: action.title,
+    // The conformity pass proposes a free-text responsable; a linked platform user wins over it,
+    // exactly like the register and the export read it.
+    responsibleName: action.assigneeName ?? "",
+    resources: action.resources ?? "",
+    dueDate: action.dueDate ?? "",
+    completedDate: action.completedDate ?? "",
+    status: action.status,
+    effectivenessCriteria: action.effectivenessCriteria ?? "",
+    effectiveness: action.effectiveness,
+    comment: action.comment ?? "",
+  };
+}
+
+function evidenceDraftsFrom(items: RegulatoryEvidenceItem[] | undefined): EvidenceDraft[] {
+  return (items ?? []).map((item) => ({
+    id: item.id,
+    key: item.id,
+    kind: item.kind,
+    label: item.label ?? "",
+    url: item.url ?? "",
+    note: item.note ?? "",
+    removed: false,
+  }));
+}
+
+function trimmedOrNull(value: string): string | null {
+  return value.trim() ? value.trim() : null;
+}
+
+const fieldLabelClass = "block text-xs font-medium text-slate-500";
+const fieldControlClass =
+  "mt-1 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm";
+
 function AiEvaluationSheet({
   evaluation,
   saving,
@@ -869,17 +1033,15 @@ function AiEvaluationSheet({
   evaluation: RegulatoryEvaluation | null;
   saving: boolean;
   onClose: () => void;
-  onSave: (input: {
-    evaluationId: string;
-    revision: number;
-    result: "CONFORMING" | "PARTIAL" | "NON_CONFORMING";
-    comment: string | null;
-  }) => Promise<void>;
+  onSave: (input: EvaluationSaveInput) => Promise<void>;
 }) {
   const [result, setResult] = useState<"CONFORMING" | "PARTIAL" | "NON_CONFORMING">(
     "NON_CONFORMING",
   );
   const [comment, setComment] = useState("");
+  const [actionDraft, setActionDraft] = useState<ActionDraft>(emptyActionDraft);
+  const [evidenceDrafts, setEvidenceDrafts] = useState<EvidenceDraft[]>([]);
+  const [validationError, setValidationError] = useState<string>();
   const evaluationId = evaluation?.id;
   const suggestedResult = evaluation?.aiSuggestedResult;
   const humanResult = evaluation?.result;
@@ -899,9 +1061,112 @@ function AiEvaluationSheet({
     );
   }, [evaluationId, suggestedResult, humanResult]);
 
+  // Keyed on the row identity only: the action and evidence editors must never be reseeded by the
+  // 2s poll, or a reviewer's half-typed plan would vanish under them.
+  const seededAction = evaluation?.primaryAction;
+  const seededEvidence = evaluation?.evidenceItems;
+  const seededComment = evaluation?.evaluationComment;
   useEffect(() => {
-    setComment("");
+    if (!evaluationId) return;
+    setComment(seededComment ?? "");
+    setActionDraft(actionDraftFrom(seededAction));
+    setEvidenceDrafts(evidenceDraftsFrom(seededEvidence));
+    setValidationError(undefined);
   }, [evaluationId]);
+
+  const initialActionDraft = useMemo(() => actionDraftFrom(seededAction), [evaluationId]);
+  const actionDirty = useMemo(
+    () => JSON.stringify(actionDraft) !== JSON.stringify(initialActionDraft),
+    [actionDraft, initialActionDraft],
+  );
+
+  function updateAction<K extends keyof ActionDraft>(key: K, value: ActionDraft[K]) {
+    setActionDraft((current) => ({ ...current, [key]: value }));
+  }
+
+  function updateEvidence(key: string, patch: Partial<EvidenceDraft>) {
+    setEvidenceDrafts((current) =>
+      current.map((item) => (item.key === key ? { ...item, ...patch } : item)),
+    );
+  }
+
+  function buildSaveInput(): EvaluationSaveInput | string {
+    const title = actionDraft.title.trim();
+    const hasOtherActionValues = Boolean(
+      actionDraft.responsibleName.trim() ||
+      actionDraft.resources.trim() ||
+      actionDraft.dueDate ||
+      actionDraft.completedDate ||
+      actionDraft.effectivenessCriteria.trim() ||
+      actionDraft.comment.trim() ||
+      actionDraft.effectiveness !== "PENDING" ||
+      actionDraft.status !== "OPEN",
+    );
+    if (!title && hasOtherActionValues)
+      return "Renseignez l’intitulé de l’action avant d’enregistrer son plan.";
+    if (title && title.length < 2)
+      return "L’intitulé de l’action doit faire au moins 2 caractères.";
+
+    const created: EvaluationSaveInput["evidence"]["created"] = [];
+    const updated: EvaluationSaveInput["evidence"]["updated"] = [];
+    const deletedIds: string[] = [];
+    const seeded = new Map(evidenceDraftsFrom(seededEvidence).map((item) => [item.key, item]));
+    for (const draft of evidenceDrafts) {
+      if (draft.removed) {
+        if (draft.id) deletedIds.push(draft.id);
+        continue;
+      }
+      if (draft.kind === "NOTE" && !draft.note.trim())
+        return "Une preuve de type Note doit contenir un texte.";
+      if (draft.kind === "LINK" && !draft.url.trim())
+        return "Une preuve de type Lien doit contenir une URL.";
+      if (!draft.id) {
+        created.push({
+          kind: draft.kind === "LINK" ? "LINK" : "NOTE",
+          label: trimmedOrNull(draft.label),
+          url: draft.kind === "LINK" ? draft.url.trim() : null,
+          note: draft.kind === "LINK" ? null : draft.note.trim(),
+        });
+        continue;
+      }
+      const before = seeded.get(draft.key);
+      const changed =
+        before &&
+        (before.label !== draft.label || before.url !== draft.url || before.note !== draft.note);
+      if (!changed) continue;
+      // Only the fields this kind owns are patched, so the server-side merged-record check never
+      // sees a NOTE stripped of its note or a LINK stripped of its url.
+      updated.push({
+        id: draft.id,
+        label: trimmedOrNull(draft.label),
+        ...(draft.kind === "LINK" ? { url: draft.url.trim() } : {}),
+        ...(draft.kind === "NOTE" ? { note: draft.note.trim() } : {}),
+      });
+    }
+
+    return {
+      evaluationId: evaluation!.id,
+      revision: evaluation!.revision ?? 1,
+      result,
+      comment: trimmedOrNull(comment),
+      action:
+        actionDirty && title
+          ? {
+              id: seededAction?.id ?? null,
+              title,
+              responsibleName: trimmedOrNull(actionDraft.responsibleName),
+              resources: trimmedOrNull(actionDraft.resources),
+              dueDate: actionDraft.dueDate || null,
+              completedDate: actionDraft.completedDate || null,
+              status: actionDraft.status,
+              effectivenessCriteria: trimmedOrNull(actionDraft.effectivenessCriteria),
+              effectiveness: actionDraft.effectiveness,
+              comment: trimmedOrNull(actionDraft.comment),
+            }
+          : null,
+      evidence: { created, updated, deletedIds },
+    };
+  }
 
   const ai = evaluation?.aiStatus;
   return (
@@ -949,10 +1214,118 @@ function AiEvaluationSheet({
               )}
 
               <section className="rounded-2xl border border-emerald-100 bg-emerald-50/60 p-4">
-                <p className="flex items-center gap-2 text-xs font-semibold text-emerald-800">
-                  <FileCheck2Icon className="size-4" /> Preuve associée
-                </p>
-                <p className="mt-2 text-sm text-emerald-950/80">{evaluation.evidence}</p>
+                <div className="flex items-center justify-between gap-3">
+                  <p className="flex items-center gap-2 text-xs font-semibold text-emerald-800">
+                    <FileCheck2Icon className="size-4" /> Preuves associées
+                  </p>
+                  <Button
+                    className="h-8 bg-white"
+                    onClick={() =>
+                      setEvidenceDrafts((current) => [
+                        ...current,
+                        {
+                          id: null,
+                          key: `new-${current.length}-${Date.now()}`,
+                          kind: "NOTE",
+                          label: "",
+                          url: "",
+                          note: "",
+                          removed: false,
+                        },
+                      ])
+                    }
+                    size="sm"
+                    type="button"
+                    variant="outline"
+                  >
+                    <PlusIcon /> Ajouter
+                  </Button>
+                </div>
+                <div className="mt-3 space-y-3">
+                  {evidenceDrafts.filter((item) => !item.removed).length === 0 && (
+                    <p className="text-sm text-emerald-950/60">Aucune preuve liée.</p>
+                  )}
+                  {evidenceDrafts.map((draft) =>
+                    draft.removed ? null : (
+                      <div
+                        className="rounded-xl border border-emerald-200 bg-white p-3"
+                        key={draft.key}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          {draft.id ? (
+                            <Badge className="bg-emerald-50 text-emerald-800" variant="outline">
+                              {evidenceKindLabels[draft.kind]}
+                            </Badge>
+                          ) : (
+                            <select
+                              aria-label="Type de preuve"
+                              className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-xs"
+                              onChange={(event) =>
+                                updateEvidence(draft.key, {
+                                  kind: event.target.value as "NOTE" | "LINK",
+                                })
+                              }
+                              value={draft.kind}
+                            >
+                              <option value="NOTE">Note</option>
+                              <option value="LINK">Lien</option>
+                            </select>
+                          )}
+                          <Button
+                            aria-label="Retirer la preuve"
+                            className="size-8 text-slate-400 hover:text-rose-700"
+                            onClick={() => updateEvidence(draft.key, { removed: true })}
+                            size="icon"
+                            type="button"
+                            variant="ghost"
+                          >
+                            <Trash2Icon className="size-4" />
+                          </Button>
+                        </div>
+                        <label className={cn(fieldLabelClass, "mt-3")}>
+                          Libellé
+                          <Input
+                            className="mt-1 h-9"
+                            onChange={(event) =>
+                              updateEvidence(draft.key, { label: event.target.value })
+                            }
+                            placeholder="Nom de la preuve"
+                            value={draft.label}
+                          />
+                        </label>
+                        {draft.kind === "LINK" ? (
+                          <label className={cn(fieldLabelClass, "mt-3")}>
+                            Lien
+                            <Input
+                              className="mt-1 h-9"
+                              onChange={(event) =>
+                                updateEvidence(draft.key, { url: event.target.value })
+                              }
+                              placeholder="https://…"
+                              value={draft.url}
+                            />
+                          </label>
+                        ) : draft.kind === "NOTE" ? (
+                          <label className={cn(fieldLabelClass, "mt-3")}>
+                            Note
+                            <Textarea
+                              className="mt-1 min-h-16"
+                              onChange={(event) =>
+                                updateEvidence(draft.key, { note: event.target.value })
+                              }
+                              placeholder="Décrivez la preuve"
+                              value={draft.note}
+                            />
+                          </label>
+                        ) : (
+                          <p className="mt-3 text-xs text-slate-500">
+                            Fichier joint — remplacez-le depuis le module documentaire.
+                          </p>
+                        )}
+                      </div>
+                    ),
+                  )}
+                </div>
               </section>
 
               {(ai === "PENDING" || ai === "RUNNING") && (
@@ -1057,6 +1430,138 @@ function AiEvaluationSheet({
               )}
 
               <section className="rounded-2xl border border-slate-200 p-4">
+                <p className="flex items-center gap-2 text-xs font-semibold text-slate-900">
+                  <TargetIcon className="size-4" /> Plan d’action
+                </p>
+                <p className="mt-1 text-[11px] leading-4 text-slate-500">
+                  Ces champs alimentent les colonnes « Actions » à « commentaire » de l’export
+                  Excel.
+                </p>
+                <label className={cn(fieldLabelClass, "mt-4")} htmlFor="action-title">
+                  Action
+                </label>
+                <Input
+                  className="mt-1"
+                  id="action-title"
+                  maxLength={500}
+                  onChange={(event) => updateAction("title", event.target.value)}
+                  placeholder="Intitulé de l’action à mener"
+                  value={actionDraft.title}
+                />
+                <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                  <div>
+                    <label className={fieldLabelClass} htmlFor="action-responsible">
+                      Responsable
+                    </label>
+                    <Input
+                      className="mt-1"
+                      id="action-responsible"
+                      maxLength={200}
+                      onChange={(event) => updateAction("responsibleName", event.target.value)}
+                      placeholder="Nom ou fonction"
+                      value={actionDraft.responsibleName}
+                    />
+                  </div>
+                  <div>
+                    <label className={fieldLabelClass} htmlFor="action-status">
+                      Statut
+                    </label>
+                    <select
+                      className={fieldControlClass}
+                      id="action-status"
+                      onChange={(event) =>
+                        updateAction("status", event.target.value as ActionDraft["status"])
+                      }
+                      value={actionDraft.status}
+                    >
+                      {(
+                        Object.entries(actionStatusLabels) as Array<[ActionDraft["status"], string]>
+                      ).map(([value, label]) => (
+                        <option key={value} value={value}>
+                          {label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className={fieldLabelClass} htmlFor="action-due-date">
+                      Date prévue
+                    </label>
+                    <input
+                      className={fieldControlClass}
+                      id="action-due-date"
+                      onChange={(event) => updateAction("dueDate", event.target.value)}
+                      type="date"
+                      value={actionDraft.dueDate}
+                    />
+                  </div>
+                  <div>
+                    <label className={fieldLabelClass} htmlFor="action-completed-date">
+                      Date réelle
+                    </label>
+                    <input
+                      className={fieldControlClass}
+                      id="action-completed-date"
+                      onChange={(event) => updateAction("completedDate", event.target.value)}
+                      type="date"
+                      value={actionDraft.completedDate}
+                    />
+                  </div>
+                </div>
+                <label className={cn(fieldLabelClass, "mt-3")} htmlFor="action-resources">
+                  Ressources
+                </label>
+                <Textarea
+                  className="mt-1 min-h-16"
+                  id="action-resources"
+                  maxLength={2000}
+                  onChange={(event) => updateAction("resources", event.target.value)}
+                  placeholder="Moyens humains, budget, prestataires…"
+                  value={actionDraft.resources}
+                />
+                <label className={cn(fieldLabelClass, "mt-3")} htmlFor="action-criteria">
+                  Critères d’efficacité
+                </label>
+                <Textarea
+                  className="mt-1 min-h-16"
+                  id="action-criteria"
+                  maxLength={2000}
+                  onChange={(event) => updateAction("effectivenessCriteria", event.target.value)}
+                  placeholder="Comment vérifierez-vous que l’action a produit son effet ?"
+                  value={actionDraft.effectivenessCriteria}
+                />
+                <label className={cn(fieldLabelClass, "mt-3")} htmlFor="action-effectiveness">
+                  Action efficace
+                </label>
+                <select
+                  className={fieldControlClass}
+                  id="action-effectiveness"
+                  onChange={(event) =>
+                    updateAction(
+                      "effectiveness",
+                      event.target.value as ActionDraft["effectiveness"],
+                    )
+                  }
+                  value={actionDraft.effectiveness}
+                >
+                  <option value="PENDING">À vérifier</option>
+                  <option value="EFFECTIVE">Oui</option>
+                  <option value="INEFFECTIVE">Non</option>
+                </select>
+                <label className={cn(fieldLabelClass, "mt-3")} htmlFor="action-comment">
+                  Commentaire de l’action
+                </label>
+                <Textarea
+                  className="mt-1 min-h-16"
+                  id="action-comment"
+                  maxLength={2000}
+                  onChange={(event) => updateAction("comment", event.target.value)}
+                  placeholder="Suivi, points de blocage…"
+                  value={actionDraft.comment}
+                />
+              </section>
+
+              <section className="rounded-2xl border border-slate-200 p-4">
                 <p className="text-xs font-semibold text-slate-900">Décision humaine finale</p>
                 <label className="mt-3 block text-xs text-slate-500" htmlFor="evaluation-result">
                   Résultat
@@ -1085,18 +1590,24 @@ function AiEvaluationSheet({
                 />
               </section>
             </div>
-            <SheetFooter className="border-t border-slate-100 bg-slate-50">
+            <SheetFooter className="flex-col items-stretch gap-2 border-t border-slate-100 bg-slate-50">
+              {validationError && (
+                <p className="text-xs text-rose-700" role="alert">
+                  {validationError}
+                </p>
+              )}
               <Button
                 className="h-10 rounded-xl bg-slate-950 hover:bg-slate-800"
                 disabled={saving || !evaluation.revision}
-                onClick={() =>
-                  void onSave({
-                    evaluationId: evaluation.id,
-                    revision: evaluation.revision ?? 1,
-                    result,
-                    comment: comment.trim() || null,
-                  })
-                }
+                onClick={() => {
+                  const input = buildSaveInput();
+                  if (typeof input === "string") {
+                    setValidationError(input);
+                    return;
+                  }
+                  setValidationError(undefined);
+                  void onSave(input);
+                }}
               >
                 {saving ? <LoaderCircleIcon className="animate-spin" /> : <CheckIcon />} Valider
                 l’évaluation
@@ -1132,12 +1643,7 @@ export function DataPage({
   evaluating?: boolean;
   savingEvaluation?: boolean;
   onStartEvaluation?: () => void;
-  onSaveEvaluation?: (input: {
-    evaluationId: string;
-    revision: number;
-    result: "CONFORMING" | "PARTIAL" | "NON_CONFORMING";
-    comment: string | null;
-  }) => Promise<void>;
+  onSaveEvaluation?: (input: EvaluationSaveInput) => Promise<void>;
 }) {
   const [selectedDocument, setSelectedDocument] = useState<RegulatoryDocument | null>(null);
   // Held by id, not by value: the open sheet has to follow the 2s poll so a pass completing
@@ -1481,7 +1987,7 @@ export function RegulatoryWatchPage() {
     }: {
       candidateId: string;
       decision: "APPLICABLE" | "NOT_APPLICABLE";
-      requirementText?: string;
+      requirementText?: string | undefined;
     }) => {
       const watch = watchQuery.data;
       if (!watch) throw new Error("Veille introuvable");
@@ -1551,17 +2057,32 @@ export function RegulatoryWatchPage() {
       ),
   });
   const evaluationMutation = useMutation({
-    mutationFn: (input: {
-      evaluationId: string;
-      revision: number;
-      result: "CONFORMING" | "PARTIAL" | "NON_CONFORMING";
-      comment: string | null;
-    }) =>
-      clientApi.updateRegulatoryEvaluation(projectId, input.evaluationId, {
+    // One reviewer action can touch preuves, the action plan and the conformity decision. Each
+    // endpoint returns the whole watch, so the calls run in sequence and the last response seeds
+    // the cache. The evaluation goes last: it is the only revision-guarded write, so it must not
+    // burn its revision before the rest has landed.
+    mutationFn: async (input: EvaluationSaveInput) => {
+      for (const evidenceId of input.evidence.deletedIds) {
+        await clientApi.deleteRegulatoryEvidence(projectId, evidenceId);
+      }
+      for (const evidence of input.evidence.updated) {
+        const { id, ...patch } = evidence;
+        await clientApi.updateRegulatoryEvidence(projectId, id, patch);
+      }
+      for (const evidence of input.evidence.created) {
+        await clientApi.addRegulatoryEvidence(projectId, input.evaluationId, evidence);
+      }
+      if (input.action) {
+        const { id, ...payload } = input.action;
+        if (id) await clientApi.updateRegulatoryAction(projectId, id, payload);
+        else await clientApi.addRegulatoryAction(projectId, input.evaluationId, payload);
+      }
+      return clientApi.updateRegulatoryEvaluation(projectId, input.evaluationId, {
         revision: input.revision,
         result: input.result,
         comment: input.comment,
-      }),
+      });
+    },
     onMutate: () => setActionError(undefined),
     onSuccess: (watch) => queryClient.setQueryData(["regulatory-watch", projectId], watch),
     onError: (error) =>
