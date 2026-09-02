@@ -90,10 +90,16 @@ describe.skipIf(!enabled)("regulatory applicability OpenAI live", () => {
         timeout: Number(process.env["OPENAI_REGULATORY_TIMEOUT_MS"] ?? 180_000),
         maxOutputTokens: Number(process.env["OPENAI_REGULATORY_DRAFT_MAX_OUTPUT_TOKENS"] ?? 12_000),
         maxRetries: 0,
+        // Mirrors the worker's own call so this live check exercises the flex tier, the
+        // prompt-cache key and the low output verbosity that production actually runs with.
         providerOptions: {
           openai: {
             store: false,
             reasoningEffort: process.env["OPENAI_REGULATORY_REASONING_EFFORT"] ?? "low",
+            serviceTier: process.env["OPENAI_REGULATORY_SERVICE_TIER"] ?? "flex",
+            textVerbosity: process.env["OPENAI_REGULATORY_TEXT_VERBOSITY"] ?? "low",
+            promptCacheKey: "regulatory-drafting:live-integration",
+            promptCacheRetention: process.env["OPENAI_REGULATORY_PROMPT_CACHE_RETENTION"] ?? "24h",
           },
         },
       });

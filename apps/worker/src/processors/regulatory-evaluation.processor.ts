@@ -11,9 +11,13 @@ import { z } from "zod";
 import { queueNames } from "../queues.js";
 import {
   conservativeInputTokens,
+  failureUsage,
   isTimeoutError,
   positiveNumber,
   regulatoryCostMicroUsd,
+  regulatoryPrimaryModel,
+  regulatoryProviderOptions,
+  type RegulatoryTokenUsage,
 } from "./regulatory-model-cost.js";
 
 /** Ledger stage used by every model call this processor makes, so conformity spend stays
@@ -24,7 +28,7 @@ const ABANDONED_CALL_AFTER_MS = 15 * 60_000;
 /** Guards against burning the whole budget one doomed call at a time when the provider is down. */
 const MAX_CONSECUTIVE_FAILURES = 5;
 
-type ReservedModelCall = { id: string; reservedMicroUsd: number };
+type ReservedModelCall = { id: string; model: string; reservedMicroUsd: number };
 
 class RegulatoryEvaluationBudgetError extends Error {
   constructor() {
@@ -151,8 +155,8 @@ export class RegulatoryEvaluationProcessor extends WorkerHost {
     budgetMicroUsd: number;
   }): Promise<ReservedModelCall> {
     const reservedMicroUsd = regulatoryCostMicroUsd(
-      conservativeInputTokens(input.prompt),
-      input.maxOutputTokens,
+      { inputTokens: conservativeInputTokens(input.prompt), outputTokens: input.maxOutputTokens },
+      input.model,
     );
     const reservation = await this.database.$transaction(async (tx) => {
       // Locks the analysis run row for the transaction so two evaluation jobs on the same
@@ -184,7 +188,7 @@ export class RegulatoryEvaluationProcessor extends WorkerHost {
         },
         select: { id: true },
       });
-      return { id: call.id, reservedMicroUsd };
+      return { id: call.id, model: input.model, reservedMicroUsd };
     });
     if (!reservation) throw new RegulatoryEvaluationBudgetError();
     return reservation;
@@ -196,15 +200,22 @@ export class RegulatoryEvaluationProcessor extends WorkerHost {
       | {
           status: "SUCCEEDED";
           inputTokens: number;
+          cachedInputTokens: number;
           outputTokens: number;
           reasoningTokens: number;
           latencyMs: number;
         }
-      | { status: "FAILED" | "TIMED_OUT"; latencyMs: number; errorCode: string },
+      | {
+          status: "FAILED" | "TIMED_OUT";
+          latencyMs: number;
+          errorCode: string;
+          usage?: RegulatoryTokenUsage | null;
+        },
   ): Promise<void> {
     const succeeded = result.status === "SUCCEEDED";
-    const chargedMicroUsd = succeeded
-      ? regulatoryCostMicroUsd(result.inputTokens, result.outputTokens)
+    const measured = succeeded ? result : result.usage;
+    const chargedMicroUsd = measured
+      ? regulatoryCostMicroUsd(measured, reservation.model)
       : reservation.reservedMicroUsd;
     await this.database.regulatoryModelCall.updateMany({
       where: { id: reservation.id, status: "RUNNING" },
@@ -216,10 +227,20 @@ export class RegulatoryEvaluationProcessor extends WorkerHost {
         ...(succeeded
           ? {
               inputTokens: result.inputTokens,
+              cachedInputTokens: result.cachedInputTokens,
               outputTokens: result.outputTokens,
               reasoningTokens: result.reasoningTokens,
             }
-          : { errorCode: result.errorCode }),
+          : {
+              errorCode: result.errorCode,
+              ...(result.usage
+                ? {
+                    inputTokens: result.usage.inputTokens,
+                    cachedInputTokens: result.usage.cachedInputTokens ?? 0,
+                    outputTokens: result.usage.outputTokens,
+                  }
+                : {}),
+            }),
       },
     });
   }
@@ -268,7 +289,7 @@ export class RegulatoryEvaluationProcessor extends WorkerHost {
         entry.evaluation.evaluatedAt === null &&
         (entry.evaluation.aiStatus === "PENDING" || entry.evaluation.aiStatus === "RUNNING"),
     );
-    const model = process.env["OPENAI_REGULATORY_MODEL"] ?? "gpt-5-mini";
+    const model = regulatoryPrimaryModel();
     const reasoningEffort = (process.env["OPENAI_REGULATORY_REASONING_EFFORT"] ?? "low") as
       "none" | "low" | "medium" | "high" | "xhigh" | "max";
     const maxOutputTokens = positiveNumber(
@@ -365,12 +386,16 @@ export class RegulatoryEvaluationProcessor extends WorkerHost {
           timeout: timeoutMs,
           maxOutputTokens,
           maxRetries: 0,
-          providerOptions: { openai: { store: false, reasoningEffort } },
+          providerOptions: regulatoryProviderOptions({
+            reasoningEffort,
+            promptCacheKey: `regulatory-evaluation:${baseline.analysisRunId}`,
+          }),
           telemetry: { isEnabled: false },
         });
         await this.settleModelCall(reservation, {
           status: "SUCCEEDED",
           inputTokens: generated.totalUsage.inputTokens ?? 0,
+          cachedInputTokens: generated.totalUsage.inputTokenDetails?.cacheReadTokens ?? 0,
           outputTokens: generated.totalUsage.outputTokens ?? 0,
           reasoningTokens: generated.totalUsage.outputTokenDetails?.reasoningTokens ?? 0,
           latencyMs: Date.now() - callStartedAt,
@@ -443,6 +468,7 @@ export class RegulatoryEvaluationProcessor extends WorkerHost {
           status: timedOut ? "TIMED_OUT" : "FAILED",
           latencyMs: Date.now() - callStartedAt,
           errorCode: timedOut ? "REGULATORY_MODEL_TIMEOUT" : "REGULATORY_MODEL_UNAVAILABLE",
+          usage: failureUsage(error),
         });
         const message = error instanceof Error ? error.message : "Unknown evaluation error";
         await this.failEvaluations([evaluation.id], message);

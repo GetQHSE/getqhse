@@ -21,9 +21,15 @@ import { z } from "zod";
 import { queueNames } from "../queues.js";
 import {
   conservativeInputTokens,
+  failureUsage,
   isTimeoutError,
   positiveNumber,
   regulatoryCostMicroUsd,
+  regulatoryPrimaryModel,
+  regulatoryProviderOptions,
+  regulatoryTriageModel,
+  regulatoryVerificationModel,
+  type RegulatoryTokenUsage,
 } from "./regulatory-model-cost.js";
 
 export { regulatoryCostMicroUsd };
@@ -73,6 +79,7 @@ export type ClassificationModelStage = "drafting" | "verification" | "triage";
 
 type ReservedModelCall = {
   id: string;
+  model: string;
   reservedMicroUsd: number;
 };
 
@@ -89,7 +96,33 @@ const CLASSIFICATION_PROGRESS_START = 50;
 const CLASSIFICATION_PROGRESS_END = 92;
 const MODEL_HEARTBEAT_INTERVAL_MS = 30_000;
 const CLASSIFICATION_CONCURRENCY = 5;
-const RATE_LIMIT_MAX_ATTEMPTS = 3;
+// The flex service tier answers with a 429 when capacity is unavailable, which is a normal
+// scheduling outcome rather than a quota problem, so it needs a longer runway than a plain
+// rate limit would. parseRateLimitRetryDelayMs still honours any delay the error names.
+const RATE_LIMIT_MAX_ATTEMPTS = 6;
+const RATE_LIMIT_FALLBACK_DELAY_MS = 5_000;
+
+// A reservation bounds a call's cost from above, so several lanes running at once hold far more
+// budget than they will end up spending. Near the end of a run that peak can reject a call the
+// run could actually afford, which used to end the whole classification and publish a partial
+// result. Budget genuinely spent is permanent and still stops the run immediately; budget merely
+// held by an in-flight call frees itself when that call settles, so it is worth waiting out.
+const BUDGET_CONTENTION_MAX_ATTEMPTS = 6;
+const BUDGET_CONTENTION_DELAY_MS = 5_000;
+
+type ReservationRefused = "EXHAUSTED" | "CONTENDED";
+
+// Distinguishes the two ways a budget check fails: EXHAUSTED means the call cannot fit even with
+// nothing in flight, CONTENDED means it only fails against reservations that will be released.
+export function reservationOutcome(
+  run: { spentMicroUsd: number; reservedMicroUsd: number; budgetMicroUsd: number },
+  reservedMicroUsd: number,
+): "FITS" | "EXHAUSTED" | "CONTENDED" {
+  if (run.spentMicroUsd + run.reservedMicroUsd + reservedMicroUsd <= run.budgetMicroUsd) {
+    return "FITS";
+  }
+  return run.spentMicroUsd + reservedMicroUsd > run.budgetMicroUsd ? "EXHAUSTED" : "CONTENDED";
+}
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -173,6 +206,20 @@ function normalized(value: string | null | undefined): string {
     .toLowerCase()
     .replace(/[^a-z0-9\u0600-\u06ff]+/g, " ")
     .trim();
+}
+
+// The drafting prompt requires requirementText to be lifted verbatim from candidate.content,
+// with only layout artefacts (line breaks, OCR hyphenation) cleaned up. When the model complies
+// exactly, the independent verifier has nothing left to check: there is no paraphrase to
+// overreach and no wording that could have come from anywhere but the source. Comparing through
+// normalized() is what makes that safe — it ignores accents, case and punctuation spacing, so an
+// un-hyphenated line break still counts as a quote, while any added, dropped or reordered word
+// breaks the match and falls through to the verifier. This can only skip calls that would have
+// returned supported=true; it can never let a fabricated requirement through.
+export function isVerbatimRequirement(source: string, requirementText: string | null): boolean {
+  const requirement = normalized(requirementText);
+  if (!requirement) return false;
+  return normalized(source).includes(requirement);
 }
 
 function logicalKey(provision: {
@@ -477,48 +524,78 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
     maxOutputTokens: number;
   }): Promise<ReservedModelCall> {
     const reservedMicroUsd = regulatoryCostMicroUsd(
-      conservativeInputTokens(input.prompt),
-      input.maxOutputTokens,
+      { inputTokens: conservativeInputTokens(input.prompt), outputTokens: input.maxOutputTokens },
+      input.model,
     );
-    const reservation = await this.database.$transaction(async (tx) => {
-      // Locks the run row for the transaction so concurrent candidate classifications
-      // can't all read the same spent/reserved snapshot and jointly overshoot the budget.
-      const [run] = await tx.$queryRaw<
-        Array<{
-          status: string;
-          budgetMicroUsd: number;
-          spentMicroUsd: number;
-          reservedMicroUsd: number;
-        }>
-      >(Prisma.sql`
+    const claim = async (): Promise<ReservedModelCall | ReservationRefused> =>
+      this.database.$transaction(async (tx) => {
+        // Locks the run row for the transaction so concurrent candidate classifications
+        // can't all read the same spent/reserved snapshot and jointly overshoot the budget.
+        const [run] = await tx.$queryRaw<
+          Array<{
+            status: string;
+            budgetMicroUsd: number;
+            spentMicroUsd: number;
+            reservedMicroUsd: number;
+          }>
+        >(Prisma.sql`
         SELECT status, budget_micro_usd AS "budgetMicroUsd", spent_micro_usd AS "spentMicroUsd",
           reserved_micro_usd AS "reservedMicroUsd"
         FROM regulatory_analysis_runs WHERE id = ${input.runId} FOR UPDATE
       `);
-      if (!run || run.status !== "RUNNING") return null;
-      if (run.spentMicroUsd + run.reservedMicroUsd + reservedMicroUsd > run.budgetMicroUsd) {
-        return null;
-      }
-      const call = await tx.regulatoryModelCall.create({
-        data: {
-          runId: input.runId,
-          provisionId: input.provisionId,
-          clarificationRevision: input.clarificationRevision,
-          stage: input.stage,
-          attempt: input.attempt,
-          model: input.model,
-          reservedMicroUsd,
-        },
-        select: { id: true },
+        if (!run || run.status !== "RUNNING") return "EXHAUSTED";
+        const outcome = reservationOutcome(run, reservedMicroUsd);
+        if (outcome !== "FITS") return outcome;
+        const call = await tx.regulatoryModelCall.create({
+          data: {
+            runId: input.runId,
+            provisionId: input.provisionId,
+            clarificationRevision: input.clarificationRevision,
+            stage: input.stage,
+            attempt: input.attempt,
+            model: input.model,
+            reservedMicroUsd,
+          },
+          select: { id: true },
+        });
+        await tx.regulatoryAnalysisRun.update({
+          where: { id: input.runId },
+          data: { reservedMicroUsd: { increment: reservedMicroUsd } },
+        });
+        return { id: call.id, model: input.model, reservedMicroUsd };
       });
-      await tx.regulatoryAnalysisRun.update({
-        where: { id: input.runId },
-        data: { reservedMicroUsd: { increment: reservedMicroUsd } },
-      });
-      return { id: call.id, reservedMicroUsd };
+    return this.claimWithinBudget(claim, {
+      runId: input.runId,
+      stage: input.stage,
+      provisionId: input.provisionId,
+      reservedMicroUsd,
     });
-    if (!reservation) throw new RegulatoryBudgetLimitError();
-    return reservation;
+  }
+
+  // Retries a reservation that only lost to in-flight peers, and gives up immediately once the
+  // budget is really spent. Every lane that waits here has a peer holding a reservation that
+  // will settle, so the wait always has something to wait for.
+  private async claimWithinBudget<T>(
+    claim: () => Promise<T | ReservationRefused>,
+    context: { runId: string; stage: string; provisionId?: string; reservedMicroUsd: number },
+  ): Promise<T> {
+    for (let attempt = 1; ; attempt += 1) {
+      const outcome = await claim();
+      if (outcome !== "EXHAUSTED" && outcome !== "CONTENDED") return outcome;
+      if (outcome === "EXHAUSTED" || attempt >= BUDGET_CONTENTION_MAX_ATTEMPTS) {
+        throw new RegulatoryBudgetLimitError();
+      }
+      this.logger.info(
+        {
+          event: "regulatory_budget_contention",
+          ...context,
+          attempt,
+          delayMs: BUDGET_CONTENTION_DELAY_MS,
+        },
+        "regulatory model call is waiting for an in-flight reservation to settle",
+      );
+      await sleep(BUDGET_CONTENTION_DELAY_MS);
+    }
   }
 
   // One triage call covers a batch of provisions, but the ledger's regulatory_model_call
@@ -536,51 +613,54 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
     maxOutputTokens: number;
   }): Promise<{ ids: string[]; shares: number[] }> {
     const totalReservedMicroUsd = regulatoryCostMicroUsd(
-      conservativeInputTokens(input.prompt),
-      input.maxOutputTokens,
+      { inputTokens: conservativeInputTokens(input.prompt), outputTokens: input.maxOutputTokens },
+      input.model,
     );
     const shares = splitReservedCost(totalReservedMicroUsd, input.provisionIds.length);
-    const reservation = await this.database.$transaction(async (tx) => {
-      const [run] = await tx.$queryRaw<
-        Array<{
-          status: string;
-          budgetMicroUsd: number;
-          spentMicroUsd: number;
-          reservedMicroUsd: number;
-        }>
-      >(Prisma.sql`
+    const claim = async (): Promise<{ ids: string[]; shares: number[] } | ReservationRefused> =>
+      this.database.$transaction(async (tx) => {
+        const [run] = await tx.$queryRaw<
+          Array<{
+            status: string;
+            budgetMicroUsd: number;
+            spentMicroUsd: number;
+            reservedMicroUsd: number;
+          }>
+        >(Prisma.sql`
         SELECT status, budget_micro_usd AS "budgetMicroUsd", spent_micro_usd AS "spentMicroUsd",
           reserved_micro_usd AS "reservedMicroUsd"
         FROM regulatory_analysis_runs WHERE id = ${input.runId} FOR UPDATE
       `);
-      if (!run || run.status !== "RUNNING") return null;
-      if (run.spentMicroUsd + run.reservedMicroUsd + totalReservedMicroUsd > run.budgetMicroUsd) {
-        return null;
-      }
-      const ids: string[] = [];
-      for (const [index, provisionId] of input.provisionIds.entries()) {
-        const call = await tx.regulatoryModelCall.create({
-          data: {
-            runId: input.runId,
-            provisionId,
-            clarificationRevision: input.clarificationRevision,
-            stage: "triage",
-            attempt: input.attempt,
-            model: input.model,
-            reservedMicroUsd: shares[index]!,
-          },
-          select: { id: true },
+        if (!run || run.status !== "RUNNING") return "EXHAUSTED";
+        const outcome = reservationOutcome(run, totalReservedMicroUsd);
+        if (outcome !== "FITS") return outcome;
+        const ids: string[] = [];
+        for (const [index, provisionId] of input.provisionIds.entries()) {
+          const call = await tx.regulatoryModelCall.create({
+            data: {
+              runId: input.runId,
+              provisionId,
+              clarificationRevision: input.clarificationRevision,
+              stage: "triage",
+              attempt: input.attempt,
+              model: input.model,
+              reservedMicroUsd: shares[index]!,
+            },
+            select: { id: true },
+          });
+          ids.push(call.id);
+        }
+        await tx.regulatoryAnalysisRun.update({
+          where: { id: input.runId },
+          data: { reservedMicroUsd: { increment: totalReservedMicroUsd } },
         });
-        ids.push(call.id);
-      }
-      await tx.regulatoryAnalysisRun.update({
-        where: { id: input.runId },
-        data: { reservedMicroUsd: { increment: totalReservedMicroUsd } },
+        return { ids, shares };
       });
-      return { ids, shares };
+    return this.claimWithinBudget(claim, {
+      runId: input.runId,
+      stage: "triage",
+      reservedMicroUsd: totalReservedMicroUsd,
     });
-    if (!reservation) throw new RegulatoryBudgetLimitError();
-    return reservation;
   }
 
   private async settleModelCall(
@@ -590,6 +670,7 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
       | {
           status: "SUCCEEDED";
           inputTokens: number;
+          cachedInputTokens: number;
           outputTokens: number;
           reasoningTokens: number;
           latencyMs: number;
@@ -598,11 +679,13 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
           status: "FAILED" | "TIMED_OUT";
           latencyMs: number;
           errorCode: string;
+          usage?: RegulatoryTokenUsage | null;
         },
   ): Promise<void> {
     const succeeded = result.status === "SUCCEEDED";
-    const chargedMicroUsd = succeeded
-      ? regulatoryCostMicroUsd(result.inputTokens, result.outputTokens)
+    const measured = succeeded ? result : result.usage;
+    const chargedMicroUsd = measured
+      ? regulatoryCostMicroUsd(measured, reservation.model)
       : reservation.reservedMicroUsd;
     await this.database.$transaction(async (tx) => {
       const call = await tx.regulatoryModelCall.findUnique({
@@ -620,10 +703,20 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
           ...(succeeded
             ? {
                 inputTokens: result.inputTokens,
+                cachedInputTokens: result.cachedInputTokens,
                 outputTokens: result.outputTokens,
                 reasoningTokens: result.reasoningTokens,
               }
-            : { errorCode: result.errorCode }),
+            : {
+                errorCode: result.errorCode,
+                ...(result.usage
+                  ? {
+                      inputTokens: result.usage.inputTokens,
+                      cachedInputTokens: result.usage.cachedInputTokens ?? 0,
+                      outputTokens: result.usage.outputTokens,
+                    }
+                  : {}),
+              }),
         },
       });
       await tx.regulatoryAnalysisRun.update({
@@ -634,6 +727,7 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
           ...(succeeded
             ? {
                 inputTokens: { increment: result.inputTokens },
+                cachedInputTokens: { increment: result.cachedInputTokens },
                 outputTokens: { increment: result.outputTokens },
                 reasoningTokens: { increment: result.reasoningTokens },
               }
@@ -1106,7 +1200,7 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
         where: { id: run.id },
         data: {
           totalProvisions,
-          model: process.env["OPENAI_REGULATORY_MODEL"] ?? "gpt-5-mini",
+          model: regulatoryPrimaryModel(),
           promptKey: regulatoryApplicabilityPrompt.key,
           promptVersion: regulatoryApplicabilityPrompt.version,
         },
@@ -1455,8 +1549,16 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
     if (!additions.length) return { survivors: [], budgetExhausted: false };
     const includeUnsure = process.env["REGULATORY_TRIAGE_INCLUDE_UNSURE"] !== "false";
     const batchSize = Math.round(positiveNumber("REGULATORY_TRIAGE_BATCH_SIZE", 25));
+    // Triage only pays for itself when its NO is trustworthy, and a 600-character window was
+    // often too little to see a provision's scope, so nearly everything came back UNSURE and
+    // survived to full review. On the triage model a wider window costs a fraction of the
+    // detailed analysis it avoids, so the excerpt buys decisiveness cheaply.
+    const excerptChars = Math.round(positiveNumber("REGULATORY_TRIAGE_EXCERPT_CHARS", 1_500));
     const batches = batchForTriage(additions, batchSize);
-    const model = process.env["OPENAI_REGULATORY_MODEL"] ?? "gpt-5-mini";
+    // Triage asks one three-way question per provision off a 600-character excerpt and emits no
+    // reasoning tokens, so it runs on the cheaper model. Its ledger rows price off that model's
+    // own rates, not the drafting model's.
+    const model = regulatoryTriageModel();
     const limits = regulatoryModelLimits("triage");
     const decisions: TriageDecision[] = [];
 
@@ -1473,7 +1575,8 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
             .join(" — "),
           identifier: candidate.identifier,
           title: candidate.title,
-          excerpt: candidate.content.slice(0, 600),
+          headingPath: candidate.headingPath,
+          excerpt: candidate.content.slice(0, excerptChars),
         })),
       });
 
@@ -1542,7 +1645,10 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
               timeout: limits.timeoutMs,
               maxOutputTokens: limits.maxOutputTokens,
               maxRetries: 0,
-              providerOptions: { openai: { store: false, reasoningEffort: "none" } },
+              providerOptions: regulatoryProviderOptions({
+                reasoningEffort: "none",
+                promptCacheKey: `regulatory-triage:${run.id}`,
+              }),
               telemetry: { isEnabled: false },
             });
             const latencyMs = Date.now() - callStartedAt;
@@ -1558,13 +1664,18 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
               generated.totalUsage.outputTokenDetails?.reasoningTokens ?? 0,
               batch.length,
             );
+            const cachedInputShares = splitReservedCost(
+              generated.totalUsage.inputTokenDetails?.cacheReadTokens ?? 0,
+              batch.length,
+            );
             for (const [index, id] of activeReservation.ids.entries()) {
               await this.settleModelCall(
                 run.id,
-                { id, reservedMicroUsd: activeReservation.shares[index]! },
+                { id, model, reservedMicroUsd: activeReservation.shares[index]! },
                 {
                   status: "SUCCEEDED",
                   inputTokens: inputShares[index]!,
+                  cachedInputTokens: cachedInputShares[index]!,
                   outputTokens: outputShares[index]!,
                   reasoningTokens: reasoningShares[index]!,
                   latencyMs,
@@ -1576,10 +1687,20 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
             const timedOut = isTimeoutError(error);
             const rateLimited = !timedOut && isRateLimitError(error);
             const latencyMs = Date.now() - callStartedAt;
+            const batchUsage = failureUsage(error);
+            const failedInputShares = batchUsage
+              ? splitReservedCost(batchUsage.inputTokens, batch.length)
+              : null;
+            const failedCachedShares = batchUsage
+              ? splitReservedCost(batchUsage.cachedInputTokens ?? 0, batch.length)
+              : null;
+            const failedOutputShares = batchUsage
+              ? splitReservedCost(batchUsage.outputTokens, batch.length)
+              : null;
             for (const [index, id] of activeReservation.ids.entries()) {
               await this.settleModelCall(
                 run.id,
-                { id, reservedMicroUsd: activeReservation.shares[index]! },
+                { id, model, reservedMicroUsd: activeReservation.shares[index]! },
                 {
                   status: timedOut ? "TIMED_OUT" : "FAILED",
                   latencyMs,
@@ -1588,11 +1709,19 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
                     : rateLimited
                       ? "REGULATORY_MODEL_RATE_LIMITED"
                       : "REGULATORY_MODEL_UNAVAILABLE",
+                  usage:
+                    failedInputShares && failedCachedShares && failedOutputShares
+                      ? {
+                          inputTokens: failedInputShares[index]!,
+                          cachedInputTokens: failedCachedShares[index]!,
+                          outputTokens: failedOutputShares[index]!,
+                        }
+                      : null,
                 },
               );
             }
             if (rateLimited && rateLimitAttempt < RATE_LIMIT_MAX_ATTEMPTS) {
-              const delayMs = parseRateLimitRetryDelayMs(error, 2_000);
+              const delayMs = parseRateLimitRetryDelayMs(error, RATE_LIMIT_FALLBACK_DELAY_MS);
               this.logger.warn(
                 {
                   event: "regulatory_triage_batch_rate_limited",
@@ -1663,7 +1792,7 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
     job: Job<JobEnvelope>,
   ): Promise<{ results: ClassifiedCandidate[]; budgetExhausted: boolean }> {
     if (!candidates.length) return { results: [], budgetExhausted: false };
-    const model = process.env["OPENAI_REGULATORY_MODEL"] ?? "gpt-5-mini";
+    const model = regulatoryPrimaryModel();
     const reasoningEffort = (process.env["OPENAI_REGULATORY_REASONING_EFFORT"] ?? "low") as
       "none" | "low" | "medium" | "high" | "xhigh" | "max";
     const results: ClassifiedCandidate[] = [];
@@ -1719,6 +1848,7 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
         stage: context.stage,
       });
       const limits = regulatoryModelLimits(context.stage);
+      const stageModel = context.stage === "verification" ? regulatoryVerificationModel() : model;
       const logContextBase = {
         runId: run.id,
         jobId: job.id,
@@ -1730,7 +1860,7 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
         language: context.candidate.language,
         stage: context.stage,
         attempt: context.attempt,
-        model,
+        model: stageModel,
         reasoningEffort,
         timeoutMs: limits.timeoutMs,
         maxOutputTokens: limits.maxOutputTokens,
@@ -1747,7 +1877,7 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
           clarificationRevision: run.clarificationRevision,
           stage: context.stage,
           attempt: context.attempt,
-          model,
+          model: stageModel,
           prompt,
           maxOutputTokens: limits.maxOutputTokens,
         });
@@ -1770,22 +1900,31 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
         heartbeat.unref();
         try {
           const generated = await generateText({
-            model: openai.responses(model),
+            model: openai.responses(stageModel),
             system: prompt.system,
             prompt: prompt.context,
             output: Output.object({ schema }),
             timeout: limits.timeoutMs,
             maxOutputTokens: limits.maxOutputTokens,
             maxRetries: 0,
-            providerOptions: { openai: { store: false, reasoningEffort } },
+            providerOptions: regulatoryProviderOptions({
+              // Verification is a containment check that runs only after
+              // validateRequirementDraft has already confirmed every excerpt is a verbatim
+              // substring of the source, so it has nothing left to reason about.
+              reasoningEffort: context.stage === "verification" ? "none" : reasoningEffort,
+              promptCacheKey: `regulatory-${context.stage}:${run.id}`,
+            }),
             telemetry: { isEnabled: false },
           });
           const callInputTokens = generated.totalUsage.inputTokens ?? 0;
+          const callCachedInputTokens =
+            generated.totalUsage.inputTokenDetails?.cacheReadTokens ?? 0;
           const callOutputTokens = generated.totalUsage.outputTokens ?? 0;
           const reasoningTokens = generated.totalUsage.outputTokenDetails?.reasoningTokens ?? 0;
           await this.settleModelCall(run.id, reservation, {
             status: "SUCCEEDED",
             inputTokens: callInputTokens,
+            cachedInputTokens: callCachedInputTokens,
             outputTokens: callOutputTokens,
             reasoningTokens,
             latencyMs: Date.now() - callStartedAt,
@@ -1813,9 +1952,10 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
               : rateLimited
                 ? "REGULATORY_MODEL_RATE_LIMITED"
                 : "REGULATORY_MODEL_UNAVAILABLE",
+            usage: failureUsage(error),
           });
           if (rateLimited && rateLimitAttempt < RATE_LIMIT_MAX_ATTEMPTS) {
-            const delayMs = parseRateLimitRetryDelayMs(error, 2_000);
+            const delayMs = parseRateLimitRetryDelayMs(error, RATE_LIMIT_FALLBACK_DELAY_MS);
             this.logger.warn(
               {
                 event: "regulatory_model_call_rate_limited",
@@ -1841,12 +1981,12 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
           if (rateLimited) {
             throw new RegulatoryAnalysisError(
               "REGULATORY_MODEL_RATE_LIMITED",
-              `Regulatory model ${model} stayed rate limited past ${RATE_LIMIT_MAX_ATTEMPTS} attempts: ${message}`,
+              `Regulatory model ${stageModel} stayed rate limited past ${RATE_LIMIT_MAX_ATTEMPTS} attempts: ${message}`,
             );
           }
           throw new RegulatoryAnalysisError(
             "REGULATORY_MODEL_UNAVAILABLE",
-            `Regulatory model ${model} failed without fallback: ${message}`,
+            `Regulatory model ${stageModel} failed without fallback: ${message}`,
           );
         } finally {
           clearInterval(heartbeat);
@@ -2038,7 +2178,11 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
           draft.supportingExcerpts,
         );
         let verificationIssues = deterministicIssues;
-        if (!verificationIssues.length && draft.requirementText) {
+        if (
+          !verificationIssues.length &&
+          draft.requirementText &&
+          !isVerbatimRequirement(candidate.content, draft.requirementText)
+        ) {
           const verificationPrompt = regulatoryRequirementVerificationPrompt.build({
             document: [candidate.referenceNumber, candidate.documentTitle]
               .filter(Boolean)
