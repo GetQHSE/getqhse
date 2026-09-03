@@ -132,11 +132,15 @@ export class RegulatoryEvaluationProcessor extends WorkerHost {
 
   /** Settles reservations left RUNNING by a worker that died mid-call, so their reserved
    *  amount stops counting against the budget forever. Only touches calls old enough that
-   *  a concurrent job cannot still own them. */
+   *  a concurrent job cannot still own them. Charged at 0, not the reservation: a call
+   *  abandoned by a dead worker never settled, so whether it billed anything is unknown —
+   *  same as a rate-limited call — and charging the full worst-case reservation on every
+   *  such recovery let repeated retries burn through the budget on cost that was never
+   *  actually spent. */
   private async recoverAbandonedModelCalls(runId: string): Promise<void> {
     await this.database.$executeRaw(Prisma.sql`
       UPDATE regulatory_model_calls
-      SET status = 'FAILED', cost_micro_usd = reserved_micro_usd,
+      SET status = 'FAILED', cost_micro_usd = 0,
         error_code = 'WORKER_RESTARTED', completed_at = NOW()
       WHERE run_id = ${runId} AND stage = ${EVALUATION_STAGE} AND status = 'RUNNING'
         AND created_at < NOW() - ${Prisma.raw(`INTERVAL '${ABANDONED_CALL_AFTER_MS} milliseconds'`)}
