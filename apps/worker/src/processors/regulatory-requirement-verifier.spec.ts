@@ -411,6 +411,92 @@ describe("independent regulatory requirement verification", () => {
     });
   });
 
+  it("degrades to manual review instead of aborting the run when drafting itself fails", async () => {
+    // A TPM rate limit that outlasts every retry, or a model that reasons through its whole
+    // output budget without emitting the schema, is a failure local to this one candidate — not
+    // proof the run should stop. Before this test, that exception propagated all the way out of
+    // classifyProvisions and discarded every other candidate the run had already classified, 14
+    // minutes into a run that had nothing to show for it.
+    generated.mockRejectedValueOnce(new Error("No output generated."));
+
+    const { database } = createDatabaseStub();
+    const { results } = await classifyArticle24(database);
+
+    expect(generated).toHaveBeenCalledTimes(1);
+    expect(results.results[0]).toMatchObject({
+      suggestion: "TO_CONFIRM",
+      confidence: 0,
+      requirementStatus: "SOURCE_REVIEW_REQUIRED",
+      requirementIssues: [
+        "Le modèle n’a pas pu traiter cette disposition ; une nouvelle analyse ou une revue manuelle est nécessaire.",
+      ],
+    });
+    // The candidate is still persisted rather than silently dropped, so it reappears for the
+    // next analysis or a manual review instead of vanishing from the register.
+    expect(database.regulatoryApplicabilityCandidate.upsert).toHaveBeenCalled();
+  });
+
+  it("carries forward the presumption of applicability when a previously tracked candidate's drafting fails", async () => {
+    generated.mockRejectedValueOnce(new Error("No output generated."));
+
+    const { database } = createDatabaseStub();
+    const processor = new RegulatoryAnalysisProcessor();
+    (processor as unknown as { database: object }).database = database;
+    const updateProgress = vi.fn().mockResolvedValue(undefined);
+    const classify = (
+      processor as unknown as {
+        classifyProvisions(
+          run: unknown,
+          candidates: unknown[],
+          changes: unknown[],
+          job: unknown,
+        ): Promise<ClassifyResult>;
+      }
+    ).classifyProvisions.bind(processor);
+    const { results } = await classify(
+      {
+        id: "run-1",
+        clarificationRevision: 0,
+        profileSnapshot: { data: { fields: { "organization.employeeCount": 12 } } },
+        baseBaseline: null,
+        scopeFacts: [],
+      },
+      [
+        {
+          provisionId: "article-24",
+          documentId: "code-travail",
+          documentVersionId: "v1",
+          documentTitle: "Code du travail",
+          referenceNumber: "Loi n° 65-99",
+          documentFamily: "regulation",
+          provisionType: "article",
+          identifier: "Article 24",
+          title: null,
+          headingPath: ["Livre premier"],
+          language: "fr",
+          content: articleContent,
+          contentHash: "hash-24",
+          score: 1,
+          previousEntryId: "entry-24",
+          changeType: "MODIFIED",
+          changeSummary: "La source a changé de révision.",
+          previousRationale: "Le projet emploie des salariés.",
+          previousRequirementText: "Ancienne formulation approuvée par un réviseur.",
+          previousRequirementSupportingExcerpts: ["extrait antérieur"],
+        },
+      ],
+      [],
+      { id: "job-1", updateProgress },
+    );
+
+    expect(results[0]).toMatchObject({
+      suggestion: "APPLICABLE",
+      requirementText: "Ancienne formulation approuvée par un réviseur.",
+      requirementSupportingExcerpts: ["extrait antérieur"],
+      requirementStatus: "SOURCE_REVIEW_REQUIRED",
+    });
+  });
+
   it("restores a completed candidate checkpoint without making duplicate model calls", async () => {
     const processor = new RegulatoryAnalysisProcessor();
     (processor as unknown as { database: object }).database = {

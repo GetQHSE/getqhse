@@ -2446,6 +2446,60 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
             });
             continue;
           }
+          // A drafting call that stayed rate-limited past every retry, or one whose model
+          // reasoned through its whole output budget without emitting the schema, is a failure
+          // local to this one candidate — not evidence the run itself should stop. Marking it for
+          // review and moving on keeps every other candidate this run already classified instead
+          // of discarding all of it for one model hiccup, the same principle already applied to
+          // the independent verifier's own call failures.
+          if (
+            error instanceof RegulatoryAnalysisError &&
+            (error.code === "REGULATORY_MODEL_RATE_LIMITED" ||
+              error.code === "REGULATORY_MODEL_UNAVAILABLE")
+          ) {
+            this.logger.warn(
+              {
+                event: "regulatory_candidate_classification_failed",
+                runId: run.id,
+                jobId: job.id,
+                provisionId: candidate.provisionId,
+                identifier: candidate.identifier,
+                documentId: candidate.documentId,
+                errorCode: error.code,
+              },
+              "drafting could not be completed for this candidate; marking it for manual review instead of aborting the run",
+            );
+            const blocked: ClassifiedCandidate = {
+              ...candidate,
+              suggestion: candidate.previousEntryId ? "APPLICABLE" : "TO_CONFIRM",
+              rationale:
+                "Le modèle n’a pas pu traiter cette disposition ; une nouvelle analyse ou une revue manuelle est nécessaire.",
+              matchedProfileKeys: [],
+              confidence: 0,
+              clarificationQuestion: null,
+              requirementText: candidate.previousRequirementText,
+              requirementStatus: "SOURCE_REVIEW_REQUIRED",
+              requirementSupportingExcerpts: candidate.previousRequirementSupportingExcerpts,
+              requirementIssues: [
+                "Le modèle n’a pas pu traiter cette disposition ; une nouvelle analyse ou une revue manuelle est nécessaire.",
+              ],
+              requirementSource: null,
+            };
+            results.push(blocked);
+            await this.persistCandidate(run.id, run.clarificationRevision, blocked);
+            completedCount += 1;
+            await this.reportProgress(run.id, job, {
+              phase: "classification",
+              percent: regulatoryClassificationProgress(completedCount, candidates.length),
+              completed: completedCount,
+              total: candidates.length,
+              provisionId: candidate.provisionId,
+              identifier: candidate.identifier,
+              documentId: candidate.documentId,
+              stage: "candidate_classification_failed",
+            });
+            continue;
+          }
           throw error;
         }
       }
