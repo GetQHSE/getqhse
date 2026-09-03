@@ -271,7 +271,7 @@ describe("regulatory analysis query planning", () => {
     });
     expect(regulatoryModelLimits("verification")).toEqual({
       timeoutMs: 180_000,
-      maxOutputTokens: 6_000,
+      maxOutputTokens: 10_000,
     });
   });
 

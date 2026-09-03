@@ -333,7 +333,7 @@ describe("independent regulatory requirement verification", () => {
     );
     expect(generated).toHaveBeenNthCalledWith(
       2,
-      expect.objectContaining({ timeout: 180_000, maxOutputTokens: 6_000, maxRetries: 0 }),
+      expect.objectContaining({ timeout: 180_000, maxOutputTokens: 10_000, maxRetries: 0 }),
     );
     // Drafting stays on the primary model; the containment check runs on the cheaper one.
     expect(responses.mock.calls.map(([modelId]) => modelId)).toEqual([
@@ -371,6 +371,44 @@ describe("independent regulatory requirement verification", () => {
         stage: "provision_completed",
       }),
     );
+  });
+
+  it("degrades to manual review instead of aborting the run when the verifier call itself fails", async () => {
+    // NoOutputGeneratedError (the model reasoned through its whole output budget without ever
+    // emitting the schema) or a rate limit that outlasts every retry both surface here as a
+    // rejected generate() call. Before this test, that exception propagated all the way out of
+    // classifyProvisions and failed the entire analysis run — discarding every other candidate
+    // it had already classified — for a problem that is local to one candidate's verification.
+    const paraphrasedRequirement =
+      "L’employeur doit préserver la sécurité et la santé des salariés et organiser une formation annuelle.";
+    const draft = {
+      suggestion: "APPLICABLE" as const,
+      rationale: "Le projet emploie des salariés.",
+      matchedProfileKeys: ["organization.employeeCount"],
+      confidence: 0.96,
+      clarificationQuestion: null,
+      sourceQuality: "PASS" as const,
+      normativeRequirement: true,
+      requirementText: paraphrasedRequirement,
+      supportingExcerpts: ["préserver la sécurité, la santé et la dignité des salariés"],
+      qualityIssues: [],
+    };
+    generated
+      .mockResolvedValueOnce({ output: draft, totalUsage: { inputTokens: 100, outputTokens: 50 } })
+      .mockRejectedValueOnce(new Error("No output generated."))
+      .mockResolvedValueOnce({ output: draft, totalUsage: { inputTokens: 100, outputTokens: 50 } })
+      .mockRejectedValueOnce(new Error("No output generated."));
+
+    const { database } = createDatabaseStub();
+    const { results } = await classifyArticle24(database);
+
+    expect(generated).toHaveBeenCalledTimes(4);
+    expect(results.results[0]).toMatchObject({
+      requirementStatus: "SOURCE_REVIEW_REQUIRED",
+      requirementIssues: [
+        "Le vérificateur indépendant n’a pas pu être interrogé ; vérification manuelle requise.",
+      ],
+    });
   });
 
   it("restores a completed candidate checkpoint without making duplicate model calls", async () => {

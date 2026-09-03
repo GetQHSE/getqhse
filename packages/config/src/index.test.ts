@@ -26,7 +26,7 @@ describe("serverEnvironmentSchema", () => {
       serverEnvironmentSchema.shape.OPENAI_REGULATORY_VERIFICATION_MAX_OUTPUT_TOKENS.parse(
         undefined,
       ),
-    ).toBe(6_000);
+    ).toBe(10_000);
     expect(serverEnvironmentSchema.shape.OPENAI_REGULATORY_RUN_BUDGET_USD.parse(undefined)).toBe(1);
   });
 });

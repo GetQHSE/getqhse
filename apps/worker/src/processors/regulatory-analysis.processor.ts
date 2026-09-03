@@ -2288,18 +2288,47 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
             requirementText: draft.requirementText,
             supportingExcerpts: draft.supportingExcerpts,
           });
-          const verification = await generate(verificationPrompt, verificationSchema, {
-            candidate,
-            candidateIndex,
-            candidateTotal: candidates.length,
-            attempt: attempt + 1,
-            stage: "verification",
-          });
-          verificationIssues = verification.supported
-            ? []
-            : verification.issues.length
-              ? verification.issues
-              : ["Le vérificateur indépendant n’a pas confirmé le support de l’exigence."];
+          // Verification is a comparison, not a drafting task, and its failure direction is
+          // meant to be safe: an uncertain answer routes the candidate to human review rather
+          // than publishing something unverified. That has to hold even when the call itself
+          // fails outright (rate limits exhausted, or a model that reasoned through its whole
+          // output budget without emitting the schema — NoOutputGeneratedError) — one candidate's
+          // independent verifier hiccup must not discard every other candidate this run already
+          // classified. Budget exhaustion is the one exception: it has to keep propagating so the
+          // run stops cleanly instead of continuing to spend past its ceiling.
+          let verification: z.infer<typeof verificationSchema> | null = null;
+          try {
+            verification = await generate(verificationPrompt, verificationSchema, {
+              candidate,
+              candidateIndex,
+              candidateTotal: candidates.length,
+              attempt: attempt + 1,
+              stage: "verification",
+            });
+          } catch (error) {
+            if (error instanceof RegulatoryBudgetLimitError) throw error;
+            this.logger.warn(
+              {
+                event: "regulatory_verification_call_failed",
+                runId: run.id,
+                jobId: job.id,
+                provisionId: candidate.provisionId,
+                identifier: candidate.identifier,
+                err: error,
+              },
+              "independent verification call failed; treating the requirement as unsupported instead of aborting the run",
+            );
+          }
+          verificationIssues =
+            verification === null
+              ? [
+                  "Le vérificateur indépendant n’a pas pu être interrogé ; vérification manuelle requise.",
+                ]
+              : verification.supported
+                ? []
+                : verification.issues.length
+                  ? verification.issues
+                  : ["Le vérificateur indépendant n’a pas confirmé le support de l’exigence."];
         }
         const allIssues = [...new Set([...draftIssues, ...verificationIssues])];
         classified = {

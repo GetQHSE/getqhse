@@ -78,8 +78,13 @@ export const llmSettingsDefaults: LlmSettings = {
   regulatoryReasoningEffort: "low",
   regulatoryTimeoutMs: 180_000,
   regulatoryDraftMaxOutputTokens: 12_000,
-  regulatoryVerificationMaxOutputTokens: 6_000,
-  regulatoryTriageMaxOutputTokens: 2_000,
+  // Even "minimal" reasoning effort — the floor the gpt-5 family accepts, since "none" doesn't
+  // exist — still spends some of this ceiling on hidden reasoning tokens before the schema's
+  // actual output (a boolean and a short array, or a page of YES/NO/UNSURE decisions). Too little
+  // headroom here surfaces as NoOutputGeneratedError: the model reasoned through the whole budget
+  // and never got to emit the answer.
+  regulatoryVerificationMaxOutputTokens: 10_000,
+  regulatoryTriageMaxOutputTokens: 4_000,
   regulatoryRunBudgetUsd: 1,
   regulatoryEvaluationBudgetUsd: 10,
   regulatoryInputUsdPerMTok: null,
