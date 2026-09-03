@@ -57,6 +57,30 @@ describe("llmSettingsFromEnvironment", () => {
     ).toBe(40);
   });
 
+  it("maps superseded reasoning efforts onto the nearest supported one", () => {
+    // The gpt-5 family rejects these outright, and the failure only surfaces after a run has
+    // already spent its budget, so a stale variable is normalized rather than passed through.
+    expect(
+      llmSettingsFromEnvironment({ OPENAI_REGULATORY_REASONING_EFFORT: "none" })
+        .regulatoryReasoningEffort,
+    ).toBe("minimal");
+    expect(
+      llmSettingsFromEnvironment({ OPENAI_REGULATORY_REASONING_EFFORT: "xhigh" })
+        .regulatoryReasoningEffort,
+    ).toBe("high");
+    expect(
+      llmSettingsFromEnvironment({ OPENAI_REGULATORY_REASONING_EFFORT: "max" })
+        .regulatoryReasoningEffort,
+    ).toBe("high");
+  });
+
+  it("passes a supported reasoning effort through untouched", () => {
+    expect(
+      llmSettingsFromEnvironment({ OPENAI_REGULATORY_REASONING_EFFORT: "medium" })
+        .regulatoryReasoningEffort,
+    ).toBe("medium");
+  });
+
   it("leaves the per-token rates unset so the model's published rate keeps applying", () => {
     expect(llmSettingsFromEnvironment({}).regulatoryInputUsdPerMTok).toBeNull();
     expect(
@@ -89,6 +113,17 @@ describe("resolveLlmSettings", () => {
 });
 
 describe("llmSettingsOverrideSchema", () => {
+  it("refuses a reasoning effort the gpt-5 family rejects", () => {
+    for (const effort of ["none", "xhigh", "max"]) {
+      expect(
+        llmSettingsOverrideSchema.safeParse({ regulatoryReasoningEffort: effort }).success,
+      ).toBe(false);
+    }
+    expect(
+      llmSettingsOverrideSchema.safeParse({ regulatoryReasoningEffort: "minimal" }).success,
+    ).toBe(true);
+  });
+
   it("accepts a partial payload and rejects an unknown field", () => {
     expect(llmSettingsOverrideSchema.parse({ regulatoryModel: "gpt-5" })).toEqual({
       regulatoryModel: "gpt-5",

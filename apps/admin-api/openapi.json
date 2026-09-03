@@ -756,7 +756,7 @@
                   "regulatoryReasoningEffort": {
                     "type": "string",
                     "nullable": true,
-                    "enum": ["none", "low", "medium", "high", "xhigh", "max"]
+                    "enum": ["minimal", "low", "medium", "high"]
                   },
                   "regulatoryTimeoutMs": {
                     "type": "integer",

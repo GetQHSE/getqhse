@@ -36,8 +36,11 @@ export const serverEnvironmentSchema = z.object({
   OPENAI_REGULATORY_SERVICE_TIER: z.enum(["auto", "default", "flex", "priority"]).default("flex"),
   OPENAI_REGULATORY_TEXT_VERBOSITY: z.enum(["low", "medium", "high"]).default("low"),
   OPENAI_REGULATORY_PROMPT_CACHE_RETENTION: z.enum(["in_memory", "24h"]).default("24h"),
+  // Deliberately wider than llmReasoningEfforts: this only gates start-up, and a deployment
+  // carrying a superseded value should be normalized by llmSettingsFromEnvironment rather than
+  // refused a boot.
   OPENAI_REGULATORY_REASONING_EFFORT: z
-    .enum(["none", "low", "medium", "high", "xhigh", "max"])
+    .enum(["none", "minimal", "low", "medium", "high", "xhigh", "max"])
     .default("low"),
   OPENAI_REGULATORY_TIMEOUT_MS: z.coerce.number().int().positive().default(180_000),
   OPENAI_REGULATORY_DRAFT_MAX_OUTPUT_TOKENS: z.coerce.number().int().positive().default(12_000),

@@ -241,11 +241,11 @@ describe("regulatory analysis query planning", () => {
   it("pins each run stage to its own prompt cache prefix and drops output verbosity", () => {
     delete process.env["OPENAI_REGULATORY_SERVICE_TIER"];
     expect(
-      regulatoryProviderOptions({ reasoningEffort: "none", promptCacheKey: "regulatory:run-1" }),
+      regulatoryProviderOptions({ reasoningEffort: "minimal", promptCacheKey: "regulatory:run-1" }),
     ).toEqual({
       openai: {
         store: false,
-        reasoningEffort: "none",
+        reasoningEffort: "minimal",
         serviceTier: "flex",
         textVerbosity: "low",
         promptCacheKey: "regulatory:run-1",

@@ -1,3 +1,4 @@
+import { llmReasoningEfforts } from "@qhse/config";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const generated = vi.hoisted(() => vi.fn());
@@ -341,6 +342,16 @@ describe("independent regulatory requirement verification", () => {
       "gpt-5-mini",
       "gpt-5-nano",
     ]);
+    // The verification stage once asked for "none", which the gpt-5 family rejects outright — the
+    // run only failed after ~18 minutes of drafting had already been paid for. Every effort this
+    // pipeline sends has to be one the models accept.
+    const efforts = (
+      generated.mock.calls as Array<[{ providerOptions: { openai: { reasoningEffort: string } } }]>
+    ).map(([call]) => call.providerOptions.openai.reasoningEffort);
+    expect(efforts).toEqual(["low", "minimal", "low", "minimal"]);
+    for (const effort of efforts) {
+      expect(llmReasoningEfforts).toContain(effort);
+    }
     expect(updateProgress).toHaveBeenCalledWith(
       expect.objectContaining({
         phase: "classification_retrying",

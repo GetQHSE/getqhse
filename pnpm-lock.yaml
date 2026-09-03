@@ -177,6 +177,9 @@ importers:
       '@qhse/api-client':
         specifier: workspace:*
         version: link:../../packages/api-client
+      '@qhse/config':
+        specifier: workspace:*
+        version: link:../../packages/config
       '@qhse/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts

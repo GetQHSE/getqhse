@@ -9,7 +9,10 @@ import { z } from "zod";
 export const llmServiceTiers = ["auto", "default", "flex", "priority"] as const;
 export const llmTextVerbosities = ["low", "medium", "high"] as const;
 export const llmPromptCacheRetentions = ["in_memory", "24h"] as const;
-export const llmReasoningEfforts = ["none", "low", "medium", "high", "xhigh", "max"] as const;
+// The gpt-5 family accepts exactly these four. "none", "xhigh" and "max" belong to later model
+// generations and are rejected outright — sending one costs a full run before it fails, so they
+// are not offered here. legacyReasoningEffort maps the old names onto the nearest supported one.
+export const llmReasoningEfforts = ["minimal", "low", "medium", "high"] as const;
 
 const modelName = z.string().trim().min(1).max(120);
 
@@ -42,6 +45,7 @@ export const llmSettingsSchema = z.object({
 });
 
 export type LlmSettings = z.infer<typeof llmSettingsSchema>;
+export type LlmReasoningEffort = (typeof llmReasoningEfforts)[number];
 export type LlmSettingsKey = keyof LlmSettings;
 
 /** A stored override omits the fields the administrator has not taken over, and uses `null` to
@@ -137,6 +141,12 @@ export function llmSettingsFromEnvironment(environment: Environment): LlmSetting
   return applyLegacyKeys(resolved, environment);
 }
 
+const legacyReasoningEfforts: Record<string, (typeof llmReasoningEfforts)[number]> = {
+  none: "minimal",
+  xhigh: "high",
+  max: "high",
+};
+
 /** REGULATORY_EVALUATION_BUDGET_MICRO_USD predates the USD-denominated setting and is still
  * honoured, so an existing deployment keeps the ceiling it configured. The newer USD variable
  * wins when both are present. */
@@ -152,6 +162,11 @@ function applyLegacyKeys(resolved: LlmSettings, environment: Environment): LlmSe
     );
     if (parsed.success) resolved.regulatoryEvaluationBudgetUsd = parsed.data;
   }
+
+  const effort = environment[llmSettingsEnvironmentKeys.regulatoryReasoningEffort];
+  const mapped = effort ? legacyReasoningEfforts[effort] : undefined;
+  if (mapped) resolved.regulatoryReasoningEffort = mapped;
+
   return resolved;
 }
 

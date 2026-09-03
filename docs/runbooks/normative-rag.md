@@ -148,7 +148,11 @@ minute rather than on the next deploy. "Reset everything to the environment" del
 ## Accuracy-first regulatory analysis
 
 The regulatory worker uses `OPENAI_REGULATORY_MODEL=gpt-5-mini` and
-`OPENAI_REGULATORY_REASONING_EFFORT=low` by default. Keep both values explicit in production. A
+`OPENAI_REGULATORY_REASONING_EFFORT=low` by default. Keep both values explicit in production. The
+gpt-5 family accepts only `minimal`, `low`, `medium` and `high` for reasoning effort — `none`,
+`xhigh` and `max` are rejected by the API, and a rejected value fails the run only after drafting
+has already been paid for, so Settings → LLM offers just the four supported values and a
+superseded variable is mapped onto the nearest one (`none` → `minimal`, `xhigh`/`max` → `high`). A
 configured model failure stops the run with `REGULATORY_MODEL_UNAVAILABLE`; the worker never falls
 back silently to another model. Requests use `store=false`, a 180-second timeout, zero SDK retries,
 and output ceilings of 12,000 tokens for drafting, 6,000 tokens for verification, and
@@ -181,7 +185,7 @@ clauses, and informative annexes are removed before model review. Regulations re
 article; standards require an identified clause or an explicitly normative annex.
 
 Before the newly discovered provisions reach the expensive per-provision pipeline below, a triage
-pass narrows them. Provisions are grouped into batches of `REGULATORY_TRIAGE_BATCH_SIZE` (default 25) and each batch gets one cheap, no-reasoning model call asking only whether it plausibly applies
+pass narrows them. Provisions are grouped into batches of `REGULATORY_TRIAGE_BATCH_SIZE` (default 25) and each batch gets one cheap `minimal`-reasoning model call asking only whether it plausibly applies
 to the project's profile — no drafting, no citations. A provision the triage call marks `NO` is
 dropped; `UNSURE` is kept unless `REGULATORY_TRIAGE_INCLUDE_UNSURE=false`; a provision the call
 never returned a decision for (missing from the response, or the whole batch call failed/timed out)

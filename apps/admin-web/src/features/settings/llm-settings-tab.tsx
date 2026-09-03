@@ -6,6 +6,12 @@ import { Label } from "@qhse/ui/components/label";
 import { NativeSelect } from "@qhse/ui/components/native-select";
 import { Skeleton } from "@qhse/ui/components/skeleton";
 import { Switch } from "@qhse/ui/components/switch";
+import {
+  llmPromptCacheRetentions,
+  llmReasoningEfforts,
+  llmServiceTiers,
+  llmTextVerbosities,
+} from "@qhse/config";
 import { useCallback, useEffect, useState } from "react";
 
 import { adminApi } from "../../lib/admin-api.js";
@@ -53,26 +59,26 @@ const groups: Group[] = [
         key: "regulatoryServiceTier",
         label: "Service tier",
         type: "select",
-        options: ["auto", "default", "flex", "priority"],
+        options: llmServiceTiers,
         hint: "flex trades latency for roughly half the standard rate.",
       },
       {
         key: "regulatoryReasoningEffort",
         label: "Reasoning effort",
         type: "select",
-        options: ["none", "low", "medium", "high", "xhigh", "max"],
+        options: llmReasoningEfforts,
       },
       {
         key: "regulatoryTextVerbosity",
         label: "Text verbosity",
         type: "select",
-        options: ["low", "medium", "high"],
+        options: llmTextVerbosities,
       },
       {
         key: "regulatoryPromptCacheRetention",
         label: "Prompt cache retention",
         type: "select",
-        options: ["in_memory", "24h"],
+        options: llmPromptCacheRetentions,
       },
       { key: "regulatoryTimeoutMs", label: "Call timeout (ms)", type: "number" },
       {
