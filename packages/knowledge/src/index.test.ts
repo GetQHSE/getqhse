@@ -1,12 +1,17 @@
 import { describe, expect, it } from "vitest";
 import {
   assertRevisionRight,
+  assessStructureQuality,
   chunkNormativeProvisions,
   detectNormativeProvisions,
   detectNormativeProvisionsFromBlocks,
+  estimateTokens,
+  extractExactReference,
   isNormativeSearchEligible,
   reciprocalRankFusion,
   stableCitationLabel,
+  STRUCTURE_REVIEW_THRESHOLD,
+  type NormativeLanguage,
 } from "./index.js";
 
 describe("normative structure", () => {
@@ -28,7 +33,7 @@ describe("normative structure", () => {
     ).toMatchObject({ type: "article", sourceIdentifier: "Article 12", pageStart: 3 });
     expect(
       detectNormativeProvisions([{ pageNumber: 4, text: "المادة ٥: النطاق\nالنص" }], "ar")[0],
-    ).toMatchObject({ type: "article", sourceIdentifier: "المادة ٥", pageStart: 4 });
+    ).toMatchObject({ type: "article", sourceIdentifier: "المادة 5", pageStart: 4 });
   });
 
   it("only splits provisions over the configured limit", () => {
@@ -206,6 +211,466 @@ describe("block-based normative structure", () => {
     );
 
     expect(provisions[0]).toMatchObject({ pageStart: 4, pageEnd: 5 });
+  });
+});
+
+// Every fixture below is taken from one of the two documents in tests/factories: the Moroccan
+// standard NM 22.0.010 (single-level clauses, a dotted table of contents, a licence footer) and
+// the loi 09-08 as the Bulletin officiel typesets it ("Article premier" then "Art. 2").
+describe("heading forms Moroccan sources actually use", () => {
+  it("opens a provision on the abbreviated article form, not only the spelled-out word", () => {
+    const provisions = detectNormativeProvisionsFromBlocks(
+      [
+        { blockType: "section_header", text: "Article premier", pageNumber: 1 },
+        { blockType: "text", text: "L'informatique est au service du citoyen.", pageNumber: 1 },
+        {
+          blockType: "text",
+          text: "Art. 2. - Au sens de la présente loi, on entend par…",
+          pageNumber: 1,
+        },
+        {
+          blockType: "text",
+          text: "Art 3 : Les données sont collectées loyalement.",
+          pageNumber: 2,
+        },
+      ],
+      "fr",
+    );
+
+    // Before the abbreviation was recognized, articles 2 and 3 were swallowed into article
+    // premier and the law reached review as a single unusable provision.
+    expect(provisions.map((provision) => provision.sourceIdentifier)).toEqual([
+      "Article premier",
+      "Article 2",
+      "Article 3",
+    ]);
+    expect(provisions[1]?.title).toBe("Au sens de la présente loi, on entend par…");
+  });
+
+  it("reads an article under either Arabic label and stores one spelling of its number", () => {
+    const provisions = detectNormativeProvisionsFromBlocks(
+      [
+        { blockType: "section_header", text: "الفصل ١٢", pageNumber: 1 },
+        { blockType: "text", text: "يعاقب كل من خالف أحكام هذا القانون.", pageNumber: 1 },
+        { blockType: "section_header", text: "المادة ٥: النطاق", pageNumber: 2 },
+        { blockType: "text", text: "النص", pageNumber: 2 },
+      ],
+      "ar",
+    );
+
+    // Dahirs number articles "الفصل"; later laws use "المادة". Both are stored with ASCII
+    // digits so a citation typed either way resolves to the same provision.
+    expect(provisions.map((provision) => provision.sourceIdentifier)).toEqual([
+      "الفصل 12",
+      "المادة 5",
+    ]);
+  });
+
+  it("opens a clause on the single-level headings a Moroccan standard numbers with", () => {
+    const provisions = detectNormativeProvisionsFromBlocks(
+      [
+        { blockType: "section_header", text: "1 OBJET", pageNumber: 4 },
+        {
+          blockType: "text",
+          text: "La présente norme spécifie les conditions d'emballage.",
+          pageNumber: 4,
+        },
+        { blockType: "section_header", text: "2 DOMAINE D'APPLICATION", pageNumber: 4 },
+        { blockType: "text", text: "La présente norme s'applique aux équipements.", pageNumber: 4 },
+      ],
+      "fr",
+    );
+
+    // NM 22.0.010 numbers its clauses 1..5, not 4.1/4.2, so requiring two levels left the
+    // whole standard as one untitled section.
+    expect(provisions.map((provision) => provision.sourceIdentifier)).toEqual(["1", "2"]);
+    expect(provisions[0]?.title).toBe("OBJET");
+  });
+
+  it("leaves an enumerated obligation inside the article that introduces it", () => {
+    const provisions = detectNormativeProvisionsFromBlocks(
+      [
+        { blockType: "section_header", text: "Article 8", pageNumber: 3 },
+        {
+          blockType: "text",
+          text: "La personne concernée a le droit d'obtenir :\n1 La confirmation que des données la concernant sont traitées ;\n2 La communication de ces données sous une forme intelligible.",
+          pageNumber: 3,
+        },
+      ],
+      "fr",
+    );
+
+    // A bare number opening a lowercase sentence is a list item, not a clause heading.
+    expect(provisions).toHaveLength(1);
+    expect(provisions[0]?.content).toContain("forme intelligible");
+  });
+
+  it("does not read a table of contents entry as a clause", () => {
+    const provisions = detectNormativeProvisionsFromBlocks(
+      [
+        { blockType: "section_header", text: "SOMMAIRE", pageNumber: 3 },
+        {
+          blockType: "text",
+          text: "1 OBJET.................................................................4\n2 DOMAINE D'APPLICATION …………………………………………………4",
+          pageNumber: 3,
+        },
+      ],
+      "fr",
+    );
+
+    // Contents entries repeat headings that appear again as real clauses further on, so
+    // admitting them duplicated every clause in the standard.
+    expect(
+      provisions.flatMap((provision) => (provision.type === "clause" ? [provision] : [])),
+    ).toEqual([]);
+  });
+});
+
+describe("prose that only looks like a heading", () => {
+  it("keeps a sanction amount inside the article that imposes it", () => {
+    const provisions = detectNormativeProvisionsFromBlocks(
+      [
+        {
+          blockType: "paragraph",
+          text: "Article 91\nEst puni d'une amende de\n1.200 à 50.000 dirhams quiconque contrevient\naux dispositions du présent chapitre.",
+          pageNumber: 23,
+        },
+      ],
+      "fr",
+    );
+
+    // French writes thousands with a full stop, so "1.200" used to open a clause and left the
+    // fine as a floating amount with no offence attached to it.
+    expect(provisions).toHaveLength(1);
+    expect(provisions[0]?.sourceIdentifier).toBe("Article 91");
+    expect(provisions[0]?.content).toContain("1.200 à 50.000 dirhams");
+  });
+
+  it("keeps an article whole when a wrapped line begins with a container keyword", () => {
+    const provisions = detectNormativeProvisionsFromBlocks(
+      [
+        { blockType: "section_header", text: "Article 5", pageNumber: 2 },
+        {
+          blockType: "text",
+          text: "Demeurent applicables les dispositions du\nchapitre premier de la présente loi relatives au contrôle financier.",
+          pageNumber: 2,
+        },
+      ],
+      "fr",
+    );
+
+    // Blocks keep the page's line wrapping, so a body line can start on "chapitre". Opening a
+    // container there closed the article halfway through its own sentence.
+    expect(provisions).toHaveLength(1);
+    expect(provisions[0]?.content).toContain("relatives au contrôle financier");
+    expect(provisions[0]?.headingPath).toEqual(["Article 5"]);
+  });
+
+  it("still opens a container on a genuine chapter heading", () => {
+    const provisions = detectNormativeProvisionsFromBlocks(
+      [
+        { blockType: "section_header", text: "Chapitre premier", pageNumber: 1 },
+        { blockType: "section_header", text: "Section première – Définitions", pageNumber: 1 },
+        { blockType: "section_header", text: "Article premier", pageNumber: 1 },
+        { blockType: "text", text: "Contenu.", pageNumber: 1 },
+      ],
+      "fr",
+    );
+
+    expect(provisions[0]?.headingPath).toEqual([
+      "Chapitre premier",
+      "Section première – Définitions",
+      "Article premier",
+    ]);
+  });
+});
+
+describe("layouts the live extractor actually returns", () => {
+  it("takes a heading that follows an article number as that article's title", () => {
+    const provisions = detectNormativeProvisionsFromBlocks(
+      [
+        { blockType: "section_header", text: "Article 6", pageNumber: 3, headingLevel: 1 },
+        {
+          blockType: "section_header",
+          text: "Limites au droit à l'information",
+          pageNumber: 3,
+          headingLevel: 3,
+        },
+        {
+          blockType: "text",
+          text: "L'obligation d'information prévue à l'article 5 n'est pas applicable :",
+          pageNumber: 3,
+        },
+      ],
+      "fr",
+    );
+
+    // The Bulletin officiel sets an article as its number, then its title, then its body, and
+    // the extractor labels the first two as separate headings. Reading the title as a new
+    // container closed the article on its own number: a nine-character provision whose text
+    // went to a container named after the title.
+    expect(provisions).toHaveLength(1);
+    expect(provisions[0]).toMatchObject({
+      sourceIdentifier: "Article 6",
+      title: "Limites au droit à l'information",
+    });
+    expect(provisions[0]?.content).toContain("n'est pas applicable");
+    expect(provisions[0]?.headingPath).toEqual(["Article 6 — Limites au droit à l'information"]);
+  });
+
+  it("joins an article keyword and its number when a column break split them", () => {
+    const provisions = detectNormativeProvisionsFromBlocks(
+      [
+        { blockType: "section_header", text: "Article", pageNumber: 5 },
+        { blockType: "section_header", text: "14", pageNumber: 5 },
+        { blockType: "text", text: "Le responsable du traitement doit adresser.", pageNumber: 5 },
+      ],
+      "fr",
+    );
+
+    // Neither half is a heading on its own, so the article used to disappear entirely and its
+    // text joined whatever came before it.
+    expect(provisions).toHaveLength(1);
+    expect(provisions[0]?.sourceIdentifier).toBe("Article 14");
+  });
+
+  it("opens a chapter when OCR read its roman numeral as a lowercase l", () => {
+    const provisions = detectNormativeProvisionsFromBlocks(
+      [
+        { blockType: "section_header", text: "Chapitre premier", pageNumber: 1 },
+        { blockType: "section_header", text: "Article 4", pageNumber: 1 },
+        { blockType: "text", text: "Contenu de l'article 4.", pageNumber: 1 },
+        { blockType: "section_header", text: "Chapitre Il", pageNumber: 3 },
+        { blockType: "section_header", text: "Article 5", pageNumber: 3 },
+        { blockType: "text", text: "Contenu de l'article 5.", pageNumber: 3 },
+      ],
+      "fr",
+    );
+
+    // A full-page OCR pass returns "Chapitre Il" for "Chapitre II" routinely. Failing to open
+    // the second chapter left every article under it still attributed to the first.
+    expect(provisions.at(-1)?.headingPath).toEqual(["Chapitre Il", "Article 5"]);
+  });
+
+  it("refuses front matter as an ancestor of the provisions that follow it", () => {
+    const provisions = detectNormativeProvisionsFromBlocks(
+      [
+        { blockType: "section_header", text: "SOMMAIRE", pageNumber: 3, headingLevel: 3 },
+        { blockType: "section_header", text: "1 OBJET", pageNumber: 4, headingLevel: 4 },
+        { blockType: "text", text: "La présente norme spécifie.", pageNumber: 4 },
+      ],
+      "fr",
+    );
+
+    // A contents page is not a parent of the document. Its own text is still kept; only its
+    // claim to govern what comes after is refused, so the label stays out of every embedding.
+    expect(provisions.at(-1)?.headingPath).toEqual(["1 — OBJET"]);
+  });
+
+  it("ignores a level on anything that is not a heading", () => {
+    const provisions = detectNormativeProvisionsFromBlocks(
+      [
+        { blockType: "section_header", text: "Article 4", pageNumber: 1 },
+        { blockType: "text", text: "Contenu de la disposition.", pageNumber: 1, headingLevel: 1 },
+      ],
+      "fr",
+    );
+
+    expect(provisions).toHaveLength(1);
+    expect(provisions[0]?.content).toContain("Contenu de la disposition.");
+  });
+});
+
+describe("exact reference lookup", () => {
+  it("normalizes a citation to the spelling provisions are stored under", () => {
+    expect(extractExactReference("que dit l'art. 12 de cette loi ?")).toBe("article 12");
+    expect(extractExactReference("ما هو نص المادة ٥؟")).toBe("المادة 5");
+    expect(extractExactReference("الفصل ٧ من الظهير")).toBe("الفصل 7");
+    expect(extractExactReference("exigence 4.1 de la norme")).toBe("4.1");
+  });
+});
+
+describe("chunking", () => {
+  const arabic =
+    "يعاقب بغرامة من ألف ومائتين إلى خمسين ألف درهم كل من خالف أحكام هذا القانون، وإذا كان " +
+    "المخالف شخصا معنويا فإنه يعاقب بغرامة من خمسين ألف إلى مليون درهم. ";
+  const french =
+    "Le responsable du traitement doit adresser une déclaration préalable à la Commission " +
+    "nationale avant la mise en oeuvre du traitement envisagé. ";
+  const provision = (content: string, language: NormativeLanguage = "fr") => [
+    {
+      type: "article" as const,
+      sourceIdentifier: "Article 12",
+      title: null,
+      headingPath: ["Chapitre III", "Article 12"],
+      language,
+      content,
+      contentHash: "hash",
+      pageStart: 1,
+      pageEnd: 1,
+      orderIndex: 0,
+    },
+  ];
+
+  it("counts Arabic tokens at their real cost rather than at the Latin rate", () => {
+    // Measured against cl100k_base: French runs ~4.1 characters to a token, Arabic ~1.44.
+    // Dividing characters by four is right for French and under-reports Arabic threefold.
+    const sample = arabic.repeat(20);
+    const naive = Math.ceil(sample.length / 4);
+
+    expect(estimateTokens(sample)).toBeGreaterThan(naive * 2.5);
+    expect(estimateTokens(french.repeat(20))).toBeCloseTo(
+      Math.ceil((french.repeat(20).length / 4) * 1.0),
+      -1,
+    );
+  });
+
+  it("charges a mixed-script provision proportionally", () => {
+    const mixed = french.repeat(10) + arabic.repeat(10);
+
+    // Blending the two rates instead of the character counts is the tempting version, and it
+    // under-reports mixed text by about a fifth.
+    const sumOfParts = estimateTokens(french.repeat(10)) + estimateTokens(arabic.repeat(10));
+    expect(estimateTokens(mixed)).toBeGreaterThan(sumOfParts * 0.95);
+    expect(estimateTokens(mixed)).toBeLessThan(sumOfParts * 1.05);
+  });
+
+  it("keeps an Arabic provision inside the same token budget as a French one", () => {
+    const budget = 300;
+    const arabicChunks = chunkNormativeProvisions(
+      provision(arabic.repeat(30), "ar"),
+      { documentTitle: "قانون" },
+      budget,
+    );
+
+    // A character budget bought nearly three times as much Arabic as French, so an Arabic
+    // chunk packed far more of its provision into one vector and retrieved less precisely.
+    expect(arabicChunks.length).toBeGreaterThan(1);
+    for (const chunk of arabicChunks) expect(chunk.tokenCount).toBeLessThanOrEqual(budget);
+  });
+
+  it("charges the metadata prefix against the budget it shares with the content", () => {
+    // The prefix is embedded along with the content, so leaving it out of the accounting
+    // understated every chunk by the length of its own heading path.
+    const chunks = chunkNormativeProvisions(
+      provision(french.repeat(40)),
+      {
+        documentTitle: "Loi 09-08 relative à la protection des personnes physiques",
+        referenceNumber: "09-08",
+      },
+      300,
+    );
+
+    for (const chunk of chunks) expect(estimateTokens(chunk.searchText)).toBeLessThanOrEqual(300);
+  });
+
+  it("cuts between sentences rather than through one", () => {
+    const chunks = chunkNormativeProvisions(
+      provision(french.repeat(40)),
+      { documentTitle: "x" },
+      200,
+    );
+
+    expect(chunks.length).toBeGreaterThan(1);
+    for (const chunk of chunks.slice(0, -1)) expect(chunk.content.trimEnd()).toMatch(/[.!?؟۔]$/u);
+  });
+
+  it("never lets a chunk exceed the budget it was given", () => {
+    const budget = 250;
+    const chunks = chunkNormativeProvisions(
+      provision(french.repeat(30)),
+      { documentTitle: "x" },
+      budget,
+    );
+
+    // The budget covers the metadata prefix as well as the content, because both are embedded.
+    for (const chunk of chunks) expect(chunk.tokenCount).toBeLessThanOrEqual(budget);
+  });
+});
+
+describe("structure quality gate", () => {
+  const article = (identifier: string) => ({
+    blockType: "section_header",
+    text: identifier,
+    pageNumber: 1,
+  });
+  const body = (characters: number) => ({
+    blockType: "text",
+    text: "x".repeat(characters),
+    pageNumber: 1,
+  });
+  const run = (blocks: Array<{ blockType: string; text: string; pageNumber: number }>) => {
+    const provisions = detectNormativeProvisionsFromBlocks(blocks, "fr");
+    return assessStructureQuality(blocks, provisions);
+  };
+
+  it("passes a document whose articles run consecutively", () => {
+    const quality = run([article("Article premier"), body(400), article("Article 2"), body(400)]);
+
+    expect(quality.score).toBe(1);
+    expect(quality.concerns).toEqual([]);
+    expect(quality.signals.missingNumbers).toEqual([]);
+  });
+
+  it("catches a gap in the numbering, which is a boundary the segmenter missed", () => {
+    const quality = run([
+      article("Article premier"),
+      body(400),
+      article("Article 2"),
+      body(400),
+      article("Article 5"),
+      body(400),
+    ]);
+
+    // Articles are consecutive by construction, so a missing number is not a matter of taste.
+    expect(quality.signals.missingNumbers).toEqual([3, 4]);
+    expect(quality.score).toBeLessThan(1);
+    expect(quality.concerns.join(" ")).toContain("numbering skips 3, 4");
+  });
+
+  it("does not invent a gap when a document starts partway through", () => {
+    // An amending text that opens at article 30 is not missing the first twenty-nine.
+    const quality = run([article("Article 30"), body(400), article("Article 31"), body(400)]);
+
+    expect(quality.signals.missingNumbers).toEqual([]);
+    expect(quality.score).toBe(1);
+  });
+
+  it("catches an article truncated to its own heading", () => {
+    const quality = run([article("Article premier"), body(400), article("Article 2"), body(10)]);
+
+    expect(quality.signals.fragments).toBe(1);
+    expect(quality.concerns.join(" ")).toContain("under 120 characters");
+  });
+
+  it("catches a document whose text never decoded into citable provisions", () => {
+    // The shape a broken text layer produces: plenty of provisions, not one of them citable.
+    const quality = run([
+      { blockType: "text", text: "$UWLFOH SUHPLHU ".repeat(30), pageNumber: 1 },
+      { blockType: "text", text: "OHV GLVSRVLWLRQV ".repeat(30), pageNumber: 2 },
+    ]);
+
+    expect(quality.signals.identified).toBe(0);
+    expect(quality.score).toBeLessThan(STRUCTURE_REVIEW_THRESHOLD);
+    expect(quality.concerns.join(" ")).toContain("no provision carries an article or clause");
+  });
+
+  it("scores an empty segmentation at zero rather than leaving it to look ordinary", () => {
+    expect(assessStructureQuality([], [])).toMatchObject({ score: 0 });
+  });
+
+  it("counts an identifier that opened a provision twice", () => {
+    const quality = run([
+      article("Article premier"),
+      body(400),
+      article("Article 2"),
+      body(400),
+      article("Article 2"),
+      body(400),
+    ]);
+
+    expect(quality.signals.duplicateIdentifiers).toEqual(["Article 2"]);
+    expect(quality.score).toBeLessThan(1);
   });
 });
 

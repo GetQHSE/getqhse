@@ -181,6 +181,11 @@ services:
       DOCLING_PORT: "8000"
       DOCLING_MAX_UPLOAD_BYTES: ${DOCLING_MAX_UPLOAD_BYTES:-52428800}
       DOCLING_ALLOWED_TYPES: ${DOCLING_ALLOWED_TYPES:-application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document}
+      DOCLING_OCR_LANGUAGES: ${DOCLING_OCR_LANGUAGES:-fra+ara}
+      DOCLING_MAX_CONCURRENT_CONVERSIONS: ${DOCLING_MAX_CONCURRENT_CONVERSIONS:-1}
+      DOCLING_REPAIR_DEGENERATE_TEXT_LAYER: ${DOCLING_REPAIR_DEGENERATE_TEXT_LAYER:-true}
+      DOCLING_INFER_HEADING_HIERARCHY: ${DOCLING_INFER_HEADING_HIERARCHY:-true}
+      DOCLING_FALLBACK_OCR_DPI: ${DOCLING_FALLBACK_OCR_DPI:-300}
 
     expose:
       - "8000"
@@ -197,7 +202,7 @@ services:
       interval: 15s
       timeout: 10s
       retries: 10
-      start_period: 30s
+      start_period: 120s
 
     deploy:
       resources:

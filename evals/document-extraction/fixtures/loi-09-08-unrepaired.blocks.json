@@ -1,0 +1,2739 @@
+{
+  "name": "loi-09-08-unrepaired",
+  "source": "09-08.pdf",
+  "redacted": false,
+  "capturedFrom": {
+    "provider": "docling",
+    "conversionStatus": "success",
+    "textLayerRepair": "none",
+    "note": "Captured before the extractor learned to detect an undecodable text layer, so it is the raw Docling output for a PDF whose CID fonts carry no ToUnicode CMap. The service no longer returns this for the same file -- it now repairs it -- which is exactly why the capture is kept."
+  },
+  "blocks": [
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "$UWLFOH"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "/H FRQWU{OH GHV ILQDQFHV GHV FROOHFWLYLWpV ORFDOHV HW GH OHXUV"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "JURXSHPHQWV UHOqYH  GH  OD  FRPSpWHQFH  GHV  FRXUV  UpJLRQDOHV  GHV"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "FRPSWHV  FRQIRUPpPHQW  j  OD  ORL  Q         IRUPDQW  FRGH  GHV"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "MXULGLFWLRQV ILQDQFLqUHV"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "1¶HVW SDV DSSOLFDEOH DX[ JURXSHPHQWV OH FRQWU{OH SUpYX SDU"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "OD  ORL  Q         UHODWLYH  DX  FRQWU{OH  ILQDQFLHU  GH  O¶(WDW  VXU  OHV"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "HQWUHSULVHV  SXEOLTXHV  HW  DXWUHV  RUJDQLVPHV  SURPXOJXpH  SDU  OH"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "GDKLU Q          GX    UDPDGDQ          QRYHPEUH"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "(VW  IL[p  SDU  YRLH  UpJOHPHQWDLUH   OH  UpJLPH  GX  FRQWU{OH"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "ILQDQFLHU  DSSOLFDEOH  DX[  pWDEOLVVHPHQWV  SXEOLFV  HW  DX[  VRFLpWpV"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "TXH OHV FROOHFWLYLWpV ORFDOHV RX OHXUV JURXSHPHQWV FUpHQW RX GRQW"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "LOV  SDUWLFLSHQW DX FDSLWDO  VHORQ OHV FRQGLWLRQV SUpYXHV SDU OD ORL"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "Q       SRUWDQW FKDUWH FRPPXQDOH WHOOH TX¶HOOH D pWp PRGLILpH HW"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "FRPSOpWpH   'HPHXUHQW  DSSOLFDEOHV  MXVTX¶j  OD  SXEOLFDWLRQ  GXGLW"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "GpFUHW  OHV GLVSRVLWLRQV OpJLVODWLYHV HW UpJOHPHQWDLUHV HQ YLJXHXU"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "$UWLFOH"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "/HV  FROOHFWLYLWpV  ORFDOHV   OHXUV  JURXSHPHQWV  DLQVL  TXH  OHV"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "SHUVRQQHV PRUDOHV GH GURLW SXEOLF RX SULYp TXL JqUHQW XQ VHUYLFH"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "SXEOLF UHOHYDQW GHV FROOHFWLYLWpV ORFDOHV  VRQW WHQXV GH SURGXLUH HW"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "FRPPXQLTXHU  GHV  pWDWV  GH  V\\QWKqVH  UHODWLIV  j  OHXU  JHVWLRQ  HW  j"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "OHXU"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "VLWXDWLRQ"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "ILQDQFLqUH"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "&HV  pWDWV"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "GRLYHQW"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "rWUH"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "SXEOLpV"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "DX"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "© %XOOHWLQ  RIILFLHO ª"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "GHV  FROOHFWLYLWpV"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "ORFDOHV"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "RX  SRUWpV  j  OD"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "FRQQDLVVDQFH GX SXEOLF  SDU YRLH  pOHFWURQLTXH"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "/H  PLQLVWUH  GH  O¶LQWpULHXU    IL[H  SDU  DUUrWp  OD  QDWXUH  GHV"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "LQIRUPDWLRQV HW GHV GRQQpHV j SURGXLUH  OHXU SpULRGLFLWp DLQVL TXH"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "OHV IRUPHV HW OHV FRQGLWLRQV G¶pWDEOLVVHPHQW HW GH FRPPXQLFDWLRQ"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "GHVGLWV pWDWV"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "$UWLFOH"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "/HV EXGJHWV GHV FROOHFWLYLWpV ORFDOHV HW GH OHXUV JURXSHPHQWV"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "VRQW  FRPPXQLTXpV  DX  PLQLVWqUH  GHV  ILQDQFHV  SDU  OH  PLQLVWqUH  GH"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "O¶LQWpULHXU GDQV OHV FRQGLWLRQV IL[pHV SDU DUUrWp FRQMRLQW GX PLQLVWUH"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "GH O LQWpULHXU HW OH PLQLVWUH FKDUJp GHV ILQDQFHV"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "$UWLFOH"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "6RQW  IL[pHV   SDU  DUUrWp  GX  PLQLVWUH  GH  O¶LQWpULHXU   WRXWHV"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "GLVSRVLWLRQV GH QDWXUH j DVVXUHU OD ERQQH JHVWLRQ GHV ILQDQFHV GHV"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "FROOHFWLYLWpV ORFDOHV HW GH OHXUV JURXSHPHQWV"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "$UWLFOH"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "6RQW DEURJpHV OHV GLVSRVLWLRQV GX GDKLU SRUWDQW ORL Q"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "GX   FKDRXDO          VHSWHPEUH       UHODWLI j O¶RUJDQLVDWLRQ"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "GHV ILQDQFHV GHV FROOHFWLYLWpV ORFDOHV HW GH OHXUV JURXSHPHQWV"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "7RXWHIRLV   GHPHXUHQW  HQ  YLJXHXU  OHV  WH[WHV  SULV  SRXU  VRQ"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "DSSOLFDWLRQ MXVTX¶j O¶LQWHUYHQWLRQ GHV GpFUHWV SUpYXV DX[ DUWLFOHV"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "HW    GH OD SUpVHQWH ORL"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "$UWLFOH"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "/HV  UpIpUHQFHV  DX[  GLVSRVLWLRQV  GHV  WH[WHV  DEURJpV  SDU"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "O¶DUWLFOH  SUpFpGHQW   FRQWHQXHV  GDQV  G¶DXWUHV  WH[WHV  OpJLVODWLIV  RX"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "UqJOHPHQWDLUHV"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "HQ"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "YLJXHXU"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "V¶DSSOLTXHQW"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "DX["
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "GLVSRVLWLRQV"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "FRUUHVSRQGDQWHV pGLFWpHV SDU OD SUpVHQWH ORL"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "$UWLFOH"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "/HV GLVSRVLWLRQV GH OD ORL Q       pGLFWDQW GHV GLVSRVLWLRQV"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "WUDQVLWRLUHV HQ FH TXL FRQFHUQH FHUWDLQV WD[HV  GURLWV  FRQWULEXWLRQV"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "HW UHGHYDQFHV GXV DX[ FROOHFWLYLWpV ORFDOHV SURPXOJXpH SDU OH GDKLU"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "Q            GX      KLMD            GpFHPEUH         GHPHXUHQW  HQ"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "YLJXHXU  MXVTX¶j  OD  SXEOLFDWLRQ  DX  © %XOOHWLQ  RIILFLHO ª  GX  WH[WH"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "G¶DSSOLFDWLRQ SUpYX j O¶DUWLFOH    FL GHVVXV"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "BBBBBB"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "/H  WH[WH  HQ  ODQJXH  DUDEH  D  pWp  SXEOLp  GDQV  O¶pGLWLRQ  JpQpUDOH  GX"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "© %XOOHWLQ RIILFLHO ª Q      GX    VDIDU          IpYULHU"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "'DKLU  Q          GX       VDIDU             IpYULHU SRUWDQW SURPXOJDWLRQ GH OD ORL Q       UHODWLYH j OD SURWHFWLRQ GHV  SHUVRQQHV SK\\VLTXHV  j  O pJDUG  GX  WUDLWHPHQW  GHV GRQQpHV  j FDUDFWqUH SHUVRQQHO BBBBBBBBBB"
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 1,
+      "text": "/28$1*( $ ',(8 6(8/",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "*UDQG 6FHDX GH 6D 0DMHVWp 0RKDPPHG 9,"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "4XH O¶RQ VDFKH SDU OHV SUpVHQWHV ± SXLVVH 'LHX HQ pOHYHU HW HQ IRUWLILHU OD WHQHXU"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "4XH 1RWUH 0DMHVWp &KpULILHQQH"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "9X OD &RQVWLWXWLRQ  QRWDPPHQW VHV DUWLFOHV    HW"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "$ 'e&,'e &( 48, 68,7"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "(VW SURPXOJXpH HW VHUD SXEOLpH DX %XOOHWLQ RIILFLHO  j OD VXLWH GX  SUpVHQW  GDKLU   OD  ORL  Q         UHODWLYH  j  OD  SURWHFWLRQ  GHV SHUVRQQHV    SK\\VLTXHV  j  O pJDUG  GX  WUDLWHPHQW  GHV  GRQQpHV    j FDUDFWqUH SHUVRQQHO WHOOH TX¶DGRSWpH SDU OD &KDPEUH GHV UHSUpVHQWDQWV HW OD &KDPEUH GHV FRQVHLOOHUV"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": ")DLW j )qV  OH    VDIDU          IpYULHU"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "3RXU FRQWUHVHLQJ /H 3UHPLHU PLQLVWUH"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "$%%$6 (/ )$66,"
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 1,
+      "text": "/RL Q UHODWLYH j OD SURWHFWLRQ GHV SHUVRQQHV SK\\VLTXHV j O pJDUG GX WUDLWHPHQW GHV GRQQpHV  j FDUDFWqUH SHUVRQQHO",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "²²²²²²"
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 1,
+      "text": "&KDSLWUH SUHPLHU",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "',6326,7,216 *(1(5$/(6"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "6HFWLRQ SUHPLqUH  ± 'pILQLWLRQV HW FKDPS G DSSOLFDWLRQ"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "$UWLFOH SUHPLHU"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "/¶LQIRUPDWLTXH HVW DX VHUYLFH GX FLWR\\HQ HW pYROXH GDQV OH FDGUH  GH  OD  FRRSpUDWLRQ  LQWHUQDWLRQDOH   (OOH  QH  GRLW  SDV  SRUWHU DWWHLQWH  j  O¶LGHQWLWp   DX[  GURLWV  HW  DX[  OLEHUWpV  FROOHFWLYHV  RX LQGLYLGXHOOHV GH O¶+RPPH  (OOH QH GRLW SDV FRQVWLWXHU XQ PR\\HQ GH GLYXOJXHU GHV VHFUHWV GH OD YLH SULYpH GHV FLWR\\HQV"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "3RXU O DSSOLFDWLRQ GH OD SUpVHQWH ORL  RQ HQWHQG SDU"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "© GRQQpHV  j  FDUDFWqUH  SHUVRQQHO ª     WRXWH  LQIRUPDWLRQ   GH TXHOTXH  QDWXUH  TX HOOH  VRLW  HW  LQGpSHQGDPPHQW  GH  VRQ  VXSSRUW   \\ FRPSULV OH VRQ HW O LPDJH  FRQFHUQDQW XQH SHUVRQQH SK\\VLTXH LGHQWLILpH RX LGHQWLILDEOH  GpQRPPpH FL DSUqV © SHUVRQQH FRQFHUQpH ª"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "(VW UpSXWpH LGHQWLILDEOH XQH SHUVRQQH TXL SHXW rWUH LGHQWLILpH GLUHFWHPHQW RX LQGLUHFWHPHQW QRWDPPHQW SDU UpIpUHQFH  j  XQ  QXPpUR  G LGHQWLILFDWLRQ  RX  j  XQ  RX  SOXVLHXUV pOpPHQWV  VSpFLILTXHV  GH  VRQ  LGHQWLWp  SK\\VLTXH   SK\\VLRORJLTXH JpQpWLTXH  SV\\FKLTXH  pFRQRPLTXH  FXOWXUHOOH RX VRFLDOH"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "© WUDLWHPHQW GH GRQQpHV j FDUDFWqUH SHUVRQQHO ª © WUDLWHPHQW ª    WRXWH RSpUDWLRQ RX HQVHPEOH G RSpUDWLRQV HIIHFWXpHV RX QRQ j O DLGH GH SURFpGpV DXWRPDWLVpV HW DSSOLTXpHV j GHV GRQQpHV j FDUDFWqUH SHUVRQQHO WHOOHV TXH OD FROOHFWH O HQUHJLVWUHPHQW  O RUJDQLVDWLRQ  OD FRQVHUYDWLRQ  O DGDSWDWLRQ RX OD"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 2,
+      "text": "PRGLILFDWLRQ O H[WUDFWLRQ OD FRQVXOWDWLRQ O XWLOLVDWLRQ OD FRPPXQLFDWLRQ SDU WUDQVPLVVLRQ  GLIIXVLRQ RX WRXWH DXWUH IRUPH GH  PLVH  j  GLVSRVLWLRQ   OH  UDSSURFKHPHQW  RX  O LQWHUFRQQH[LRQ DLQVL TXH OH YHUURXLOODJH  O HIIDFHPHQW RX OD GHVWUXFWLRQ"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 2,
+      "text": "© GRQQpHV VHQVLEOHV ª   GRQQpHV j FDUDFWqUH SHUVRQQHO TXL UpYqOHQW O RULJLQH UDFLDOH RX HWKQLTXH  OHV RSLQLRQV SROLWLTXHV  OHV FRQYLFWLRQV UHOLJLHXVHV RX SKLORVRSKLTXHV RX O DSSDUWHQDQFH V\\QGLFDOH  GH  OD  SHUVRQQH  FRQFHUQpH  RX  TXL  VRQW  UHODWLYHV  j  VD VDQWp \\ FRPSULV VHV GRQQpHV JpQpWLTXHV"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 2,
+      "text": "© ILFKLHU GH GRQQpHV j FDUDFWqUH SHUVRQQHO ª  © ILFKLHU ª WRXW HQVHPEOH VWUXFWXUp GH GRQQpHV j FDUDFWqUH SHUVRQQHO DFFHVVLEOHV  VHORQ  GHV  FULWqUHV  GpWHUPLQpV   TXH  FHW  HQVHPEOH  VRLW FHQWUDOLVp   GpFHQWUDOLVp  RX  UpSDUWL  GH  PDQLqUH  IRQFWLRQQHOOH  RX JpRJUDSKLTXH  WHOV  TXH  OHV  DUFKLYHV   OHV  EDQTXHV  GH  GRQQpHV   OHV ILFKLHUV GH UHFHQVHPHQW"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 2,
+      "text": "© UHVSRQVDEOH GX WUDLWHPHQW  ª   OD SHUVRQQH SK\\VLTXH RX PRUDOH   O DXWRULWp  SXEOLTXH   OH  VHUYLFH  RX  WRXW  DXWUH  RUJDQLVPH TXL  VHXO RX FRQMRLQWHPHQW DYHF G DXWUHV  GpWHUPLQH OHV ILQDOLWpV HW  OHV  PR\\HQV  GX  WUDLWHPHQW  GH  GRQQpHV  j  FDUDFWqUH  SHUVRQQHO /RUVTXH OHV ILQDOLWpV HW OHV PR\\HQV GX WUDLWHPHQW VRQW GpWHUPLQpV SDU GHV GLVSRVLWLRQV OpJLVODWLYHV RX UpJOHPHQWDLUHV OH UHVSRQVDEOH GX WUDLWHPHQW GRLW rWUH LQGLTXp GDQV OD ORL G RUJDQLVDWLRQ HW GH IRQFWLRQQHPHQW RX GDQV OH VWDWXW GH O HQWLWp OpJDOHPHQW RX VWDWXWDLUHPHQW FRPSpWHQWH SRXU WUDLWHU OHV GRQQpHV j FDUDFWqUH SHUVRQQHO HQ FDXVH"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 2,
+      "text": "© VRXV WUDLWDQW  ª   OD SHUVRQQH SK\\VLTXH RX PRUDOH O DXWRULWp  SXEOLTXH   OH  VHUYLFH  RX  WRXW  DXWUH  RUJDQLVPH  TXL  WUDLWH GHV GRQQpHV j FDUDFWqUH SHUVRQQHO SRXU OH FRPSWH GX UHVSRQVDEOH GX WUDLWHPHQW"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 2,
+      "text": "© WLHUV  ª   OD SHUVRQQH SK\\VLTXH RX PRUDOH O DXWRULWp SXEOLTXH  OH VHUYLFH RX WRXW DXWUH RUJDQLVPH DXWUH TXH OD SHUVRQQH FRQFHUQpH   OH  UHVSRQVDEOH  GX  WUDLWHPHQW   OH  VRXV WUDLWDQW  HW  OHV SHUVRQQHV  TXL   SODFpHV  VRXV  O DXWRULWp  GLUHFWH  GX  UHVSRQVDEOH  GX WUDLWHPHQW RX GX VRXV WUDLWDQW  VRQW KDELOLWpHV j WUDLWHU OHV GRQQpHV"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 2,
+      "text": "© GHVWLQDWDLUH  ª OD SHUVRQQH SK\\VLTXH RX PRUDOH O DXWRULWp SXEOLTXH  OH VHUYLFH RX WRXW DXWUH RUJDQLVPH TXL UHoRLW FRPPXQLFDWLRQ GH GRQQpHV  TX LO V DJLVVH RX QRQ G XQ WLHUV  /HV RUJDQLVPHV TXL VRQW VXVFHSWLEOHV GH UHFHYRLU FRPPXQLFDWLRQ GH GRQQpHV  GDQV  OH  FDGUH  G XQH  GLVSRVLWLRQ  OpJDOH  QH  VRQW  SDV FRQVLGpUpHV  FRPPH  GHVWLQDWDLUHV   QRWDPPHQW  OD  &RPPLVVLRQ QDWLRQDOH  GH  FRQWU{OH  GH  OD  SURWHFWLRQ  GHV  GRQQpHV  j  FDUDFWqUH SHUVRQQHO  LQVWLWXpH j O¶DUWLFOH FL DSUqV  HW  GpQRPPpH  OD &RPPLVVLRQ QDWLRQDOH"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 2,
+      "text": "© FRQVHQWHPHQW GH OD SHUVRQQH FRQFHUQpH  ª   WRXWH PDQLIHVWDWLRQ  GH  YRORQWp   OLEUH VSpFLILTXH  HW  LQIRUPpH   SDU ODTXHOOH OD SHUVRQQH  FRQFHUQpH  DFFHSWH  TXH  OHV GRQQpHV  j FDUDFWqUH SHUVRQQHO OD FRQFHUQDQW IDVVHQW O REMHW G XQ WUDLWHPHQW"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 2,
+      "text": "© FHVVLRQ  RX  FRPPXQLFDWLRQ ª    WRXWH  GLYXOJDWLRQ  RX LQIRUPDWLRQ G XQH GRQQpH SRUWpH j OD FRQQDLVVDQFH G XQH SHUVRQQH DXWUH TXH OD SHUVRQQH FRQFHUQpH"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 2,
+      "text": "© LQWHUFRQQH[LRQ GH GRQQpHV ª   IRUPH GH WUDLWHPHQW TXL FRQVLVWH j pWDEOLU XQ UDSSRUW HQWUH OHV GRQQpHV G XQ ILFKLHU HW OHV GRQQpHV G XQ ILFKLHU RX GH SOXVLHXUV ILFKLHUV WHQXV SDU XQ DXWUH RX SDU G DXWUHV UHVSRQVDEOHV  RX WHQXV SDU OH PrPH UHVSRQVDEOH PDLV GDQV XQ DXWUH EXW"
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 2,
+      "text": "$UWLFOH",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 2,
+      "text": "/D  SUpVHQWH  ORL  V DSSOLTXH  DX  WUDLWHPHQW  GHV  GRQQpHV  j FDUDFWqUH SHUVRQQHO  DXWRPDWLVp HQ WRXW RX HQ SDUWLH  DLQVL TX DX WUDLWHPHQW  QRQ  DXWRPDWLVp  GH  GRQQpHV  j  FDUDFWqUH  SHUVRQQHO FRQWHQXHV RX DSSHOpHV j ILJXUHU GDQV GHV ILFKLHUV PDQXHOV"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 2,
+      "text": "/D  SUpVHQWH  ORL  V DSSOLTXH  DX  WUDLWHPHQW  GHV  GRQQpHV j FDUDFWqUH  SHUVRQQHO  UpSRQGDQW  j  OD  GpILQLWLRQ  GX  SDUDJUDSKH FL GHVVXV"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 2,
+      "text": "D   ORUVTX LO  HVW  HIIHFWXp  SDU  XQH  SHUVRQQH  SK\\VLTXH  RX PRUDOH GRQW OH UHVSRQVDEOH HVW pWDEOL VXU OH WHUULWRLUH PDURFDLQ  /H UHVSRQVDEOH G XQ WUDLWHPHQW TXL H[HUFH XQH DFWLYLWp VXU OH WHUULWRLUH  PDURFDLQ  GDQV  OH  FDGUH  G XQH  LQVWDOODWLRQ   TXHOOH  TXH VRLW VD IRUPH MXULGLTXH  \\ HVW FRQVLGpUp FRPPH pWDEOL"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 2,
+      "text": "E  ORUVTXH  OH  UHVSRQVDEOH  Q HVW  SDV  pWDEOL  VXU  OH  WHUULWRLUH PDURFDLQ  PDLV  UHFRXUW   j  GHV  ILQV  GH  WUDLWHPHQW  GHV  GRQQpHV  j FDUDFWqUH SHUVRQQHO  j GHV PR\\HQV DXWRPDWLVpV RX QRQ  VLWXpV VXU OH  WHUULWRLUH  PDURFDLQ   j  O H[FOXVLRQ  GHV  WUDLWHPHQWV  TXL  QH  VRQW XWLOLVpV  TX j  GHV  ILQV  GH  WUDQVLW  VXU  OH  WHUULWRLUH  QDWLRQDO  RX  VXU FHOXL G XQ (WDW GRQW OD OpJLVODWLRQ HVW UHFRQQXH pTXLYDOHQWH j FHOOH GX  0DURF  HQ  PDWLqUH  GH  SURWHFWLRQ  GHV  GRQQpHV  j  FDUDFWqUH SHUVRQQHO"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 2,
+      "text": "'DQV  OH  FDV  YLVp  DX  E  GX  SDUDJUDSKH     FL GHVVXV   OH UHVSRQVDEOH GX WUDLWHPHQW GRLW QRWLILHU j OD &RPPLVVLRQ QDWLRQDOH  O LGHQWLWp G XQ UHSUpVHQWDQW LQVWDOOp DX 0DURF TXL  VDQV SUpMXGLFH GH VD UHVSRQVDELOLWp SHUVRQQHOOH  VH VXEVWLWXH j OXL GDQV WRXV  VHV  GURLWV  HW  REOLJDWLRQV  UpVXOWDQW  GHV  GLVSRVLWLRQV  GH  OD SUpVHQWH ORL HW GHV WH[WHV SULV SRXU VRQ DSSOLFDWLRQ"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 2,
+      "text": "/D SUpVHQWH ORL QH V DSSOLTXH SDV"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 2,
+      "text": "± DX  WUDLWHPHQW  GH  GRQQpHV  j  FDUDFWqUH  SHUVRQQHO  HIIHFWXp SDU  XQH  SHUVRQQH  SK\\VLTXH  SRXU  O H[HUFLFH  G DFWLYLWpV H[FOXVLYHPHQW SHUVRQQHOOHV RX GRPHVWLTXHV"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 2,
+      "text": "± DX[  GRQQpHV  j  FDUDFWqUH  SHUVRQQHO  UHFXHLOOLHV  HW  WUDLWpHV GDQV  O LQWpUrW  GH  OD  GpIHQVH  QDWLRQDOH  HW  GH  OD  VpFXULWp LQWpULHXUH  RX  H[WpULHXUH  GH  O (WDW   (OOH  QH  V DSSOLTXH  DX[ GRQQpHV j FDUDFWqUH SHUVRQQHO UHFXHLOOLHV HW WUDLWpHV j GHV ILQV GH SUpYHQWLRQ HW GH UpSUHVVLRQ GHV FULPHV HW GpOLWV TXH GDQV OHV  FRQGLWLRQV  IL[pHV  SDU  OD  ORL  RX  OH  UqJOHPHQW  TXL FUpH OH ILFKLHU HQ FDXVH FH UqJOHPHQW SUpFLVH OH UHVSRQVDEOH  GX  WUDLWHPHQW   OD  FRQGLWLRQ  GH  OpJLWLPLWp  GX WUDLWHPHQW   OD  RX  OHV  ILQDOLWpV  GX  WUDLWHPHQW   OD  RX  OHV FDWpJRULHV GH SHUVRQQHV FRQFHUQpHV HW OHV GRQQpHV RX OHV FDWpJRULHV  GH  GRQQpHV  V¶\\  UDSSRUWDQW   O¶RULJLQH  GH  FHV GRQQpHV  OHV  WLHUV  RX  OHV  FDWpJRULHV  GH  WLHUV  DX[TXHOV  FHV GRQQpHV  SHXYHQW  rWUH  FRPPXQLTXpHV  HW  OHV  PHVXUHV  j SUHQGUH  SRXU  DVVXUHU  OD  VpFXULWp  GX  WUDLWHPHQW   ,O  HVW VRXPLV j O¶DYLV SUpDODEOH GH OD &RPPLVVLRQ QDWLRQDOH"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 2,
+      "text": "± DX[ GRQQpHV j FDUDFWqUH SHUVRQQHO UHFXHLOOLHV HQ DSSOLFDWLRQ  G XQH  OpJLVODWLRQ  SDUWLFXOLqUH   /HV  SURMHWV  RX SURSRVLWLRQV GH ORL  SRUWDQW FUpDWLRQ GH ILFKLHUV UHODWLIV DX[ GRQQpHV  SUpFLWpHV  VRQW  FRPPXQLTXpV  j  OD  &RPPLVVLRQ QDWLRQDOH HQ SUpFLVDQW O¶DXWRULWp UHVSRQVDEOH GX ILFKLHU  OD RX  OHV  ILQDOLWpV  GX  WUDLWHPHQW   OD  RX  OHV  FDWpJRULHV  GH SHUVRQQHV FRQFHUQpHV HW OHV GRQQpHV RX OHV FDWpJRULHV GH GRQQpHV V¶\\ UDSSRUWDQW  O¶RULJLQH GH FHV GRQQpHV  OHV WLHUV RX  OHV  FDWpJRULHV  GH  WLHUV  DX[TXHOV  FHV  GRQQpHV  SHXYHQW rWUH FRPPXQLTXpHV HW OHV PHVXUHV j SUHQGUH SRXU DVVXUHU OD VpFXULWp GX WUDLWHPHQW"
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 3,
+      "text": "6HFWLRQ    ± 4XDOLWp GHV GRQQpHV HW FRQVHQWHPHQW SUpDODEOH GH OD SHUVRQQH FRQFHUQpH",
+      "headingLevel": 2
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 3,
+      "text": "$UWLFOH",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 3,
+      "text": "/HV GRQQpHV j FDUDFWqUH SHUVRQQHO GRLYHQW rWUH"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 3,
+      "text": "D   WUDLWpHV OR\\DOHPHQW HW OLFLWHPHQW"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 3,
+      "text": "E  FROOHFWpHV  SRXU  GHV  ILQDOLWpV  GpWHUPLQpHV   H[SOLFLWHV  HW OpJLWLPHV   HW  QH  SDV  rWUH  WUDLWpHV  XOWpULHXUHPHQW  GH  PDQLqUH LQFRPSDWLEOH DYHF FHV ILQDOLWpV"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 3,
+      "text": "F  DGpTXDWHV   SHUWLQHQWHV  HW  QRQ  H[FHVVLYHV  DX  UHJDUG  GHV ILQDOLWpV  SRXU  OHVTXHOOHV  HOOHV  VRQW  FROOHFWpHV  HW  SRXU  OHVTXHOOHV HOOHV VRQW WUDLWpHV XOWpULHXUHPHQW"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 3,
+      "text": "G  H[DFWHV HW  VL QpFHVVDLUH  PLVHV j MRXU  7RXWHV OHV PHVXUHV UDLVRQQDEOHV GRLYHQW rWUH SULVHV SRXU TXH OHV GRQQpHV LQH[DFWHV RX LQFRPSOqWHV  DX UHJDUG GHV ILQDOLWpV SRXU OHVTXHOOHV HOOHV VRQW FROOHFWpHV  RX  SRXU  OHVTXHOOHV  HOOHV  VRQW  WUDLWpHV  XOWpULHXUHPHQW VRLHQW HIIDFpHV RX UHFWLILpHV"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 3,
+      "text": "H  FRQVHUYpHV VRXV XQH IRUPH SHUPHWWDQW O LGHQWLILFDWLRQ GHV SHUVRQQHV  FRQFHUQpHV  SHQGDQW  XQH  GXUpH  Q H[FpGDQW  SDV  FHOOH QpFHVVDLUH j OD UpDOLVDWLRQ GHV ILQDOLWpV SRXU OHVTXHOOHV HOOHV VRQW FROOHFWpHV HW SRXU OHVTXHOOHV HOOHV VRQW WUDLWpHV XOWpULHXUHPHQW"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 3,
+      "text": "6XU GHPDQGH GX UHVSRQVDEOH GX WUDLWHPHQW HW  V LO H[LVWH XQ  LQWpUrW  OpJLWLPH   OD  &RPPLVVLRQ  QDWLRQDOH  SHXW  DXWRULVHU  OD FRQVHUYDWLRQ GH GRQQpHV j FDUDFWqUH SHUVRQQHO j GHV ILQV KLVWRULTXHV   VWDWLVWLTXHV  RX  VFLHQWLILTXHV  DX GHOj  GH  OD  SpULRGH FLWpH DX H  GX SDUDJUDSKH SUpFpGHQW"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 3,
+      "text": ",O  LQFRPEH  DX  UHVSRQVDEOH  GX  WUDLWHPHQW  G DVVXUHU  OH UHVSHFW  GHV  GLVSRVLWLRQV  GHV  SDUDJUDSKHV  TXL  SUpFqGHQW   VRXV  OH FRQWU{OH GH OD &RPPLVVLRQ QDWLRQDOH"
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 3,
+      "text": "$UWLFOH",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 3,
+      "text": "/H WUDLWHPHQW GHV GRQQpHV j FDUDFWqUH SHUVRQQHO QH SHXW rWUH HIIHFWXp  TXH  VL  OD  SHUVRQQH  FRQFHUQpH  D  LQGXELWDEOHPHQW  GRQQp VRQ FRQVHQWHPHQW j O¶RSpUDWLRQ  RX  j  O¶HQVHPEOH  GHV  RSpUDWLRQV HQYLVDJpHV"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 3,
+      "text": "/HV  GRQQpHV  j  FDUDFWqUH  SHUVRQQHO  REMHW  GX  WUDLWHPHQW QH SHXYHQW rWUH FRPPXQLTXpHV j XQ WLHUV TXH SRXU OD UpDOLVDWLRQ GH ILQV GLUHFWHPHQW OLpHV DX[ IRQFWLRQV GX FpGDQW HW GX FHVVLRQQDLUH  HW  VRXV  UpVHUYH  GX  FRQVHQWHPHQW  SUpDODEOH  GH  OD SHUVRQQH FRQFHUQpH"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 3,
+      "text": "7RXWHIRLV  FH FRQVHQWHPHQW Q HVW SDV H[LJp VL OH WUDLWHPHQW HVW QpFHVVDLUH"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 3,
+      "text": "D   DX UHVSHFW G XQH REOLJDWLRQ OpJDOH j ODTXHOOH HVW VRXPLV  H OD SHUVRQQH FRQFHUQpH RX OH UHVSRQVDEOH GX WUDLWHPHQW"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 3,
+      "text": "E  j  O H[pFXWLRQ  G XQ  FRQWUDW  DXTXHO  OD  SHUVRQQH  FRQFHUQpH HVW SDUWLH RX j O H[pFXWLRQ GH PHVXUHV SUpFRQWUDFWXHOOHV SULVHV j OD GHPDQGH GH FHOOH FL"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 3,
+      "text": "F  j OD VDXYHJDUGH G LQWpUrWV YLWDX[ GH OD SHUVRQQH FRQFHUQpH   VL  HOOH  HVW  SK\\VLTXHPHQW  RX  MXULGLTXHPHQW  GDQV O LQFDSDFLWp GH GRQQHU VRQ FRQVHQWHPHQW"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 3,
+      "text": "G  j O H[pFXWLRQ G XQH PLVVLRQ G LQWpUrW SXEOLF RX UHOHYDQW GH O H[HUFLFH  GH  O DXWRULWp  SXEOLTXH   GRQW  HVW  LQYHVWL  OH  UHVSRQVDEOH GX WUDLWHPHQW RX OH WLHUV DXTXHO OHV GRQQpHV VRQW FRPPXQLTXpHV"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 3,
+      "text": "H  j  OD  UpDOLVDWLRQ  GH  O LQWpUrW  OpJLWLPH  SRXUVXLYL  SDU  OH UHVSRQVDEOH GX WUDLWHPHQW RX SDU OH GHVWLQDWDLUH  VRXV UpVHUYH GH QH SDV PpFRQQDvWUH O LQWpUrW RX OHV GURLWV HW OLEHUWpV IRQGDPHQWDX[ GH OD SHUVRQQH FRQFHUQpH"
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 3,
+      "text": "&KDSLWUH ,O",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 3,
+      "text": "'(6 '52,76 '( /$ 3(56211( &21&(51(("
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 3,
+      "text": "$UWLFOH",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 3,
+      "text": "'URLW j O LQIRUPDWLRQ ORUV GH OD FROOHFWH GHV GRQQpHV"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 3,
+      "text": "7RXWH  SHUVRQQH  VROOLFLWpH  GLUHFWHPHQW   HQ  YXH  G XQH FROOHFWH  GH  VHV  GRQQpHV  SHUVRQQHOOHV   GRLW  rWUH  SUpDODEOHPHQW LQIRUPpH  GH  PDQLqUH  H[SUHVVH   SUpFLVH  HW  QRQ  pTXLYRTXH  SDU  OH UHVSRQVDEOH GX WUDLWHPHQW RX VRQ UHSUpVHQWDQW  VDXI VL HOOH HQ D GpMj HX FRQQDLVVDQFH  GHV pOpPHQWV VXLYDQWV"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 3,
+      "text": "D   O LGHQWLWp GX UHVSRQVDEOH GX WUDLWHPHQW HW  OH FDV pFKpDQW GH VRQ UHSUpVHQWDQW"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 3,
+      "text": "E  OHV ILQDOLWpV GX WUDLWHPHQW DXTXHO OHV GRQQpHV VRQW GHVWLQpHV"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 3,
+      "text": "F  WRXWHV LQIRUPDWLRQV VXSSOpPHQWDLUHV WHOOHV TXH"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 3,
+      "text": " OHV GHVWLQDWDLUHV RX OHV FDWpJRULHV GH GHVWLQDWDLUHV"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 3,
+      "text": " OH IDLW GH VDYRLU VL OD UpSRQVH DX[ TXHVWLRQV HVW REOLJDWRLUH RX IDFXOWDWLYH  DLQVL TXH OHV FRQVpTXHQFHV pYHQWXHOOHV G XQ GpIDXW GH UpSRQVH"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 3,
+      "text": " O H[LVWHQFH  G XQ  GURLW  G DFFqV  DX[  GRQQpHV  j  FDUDFWqUH SHUVRQQHO OD FRQFHUQDQW HW GH UHFWLILFDWLRQ GH FHV GRQQpHV"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 3,
+      "text": "GDQV OD PHVXUH R FRPSWH WHQX GHV FLUFRQVWDQFHV SDUWLFXOLqUHV  GDQV  OHVTXHOOHV  OHV  GRQQpHV  VRQW  FROOHFWpHV   FHV LQIRUPDWLRQV  VRQW  QpFHVVDLUHV  SRXU  DVVXUHU  XQ  WUDLWHPHQW  OR\\DO GHV GRQQpHV j O pJDUG GH OD SHUVRQQH FRQFHUQpH"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 3,
+      "text": "G   OHV FDUDFWpULVWLTXHV GX UpFpSLVVp GH OD GpFODUDWLRQ DXSUqV GH OD &RPPLVVLRQ QDWLRQDOH RX GH FHOOHV GH O DXWRULVDWLRQ GpOLYUpH SDU ODGLWH FRPPLVVLRQ"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 3,
+      "text": "/HV  GRFXPHQWV  TXL  VHUYHQW  GH  EDVH  j  OD  FROOHFWH  GHV GRQQpHV j FDUDFWqUH SHUVRQQHO GRLYHQW FRQWHQLU OHV LQIRUPDWLRQV YLVpHV DX SDUDJUDSKH SUpFpGHQW"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 3,
+      "text": "/RUVTXH OHV GRQQpHV j FDUDFWqUH SHUVRQQHO Q RQW SDV pWp FROOHFWpHV  DXSUqV  GH  OD  SHUVRQQH  FRQFHUQpH   OH  UHVSRQVDEOH  GX WUDLWHPHQW  RX  VRQ  UHSUpVHQWDQW  GRLW   DYDQW  O HQUHJLVWUHPHQW  GHV GRQQpHV  RX  VL  XQH  FRPPXQLFDWLRQ  GH  GRQQpHV  j  XQ  WLHUV  HVW HQYLVDJpH   DX  SOXV  WDUG  ORUV  GH  OD  SUHPLqUH  FRPPXQLFDWLRQ  GH GRQQpHV IRXUQLU j OD SHUVRQQH FRQFHUQpH DX PRLQV OHV LQIRUPDWLRQV YLVpHV DX[ D    E  HW F   FL GHVVXV  VDXI VL OD SHUVRQQH HQ D GpMj HX FRQQDLVVDQFH"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 3,
+      "text": "(Q  FDV  GH  FROOHFWH  GH  GRQQpHV  HQ  UpVHDX[  RXYHUWV   OD SHUVRQQH FRQFHUQpH GRLW rWUH LQIRUPpH  VDXI VL HOOH VDLW GpMj TXH OHV GRQQpHV j FDUDFWqUH SHUVRQQHO OD FRQFHUQDQW SHXYHQW FLUFXOHU VXU  OHV  UpVHDX[  VDQV  JDUDQWLHV  GH  VpFXULWp  HW  TX HOOHV  ULVTXHQW G rWUH OXHV HW XWLOLVpHV SDU GHV WLHUV QRQ DXWRULVpV"
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 3,
+      "text": "$UWLFOH",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 3,
+      "text": "/LPLWHV DX GURLW j O LQIRUPDWLRQ",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 3,
+      "text": "/ REOLJDWLRQ G LQIRUPDWLRQ SUpYXH j O DUWLFOH   FL GHVVXV Q HVW SDV DSSOLFDEOH"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 3,
+      "text": "D   DX[  GRQQpHV j FDUDFWqUH SHUVRQQHO GRQW OD FROOHFWH HW OH WUDLWHPHQW  VRQW  QpFHVVDLUHV  j  OD  GpIHQVH  QDWLRQDOH   OD  VUHWp LQWpULHXUH RX H[WpULHXUH GH O (WDW  OD SUpYHQWLRQ RX OD UpSUHVVLRQ GX FULPH"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 4,
+      "text": "E  ORUVTXH O LQIRUPDWLRQ GH OD SHUVRQQH FRQFHUQpH VH UpYqOH LPSRVVLEOH   QRWDPPHQW  HQ  FDV  GH  WUDLWHPHQW  GH  GRQQpHV  j FDUDFWqUH SHUVRQQHO j GHV ILQV VWDWLVWLTXHV KLVWRULTXHV RX VFLHQWLILTXHV  'DQV FH FDV  OH UHVSRQVDEOH GX WUDLWHPHQW HVW WHQX G¶DYLVHU OD &RPPLVVLRQ GH O¶LPSRVVLELOLWp G¶LQIRUPHU OD SHUVRQQH FRQFHUQpH HW GH OXL SUpVHQWHU OH PRWLI GH FHWWH LPSRVVLELOLWp"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 4,
+      "text": "F  VL OD OpJLVODWLRQ SUpYRLW H[SUHVVpPHQW O HQUHJLVWUHPHQW RX OD FRPPXQLFDWLRQ GHV GRQQpHV j FDUDFWqUH SHUVRQQHO"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 4,
+      "text": "G  DX WUDLWHPHQW GH GRQQpHV j FDUDFWqUH SHUVRQQHO HIIHFWXpHV j GHV ILQV H[FOXVLYHPHQW MRXUQDOLVWLTXHV  DUWLVWLTXHV RX OLWWpUDLUHV"
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 4,
+      "text": "$UWLFOH",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 4,
+      "text": "'URLW G DFFqV",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 4,
+      "text": "/D SHUVRQQH FRQFHUQpH  MXVWLILDQW GH VRQ LGHQWLWp  D OH GURLW G REWHQLU GX UHVSRQVDEOH GX WUDLWHPHQW j GHV LQWHUYDOOHV UDLVRQQDEOHV  VDQV GpODLV HW JUDWXLWHPHQW"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 4,
+      "text": "D   OD FRQILUPDWLRQ TXH OHV GRQQpHV j FDUDFWqUH SHUVRQQHO OD FRQFHUQDQW VRQW RX QH VRQW SDV WUDLWpHV DLQVL TXH GHV LQIRUPDWLRQV SRUWDQW DX PRLQV VXU OHV ILQDOLWpV GX WUDLWHPHQW  OHV FDWpJRULHV GH GRQQpHV VXU OHVTXHOOHV LO SRUWH HW OHV GHVWLQDWDLUHV RX  OHV FDWpJRULHV GH GHVWLQDWDLUHV DX[TXHOV OHV GRQQpHV j FDUDFWqUH SHUVRQQHO VRQW FRPPXQLTXpHV"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 4,
+      "text": "E  OD FRPPXQLFDWLRQ VRXV XQH IRUPH LQWHOOLJLEOH GHV GRQQpHV  j  FDUDFWqUH  SHUVRQQHO  IDLVDQW  O REMHW  GHV  WUDLWHPHQWV DLQVL TXH  GH  WRXWH LQIRUPDWLRQ  GLVSRQLEOH  VXU  O RULJLQH GHV GRQQpHV"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 4,
+      "text": "/H UHVSRQVDEOH GX WUDLWHPHQW SHXW GHPDQGHU j OD &RPPLVVLRQ  QDWLRQDOH  GHV  GpODLV  GH  UpSRQVH  DX[  GHPDQGHV G DFFqV OpJLWLPHV HW SHXW V RSSRVHU DX[ GHPDQGHV PDQLIHVWHPHQW DEXVLYHV  QRWDPPHQW  SDU OHXU QRPEUH HW OHXU FDUDFWqUH UpSpWLWLI"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 4,
+      "text": "(Q  FDV  G¶RSSRVLWLRQ   OD  FKDUJH  GH  OD  SUHXYH  GX  FDUDFWqUH PDQLIHVWHPHQW  DEXVLI   LQFRPEH  DX  UHVSRQVDEOH  GX  WUDLWHPHQW DXSUqV GXTXHO FHV GHPDQGHV RQW pWp IDLWHV"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 4,
+      "text": "F  OD FRQQDLVVDQFH GH OD ORJLTXH TXL VRXV WHQG WRXW WUDLWHPHQW  DXWRPDWLVp  GHV  GRQQpHV  j  FDUDFWqUH  SHUVRQQHO  OD FRQFHUQDQW"
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 4,
+      "text": "$UWLFOH",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 4,
+      "text": "'URLW GH UHFWLILFDWLRQ",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 4,
+      "text": "/D SHUVRQQH FRQFHUQpH  MXVWLILDQW GH VRQ LGHQWLWp  D OH GURLW G REWHQLU GX UHVSRQVDEOH GX WUDLWHPHQW"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 4,
+      "text": "D   O DFWXDOLVDWLRQ OD UHFWLILFDWLRQ O HIIDFHPHQW RX OH YHUURXLOODJH GHV GRQQpHV j FDUDFWqUH SHUVRQQHO GRQW OH WUDLWHPHQW Q HVW  SDV  FRQIRUPH  j  OD  SUpVHQWH  ORL   QRWDPPHQW  HQ  UDLVRQ  GX FDUDFWqUH LQFRPSOHW HW LQH[DFW GH FHV GRQQpHV   OH UHVSRQVDEOH GX WUDLWHPHQW  HVW  WHQX  GH  SURFpGHU  DX[  UHFWLILFDWLRQV  QpFHVVDLUHV VDQV  IUDLV  SRXU  OH  GHPDQGHXU  HW  FH   GDQV  XQ  GpODL  IUDQF  GH  GL[ MRXUV"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 4,
+      "text": "(Q FDV GH UHIXV RX GH QRQ UpSRQVH GDQV OH GpODL SUpFLWp  OD SHUVRQQH FRQFHUQpH SHXW LQWURGXLUH XQH GHPDQGH GH UHFWLILFDWLRQ DXSUqV GH OD &RPPLVVLRQ QDWLRQDOH  ODTXHOOH FKDUJH O XQ GH VHV PHPEUHV j O HIIHW  GH  PHQHU  WRXWHV  LQYHVWLJDWLRQV  XWLOHV  HW  IDLUH SURFpGHU DX[ UHFWLILFDWLRQV QpFHVVDLUHV  GDQV OHV SOXV EUHIV GpODLV /D SHUVRQQH FRQFHUQpH HVW WHQXH LQIRUPpH GHV VXLWHV UpVHUYpHV j VD GHPDQGH"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 4,
+      "text": "E  OD QRWLILFDWLRQ DX[ WLHUV DX[TXHOV OHV GRQQpHV j FDUDFWqUH SHUVRQQHO  RQW  pWp  FRPPXQLTXpHV  GH  WRXWH  DFWXDOLVDWLRQ   WRXWH UHFWLILFDWLRQ WRXW HIIDFHPHQW RX WRXW YHUURXLOODJH HIIHFWXp FRQIRUPpPHQW  DX  SRLQW  D FL GHVVXV   VL  FHOD  QH  V DYqUH  SDV LPSRVVLEOH"
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 4,
+      "text": "$UWLFOH",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 4,
+      "text": "'URLW G RSSRVLWLRQ",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 4,
+      "text": "/D SHUVRQQH FRQFHUQpH  MXVWLILDQW GH VRQ LGHQWLWp  D OH GURLW GH V RSSRVHU  SRXU GHV PRWLIV OpJLWLPHV  j FH TXH GHV GRQQpHV OD FRQFHUQDQW IDVVHQW O REMHW G XQ WUDLWHPHQW"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 4,
+      "text": "(OOH D OH GURLW GH V RSSRVHU  VDQV IUDLV  j FH TXH OHV GRQQpHV OD FRQFHUQDQW VRLHQW XWLOLVpHV j GHV ILQV GH SURVSHFWLRQ QRWDPPHQW FRPPHUFLDOH  SDU OH UHVSRQVDEOH DFWXHO GX WUDLWHPHQW RX FHOXL G XQ WUDLWHPHQW XOWpULHXU"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 4,
+      "text": "/HV  GLVSRVLWLRQV  GX  SUHPLHU  DOLQpD  QH  V DSSOLTXHQW  SDV ORUVTXH  OH  WUDLWHPHQW  UpSRQG  j  XQH  REOLJDWLRQ  OpJDOH  RX  ORUVTXH O DSSOLFDWLRQ GH FHV GLVSRVLWLRQV D pWp pFDUWpH SDU XQH GLVSRVLWLRQ H[SUHVVH GH O DFWH DXWRULVDQW OH WUDLWHPHQW"
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 4,
+      "text": "$UWLFOH",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 4,
+      "text": ",QWHUGLFWLRQ GH OD SURVSHFWLRQ GLUHFWH",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 4,
+      "text": "(VW LQWHUGLWH OD SURVSHFWLRQ GLUHFWH DX PR\\HQ G XQ DXWRPDWH G DSSHO   G XQ  WpOpFRSLHXU  RX  G XQ  FRXUULHU  pOHFWURQLTXH  RX  G¶XQ PR\\HQ HPSOR\\DQW  XQH  WHFKQRORJLH  GH  PrPH  QDWXUH  TXL  XWLOLVH VRXV TXHOTXH IRUPH TXH FH VRLW  OHV FRRUGRQQpHV G XQH SHUVRQQH SK\\VLTXH  TXL  Q D  SDV  H[SULPp  VRQ  FRQVHQWHPHQW  SUpDODEOH  j UHFHYRLU GHV SURVSHFWLRQV GLUHFWHV SDU FH PR\\HQ"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 4,
+      "text": "3RXU O DSSOLFDWLRQ GX SUpVHQW DUWLFOH RQ HQWHQG SDU FRQVHQWHPHQW WRXWH PDQLIHVWDWLRQ GH YRORQWp OLEUH  VSpFLILTXH HW LQIRUPpH  SDU  ODTXHOOH  XQH  SHUVRQQH  DFFHSWH  TXH  GHV  GRQQpHV  j FDUDFWqUH  SHUVRQQHO  OD  FRQFHUQDQW  VRLHQW  XWLOLVpHV  j  GHV  ILQV  GH SURVSHFWLRQ GLUHFWH"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 4,
+      "text": "&RQVWLWXH  XQH  SURVSHFWLRQ  GLUHFWH  O HQYRL  GH  WRXW  PHVVDJH GHVWLQp  j  SURPRXYRLU   GLUHFWHPHQW  RX  LQGLUHFWHPHQW   GHV  ELHQV GHV  VHUYLFHV  RX  O LPDJH  G XQH  SHUVRQQH  YHQGDQW  GHV  ELHQV  RX IRXUQLVVDQW GHV VHUYLFHV"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 4,
+      "text": "7RXWHIRLV   OD  SURVSHFWLRQ  GLUHFWH  SDU  FRXUULHU  pOHFWURQLTXH HVW DXWRULVpH VL OHV FRRUGRQQpHV GX GHVWLQDWDLUH RQW pWp UHFXHLOOLHV GLUHFWHPHQW DXSUqV GH OXL  GDQV OH UHVSHFW GHV GLVSRVLWLRQV GH OD SUpVHQWH    ORL   j  O RFFDVLRQ  G XQH  YHQWH  RX  G XQH  SUHVWDWLRQ  GH VHUYLFHV   VL  OD  SURVSHFWLRQ  GLUHFWH  FRQFHUQH  GHV  SURGXLWV  RX VHUYLFHV  DQDORJXHV  IRXUQLV  SDU  OD  PrPH  SHUVRQQH  SK\\VLTXH  RX PRUDOH   HW  VL  OH  GHVWLQDWDLUH  VH  YRLW  RIIULU   GH  PDQLqUH  H[SUHVVH GpQXpH  G DPELJXwWp  HW  VLPSOH   OD  SRVVLELOLWp  GH  V RSSRVHU   VDQV IUDLV  KRUPLV FHX[ OLpV j OD WUDQVPLVVLRQ GX UHIXV  j O XWLOLVDWLRQ GH VHV FRRUGRQQpHV ORUVTXH FHOOHV FL VRQW UHFXHLOOLHV HW FKDTXH IRLV TX XQ FRXUULHU pOHFWURQLTXH GH SURVSHFWLRQ OXL HVW DGUHVVp"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 4,
+      "text": "'DQV  WRXV  OHV  FDV   LO  HVW  LQWHUGLW  G pPHWWUH   j  GHV  ILQV  GH SURVSHFWLRQ  GLUHFWH   GHV  PHVVDJHV  DX  PR\\HQ  G DXWRPDWHV  G DSSHO WpOpFRSLHXUV HW FRXUULHUV pOHFWURQLTXHV  VDQV LQGLTXHU GH FRRUGRQQpHV YDODEOHV  DX[TXHOOHV  OH  GHVWLQDWDLUH  SXLVVH  XWLOHPHQW  WUDQVPHWWUH  XQH GHPDQGH WHQGDQW j REWHQLU TXH FHV FRPPXQLFDWLRQV FHVVHQW VDQV IUDLV DXWUHV TXH FHX[ OLpV j OD WUDQVPLVVLRQ GH FHOOH FL"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 4,
+      "text": ",O HVW pJDOHPHQW  LQWHUGLW GH GLVVLPXOHU O LGHQWLWp GH OD SHUVRQQH SRXU OH FRPSWH GH ODTXHOOH OD FRPPXQLFDWLRQ HVW pPLVH HW  GH  PHQWLRQQHU  XQ  REMHW  VDQV  UDSSRUW  DYHF  OD  SUHVWDWLRQ  RX  OH VHUYLFH SURSRVp"
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 5,
+      "text": "$UWLFOH",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 5,
+      "text": "1HXWUDOLWp GHV HIIHWV",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 5,
+      "text": "$XFXQH GpFLVLRQ GH MXVWLFH LPSOLTXDQW XQH DSSUpFLDWLRQ VXU OH  FRPSRUWHPHQW  G XQH  SHUVRQQH  QH  SHXW  DYRLU  SRXU  IRQGHPHQW XQ  WUDLWHPHQW DXWRPDWLVp  GH GRQQpHV  j  FDUDFWqUH SHUVRQQHO GHVWLQp j pYDOXHU FHUWDLQV DVSHFWV GH VD SHUVRQQDOLWp"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 5,
+      "text": "$XFXQH  DXWUH  GpFLVLRQ  SURGXLVDQW  GHV  HIIHWV  MXULGLTXHV  j O pJDUG  G XQH  SHUVRQQH  QH  SHXW  rWUH  SULVH  VXU  OH  VHXO  IRQGHPHQW G XQ WUDLWHPHQW DXWRPDWLVp GH GRQQpHV GHVWLQp j GpILQLU OH SURILO"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 5,
+      "text": "GH O LQWpUHVVp RX j pYDOXHU FHUWDLQV DVSHFWV GH VD SHUVRQQDOLWp"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 5,
+      "text": "1H  VRQW SDV FRQVLGpUpHV FRPPH SULVHV VXU OH VHXO IRQGHPHQW G XQ WUDLWHPHQW DXWRPDWLVp OHV GpFLVLRQV SULVHV GDQV OH FDGUH  GH  OD  FRQFOXVLRQ  RX  GH  O H[pFXWLRQ  G XQ  FRQWUDW  HW  SRXU OHVTXHOOHV OD SHUVRQQH FRQFHUQpH D pWp PLVH j PrPH GH SUpVHQWHU VHV REVHUYDWLRQV QL FHOOHV VDWLVIDLVDQW OHV  GHPDQGHV  GH  OD"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 5,
+      "text": "SHUVRQQH FRQFHUQpH"
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 5,
+      "text": "&KDSLWUH ,,,",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 5,
+      "text": "'(6 2%/,*$7,216 '(6 5(63216$%/(6 '8 75$,7(0(17"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 5,
+      "text": "$UWLFOH"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 5,
+      "text": "6DXI GLVSRVLWLRQV OpJLVODWLYHV SDUWLFXOLqUHV  OH WUDLWHPHQW GH GRQQpHV j FDUDFWqUH SHUVRQQHO GRLW IDLUH O REMHW"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 5,
+      "text": "G XQH DXWRULVDWLRQ SUpDODEOH ORUVTXH OHV WUDLWHPHQWV FRQFHUQHQW"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 5,
+      "text": "D   OHV  GRQQpHV  VHQVLEOHV  YLVpHV  j  O DOLQpD     GH  O DUWLFOH SUHPLHU FL GHVVXV"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 5,
+      "text": "7RXWHIRLV VRQW GLVSHQVpV GH ODGLWH DXWRULVDWLRQ OHV WUDLWHPHQWV  PLV  HQ  °XYUH  SDU  XQH  DVVRFLDWLRQ  RX  WRXW  DXWUH JURXSHPHQW j EXW QRQ OXFUDWLI HW j FDUDFWqUH UHOLJLHX[ SKLORVRSKLTXH  SROLWLTXH  V\\QGLFDO  FXOWXUHO RX VSRUWLI"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 5,
+      "text": "± SRXU  OHV  VHXOHV  GRQQpHV  TXL  UpYqOHQW  O¶XQH  RX  SOXVLHXUV GHV  FDUDFWpULVWLTXHV  YLVpHV  DX  SDUDJUDSKH     GH  O¶DUWLFOH SUHPLHU  FL GHVVXV  HW  FRUUHVSRQGDQW  j  O REMHW  GH  ODGLWH DVVRFLDWLRQ RX GXGLW JURXSHPHQW"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 5,
+      "text": "± VRXV  UpVHUYH  TXH  OHV  GRQQpHV  QH  FRQFHUQHQW  TXH  OHV PHPEUHV GH FHWWH DVVRFLDWLRQ RX GH FH  JURXSHPHQW HW  OH FDV pFKpDQW  OHV SHUVRQQHV TXL HQWUHWLHQQHQW DYHF FHOXL FL GHV FRQWDFWV UpJXOLHUV GDQV OH FDGUH GH VRQ DFWLYLWp"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 5,
+      "text": "± HW TX LOV QH SRUWHQW TXH VXU GHV GRQQpHV QRQ FRPPXQLTXpHV  j  GHV  WLHUV   j  PRLQV  TXH  OHV  SHUVRQQHV FRQFHUQpHV Q \\ FRQVHQWHQW H[SUHVVpPHQW HW TXH OH JURXSHPHQW SXLVVH IRXUQLU OD SUHXYH GH FH FRQVHQWHPHQW j SUHPLqUH UHTXrWH GH O¶DXWRULWp FRPSpWHQWH"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 5,
+      "text": "E  O XWLOLVDWLRQ  GH  GRQQpHV  j  FDUDFWqUH  SHUVRQQHO  j  G DXWUHV ILQV TXH FHOOHV SRXU OHVTXHOOHV HOOHV RQW pWp FROOHFWpHV"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 5,
+      "text": "F  GHV  GRQQpHV  JpQpWLTXHV   j  O H[FHSWLRQ  GH  FHX[  PLV  HQ RHXYUH SDU GHV SHUVRQQHOV  GH  VDQWp  HW  TXL  UpSRQGHQW  j  GHV  ILQV PpGLFDOHV TX LO V DJLVVH GH OD PpGHFLQH SUpYHQWLYH GHV GLDJQRVWLFV RX GHV VRLQV"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 5,
+      "text": "G  GHV  GRQQpHV  SRUWDQW  VXU  OHV  LQIUDFWLRQV   FRQGDPQDWLRQV RX PHVXUHV GH VUHWp  j O H[FHSWLRQ GH FHX[ PLV HQ °XYUH SDU OHV DX[LOLDLUHV GH MXVWLFH"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 5,
+      "text": "H  GHV GRQQpHV FRPSRUWDQW OH QXPpUR GH OD FDUWH G LGHQWLWp QDWLRQDOH GH OD SHUVRQQH FRQFHUQpH"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 5,
+      "text": "I  O LQWHUFRQQH[LRQ GH ILFKLHUV UHOHYDQW G XQH RX GH SOXVLHXUV SHUVRQQHV PRUDOHV JpUDQW XQ VHUYLFH SXEOLF HW GRQW OHV ILQDOLWpV G LQWpUrW  SXEOLF  VRQW  GLIIpUHQWHV  RX  O LQWHUFRQQH[LRQ  GH  ILFKLHUV UHOHYDQW G DXWUHV SHUVRQQHV PRUDOHV HW GRQW OHV ILQDOLWpV SULQFLSDOHV VRQW GLIIpUHQWHV"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 5,
+      "text": "G XQH GpFODUDWLRQ SUpDODEOH GDQV OHV DXWUHV FDV"
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 5,
+      "text": "6HFWLRQ SUHPLqUH  ± 'pFODUDWLRQ SUpDODEOH",
+      "headingLevel": 2
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 5,
+      "text": "$UWLFOH",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 5,
+      "text": "/D GpFODUDWLRQ SUpDODEOH SUpYXH j O DUWLFOH    FL GHVVXV  TXL FRPSRUWH O HQJDJHPHQW TXH OH WUDLWHPHQW VHUD HIIHFWXp FRQIRUPpPHQW  DX[  GLVSRVLWLRQV  GH  OD  SUpVHQWH  ORL   HVW  GpSRVpH DXSUqV GH OD &RPPLVVLRQ QDWLRQDOH GDQV OHV FRQGLWLRQV SUpYXHV j OD SUpVHQWH VHFWLRQ"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 5,
+      "text": "&HWWH GpFODUDWLRQ D SRXU REMHW GH SHUPHWWUH j OD &RPPLVVLRQ QDWLRQDOH G H[HUFHU OHV FRPSpWHQFHV TXL OXL VRQW GpYROXHV SDU OD SUpVHQWH  ORL   DILQ  GH  FRQWU{OHU  OH  UHVSHFW  GH  VHV  GLVSRVLWLRQV  HW"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 5,
+      "text": "G DVVXUHU OD SXEOLFLWp GX WUDLWHPHQW GHV GRQQpHV SHUVRQQHOOHV"
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 5,
+      "text": "$UWLFOH",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 5,
+      "text": "/H  UHVSRQVDEOH  GX  WUDLWHPHQW RX OH FDV pFKpDQW VRQ UHSUpVHQWDQW  GRLW  DGUHVVHU  XQH  GpFODUDWLRQ  j  OD  &RPPLVVLRQ QDWLRQDOH  SUpDODEOHPHQW  j  OD  PLVH  HQ  RHXYUH  G XQ  WUDLWHPHQW HQWLqUHPHQW RX SDUWLHOOHPHQW DXWRPDWLVp RX G XQ HQVHPEOH GH WHOV WUDLWHPHQWV D\\DQW XQH PrPH ILQDOLWp RX GHV ILQDOLWpV OLpHV"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 5,
+      "text": "$UWLFOH"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 5,
+      "text": "/D GpFODUDWLRQ SUpYXH j O DUWLFOH FL GHVVXV GRLW FRPSUHQGUH"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 5,
+      "text": "D   OH QRP HW O DGUHVVH GX UHVSRQVDEOH GX WUDLWHPHQW HW  OH FDV pFKpDQW  GH VRQ UHSUpVHQWDQW"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 5,
+      "text": "E   OD GpQRPLQDWLRQ  OHV FDUDFWpULVWLTXHV HW OD RX OHV ILQDOLWpV GX WUDLWHPHQW HQYLVDJp"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 5,
+      "text": "F  XQH  GHVFULSWLRQ  GH  OD  RX  GHV  FDWpJRULHV  GH  SHUVRQQHV FRQFHUQpHV  HW  GHV  GRQQpHV  RX  GHV  FDWpJRULHV  GH  GRQQpHV  j FDUDFWqUH SHUVRQQHO V \\ UDSSRUWDQW"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 5,
+      "text": "G  OHV GHVWLQDWDLUHV RX OHV FDWpJRULHV GH GHVWLQDWDLUHV DX[TXHOV OHV GRQQpHV VRQW VXVFHSWLEOHV G rWUH FRPPXQLTXpHV"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 5,
+      "text": "H   OHV WUDQVIHUWV GH GRQQpHV HQYLVDJpV j GHVWLQDWLRQ G¶(WDWV pWUDQJHUV"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 5,
+      "text": "I  OD GXUpH GH FRQVHUYDWLRQ GHV GRQQpHV"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 5,
+      "text": "J   OH  VHUYLFH  DXSUqV  GXTXHO  OD  SHUVRQQH  FRQFHUQpH  SRXUUD H[HUFHU   OH  FDV  pFKpDQW   OHV  GURLWV  TXL  OXL  VRQW  UHFRQQXV  SDU  OHV GLVSRVLWLRQV GH OD SUpVHQWH ORL  DLQVL TXH OHV PHVXUHV SULVHV SRXU IDFLOLWHU O H[HUFLFH GH FHX[ FL"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 5,
+      "text": "K   XQH GHVFULSWLRQ JpQpUDOH SHUPHWWDQW G DSSUpFLHU GH IDoRQ SUpOLPLQDLUH  OH  FDUDFWqUH  DSSURSULp  GHV  PHVXUHV  SULVHV  SRXU DVVXUHU OD FRQILGHQWLDOLWp HW OD VpFXULWp GX WUDLWHPHQW HQ DSSOLFDWLRQ GHV GLVSRVLWLRQV GHV DUWLFOHV    HW    FL GHVVRXV"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 5,
+      "text": "L   OHV  UHFRXSHPHQWV   OHV  LQWHUFRQQH[LRQV   RX  WRXWHV  DXWUHV IRUPHV  GH  UDSSURFKHPHQW  GHV  GRQQpHV  DLQVL  TXH  OHXU  FHVVLRQ VRXV WUDLWDQFH   VRXV  WRXWH  IRUPH   j  GHV  WLHUV   j  WLWUH  JUDWXLW  RX RQpUHX["
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 5,
+      "text": "7RXWH  PRGLILFDWLRQ  DX[  LQIRUPDWLRQV  FL GHVVXV  HW  WRXWH VXSSUHVVLRQ  GH  WUDLWHPHQW  GRLYHQW  rWUH  SRUWpHV   VDQV  GpODL   j  OD"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 5,
+      "text": "FRQQDLVVDQFH GH OD &RPPLVVLRQ QDWLRQDOH"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 5,
+      "text": "(Q FDV GH FHVVLRQ G XQ ILFKLHU GH GRQQpHV  OH FHVVLRQQDLUH HVW  WHQX  GH  UHPSOLU  OHV  IRUPDOLWpV  GH  GpFODUDWLRQ  SUpYXHV  SDU  OD SUpVHQWH ORL"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 6,
+      "text": "/HV PRGDOLWpV GH OD GpFODUDWLRQ j OD &RPPLVVLRQ QDWLRQDOH GHV  FKDQJHPHQWV  DIIHFWDQW  OHV  LQIRUPDWLRQV  YLVpHV  j  O DOLQpD FL GHVVXV  VRQW  IL[pHV  SDU  OH  JRXYHUQHPHQW   DSUqV  DYLV  GH  ODGLWH FRPPLVVLRQ"
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 6,
+      "text": "$UWLFOH",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 6,
+      "text": "/D  &RPPLVVLRQ  QDWLRQDOH  IL[H  OD  OLVWH  GHV  FDWpJRULHV  GH WUDLWHPHQWV  GH  GRQQpHV  j  FDUDFWqUH  SHUVRQQHO  TXL   FRPSWH  WHQX GHV GRQQpHV j WUDLWHU  QH VRQW SDV VXVFHSWLEOHV GH SRUWHU DWWHLQWH DX[ GURLWV HW OLEHUWpV GHV SHUVRQQHV FRQFHUQpHV  HW SRXU OHVTXHOOHV OD GpFODUDWLRQ GRLW SUpFLVHU XQLTXHPHQW OHV pOpPHQWV SUpYXV DX[ E   F   G   H  HW I  GH O DUWLFOH    FL GHVVXV"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 6,
+      "text": "/D  GpFLVLRQ  GH  OD  &RPPLVVLRQ  QDWLRQDOH  HVW VRXPLVH j KRPRORJDWLRQ GX JRXYHUQHPHQW"
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 6,
+      "text": "$UWLFOH",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 6,
+      "text": "/D &RPPLVVLRQ QDWLRQDOH IL[H OD OLVWH GHV WUDLWHPHQWV QRQ DXWRPDWLVpV GH GRQQpHV j FDUDFWqUH SHUVRQQHO TXL SHXYHQW IDLUH O REMHW G XQH GpFODUDWLRQ VLPSOLILpH  GRQW HOOH SUpFLVH OHV pOpPHQWV SDU XQH GpFLVLRQ KRPRORJXpH SDU OH JRXYHUQHPHQW"
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 6,
+      "text": "$UWLFOH",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 6,
+      "text": "/ REOLJDWLRQ GH GpFODUDWLRQ QH V DSSOLTXH SDV DX[ WUDLWHPHQWV D\\DQW SRXU VHXO REMHW OD WHQXH G XQ UHJLVWUH TXL HVW  HQ YHUWX  GH  GLVSRVLWLRQV  OpJLVODWLYHV  RX  UpJOHPHQWDLUHV   GHVWLQp  j O LQIRUPDWLRQ GX SXEOLF HW RXYHUW j OD FRQVXOWDWLRQ GX SXEOLF RX GH WRXWH SHUVRQQH MXVWLILDQW G XQ LQWpUrW OpJLWLPH"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 6,
+      "text": "7RXWHIRLV  GDQV FH FDV  LO GRLW rWUH GpVLJQp XQ UHVSRQVDEOH GX WUDLWHPHQW GHV GRQQpHV GRQW O LGHQWLWp HVW UHQGXH SXEOLTXH HW QRWLILpH  j  OD  &RPPLVVLRQ  QDWLRQDOH  HW  TXL  HVW  UHVSRQVDEOH  GH O DSSOLFDWLRQ  GHV  GLVSRVLWLRQV  GX  FKDSLWUH  ,O  GH  OD  SUpVHQWH  ORL YLV j YLV GHV SHUVRQQHV FRQFHUQpHV"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 6,
+      "text": "/H UHVSRQVDEOH  GX  WUDLWHPHQW  GLVSHQVp  GH  GpFODUDWLRQ  GRLW FRPPXQLTXHU  j  WRXWH  SHUVRQQH  TXL  HQ  IDLW  OD  GHPDQGH  OHV LQIRUPDWLRQV  UHODWLYHV  j  OD  GpQRPLQDWLRQ  HW  j  OD  ILQDOLWp  GX WUDLWHPHQW   j  O LGHQWLWp  GX  UHVSRQVDEOH   DX[  GRQQpHV  WUDLWpHV   j OHXUV  GHVWLQDWDLUHV  HW   OH  FDV  pFKpDQW   DX[  WUDQVIHUWV  HQYLVDJpV  j GHVWLQDWLRQ GH O pWUDQJHU"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 6,
+      "text": "/D  &RPPLVVLRQ  QDWLRQDOH  IL[H  OD  OLVWH  GHV  WUDLWHPHQWV UpSRQGDQW  j  OD  GpILQLWLRQ  SUpYXH  FL GHVVXV  SDU  XQH  GpFLVLRQ VRXPLVH j O KRPRORJDWLRQ GX JRXYHUQHPHQW"
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 6,
+      "text": "$UWLFOH",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 6,
+      "text": "/D  &RPPLVVLRQ  QDWLRQDOH  GpOLYUH   GDQV  XQ  GpODL  GH KHXUHV FRXUDQW j FRPSWHU GH OD GDWH GX GpS{W GH OD GpFODUDWLRQ XQ  UpFpSLVVp  GH  ODGLWH GpFODUDWLRQ GRQW  OHV FDUDFWpULVWLTXHV GRLYHQW  ILJXUHU  GDQV  WRXWHV  OHV  RSpUDWLRQV  GH  FROOHFWH  RX  GH WUDQVPLVVLRQ  GHV  GRQQpHV   /H  UHVSRQVDEOH  GX  WUDLWHPHQW  SHXW PHWWUH OHGLW WUDLWHPHQW HQ °XYUH GqV UpFHSWLRQ GXGLW UpFpSLVVp"
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 6,
+      "text": "$UWLFOH",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 6,
+      "text": "/RUVTX LO DSSDUDvW j OD &RPPLVVLRQ QDWLRQDOH  j O H[DPHQ GH OD  GpFODUDWLRQ  TXL  OXL  HVW  IRXUQLH   TXH  OH  WUDLWHPHQW  HQYLVDJp SUpVHQWH GHV GDQJHUV PDQLIHVWHV SRXU OH UHVSHFW HW OD SURWHFWLRQ GH  OD  YLH  SULYpH  HW  GHV  OLEHUWpV  HW  GURLWV  IRQGDPHQWDX[  GHV SHUVRQQHV j O pJDUG GX WUDLWHPHQW GRQW FHV GRQQpHV IRQW O REMHW RX SHXYHQW IDLUH O REMHW  HOOH GpFLGH GH VRXPHWWUH OHGLW WUDLWHPHQW DX UpJLPH G DXWRULVDWLRQ SUpDODEOH SUpYX FL DSUqV"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 6,
+      "text": "6D GpFLVLRQ  PRWLYpH  HVW QRWLILpH DX GpFODUDQW GDQV OHV KXLW MRXUV VXLYDQW FHOXL GX GpS{W GH OD GpFODUDWLRQ"
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 6,
+      "text": "6HFWLRQ    ± $XWRULVDWLRQ SUpDODEOH",
+      "headingLevel": 2
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 6,
+      "text": "$UWLFOH",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 6,
+      "text": "/H WUDLWHPHQW GHV GRQQpHV VHQVLEOHV HVW VXERUGRQQp j XQH DXWRULVDWLRQ GH OD ORL TXL HQ IL[H OHV FRQGLWLRQV  $ GpIDXW  LO GRLW rWUH DXWRULVp SDU OD &RPPLVVLRQ QDWLRQDOH"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 6,
+      "text": "&HWWH  DXWRULVDWLRQ  HVW  DFFRUGpH  DX  YX  GX  FRQVHQWHPHQW H[SUqV  GH  OD  SHUVRQQH  FRQFHUQpH  RX  ORUVTXH  OH  WUDLWHPHQW  GHV GRQQpHV  HVW  LQGLVSHQVDEOH  j  O H[HUFLFH  GHV  IRQFWLRQV  OpJDOHV  RX VWDWXWDLUHV GX UHVSRQVDEOH GX WUDLWHPHQW"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 6,
+      "text": "2XWUH  O RUGUH  GH  OD  ORL   OH  FRQVHQWHPHQW  H[SUqV  GH  OD SHUVRQQH FRQFHUQpH RX O REOLJDWLRQ OpJDOH RX VWDWXWDLUH GX UHVSRQVDEOH  O DXWRULVDWLRQ SUpDODEOH GH OD &RPPLVVLRQ QDWLRQDOH SHXW pJDOHPHQW rWUH DFFRUGpH GDQV OHV FDV R"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 6,
+      "text": "D   OH WUDLWHPHQW HVW QpFHVVDLUH j OD GpIHQVH G LQWpUrWV YLWDX[ GH  OD  SHUVRQQH  FRQFHUQpH  RX  G XQH  DXWUH  SHUVRQQH  HW  VL  OD SHUVRQQH  FRQFHUQpH  VH  WURXYH  GDQV  O LQFDSDFLWp  SK\\VLTXH  RX MXULGLTXH GH GRQQHU VRQ FRQVHQWHPHQW"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 6,
+      "text": "E  OH WUDLWHPHQW SRUWH VXU GHV GRQQpHV PDQLIHVWHPHQW UHQGXHV SXEOLTXHV SDU OD SHUVRQQH FRQFHUQpH HW TXH VRQ FRQVHQWHPHQW DX WUDLWHPHQW GHV GRQQpHV SHXW OpJLWLPHPHQW rWUH GpGXLW GH VHV GpFODUDWLRQV"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 6,
+      "text": "F  OH WUDLWHPHQW HVW QpFHVVDLUH j OD UHFRQQDLVVDQFH  O H[HUFLFH RX OD GpIHQVH G XQ GURLW HQ MXVWLFH HW HVW HIIHFWXp H[FOXVLYHPHQW j FHWWH ILQ"
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 6,
+      "text": "$UWLFOH",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 6,
+      "text": "3DU GpURJDWLRQ DX[ GLVSRVLWLRQV GH O DUWLFOH    FL GHVVXV  OH WUDLWHPHQW GHV GRQQpHV UHODWLYHV j OD VDQWp HVW VXERUGRQQp j XQH GpFODUDWLRQ  j  OD  &RPPLVVLRQ  QDWLRQDOH   ORUVTX LO  D  SRXU  VHXOH ILQDOLWp"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 6,
+      "text": "± OD PpGHFLQH SUpYHQWLYH OHV GLDJQRVWLFV PpGLFDX[ O DGPLQLVWUDWLRQ  GH  VRLQV  RX  GH  WUDLWHPHQWV  RX  OD  JHVWLRQ GHV VHUYLFHV GH VDQWp HW TX LO HVW HIIHFWXp SDU XQ SUDWLFLHQ GH  OD  VDQWp  VRXPLV  DX  VHFUHW  SURIHVVLRQQHO  RX  SDU  WRXWH DXWUH  SHUVRQQH  pJDOHPHQW  VRXPLVH  j  XQH  REOLJDWLRQ  GH VHFUHW"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 6,
+      "text": "± GH  VpOHFWLRQQHU  OHV  SHUVRQQHV  VXVFHSWLEOHV  GH  EpQpILFLHU G XQ  GURLW G XQH  SUHVWDWLRQ RX  G XQ  FRQWUDW GqV  ORUV TX HOOHV Q HQ VRQW H[FOXHV SDU DXFXQH GLVSRVLWLRQ OpJDOH RX UpJOHPHQWDLUH"
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 6,
+      "text": "6HFWLRQ    ± 'HV REOLJDWLRQV GH FRQILGHQWLDOLWp HW GH VpFXULWp GHV WUDLWHPHQWV HW GH VHFUHW SURIHVVLRQQHO",
+      "headingLevel": 2
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 6,
+      "text": "$UWLFOH",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 6,
+      "text": "/H  UHVSRQVDEOH  GX  WUDLWHPHQW  GRLW  PHWWUH  HQ  RHXYUH  OHV PHVXUHV WHFKQLTXHV HW RUJDQLVDWLRQQHOOHV DSSURSULpHV SRXU SURWpJHU OHV GRQQpHV j FDUDFWqUH SHUVRQQHO FRQWUH OD GHVWUXFWLRQ DFFLGHQWHOOH RX LOOLFLWH OD SHUWH DFFLGHQWHOOH O DOWpUDWLRQ OD GLIIXVLRQ RX O DFFqV QRQ DXWRULVp QRWDPPHQW ORUVTXH OH WUDLWHPHQW  FRPSRUWH  GHV  WUDQVPLVVLRQV  GH  GRQQpHV  GDQV  XQ UpVHDX   DLQVL  TXH  FRQWUH  WRXWH  DXWUH  IRUPH  GH  WUDLWHPHQW  LOOLFLWH &HV PHVXUHV GRLYHQW DVVXUHU  FRPSWH WHQX GH O pWDW GH O DUW HW GHV FRWV OLpV j OHXU PLVH HQ °XYUH  XQ QLYHDX GH VpFXULWp DSSURSULp DX UHJDUG GHV ULVTXHV SUpVHQWpV SDU OH WUDLWHPHQW HW GH OD QDWXUH GHV GRQQpHV j SURWpJHU"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 6,
+      "text": "/H  UHVSRQVDEOH  GX  WUDLWHPHQW   ORUVTXH  OH  WUDLWHPHQW  HVW HIIHFWXp  SRXU  VRQ  FRPSWH   GRLW  FKRLVLU  XQ  VRXV WUDLWDQW TXL DSSRUWH  GHV  JDUDQWLHV  VXIILVDQWHV  DX  UHJDUG  GHV  PHVXUHV  GH VpFXULWp  WHFKQLTXH  HW  G RUJDQLVDWLRQ  UHODWLYHV  DX[  WUDLWHPHQWV  j HIIHFWXHU HW LO GRLW YHLOOHU DX UHVSHFW GH FHV PHVXUHV"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 7,
+      "text": "/D  UpDOLVDWLRQ  GH  WUDLWHPHQWV  HQ  VRXV WUDLWDQFH  GRLW  rWUH UpJLH SDU XQ FRQWUDW RX XQ DFWH MXULGLTXH TXL OLH OH VRXV WUDLWDQW DX UHVSRQVDEOH  GX  WUDLWHPHQW  HW  TXL  SUpYRLW  QRWDPPHQW  TXH  OH VRXV WUDLWDQW  Q DJLW  TXH  VRXV  OD  VHXOH  LQVWUXFWLRQ  GX  UHVSRQVDEOH GX  WUDLWHPHQW  HW  TXH  OHV  REOLJDWLRQV  YLVpHV  DX  SDUDJUDSKH FL GHVVXV OXL LQFRPEHQW pJDOHPHQW"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 7,
+      "text": "$X[ ILQV GH OD FRQVHUYDWLRQ GHV SUHXYHV  OHV pOpPHQWV GX FRQWUDW RX GH O DFWH MXULGLTXH UHODWLI j OD SURWHFWLRQ GHV GRQQpHV HW OHV  H[LJHQFHV  SRUWDQW  VXU  OHV  PHVXUHV  YLVpHV  DX  SDUDJUDSKH FL GHVVXV  VRQW  FRQVLJQpV  SDU  pFULW  RX  VRXV  XQH  DXWUH  IRUPH pTXLYDOHQWH"
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 7,
+      "text": "$UWLFOH",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 7,
+      "text": "/HV UHVSRQVDEOHV GX WUDLWHPHQW GHV GRQQpHV VHQVLEOHV RX UHODWLYHV j OD VDQWp GRLYHQW SUHQGUH OHV PHVXUHV DSSURSULpHV SRXU"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 7,
+      "text": "D   HPSrFKHU  O DFFqV  GH  WRXWH  SHUVRQQH  QRQ  DXWRULVpH  DX[ LQVWDOODWLRQV XWLOLVpHV SRXU OH WUDLWHPHQW GH FHV GRQQpHV  FRQWU{OH GH O HQWUpH GDQV OHV LQVWDOODWLRQV"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 7,
+      "text": "E  HPSrFKHU TXH OHV VXSSRUWV GH GRQQpHV SXLVVHQW rWUH OXV FRSLpV   PRGLILpV  RX  UHWLUpV  SDU  GHV  SHUVRQQHV  QRQ  DXWRULVpHV FRQWU{OH GHV VXSSRUWV GH GRQQpHV"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 7,
+      "text": "F  HPSrFKHU O LQWURGXFWLRQ QRQ DXWRULVpH  DLQVL TXH OD SULVH GH FRQQDLVVDQFH  OD PRGLILFDWLRQ RX O pOLPLQDWLRQ QRQ DXWRULVpHV GH GRQQpHV j FDUDFWqUH SHUVRQQHO LQWURGXLWHV FRQWU{OH GH O LQVHUWLRQ"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 7,
+      "text": "G  HPSrFKHU TXH OHV V\\VWqPHV GH WUDLWHPHQW DXWRPDWLVpV GH GRQQpHV SXLVVHQW rWUH XWLOLVpV SDU GHV SHUVRQQHV QRQ DXWRULVpHV DX PR\\HQ  G LQVWDOODWLRQV  GH  WUDQVPLVVLRQ  GH  GRQQpHV   FRQWU{OH  GH O XWLOLVDWLRQ"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 7,
+      "text": "H  JDUDQWLU  TXH  VHXOHV  OHV  SHUVRQQHV  DXWRULVpHV  SXLVVHQW DYRLU  DFFqV  DX[  GRQQpHV  YLVpHV  SDU  O DXWRULVDWLRQ   FRQWU{OH  GH O DFFqV"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 7,
+      "text": "I  JDUDQWLU OD YpULILFDWLRQ GHV HQWLWpV DX[TXHOOHV OHV GRQQpHV j FDUDFWqUH SHUVRQQHO SHXYHQW rWUH WUDQVPLVHV SDU GHV LQVWDOODWLRQV GH WUDQVPLVVLRQ GH GRQQpHV FRQWU{OH GH OD WUDQVPLVVLRQ"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 7,
+      "text": "J  JDUDQWLU TX¶LO  VRLW  SRVVLEOH  GH  YpULILHU  D  SRVWHULRUL   GDQV XQ GpODL DSSURSULp HQ IRQFWLRQ GH OD QDWXUH GX WUDLWHPHQW j IL[HU GDQV  OD  UpJOHPHQWDWLRQ  DSSOLFDEOH  j  FKDTXH  VHFWHXU  SDUWLFXOLHU TXHOOHV  GRQQpHV  j  FDUDFWqUH  SHUVRQQHO  VRQW  LQWURGXLWHV   TXDQG HOOHV O¶RQW pWp HW SRXU TXL  FRQWU{OH GH O¶LQWURGXFWLRQ"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 7,
+      "text": "K  HPSrFKHU  TXH  ORUV  GH  OD  WUDQVPLVVLRQ  GH  GRQQpHV  j FDUDFWqUH  SHUVRQQHO  HW  GX  WUDQVSRUW  GHV  VXSSRUWV   OHV  GRQQpHV SXLVVHQW  rWUH  OXHV   UHSURGXLWHV   PRGLILpHV  RX  pOLPLQpHV  VDQV DXWRULVDWLRQ  FRQWU{OH GX WUDQVSRUW"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 7,
+      "text": "6XLYDQW OD QDWXUH GHV RUJDQLVPHV UHVSRQVDEOHV GX WUDLWHPHQW HW GX W\\SH G LQVWDOODWLRQV DYHF OHTXHO LO HVW HIIHFWXp  OD &RPPLVVLRQ  QDWLRQDOH  SHXW  GLVSHQVHU  GH  FHUWDLQHV  PHVXUHV  GH VpFXULWp j FRQGLWLRQ TXH OH UHVSHFW GHV GURLWV OLEHUWpV HW JDUDQWLHV GHV SHUVRQQHV FRQFHUQpHV VRLW DVVXUp"
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 7,
+      "text": "$UWLFOH",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 7,
+      "text": "7RXWH  SHUVRQQH  DJLVVDQW  VRXV  O DXWRULWp  GX  UHVSRQVDEOH  GX WUDLWHPHQW RX GH FHOOH GX VRXV WUDLWDQW  DLQVL TXH OH VRXV WUDLWDQW OXL PrPH TXL DFFqGH j GHV GRQQpHV j FDUDFWqUH SHUVRQQHO QH SHXW OHV WUDLWHU TXH VXU LQVWUXFWLRQ GX UHVSRQVDEOH GX WUDLWHPHQW  VDXI HQ YHUWX G REOLJDWLRQV OpJDOHV"
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 7,
+      "text": "$UWLFOH",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 7,
+      "text": "/H  UHVSRQVDEOH GX WUDLWHPHQW GH GRQQpHV j FDUDFWqUH SHUVRQQHO   DLQVL  TXH  OHV  SHUVRQQHV  TXL   GDQV  O H[HUFLFH  GH  OHXUV IRQFWLRQV   RQW  FRQQDLVVDQFH  GH  GRQQpHV  j  FDUDFWqUH  SHUVRQQHO WUDLWpHV   VRQW  WHQXHV  GH  UHVSHFWHU  OH  VHFUHW  SURIHVVLRQQHO  PrPH DSUqV  DYRLU  FHVVp  G H[HUFHU  OHXUV  IRQFWLRQV   GDQV  OHV  WHUPHV SUpYXV SDU OD ORL SpQDOH"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 7,
+      "text": "/HV  GLVSRVLWLRQV  GH  O DOLQpD  SUHPLHU  FL GHVVXV  Q H[HPSWHQW SDV  GH  O REOLJDWLRQ  GH  IRXUQLU  GHV  LQIRUPDWLRQV   FRQIRUPpPHQW DX[  GLVSRVLWLRQV  OpJDOHV  DSSOLFDEOHV  DX[  ILFKLHUV  HQ  FDXVH  RX FRQIRUPpPHQW j OD OpJLVODWLRQ GH GURLW FRPPXQ"
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 7,
+      "text": "&KDSLWUH ,9",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 7,
+      "text": "'H OD &RPPLVVLRQ QDWLRQDOH GH FRQWU{OH GH OD SURWHFWLRQ GHV GRQQpHV j FDUDFWqUH SHUVRQQHO"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 7,
+      "text": "6HFWLRQ SUHPLqUH  ± ,QVWLWXWLRQ  SRXYRLUV HW DWWULEXWLRQV"
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 7,
+      "text": "$UWLFOH",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 7,
+      "text": ",O  HVW  LQVWLWXp  DXSUqV  GX  3UHPLHU  PLQLVWUH  XQH  &RPPLVVLRQ QDWLRQDOH  GH  FRQWU{OH  GH  OD  SURWHFWLRQ  GHV  GRQQpHV  j  FDUDFWqUH SHUVRQQHO  FKDUJpH GH PHWWUH HQ °XYUH HW GH YHLOOHU DX UHVSHFW GHV GLVSRVLWLRQV  GH  OD SUpVHQWH  ORL HW GHV  WH[WHV  SULV  SRXU  VRQ DSSOLFDWLRQ"
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 7,
+      "text": "$ FHW HIIHW  HOOH HVW FKDUJpH GH",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 7,
+      "text": "$  ± 'RQQHU VRQ DYLV",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 7,
+      "text": "DX  JRXYHUQHPHQW  RX  DX  SDUOHPHQW  VXU  OHV  SURMHWV  RX SURSRVLWLRQV GH ORLV RX SURMHWV GH UqJOHPHQWV UHODWLIV DX WUDLWHPHQW GH GRQQpHV j FDUDFWqUH SHUVRQQHO GRQW HOOH HVW VDLVLH"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 7,
+      "text": "j  O¶DXWRULWp  FRPSpWHQWH  VXU  OHV  SURMHWV  GH  UqJOHPHQWV FUpDQW  GHV  ILFKLHUV  UHODWLIV    DX[  GRQQpHV  j  FDUDFWqUH  SHUVRQQHO UHFXHLOOLHV HW WUDLWpHV j GHV ILQV GH SUpYHQWLRQ HW GH UpSUHVVLRQ GHV FULPHV  HW  GpOLWV   O¶DYLV  GHPDQGp   GDQV  OH  FDV  G¶HVSqFH   YDXW GpFODUDWLRQ"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 7,
+      "text": "j O¶DXWRULWp FRPSpWHQWH VXU OHV  SURMHWV HW SURSRVLWLRQV GH ORLV  SRUWDQW  FUpDWLRQ  HW  WUDLWHPHQW  GHV  GRQQpHV  UHODWLYHV  DX[ HQTXrWHV  HW  GRQQpHV  VWDWLVWLTXHV  UHFXHLOOLHV  HW  WUDLWpHV  SDU  GHV DXWRULWpV SXEOLTXHV"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 7,
+      "text": "DX  JRXYHUQHPHQW  VXU  OHV  PRGDOLWpV  GH  OD  GpFODUDWLRQ SUpYXH DX SDUDJUDSKH   GH O¶DUWLFOH    FL GHVVXV"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 7,
+      "text": "DX JRXYHUQHPHQW  VXU OHV PRGDOLWpV G¶LQVFULSWLRQ DX UHJLVWUH QDWLRQDO LQVWLWXp SDU O¶DUWLFOH    GH OD SUpVHQWH ORL"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 7,
+      "text": "DX  JRXYHUQHPHQW  VXU  OHV  UqJOHV  GH  SURFpGXUH  HW  GH SURWHFWLRQ  GHV  GRQQpHV  GHV  WUDLWHPHQWV  GH  ILFKLHUV  VpFXULWp  TXL GRLYHQW IDLUH O¶REMHW G¶XQ HQUHJLVWUHPHQW"
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 7,
+      "text": "%  ± 5HFHYRLU",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 7,
+      "text": "QRWLILFDWLRQ GH O¶LGHQWLWp GX UHSUpVHQWDQW LQVWDOOp DX 0DURF TXL  VH  VXEVWLWXH  DX  UHVSRQVDEOH  GX  WUDLWHPHQW  UpVLGDQW  j O¶pWUDQJHU"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 7,
+      "text": "OHV GpFODUDWLRQV SUpYXHV DX[ DUWLFOHV     SDUDJUDSKH    HW HW GpOLYUHU UpFpSLVVp GH OD GpFODUDWLRQ"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 7,
+      "text": "O¶LGHQWLWp GX UHVSRQVDEOH GX WUDLWHPHQW GHV UHJLVWUHV WHQXV SRXU rWUH RXYHUWV DX SXEOLF  SUpYX j O¶DUWLFOH    FL GHVVXV"
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 8,
+      "text": "$UWLFOH",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 8,
+      "text": "$X[  ILQV  SUpYXHV  j  O¶DUWLFOH         HU DOLQpD   FL GHVVXV   OD &RPPLVVLRQ QDWLRQDOH HVW KDELOLWpH j"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 8,
+      "text": "DXWRULVHU  OD  FRQVHUYDWLRQ  GHV    GRQQpHV  DX GHOj  G¶XQH GXUpH SUpYXH"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 8,
+      "text": "DFFRUGHU DX UHVSRQVDEOH GX WUDLWHPHQW XQ GpODL VXSSOpPHQWDLUH SRXU UpSRQGUH DX[ GHPDQGHV GH FRPPXQLFDWLRQ SUpVHQWpH SDU OD SHUVRQQH FRQFHUQpH"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 8,
+      "text": "IDLUH SURFpGHU  DX[  UHFWLILFDWLRQV  MXVWLILpHV ORUVTXH  OH UHVSRQVDEOH GX WUDLWHPHQW UHIXVH G¶\\ SURFpGHU  j OD GHPDQGH GH O¶LQWpUHVVp"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 8,
+      "text": "LQVWUXLUH HW GpOLYUHU OHV DXWRULVDWLRQV SUpYXHV j O¶DUWLFOH FL GHVVXV"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 8,
+      "text": "IL[HU  OD  OLVWH  GHV  FDWpJRULHV  GH  WUDLWHPHQWV  EpQpILFLDQW G¶XQH  GpFODUDWLRQ VLPSOLILpH"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 8,
+      "text": "IL[HU  OD  OLVWH  GHV  WUDLWHPHQWV  QRQ  DXWRPDWLVpV  VRXPLV  j GpFODUDWLRQ VLPSOLILpH"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 8,
+      "text": "IL[HU OD OLVWH GHV WUDLWHPHQWV FRUUHVSRQGDQW j OD GpILQLWLRQ GH O¶DUWLFOH    GH OD SUpVHQWH ORL"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 8,
+      "text": "GpOLYUHU UpFpSLVVp GH OD GpFODUDWLRQ SUpYXH j O¶DUWLFOH HQ HQ SUpFLVDQW OH FRQWHQX"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 8,
+      "text": "GpOLYUHU OHV DXWRULVDWLRQV SUpYXHV j O¶DUWLFOH    FL GHVVXV"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 8,
+      "text": "pWDEOLU OD OLVWH GHV SD\\V j OpJLVODWLRQ DGpTXDWH HQ PDWLqUH GH SURWHFWLRQ  GHV  SHUVRQQHV  SK\\VLTXHV  j  O¶pJDUG  GX    WUDLWHPHQW GHV GRQQpHV j FDUDFWqUH SHUVRQQHO"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 8,
+      "text": "DXWRULVHU OHV WUDQVIHUWV GH GRQQpHV GDQV OHV FDV SUpYXV j O¶DUWLFOH    FL GHVVRXV"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 8,
+      "text": "DVVXUHU OD WHQXH GX UHJLVWUH QDWLRQDO GH OD SURWHFWLRQ GHV GRQQpHV SUpYX j O¶DUWLFOH    FL GHVVRXV"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 8,
+      "text": "DFFRUGHU OHV GLVSHQVHV GHV PHVXUHV GH VpFXULWp HX pJDUG j OD TXDOLWp GX UHVSRQVDEOH GX WUDLWHPHQW HW GX W\\SH G LQVWDOODWLRQV DYHF OHTXHO FH WUDLWHPHQW HVW HIIHFWXp"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 8,
+      "text": "GpFLGHU GH VRXPHWWUH j DXWRULVDWLRQ XQ WUDLWHPHQW OpJDOHPHQW VRXPLV j GpFODUDWLRQ FRQIRUPpPHQW j O¶DUWLFOH    FL GHVVXV"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 8,
+      "text": "SURFpGHU  DX  UHWUDLW  GX  UpFpSLVVp  RX  GH  O¶DXWRULVDWLRQ FRQIRUPpPHQW DX[ GLVSRVLWLRQV GH O¶DUWLFOH    GH OD SUpVHQWH ORL"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 8,
+      "text": "/D &RPPLVVLRQ QDWLRQDOH HVW pJDOHPHQW FRPSpWHQWH SRXU"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 8,
+      "text": "UHFHYRLU OHV SODLQWHV GH WRXWH SHUVRQQH FRQFHUQpH HVWLPDQW rWUH OpVpH SDU OD SXEOLFDWLRQ G XQ WUDLWHPHQW GH GRQQpHV j FDUDFWqUH SHUVRQQHO  GH OHV LQVWUXLUH HW GH OHXU GRQQHU VXLWH HQ RUGRQQDQW  OD  SXEOLFDWLRQ  GH  UHFWLILFDWLIV  RX HW  OD  VDLVLQH  GX SURFXUHXU GX 5RL DX[ ILQV GH SRXUVXLWHV"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 8,
+      "text": "H[SHUWLVHU j OD GHPDQGH GHV DXWRULWpV SXEOLTXHV QRWDPPHQW GHV DXWRULWpV MXGLFLDLUHV  OHV pOpPHQWV VRXPLV j OHXU DSSUpFLDWLRQ  ORUV  GHV  FRQWHQWLHX[  QpV  GH  O DSSOLFDWLRQ  GH  OD SUpVHQWH ORL RX GHV WH[WHV SULV SRXU VRQ DSSOLFDWLRQ"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 8,
+      "text": "DVVLVWHU OH JRXYHUQHPHQW GDQV OD SUpSDUDWLRQ HW OD GpILQLWLRQ GH OD SRVLWLRQ PDURFDLQH ORUV GHV QpJRFLDWLRQV LQWHUQDWLRQDOHV  GDQV  OH  GRPDLQH  GH  OD  SURWHFWLRQ  GHV  GRQQpHV  j FDUDFWqUH SHUVRQQHO"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 8,
+      "text": "FRRSpUHU  DYHF  OHV  RUJDQLVPHV  VLPLODLUHV  GH  FRQWU{OH  GX WUDLWHPHQW  GHV  GRQQpHV  j  FDUDFWqUH  SHUVRQQHO  GDQV  OHV  (WDWV pWUDQJHUV"
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 8,
+      "text": "$UWLFOH",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 8,
+      "text": "$ILQ GH SHUPHWWUH XQH PLVH HQ DSSOLFDWLRQ DSSURSULpH GH OD SURWHFWLRQ  GHV  GRQQpHV   OD  &RPPLVVLRQ  QDWLRQDOH  PqQH  XQH PLVVLRQ  SHUPDQHQWH  G¶LQIRUPDWLRQ  GX  SXEOLF  HW  GHV  SHUVRQQHV FRQFHUQpHV VXU OHV GURLWV HW REOLJDWLRQV pGLFWpV SDU OD SUpVHQWH ORL HW OHV WH[WHV SULV SRXU VRQ DSSOLFDWLRQ"
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 8,
+      "text": "$UWLFOH",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 8,
+      "text": "/D &RPPLVVLRQ QDWLRQDOH HVW GRWpH"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 8,
+      "text": "GHV SRXYRLUV G LQYHVWLJDWLRQ HW G HQTXrWH SHUPHWWDQW j VHV DJHQWV  UpJXOLqUHPHQW FRPPLVVLRQQpV j FHW HIIHW SDU OH SUpVLGHQW G DYRLU DFFqV DX[  GRQQpHV  IDLVDQW O REMHW GH WUDLWHPHQW GH UHTXpULU O DFFqV GLUHFW DX[ ORFDX[ DX VHLQ GHVTXHOV OH WUDLWHPHQW HVW HIIHFWXp  GH UHFXHLOOLU  HW GH VDLVLU WRXWHV OHV LQIRUPDWLRQV HW WRXV  GRFXPHQWV  QpFHVVDLUHV  SRXU  UHPSOLU  OHV    IRQFWLRQV GH FRQWU{OH   OH  WRXW  FRQIRUPpPHQW  DX[  WHUPHV  GH  OD  FRPPLVVLRQ TX¶LOV H[pFXWHQW"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 8,
+      "text": "GX SRXYRLU G¶RUGRQQHU TXH OXL VRLHQW FRPPXQLTXpV  GDQV OHV GpODLV HW VHORQ OHV PRGDOLWpV RX VDQFWLRQV pYHQWXHOOHV TX¶HOOH IL[H     OHV  GRFXPHQWV  GH  WRXWH  QDWXUH  RX  VXU  WRXV  VXSSRUWV  OXL SHUPHWWDQW G¶H[DPLQHU  OHV IDLWV FRQFHUQDQW OHV SODLQWHV GRQW HOOH HVW VDLVLH"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 8,
+      "text": "GX SRXYRLU G¶RUGRQQHU  RX GH SURFpGHU RX GH IDLUH SURFpGHU DX[ PRGLILFDWLIV QpFHVVDLUHV SRXU XQH WHQXH OR\\DOH GHV GRQQpHV FRQWHQXHV GDQV OH ILFKLHU"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 8,
+      "text": "GX SRXYRLU G RUGRQQHU OH YHUURXLOODJH  O HIIDFHPHQW RX OD GHVWUXFWLRQ  GH  GRQQpHV  HW  FHOXL  G LQWHUGLUH   SURYLVRLUHPHQW  RX GpILQLWLYHPHQW   OH  WUDLWHPHQW  GH  GRQQpHV  j  FDUDFWqUH  SHUVRQQHO PrPH GH FHOOHV LQFOXVHV GDQV GHV UpVHDX[ RXYHUWV GH WUDQVPLVVLRQ GH GRQQpHV j SDUWLU GH VHUYHXUV VLWXpV VXU OH WHUULWRLUH QDWLRQDO"
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 8,
+      "text": "$UWLFOH",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 8,
+      "text": "/¶H[HUFLFH  GHV  SRXYRLUV  YLVpV  DX[  SDUDJUDSKHV     HW     GH O¶DUWLFOH    FL GHVVXV HVW VXERUGRQQp DX UHVSHFW G¶XQH SURFpGXUH GLVFLSOLQDLUH JDUDQWLVVDQW OHV GURLWV GH OD GpIHQVH HW  QRWDPPHQW OH SULQFLSH GX FRQWUDGLFWRLUH  SUpFLVp GDQV OH UqJOHPHQW LQWpULHXU GH  OD  &RPPLVVLRQ  QDWLRQDOH  HW  DSSOLFDEOH  j  WRXWHV  OHV  DXWUHV SURFpGXUHV  PLVHV  HQ  °XYUH  SDU  OD  &RPPLVVLRQ  QDWLRQDOH  HW SUpVHQWDQW XQ FDUDFWqUH GLVFLSOLQDLUH"
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 8,
+      "text": "6HFWLRQ    ± &RPSRVLWLRQ GH OD FRPPLVVLRQ QDWLRQDOH",
+      "headingLevel": 2
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 8,
+      "text": "$UWLFOH",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 8,
+      "text": "/D &RPPLVVLRQ QDWLRQDOH GH FRQWU{OH GH OD SURWHFWLRQ GHV GRQQpHV j FDUDFWqUH SHUVRQQHO VH FRPSRVH GH VHSW PHPEUHV"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 8,
+      "text": "± XQ SUpVLGHQW QRPPp SDU 6D 0DMHVWp OH 5RL"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 8,
+      "text": "± VL[  PHPEUHV  QRPPpV  pJDOHPHQW  SDU  6D  0DMHVWp  OH  5RL VXU SURSRVLWLRQ"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 8,
+      "text": " GX 3UHPLHU PLQLVWUH"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 8,
+      "text": " GX SUpVLGHQW GH OD &KDPEUH GHV UHSUpVHQWDQWV"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 8,
+      "text": " GX SUpVLGHQW GH OD &KDPEUH GHV FRQVHLOOHUV"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 8,
+      "text": "/D  GXUpH  GX  PDQGDW  GHV  PHPEUHV  GH  OD  &RPPLVVLRQ QDWLRQDOH HVW GH FLQT DQV UHQRXYHODEOH XQH VHXOH IRLV"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 8,
+      "text": "/HV PRGDOLWpV HW OHV FRQGLWLRQV GH QRPLQDWLRQ GHV PHPEUHV GH OD &RPPLVVLRQ QDWLRQDOH VRQW IL[pHV SDU GpFUHW"
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 9,
+      "text": "6HFWLRQ    ± 2UJDQLVDWLRQ HW IRQFWLRQQHPHQW GH OD &RPPLVVLRQ QDWLRQDOH",
+      "headingLevel": 2
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 9,
+      "text": "$UWLFOH",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 9,
+      "text": "/D &RPPLVVLRQ QDWLRQDOH VH UpXQLW VXU FRQYRFDWLRQ GH VRQ SUpVLGHQW  DJLVVDQW GH VD SURSUH LQLWLDWLYH RX j OD GHPDQGH GH OD PRLWLp  GHV  PHPEUHV   /H  SUpVLGHQW  IL[H  O¶RUGUH  GX  MRXU  GH  OD UpXQLRQ"
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 9,
+      "text": "$UWLFOH",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 9,
+      "text": "/HV  UpXQLRQV  GH OD &RPPLVVLRQ  QDWLRQDOH  VH  WLHQQHQW YDODEOHPHQW ORUVTXH  OHV  GHX[  WLHUV  DX  PRLQV  GHV  PHPEUHV  VRQW SUpVHQWV  /HV GpFLVLRQV VRQW SULVHV YDODEOHPHQW j OD PDMRULWp GHV PHPEUHV SUpVHQWV   OD  YRL[  GX  SUpVLGHQW  pWDQW  SUpSRQGpUDQWH  HQ FDV GH SDUWDJH pJDO GHV YRL["
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 9,
+      "text": "6HFWLRQ    ± 6WDWXW GHV PHPEUHV",
+      "headingLevel": 2
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 9,
+      "text": "$UWLFOH",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 9,
+      "text": "/HV IRQFWLRQV GH PHPEUH GH OD &RPPLVVLRQ QDWLRQDOH VRQW LQFRPSDWLEOHV DYHF FHOOHV G DGPLQLVWUDWHXU  GH JpUDQW  GH PHPEUH GX GLUHFWRLUH  RX  GH  GLUHFWHXU  JpQpUDO  XQLTXH  RX  GH  PHPEUH  GX FRQVHLO GH VXUYHLOODQFH G XQH VRFLpWp GH WUDLWHPHQW GH GRQQpHV j FDUDFWqUH SHUVRQQHO"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 9,
+      "text": "8Q PHPEUH GH OD &RPPLVVLRQ QDWLRQDOH QH SHXW SDUWLFLSHU j XQH GpOLEpUDWLRQ RX j GHV YpULILFDWLRQV UHODWLYHV j XQ RUJDQLVPH DX  VHLQ  GXTXHO  LO  D  GpWHQX  XQ  LQWpUrW   GLUHFW  RX  LQGLUHFW   RX  D H[HUFp  XQ PDQGDW RX XQH IRQFWLRQ  VL XQ GpODL GH FLQT DQV QH V¶HVW  pFRXOp  HQWUH  OD  GDWH  R  HVW  LQWHUYHQXH  OD  FHVVDWLRQ  GH IRQFWLRQ  OD ILQ GX PDQGDW RX GH OD GLVSRVLWLRQ GH O¶LQWpUrW HW OD GDWH GH  VD QRPLQDWLRQ DX VHLQ GH OD &RPPLVVLRQ QDWLRQDOH"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 9,
+      "text": "6L O¶LQFRPSDWLELOLWp pGLFWpH SDU O¶DOLQpD SUpFpGHQW FRQFHUQH OH SUpVLGHQW GH OD &RPPLVVLRQ QDWLRQDOH  LO GpVLJQH XQ PHPEUH GH  OD  &RPPLVVLRQ  QDWLRQDOH  SRXU  H[HUFHU  OD  SOpQLWXGH  GH  VHV FRPSpWHQFHV  ORUVTXH  O¶DIIDLUH  FRQFHUQDQW  O¶RUJDQLVPH  HQ  FDXVH HVW  DSSHOpH  GHYDQW  OD  &RPPLVVLRQ  QDWLRQDOH   /D  GpFLVLRQ  GX SUpVLGHQW HVW SXEOLpH DX © %XOOHWLQ RIILFLHO ª"
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 9,
+      "text": "$UWLFOH",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 9,
+      "text": "/HV  PHPEUHV  GH  OD  &RPPLVVLRQ  QDWLRQDOH  VRQW  WHQXV  DX VHFUHW SURIHVVLRQQHO SRXU OHV IDLWV  DFWHV HW LQIRUPDWLRQV GRQW LOV RQW SX DYRLU FRQQDLVVDQFH j O RFFDVLRQ GH O DFFRPSOLVVHPHQW GH OHXUV  IRQFWLRQV   ,OV  VRQW  VRXPLV  j  OD  PrPH  REOLJDWLRQ   PrPH DSUqV OD ILQ GH OHXU PDQGDW"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 9,
+      "text": "/HV IRQFWLRQQDLUHV  DJHQWV RX WHFKQLFLHQV TXL H[HUFHQW GHV IRQFWLRQV DX VHLQ GH OD &RPPLVVLRQ QDWLRQDOH RX DXSUqV GH VHV PHPEUHV  VRQW  pJDOHPHQW  VRXPLV  j  O REOLJDWLRQ  GH  UHVSHFWHU  OH VHFUHW SURIHVVLRQQHO"
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 9,
+      "text": "$UWLFOH",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 9,
+      "text": "/HV PHPEUHV HW OHV IRQFWLRQQDLUHV RX DJHQWV HW WHFKQLFLHQV GH OD &RPPLVVLRQ QDWLRQDOH VRQW SURWpJpV FRQWUH OHV RXWUDJHV RX OHV  DWWHLQWHV  j  OHXU  SHUVRQQH  GDQV  OHV  WHUPHV  GHV  DUWLFOHV       HW GX FRGH SpQDO"
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 9,
+      "text": "$UWLFOH",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 9,
+      "text": "/RUVTXH OD &RPPLVVLRQ QDWLRQDOH GpOLEqUH  VXU  XQH  TXHVWLRQ PHWWDQW HQ FDXVH XQH DGPLQLVWUDWLRQ  OHV PHPEUHV UHSUpVHQWDQWV GX JRXYHUQHPHQW SDUWLFLSHQW DX[ GpOLEpUDWLRQV DYHF YRL[ FRQVXOWDWLYH"
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 9,
+      "text": "$UWLFOH",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 9,
+      "text": "/D &RPPLVVLRQ QDWLRQDOH pODERUH HW DSSURXYH VRQ UqJOHPHQW LQWpULHXU TXL HVW VRXPLV j O¶KRPRORJDWLRQ GX JRXYHUQHPHQW DYDQW VD SXEOLFDWLRQ DX © %XOOHWLQ RIILFLHO ª"
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 9,
+      "text": "6HFWLRQ    ± $GPLQLVWUDWLRQ",
+      "headingLevel": 2
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 9,
+      "text": "$UWLFOH",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 9,
+      "text": "/H  SUpVLGHQW  HVW  DVVLVWp   GDQV  O¶H[HUFLFH  GH  VHV  IRQFWLRQV DGPLQLVWUDWLYHV  HW  ILQDQFLqUHV   SDU  XQ  VHFUpWDLUH  JpQpUDO  QRPPp SDU OH JRXYHUQHPHQW VXU SURSRVLWLRQ GX SUpVLGHQW"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 9,
+      "text": "/H  VHFUpWDLUH  JpQpUDO   RXWUH  OHV  SRXYRLUV  TX¶LO  H[HUFH  SDU GpOpJDWLRQ GX SUpVLGHQW  HVW FKDUJp"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 9,
+      "text": "± GH JpUHU OH SHUVRQQHO UHFUXWp RX GpWDFKp VHORQ OHV GpFLVLRQV GX SUpVLGHQW"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 9,
+      "text": "± GH  SUpSDUHU  HW  G¶H[pFXWHU  OH  EXGJHW  GH  OD  &RPPLVVLRQ QDWLRQDOH GRQW LO HVW VRXV RUGRQQDWHXU"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 9,
+      "text": "± GH  SUpSDUHU  HW  GH  SDVVHU  OHV  PDUFKpV  GH  OD  &RPPLVVLRQ QDWLRQDOH"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 9,
+      "text": "± GH  SUpSDUHU  OHV  GRFXPHQWV  GH  WUDYDLO  GHV  UpXQLRQV  GH  OD &RPPLVVLRQ  QDWLRQDOH  HW  GH  WHQLU OH UHJLVWUH GH VHV GpFLVLRQV"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 9,
+      "text": "± GH  VXLYUH  OHV    WUDYDX[  GHV  FRPLWpV  PLV  HQ  SODFH  SDU  OD &RPPLVVLRQ QDWLRQDOH HW GH PHWWUH j OHXU GLVSRVLWLRQ OHV PR\\HQV PDWpULHOV HW KXPDLQV QpFHVVDLUHV j O¶DFFRPSOLVVHPHQW GH OHXUV PLVVLRQV"
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 9,
+      "text": "$UWLFOH",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 9,
+      "text": "/H  VHFUpWDLUH JpQpUDO GLVSRVH SRXU O¶H[HUFLFH GH VHV DWWULEXWLRQV   G¶XQ  SHUVRQQHO  DGPLQLVWUDWLI  HW  WHFKQLTXH  FRPSRVp GH  IRQFWLRQQDLUHV  GHV  DGPLQLVWUDWLRQV  SXEOLTXHV  RX  G¶DJHQWV SXEOLFV   GpWDFKpV  DXSUqV  GH  OD  &RPPLVVLRQ  QDWLRQDOH   HW  G¶XQ SHUVRQQHO UHFUXWp FRQIRUPpPHQW DX[ SURFpGXUHV DSSOLFDEOHV HQ OD PDWLqUH  QRWDPPHQW SDU YRLH FRQWUDFWXHOOH"
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 9,
+      "text": "$UWLFOH",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 9,
+      "text": "/D &RPPLVVLRQ QDWLRQDOH  FUpH  OHV  FRPLWpV  SHUPDQHQWV  RX DG KRF  QpFHVVDLUHV j O¶DFFRPSOLVVHPHQW GH VHV PLVVLRQV SDU GHV GLVSRVLWLRQV GX UqJOHPHQW LQWpULHXU"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 9,
+      "text": "(OOH IL[H GDQV OH PrPH  UqJOHPHQW OHV PRGDOLWpV GH IRQFWLRQQHPHQW HW G¶RUJDQLVDWLRQ GH FHV FRPLWpV  TXL GRLYHQW rWUH SUpVLGpV  SDU  XQ  PHPEUH  GH  OD  &RPPLVVLRQ  QDWLRQDOH   PDLV SHXYHQW  rWUH  FRPSRVpV  GH  SHUVRQQDOLWpV  FKRLVLHV  HQ  GHKRUV  GHV PHPEUHV  GH  OD  &RPPLVVLRQ  QDWLRQDOH  RX  IDLVDQW  SDUWLH  GH  VRQ SHUVRQQHO"
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 9,
+      "text": "&KDSLWUH 9",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 9,
+      "text": "'X WUDQVIHUW GH GRQQpHV YHUV XQ SD\\V pWUDQJHU"
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 9,
+      "text": "$UWLFOH",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 9,
+      "text": "/H  UHVSRQVDEOH G XQ WUDLWHPHQW QH SHXW WUDQVIpUHU GHV GRQQpHV  j  FDUDFWqUH  SHUVRQQHO  YHUV  XQ  (WDW  pWUDQJHU  TXH  VL  FHW (WDW DVVXUH XQ QLYHDX GH SURWHFWLRQ VXIILVDQW GH OD YLH SULYpH HW GHV  OLEHUWpV  HW  GURLWV  IRQGDPHQWDX[  GHV  SHUVRQQHV  j  O pJDUG  GX WUDLWHPHQW GRQW FHV GRQQpHV IRQW O REMHW RX SHXYHQW IDLUH O REMHW"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 9,
+      "text": "/H FDUDFWqUH VXIILVDQW GX QLYHDX GH SURWHFWLRQ DVVXUp SDU XQ eWDW V DSSUpFLH QRWDPPHQW  HQ  IRQFWLRQ GHV GLVSRVLWLRQV HQ YLJXHXU  GDQV  FHW  (WDW   GHV  PHVXUHV  GH  VpFXULWp  TXL  \\  VRQW DSSOLTXpHV  GHV FDUDFWpULVWLTXHV SURSUHV GX WUDLWHPHQW WHOOHV TXH VHV ILQV HW VD GXUpH  DLQVL TXH GH OD QDWXUH  GH O RULJLQH HW GH OD GHVWLQDWLRQ GHV GRQQpHV WUDLWpHV"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 9,
+      "text": "/D &RPPLVVLRQ QDWLRQDOH pWDEOLW OD OLVWH GHV (WDWV UpSRQGDQW DX[ FULWqUHV GpILQLV DX[ DOLQpDV   HW   FL GHVVXV"
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 10,
+      "text": "$UWLFOH",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 10,
+      "text": "3DU  GpURJDWLRQ  DX[  GLVSRVLWLRQV  GH  O DUWLFOH      FL GHVVXV   OH UHVSRQVDEOH G XQ WUDLWHPHQW SHXW WUDQVIpUHU GHV GRQQpHV j FDUDFWqUH SHUVRQQHO YHUV XQ (WDW QH UpSRQGDQW SDV DX[ FRQGLWLRQV SUpYXHV j O DUWLFOH  FL GHVVXV   VL  OD  SHUVRQQH  j  ODTXHOOH  VH  UDSSRUWHQW  OHV GRQQpHV D FRQVHQWL H[SUHVVpPHQW j OHXU WUDQVIHUW RX"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 10,
+      "text": "6L OH WUDQVIHUW HVW QpFHVVDLUH"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 10,
+      "text": "D   j OD VDXYHJDUGH GH OD YLH GH FHWWH SHUVRQQH"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 10,
+      "text": "E  j OD SUpVHUYDWLRQ GH O LQWpUrW SXEOLF"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 10,
+      "text": "F  DX UHVSHFW G REOLJDWLRQV SHUPHWWDQW G DVVXUHU OD FRQVWDWDWLRQ  O H[HUFLFH RX OD GpIHQVH G XQ GURLW HQ MXVWLFH"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 10,
+      "text": "G  j O H[pFXWLRQ G XQ FRQWUDW HQWUH OH UHVSRQVDEOH GX WUDLWHPHQW HW O LQWpUHVVp  RX GH PHVXUHV SUpFRQWUDFWXHOOHV SULVHV j OD GHPDQGH GH FHOXL FL"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 10,
+      "text": "H  j OD FRQFOXVLRQ RX j O H[pFXWLRQ G XQ FRQWUDW FRQFOX RX j FRQFOXUH GDQV O LQWpUrW GH OD  SHUVRQQH  FRQFHUQpH HQWUH OH UHVSRQVDEOH GX WUDLWHPHQW HW XQ WLHUV"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 10,
+      "text": "I  j O H[pFXWLRQ G XQH PHVXUH G HQWUDLGH MXGLFLDLUH LQWHUQDWLRQDOH"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 10,
+      "text": "J  j OD SUpYHQWLRQ  OH GLDJQRVWLF RX OH WUDLWHPHQW G DIIHFWLRQV PpGLFDOHV"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 10,
+      "text": "6L  OH  WUDQVIHUW  V HIIHFWXH  HQ  DSSOLFDWLRQ  G XQ  DFFRUG ELODWpUDO RX PXOWLODWpUDO DXTXHO OH 5R\\DXPH GX 0DURF HVW SDUWLH"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 10,
+      "text": "6XU  DXWRULVDWLRQ  H[SUHVVH  HW  PRWLYpH  GH  OD  &RPPLVVLRQ QDWLRQDOH  ORUVTXH  OH  WUDLWHPHQW  JDUDQWLW  XQ  QLYHDX  GH  SURWHFWLRQ VXIILVDQW GH OD YLH SULYpH DLQVL TXH GHV OLEHUWpV HW GURLWV IRQGDPHQWDX[ GHV SHUVRQQHV   QRWDPPHQW  HQ  UDLVRQ  GHV  FODXVHV FRQWUDFWXHOOHV RX UqJOHV LQWHUQHV GRQW LO IDLW O REMHW"
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 10,
+      "text": "&KDSLWUH 9,",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 10,
+      "text": "'X UHJLVWUH QDWLRQDO GH OD SURWHFWLRQ GHV GRQQpHV j FDUDFWqUH SHUVRQQHO HW GHV OLPLWHV j OD FUpDWLRQ RX j O XVDJH GH UHJLVWUHV FHQWUDX[ HW GH ILFKLHUV"
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 10,
+      "text": "$UWLFOH",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 10,
+      "text": ",O  HVW  LQVWLWXp  XQ  UHJLVWUH  QDWLRQDO  GH  OD  SURWHFWLRQ  GHV GRQQpHV  j  FDUDFWqUH  SHUVRQQHO   GpVLJQp  FL DSUqV  SDU  UHJLVWUH QDWLRQDO  GRQW OD WHQXH HVW GpYROXH j OD FRPPLVVLRQ  TXL HQ DVVXUH OD PLVH j GLVSRVLWLRQ GX SXEOLF"
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 10,
+      "text": "$UWLFOH",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 10,
+      "text": "6RQW LQVFULWV DX UHJLVWUH QDWLRQDO"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 10,
+      "text": "D   OHV  ILFKLHUV  GRQW  VRQW  UHVSRQVDEOHV  GX  WUDLWHPHQW  OHV DXWRULWpV SXEOLTXHV"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 10,
+      "text": "E  OHV ILFKLHUV GRQW OH WUDLWHPHQW HVW HIIHFWXp SDU GHV SHUVRQQHV SULYpHV"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 10,
+      "text": "F  OHV  UpIpUHQFHV  DX[  ORLV  RX  UqJOHPHQWV  SXEOLpV  SRUWDQW FUpDWLRQ GH ILFKLHUV SXEOLFV"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 10,
+      "text": "G  OHV  DXWRULVDWLRQV  GpOLYUpHV  HQ  DSSOLFDWLRQ  GH  OD  SUpVHQWH ORL HW GHV WH[WHV SULV SRXU VRQ DSSOLFDWLRQ"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 10,
+      "text": "H  OHV  GRQQpHV  UHODWLYHV  DX[  ILFKLHUV  TXL  VRQW  QpFHVVDLUHV  SRXU SHUPHWWUH DX[ SHUVRQQHV FRQFHUQpHV G H[HUFHU OHV GURLWV G LQIRUPDWLRQ G DFFqV   GH  UHFWLILFDWLRQ   GH  VXSSUHVVLRQ  HW G RSSRVLWLRQ  SUpYXV  SDU  OD SUpVHQWH  ORL   QRWDPPHQW  OHV SUpFLVLRQV  TXH  FRPSRUWH  OD  GpFODUDWLRQ IL[pHV DX[ D   j H  GH O DUWLFOH    FL GHVVXV"
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 10,
+      "text": "$UWLFOH",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 10,
+      "text": "/HV  ILFKLHUV  GRQW  OH  WUDLWHPHQW  D  SRXU  VHXO  REMHW  OD  WHQXH G XQ UHJLVWUH TXL HQ YHUWX GH GLVSRVLWLRQV OpJLVODWLYHV RX UpJOHPHQWDLUHV  HVW GHVWLQp j O LQIRUPDWLRQ GX SXEOLF HW HVW RXYHUW j  OD  FRQVXOWDWLRQ  GX  SXEOLF  VRQW  GLVSHQVpV  GH  O LQVFULSWLRQ  DX UHJLVWUH QDWLRQDO"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 10,
+      "text": "7RXWHIRLV   GRLW  ILJXUHU  DXGLW  UHJLVWUH  QDWLRQDO  O LGHQWLWp  GH  OD SHUVRQQH  UHVSRQVDEOH  GX  WUDLWHPHQW  DX[  ILQV  G H[HUFLFH  SDU  OHV SHUVRQQHV FRQFHUQpHV GHV GURLWV SUpYXV DX FKDSLWUH ,, GH OD SUpVHQWH ORL"
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 10,
+      "text": "$UWLFOH",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 10,
+      "text": "/HV PRGDOLWpV G LQVFULSWLRQ GHV GRQQpHV SUpYXHV j O¶DUWLFOH FL GHVVXV  DX  UHJLVWUH  QDWLRQDO  HW  FHOOHV  GH  VD  WHQXH  j  MRXU  VRQW IL[pHV SDU OH JRXYHUQHPHQW   DSUqV DYLV  GH  OD  &RPPLVVLRQ QDWLRQDOH"
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 10,
+      "text": "$UWLFOH",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 10,
+      "text": "/HV WUDLWHPHQWV  GH  GRQQpHV  j  FDUDFWqUH  SHUVRQQHO  UHODWLYHV DX[ LQIUDFWLRQV  FRQGDPQDWLRQV HW PHVXUHV GH VUHWp QH SHXYHQW rWUH PLV HQ °XYUH TXH SDU"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 10,
+      "text": "± OHV  MXULGLFWLRQV   OHV  DXWRULWpV  SXEOLTXHV  HW  OHV  SHUVRQQHV PRUDOHV JpUDQW XQ VHUYLFH SXEOLF  DJLVVDQW GDQV OH FDGUH GH OHXUV DWWULEXWLRQV OpJDOHV"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 10,
+      "text": "± OHV DX[LOLDLUHV GH  MXVWLFH SRXU  OHV VWULFWV  EHVRLQV  GH O H[HUFLFH GHV PLVVLRQV TXL OHXU VRQW FRQILpHV SDU OD ORL"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 10,
+      "text": "± O RUJDQLVPH FKDUJp GH OD SURWHFWLRQ GHV GURLWV G DXWHXU HW GHV GURLWV  YRLVLQV  YLVp  j  O¶DUWLFOH H DOLQpD   GH  OD  ORL Q        PRGLILDQW  HW  FRPSOpWDQW  OD  ORL  Q       UHODWLYH DX[ GURLWV G DXWHXU HW GURLWV YRLVLQV"
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 10,
+      "text": "$UWLFOH",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 10,
+      "text": "/D FUpDWLRQ   OD  WHQXH  HW  OH  WUDLWHPHQW  GH  UHJLVWUHV  FHQWUDX[ FRQFHUQDQW  OHV  SHUVRQQHV  VRXSoRQQpHV  G DFWLYLWpV  LOOLFLWHV   GH GpOLWV  HW  G LQIUDFWLRQV  DGPLQLVWUDWLYHV  HW  OHV  GpFLVLRQV  SUpYR\\DQW GHV SHLQHV  GHV PHVXUHV GH VUHWp  GHV DPHQGHV HW GHV VDQFWLRQV DFFHVVRLUHV  UHOqYHQW  GHV  VHXOV  VHUYLFHV  SXEOLFV  TXL  RQW  XQH FRPSpWHQFH  H[SUHVVH  HQ  YHUWX  GH  OD  ORL  G RUJDQLVDWLRQ  HW  GH IRQFWLRQQHPHQW HW TXL GRLYHQW UHVSHFWHU OHV UqJOHV GH SURFpGXUH HW GH  SURWHFWLRQ  GHV  GRQQpHV  SUpYXHV  SDU  OD  ORL   DSUqV  DYLV  GH  OD &RPPLVVLRQ QDWLRQDOH"
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 10,
+      "text": "&KDSLWUH 9,,",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 10,
+      "text": "'HV VDQFWLRQV"
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 10,
+      "text": "$UWLFOH",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 10,
+      "text": "6DQV SUpMXGLFH GHV VDQFWLRQV SpQDOHV  ORUVTX LO DSSDUDvW  j OD VXLWH GH OD PLVH HQ °XYUH GX WUDLWHPHQW REMHW GH OD GpFODUDWLRQ RX GH O DXWRULVDWLRQ  SUpYXH  j  O DUWLFOH      GH  OD  SUpVHQWH  ORL   TXH  FH WUDLWHPHQW  SRUWH  DWWHLQWH  j  OD  VUHWp  RX  j  O RUGUH  SXEOLF  RX  HVW FRQWUDLUH  j  OD  PRUDOH  HW  DX[  ERQQHV  P°XUV   OD  &RPPLVVLRQ QDWLRQDOH SHXW  VDQV GpODLV  UHWLUHU  VHORQ OH FDV  OH UpFpSLVVp GH OD GpFODUDWLRQ RX O DXWRULVDWLRQ"
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 10,
+      "text": "$UWLFOH",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 10,
+      "text": "6DQV  SUpMXGLFH  GH  OD  UHVSRQVDELOLWp  FLYLOH  j  O pJDUG  GHV SHUVRQQHV  D\\DQW  VXEL  GHV  GRPPDJHV  GX  IDLW  GH  O LQIUDFWLRQ   HVW SXQL G XQH DPHQGH GH        j         '+  TXLFRQTXH DXUD PLV HQ  °XYUH  XQ  ILFKLHU  GH  GRQQpHV  j  FDUDFWqUH  SHUVRQQHO  VDQV  OD GpFODUDWLRQ RX O DXWRULVDWLRQ H[LJpH j O DUWLFOH    FL GHVVXV RX DXUD FRQWLQXp  VRQ  DFWLYLWp GH WUDLWHPHQW GH GRQQpHV  j  FDUDFWqUH SHUVRQQHO PDOJUp OH UHWUDLW GX UpFpSLVVp GH OD GpFODUDWLRQ RX GH O DXWRULVDWLRQ"
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 11,
+      "text": "$UWLFOH",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 11,
+      "text": "(VW  SXQL  G XQH  DPHQGH  GH          j           '+  SDU LQIUDFWLRQ  WRXW UHVSRQVDEOH GH WUDLWHPHQW GH GRQQpHV j FDUDFWqUH SHUVRQQHO UHIXVDQW OHV GURLWV G DFFqV GH UHFWLILFDWLRQ RX G RSSRVLWLRQ SUpYXV DX[ DUWLFOHV      HW   FL GHVVXV"
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 11,
+      "text": "$UWLFOH",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 11,
+      "text": "(VW SXQL G XQ HPSULVRQQHPHQW GH WURLV PRLV j XQ DQ HW G XQH DPHQGH GH        j         '+ RX GH O XQH GH FHV GHX[ SHLQHV VHXOHPHQW TXLFRQTXH  HQ YLRODWLRQ GHV D    E  HW F  GH O DUWLFOH   GH OD SUpVHQWH ORL  FROOHFWH GHV GRQQpHV j FDUDFWqUH SHUVRQQHO SDU XQ PR\\HQ  IUDXGXOHX[ GpOR\\DO RX LOOLFLWH PHW HQ RHXYUH XQ WUDLWHPHQW j GHV ILQV DXWUHV TXH FHOOHV GpFODUpHV RX DXWRULVpHV RX VRXPHW OHV GRQQpHV SUpFLWpHV j XQ WUDLWHPHQW XOWpULHXU LQFRPSDWLEOH DYHF OHV ILQDOLWpV GpFODUpHV RX DXWRULVpHV"
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 11,
+      "text": "$UWLFOH",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 11,
+      "text": "(VW SXQL G XQ HPSULVRQQHPHQW GH WURLV PRLV j XQ DQ HW G XQH DPHQGH GH        j         '+ RX GH O XQH GH FHV GHX[ SHLQHV VHXOHPHQW TXLFRQTXH"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 11,
+      "text": "± FRQVHUYH GHV GRQQpHV j FDUDFWqUH SHUVRQQHO DX GHOj GH OD GXUpH SUpYXH SDU OD OpJLVODWLRQ HQ YLJXHXU RX FHOOH SUpYXH GDQV OD GpFODUDWLRQ RX O DXWRULVDWLRQ"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 11,
+      "text": "± FRQVHUYH OHV GRQQpHV SUpFLWpHV HQ YLRODWLRQ GHV GLVSRVLWLRQV GX H  GH O DUWLFOH   GH OD SUpVHQWH ORL"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 11,
+      "text": "(VW SXQL GHV PrPHV SHLQHV OH IDLW GH WUDLWHU j GHV ILQV DXWUHV TX KLVWRULTXHV VWDWLVWLTXHV RX VFLHQWLILTXHV GHV GRQQpHV j FDUDFWqUH  SHUVRQQHO  FRQVHUYpHV  DX GHOj  GH  OD  GXUpH  PHQWLRQQpH DX SUHPLHU DOLQpD FL GHVVXV"
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 11,
+      "text": "$UWLFOH",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 11,
+      "text": "(VW SXQL G XQ HPSULVRQQHPHQW GH WURLV PRLV j XQ DQ HW G XQH DPHQGH GH        j         '+ RX GH O XQH GH FHV GHX[ SHLQHV VHXOHPHQW  TXLFRQTXH  SURFqGH  j  XQ  WUDLWHPHQW  GH  GRQQpHV  j FDUDFWqUH  SHUVRQQHO  HQ  YLRODWLRQ  GHV  GLVSRVLWLRQV  GH  O DUWLFOH FL GHVVXV"
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 11,
+      "text": "$UWLFOH",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 11,
+      "text": "(VW SXQL G XQ HPSULVRQQHPHQW GH VL[ PRLV j GHX[  DQV HW G XQH DPHQGH GH        j         '+ RX GH O XQH GH FHV GHX[ SHLQHV VHXOHPHQW  TXLFRQTXH  SURFqGH VDQV OH  FRQVHQWHPHQW H[SUqV  GHV  SHUVRQQHV  LQWpUHVVpHV   DX  WUDLWHPHQW  GHV  GRQQpHV  j FDUDFWqUH SHUVRQQHO TXL GLUHFWHPHQW RX LQGLUHFWHPHQW IRQW DSSDUDvWUH OHV RULJLQHV UDFLDOHV RX HWKQLTXHV OHV RSLQLRQV SROLWLTXHV SKLORVRSKLTXHV RX UHOLJLHXVHV OHV DSSDUWHQDQFHV V\\QGLFDOHV  GHV  SHUVRQQHV  RX  TXL  VRQW  UHODWLYHV  j  OD  VDQWp  GH FHOOHV FL"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 11,
+      "text": "(VW SXQL GHV PrPHV SHLQHV TXLFRQTXH SURFqGH DX WUDLWHPHQW  GHV  GRQQpHV  j  FDUDFWqUH  SHUVRQQHO  FRQFHUQDQW  GHV LQIUDFWLRQV  GHV FRQGDPQDWLRQV RX GHV PHVXUHV GH VUHWp"
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 11,
+      "text": "$UWLFOH",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 11,
+      "text": "(VW SXQL G XQ HPSULVRQQHPHQW GH WURLV PRLV j XQ DQ HW G XQH DPHQGH GH        j         '+ RX GH O XQH GH FHV GHX[ SHLQHV VHXOHPHQW TXLFRQTXH DXUD SURFpGp RX IDLW SURFpGHU j XQ WUDLWHPHQW GH GRQQpHV j FDUDFWqUH SHUVRQQHO VDQV PHWWUH HQ °XYUH OHV  PHVXUHV  YLVDQW  j  SUpVHUYHU  OD  VpFXULWp  GHV  GRQQpHV  SUpYXHV DX[ DUWLFOHV    HW    FL GHVVXV"
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 11,
+      "text": "$UWLFOH",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 11,
+      "text": "(VW SXQL G XQ HPSULVRQQHPHQW GH WURLV PRLV j XQ DQ HW G XQH DPHQGH GH        j         '+ RX GH O XQH GH FHV GHX[ SHLQHV VHXOHPHQW   TXLFRQTXH  SURFqGH  j  XQ  WUDLWHPHQW  GH  GRQQpHV  j FDUDFWqUH  SHUVRQQHO  FRQFHUQDQW  XQH  SHUVRQQH  SK\\VLTXH  PDOJUp O RSSRVLWLRQ GH FHWWH SHUVRQQH  ORUVTXH FHWWH RSSRVLWLRQ HVW IRQGpH VXU  GHV  PRWLIV  OpJLWLPHV  RX  ORUVTXH  FH  WUDLWHPHQW  UpSRQG  j  GHV ILQV GH SURVSHFWLRQ  QRWDPPHQW FRPPHUFLDOH  WHO TXH PHQWLRQQp j O DUWLFOH   RX SDU YRLH pOHFWURQLTXH WHO TXH SUpYX j O¶DUWLFOH GH OD SUpVHQWH ORL"
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 11,
+      "text": "$UWLFOH",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 11,
+      "text": "(VW  SXQL  G XQ  HPSULVRQQHPHQW  GH  WURLV  PRLV  j  XQ  DQ  HW G¶XQH DPHQGH GH        j         '+ RX GH O XQH GH FHV GHX[ SHLQHV VHXOHPHQW  TXLFRQTXH HIIHFWXH XQ WUDQVIHUW GH GRQQpHV j FDUDFWqUH  SHUVRQQHO  YHUV  XQ  (WDW  pWUDQJHU HQ  YLRODWLRQ GHV GLVSRVLWLRQV GHV DUWLFOHV    HW    GH OD SUpVHQWH ORL"
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 11,
+      "text": "$UWLFOH",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 11,
+      "text": "(VW SXQL G XQ HPSULVRQQHPHQW GH VL[ PRLV j XQ DQ HW G XQH DPHQGH GH        j         '+ RX GH O XQH GH FHV GHX[ SHLQHV VHXOHPHQW   WRXW  UHVSRQVDEOH  GH  WUDLWHPHQW   WRXW  VRXV WUDLWDQW  HW WRXWH SHUVRQQH TXL  HQ UDLVRQ GH VHV IRQFWLRQV  HVW FKDUJp  H  GH WUDLWHU  GHV  GRQQpHV  j  FDUDFWqUH  SHUVRQQHO  HW  TXL   PrPH  SDU QpJOLJHQFH   FDXVH  RX  IDFLOLWH  O XVDJH  DEXVLI  RX  IUDXGXOHX[  GHV GRQQpHV  WUDLWpHV  RX  UHoXHV  RX  OHV  FRPPXQLTXH  j  GHV  WLHUV  QRQ KDELOLWpV"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 11,
+      "text": "/H WULEXQDO SRXUUD  HQ RXWUH  SURQRQFHU OD VDLVLH GX PDWpULHO D\\DQW VHUYL j FRPPHWWUH O LQIUDFWLRQ DLQVL TXH O HIIDFHPHQW GH WRXW RX  SDUWLH  GHV  GRQQpHV  j  FDUDFWqUH  SHUVRQQHO  IDLVDQW  O REMHW  GX WUDLWHPHQW D\\DQW GRQQp OLHX j O LQIUDFWLRQ"
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 11,
+      "text": "$UWLFOH",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 11,
+      "text": "(VW SXQL G XQ HPSULVRQQHPHQW GH WURLV  j VL[  PRLV HW G XQH DPHQGH GH        j        '+ RX GH O XQH GH FHV GHX[ SHLQHV VHXOHPHQW  TXLFRQTXH"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 11,
+      "text": "± HQWUDYH O H[HUFLFH GHV PLVVLRQV GH FRQWU{OH GH OD &RPPLVVLRQ QDWLRQDOH"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 11,
+      "text": "± UHIXVH GH UHFHYRLU OHV FRQWU{OHXUV HW GH OHV ODLVVHU UHPSOLU OHXUV FRPPLVVLRQV"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 11,
+      "text": "± UHIXVH G¶HQYR\\HU OHV GRFXPHQWV RX LQIRUPDWLRQV GHPDQGp  H  V"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 11,
+      "text": "± UHIXVH GH WUDQVPHWWUH OHV GRFXPHQWV SUpYXV SDU OD ORL"
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 11,
+      "text": "$UWLFOH",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 11,
+      "text": "7RXW UHVSRQVDEOH TXL UHIXVH G DSSOLTXHU OHV GpFLVLRQV GH OD &RPPLVVLRQ QDWLRQDOH HVW SDVVLEOH G XQ HPSULVRQQHPHQW GH WURLV PRLV j XQ DQ  HW  G XQH  DPHQGH  GH          j           '+  RX  GH"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 11,
+      "text": "O XQH GH FHV GHX[ SHLQHV VHXOHPHQW"
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 12,
+      "text": "$UWLFOH",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 12,
+      "text": "/RUVTXH O DXWHXU GH O XQH GHV LQIUDFWLRQV SUpYXHV HW VDQFWLRQQpHV DX WLWUH GX SUpVHQW FKDSLWUH HVW XQH SHUVRQQH PRUDOH HW  VDQV  SUpMXGLFH  GHV  SHLQHV  TXL  SHXYHQW  rWUH  DSSOLTXpHV  j  VHV GLULJHDQWV DXWHXUV GH O XQH GHV LQIUDFWLRQV SUpYXHV FL GHVVXV  OHV SHLQHV G DPHQGH VRQW SRUWpHV DX GRXEOH"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 12,
+      "text": "(Q RXWUH   OD  SHUVRQQH  PRUDOH  SHXW  rWUH  SXQLH  GH  O XQH  GHV SHLQHV VXLYDQWHV"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 12,
+      "text": "± OD FRQILVFDWLRQ SDUWLHOOH GH VHV ELHQV"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 12,
+      "text": "± OD FRQILVFDWLRQ SUpYXH j O DUWLFOH    GX FRGH SpQDO"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 12,
+      "text": "± OD  IHUPHWXUH  GX  RX  GHV  pWDEOLVVHPHQWV  GH  OD  SHUVRQQH PRUDOH R O LQIUDFWLRQ D pWp FRPPLVH"
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 12,
+      "text": "$UWLFOH",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 12,
+      "text": "(Q FDV GH UpFLGLYH  OHV VDQFWLRQV SUpYXHV DX SUpVHQW FKDSLWUH VRQW SRUWpHV DX GRXEOH"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 12,
+      "text": "(VW HQ pWDW GH UpFLGLYH  WRXWH SHUVRQQH D\\DQW pWp FRQGDPQpH SDU  GpFLVLRQ  GH  MXVWLFH  GHYHQXH  LUUpYRFDEOH  SRXU  O XQH  GHV LQIUDFWLRQV SUpYXHV DX SUpVHQW FKDSLWUH D FRPPLV XQH LQIUDFWLRQ GH  PrPH  QDWXUH  GDQV  O DQQpH  TXL  VXLW  OH  SURQRQFp  G XQH  WHOOH GpFLVLRQ"
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 12,
+      "text": "$UWLFOH",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 12,
+      "text": "2XWUH  OHV  RIILFLHUV  GH  SROLFH  MXGLFLDLUH     OHV  DJHQWV  GH  OD &RPPLVVLRQ  QDWLRQDOH  VSpFLDOHPHQW  FRPPLVVLRQQpV  j  FHW  HIIHW SDU OH SUpVLGHQW HW DVVHUPHQWpV GDQV OHV IRUPHV GX GURLW FRPPXQ SHXYHQW UHFKHUFKHU HW FRQVWDWHU  SDU SURFqV YHUEDO  OHV LQIUDFWLRQV DX[  GLVSRVLWLRQV  GH  OD  SUpVHQWH  ORL  HW  GHV  WH[WHV  SULV  SRXU  VRQ DSSOLFDWLRQ  /HXUV SURFqV YHUEDX[ VRQW DGUHVVpV DX SURFXUHXU GX 5RL GDQV OHV FLQT MRXUV VXLYDQW OHV RSpUDWLRQV GH UHFKHUFKH HW GH FRQVWDWDWLRQ"
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 12,
+      "text": "&KDSLWUH 9,,,",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 12,
+      "text": "'LVSRVLWLRQV WUDQVLWRLUHV"
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 12,
+      "text": "$UWLFOH",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 12,
+      "text": "/HV SHUVRQQHV SK\\VLTXHV RX PRUDOHV GRQW O DFWLYLWp FRQVLVWDLW   DYDQW  OD  GDWH  GH  SXEOLFDWLRQ  GH  OD  SUpVHQWH  ORL  DX %XOOHWLQ  RIILFLHO j  HIIHFWXHU   j  WLWUH  SULQFLSDO  RX  DFFHVVRLUH   GHV WUDLWHPHQWV  GH  GRQQpHV  j  FDUDFWqUH  SHUVRQQHO  UpSRQGDQW  j  OD GpILQLWLRQ  SUpYXH  j  O DUWLFOH  SUHPLHU  FL GHVVXV   GLVSRVHQW  G XQ GpODL  PD[LPXP  GH  GHX[  DQV   FRXUDQW  j  FRPSWHU  GH  OD  GDWH G LQVWDOODWLRQ GH OD &RPPLVVLRQ QDWLRQDOH TXL VHUD FRQVWDWpH SDU XQ DFWH DGPLQLVWUDWLI SXEOLp DX %XOOHWLQ RIILFLHO SRXU  UpJXODULVHU OHXU VLWXDWLRQ HQ FRQIRUPLWp DYHF OHV GLVSRVLWLRQV GH OD SUpVHQWH ORL"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 12,
+      "text": "$ GpIDXW GH FHWWH UpJXODULVDWLRQ GDQV OH GpODL SUpFLWp  OHXUV DFWLYLWpV  VRQW  UpSXWpHV  rWUH  H[HUFpHV  VDQV  GpFODUDWLRQ  RX  VDQV DXWRULVDWLRQ  /H FRQWUHYHQDQW V H[SRVH  GDQV FH FDV  DX[ VDQFWLRQV SUpYXHV SDU OD SUpVHQWH ORL"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 12,
+      "text": "BBBBBB"
+    },
+    {
+      "blockType": "footnote",
+      "pageNumber": 12,
+      "text": "/H  WH[WH  HQ  ODQJXH  DUDEH  D  pWp  SXEOLp  GDQV  O¶pGLWLRQ  JpQpUDOH  GX © %XOOHWLQ RIILFLHO ª Q      GX    VDIDU          IpYULHU"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 12,
+      "text": "'DKLU  Q          GX       VDIDU             IpYULHU"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 12,
+      "text": "SRUWDQW"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 12,
+      "text": "SURPXOJDWLRQ  GH  OD  ORL  Q         SRUWDQW  FUpDWLRQ  GH"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 12,
+      "text": "O¶$JHQFH SRXU OH GpYHORSSHPHQW DJULFROH"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 12,
+      "text": "BBBBBBBBBB"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 12,
+      "text": "/28$1*( $ ',(8 6(8/"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 12,
+      "text": "*UDQG 6FHDX GH 6D 0DMHVWp 0RKDPPHG 9,"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 12,
+      "text": "4XH O¶RQ VDFKH SDU OHV SUpVHQWHV ± SXLVVH 'LHX HQ pOHYHU HW"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 12,
+      "text": "HQ IRUWLILHU OD WHQHXU"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 12,
+      "text": "4XH 1RWUH 0DMHVWp &KpULILHQQH"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 12,
+      "text": "9X OD &RQVWLWXWLRQ  QRWDPPHQW VHV DUWLFOHV    HW"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 12,
+      "text": "$ 'e&,'e &( 48, 68,7"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 12,
+      "text": "(VW SURPXOJXpH HW VHUD SXEOLpH DX %XOOHWLQ RIILFLHO  j OD VXLWH"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 12,
+      "text": "GX SUpVHQW GDKLU  OD ORL Q           SRUWDQW  FUpDWLRQ  GH  O¶$JHQFH"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 12,
+      "text": "SRXU OH GpYHORSSHPHQW DJULFROH  WHOOH TX¶DGRSWpH SDU OD &KDPEUH"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 12,
+      "text": "GHV UHSUpVHQWDQWV HW OD &KDPEUH GHV FRQVHLOOHUV"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 12,
+      "text": ")DLW j )qV  OH    VDIDU          IpYULHU"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 12,
+      "text": "3RXU FRQWUHVHLQJ"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 12,
+      "text": "/H 3UHPLHU PLQLVWUH"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 12,
+      "text": "$%%$6 (/ )$66,"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 12,
+      "text": "/RL Q"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 12,
+      "text": "SRUWDQW FUpDWLRQ"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 12,
+      "text": "GH O¶$JHQFH SRXU OH GpYHORSSHPHQW DJULFROH"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 12,
+      "text": "±±±±±±±±±"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 12,
+      "text": "&KDSLWUH SUHPLHU"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 12,
+      "text": "'pQRPLQDWLRQ HW REMHW"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 12,
+      "text": "$UWLFOH SUHPLHU"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 12,
+      "text": ",O"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 12,
+      "text": "HVW"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 12,
+      "text": "FUpp VRXV"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 12,
+      "text": "OD"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 12,
+      "text": "GpQRPLQDWLRQ"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 12,
+      "text": "© $JHQFH"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 12,
+      "text": "SRXU"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 12,
+      "text": "OH"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 12,
+      "text": "GpYHORSSHPHQW DJULFROH  $'$  ª  XQ pWDEOLVVHPHQW SXEOLF GRWp"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 12,
+      "text": "GH OD  SHUVRQQDOLWp  PRUDOH  HW  GH  O DXWRQRPLH  ILQDQFLqUH   FL DSUqV"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 12,
+      "text": "GpVLJQp SDU O¶$JHQFH"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 12,
+      "text": "/ $JHQFH HVW SODFpH VRXV OD WXWHOOH GH O (WDW  ODTXHOOH D SRXU"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 12,
+      "text": "REMHW GH IDLUH UHVSHFWHU  SDU OHV RUJDQHV FRPSpWHQWV GH O $JHQFH"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 12,
+      "text": "OHV  GLVSRVLWLRQV  GH  OD  SUpVHQWH  ORL   HQ  SDUWLFXOLHU  FHOOHV  UHODWLYHV"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 12,
+      "text": "DX[ PLVVLRQV TXL OXL  VRQW  LPSDUWLHV  HW   GH  PDQLqUH  JpQpUDOH   GH"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 12,
+      "text": "YHLOOHU  j  O DSSOLFDWLRQ  GH  OD  OpJLVODWLRQ  HW  GH  OD  UpJOHPHQWDWLRQ"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 12,
+      "text": "FRQFHUQDQW OHV pWDEOLVVHPHQWV SXEOLFV"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 12,
+      "text": "/ $JHQFH  HVW  pJDOHPHQW  VRXPLVH  DX  FRQWU{OH  ILQDQFLHU  GH"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 12,
+      "text": "O (WDW DSSOLFDEOH DX[ pWDEOLVVHPHQWV SXEOLFV HW DXWUHV RUJDQLVPHV"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 12,
+      "text": "FRQIRUPpPHQW j OD OpJLVODWLRQ HQ YLJXHXU"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 12,
+      "text": "$UWLFOH"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 12,
+      "text": "/ $JHQFH D SRXU PLVVLRQ GH SDUWLFLSHU j OD PLVH HQ °XYUH GH"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 12,
+      "text": "OD"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 12,
+      "text": "VWUDWpJLH"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 12,
+      "text": "DGRSWpH"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 12,
+      "text": "SDU"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 12,
+      "text": "OH"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 12,
+      "text": "JRXYHUQHPHQW"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 12,
+      "text": "HQ"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 12,
+      "text": "PDWLqUH"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 12,
+      "text": "GH"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 12,
+      "text": "GpYHORSSHPHQW DJULFROH"
+    }
+  ]
+}

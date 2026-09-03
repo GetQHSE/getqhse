@@ -13,6 +13,7 @@ import {
   chunkText,
   detectSections,
   DocumentProcessingProcessor,
+  extractionQuality,
 } from "./document-processing.processor.js";
 
 const stage = { id: "job-extraction", jobType: "text_extraction", status: "PENDING" };
@@ -118,6 +119,37 @@ describe("document processing review outputs", () => {
 
     expect(chunks).toEqual(["First paragraph.\n\nSecond paragraph.", "Third paragraph."]);
     expect(chunks.join("\n\n")).toContain("Second paragraph.");
+  });
+});
+
+describe("extraction quality", () => {
+  it("scores an unusable text layer below a plain fallback", () => {
+    // A PDF whose fonts never decoded still yields plenty of characters, so every count-based
+    // check downstream passes and the garbage reaches a reviewer looking ordinary. It has to
+    // score worse than a fallback that at least got the words right.
+    const unusable = extractionQuality("docling", {
+      text_layer_degenerate: "true",
+      text_layer_reason: "control_characters_in_text",
+    });
+
+    expect(unusable).toBeLessThan(extractionQuality("pdftotext+ocr", {}));
+    expect(unusable).toBeLessThan(extractionQuality("docling", {}));
+  });
+
+  it("restores full quality once the forced OCR pass repaired the text layer", () => {
+    expect(
+      extractionQuality("docling+full_page_ocr", {
+        text_layer_degenerate: "false",
+        text_layer_repair: "applied",
+      }),
+    ).toBe(0.9);
+  });
+
+  it("follows the converter's own verdict when it reports one", () => {
+    expect(extractionQuality("docling", { conversion_status: "partial_success" })).toBe(0.6);
+    expect(extractionQuality("docling", { confidence_mean_grade: "poor" })).toBe(0.5);
+    expect(extractionQuality("docling", { confidence_mean_grade: "fair" })).toBe(0.7);
+    expect(extractionQuality("docling", { confidence_mean_grade: "excellent" })).toBe(0.9);
   });
 });
 
@@ -227,6 +259,45 @@ describe("DocumentProcessingProcessor Docling extraction", () => {
       stage: "text_extraction",
       completed: 1,
       total: 1,
+    });
+  });
+
+  it("records the extractor's own fallback instead of reporting every run as Docling", async () => {
+    vi.stubEnv("DOCLING_URL", "http://docling.test");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            text: "Article premier\n\nContenu.",
+            pages: [{ page_number: 1, text: "Article premier\n\nContenu." }],
+            blocks: [
+              { block_type: "paragraph", text: "Article premier\n\nContenu.", page_number: 1 },
+            ],
+            // Docling raised and the service degraded to poppler with a per-page OCR pass.
+            metadata: { provider: "pdftotext+ocr" },
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        ),
+      ),
+    );
+    const harness = createExtractionHarness();
+
+    await harness.processor.process(harness.queueJob as never);
+
+    // Recording "docling" for a run with no layout labels left no way to ask which revisions
+    // were segmented from flat text and are worth re-extracting.
+    expect(harness.documentVersionUpdate).toHaveBeenCalledWith({
+      where: { id: version.id },
+      data: expect.objectContaining({ extractionMethod: "pdftotext+ocr" }),
+    });
+    expect(harness.processingJobUpdate).toHaveBeenNthCalledWith(2, {
+      where: { id: stage.id },
+      data: expect.objectContaining({
+        status: "COMPLETED",
+        qualityScore: 0.5,
+        outputMetadata: expect.objectContaining({ provider: "pdftotext+ocr" }),
+      }),
     });
   });
 

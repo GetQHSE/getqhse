@@ -22,6 +22,110 @@ retrieval logs.
 8. Evaluate the synthetic French/Arabic dataset, then exercise `POST /v1/normative/search` from an
    authenticated customer session.
 
+## Document extraction quality
+
+The extractor runs one Docling pass per document, then measures the text it produced. A PDF can
+carry a text layer that decodes to nothing recoverable -- subsetted CID fonts with no ToUnicode
+CMap map every glyph to an arbitrary code point -- and Docling's default OCR mode is PDF-aware,
+so it skips regions that already hold text cells and never OCRs those pages. The result is a
+document that passes every character-count check and reaches review as unusable garbage.
+
+The decisive measurement is lexical. Docling's parser rebuilds word spacing from the page
+geometry, so a broken text layer still comes back with ordinary-looking words of ordinary length
+-- "Article" simply arrives as "$UWLFOH". On the two documents in `tests/factories`, function
+words run at 0.03 per thousand characters for the broken law against 39 for a cleanly extracted
+standard; spacing, word length and character class are indistinguishable between them.
+
+When the measured text layer is degenerate (no recognizable words, control characters where
+spaces belong, word spacing lost, words running together, undecodable characters), the document
+is converted a second time
+with `OcrMode.FULL_PAGE`. The second pass is kept only if it is both assessable and no longer
+degenerate; a failed or worse pass leaves the first conversion untouched. Set
+`DOCLING_REPAIR_DEGENERATE_TEXT_LAYER=false` to restore the single-pass behaviour.
+
+The OCR engine is named explicitly as Tesseract with `DOCLING_OCR_LANGUAGES` (default `fra+ara`).
+Docling's automatic engine selection defers to whichever engine it picks, and every one of those
+defaults to European languages only -- Arabic sources were being recognized as French.
+
+Docling's own confidence report is not a substitute for any of this: the broken law converts with
+`confidence_mean_grade = excellent`, because its layout and parse stages both succeeded. Only the
+character mapping behind them failed.
+
+Section-header depth is inferred from PDF bookmarks and outline numbering
+(`DOCLING_INFER_HEADING_HIERARCHY`), with font-size inference switched off -- measured on the
+same law it buckets headings by typography rather than structure. The level rides along on each
+block for diagnostics but deliberately does not drive the heading hierarchy in `@qhse/knowledge`.
+
+Conversions are serialized by `DOCLING_MAX_CONCURRENT_CONVERSIONS` (default 1). Docling's
+converter carries model state that is not safe to drive from several threads at once, and
+FastAPI's threadpool will happily do so.
+
+`text_extraction` records what actually happened. `extractionMethod` on the revision holds the
+provider the extractor reports -- `docling`, `docling+full_page_ocr`, `pdftotext`, or
+`pdftotext+ocr` -- rather than always claiming Docling, and the stage's `qualityScore` grades the
+outcome: 0.9 clean, 0.7/0.6/0.5 for a fair or poor converter confidence, a partial conversion or
+a flat-text fallback, and 0.3 for a text layer that never decoded. Anything below 0.9 also emits
+an `extraction_degraded` log line carrying the measurements. To find revisions worth
+re-extracting, query `document_processing_jobs` for `job_type = 'text_extraction'` with a
+`quality_score` below 0.9.
+
+Model weights are baked into the extractor image. The production compose file mounts
+`docling-cache` over the HuggingFace cache directory: Docker seeds a _newly created_ named volume
+from the image, but an existing one is left alone, so remove that volume when deploying an image
+whose model set changed. Otherwise the container downloads at startup instead -- the service now
+converts a small PDF before reporting ready, so that cost lands on the health check rather than
+on the first real document.
+
+## Chunking
+
+Chunks are budgeted in tokens, not characters, because the corpus is bilingual. Measured against
+`cl100k_base` -- the encoder the `text-embedding-3` models use -- French runs about 4.1 characters
+to a token and Arabic about 1.44. The previous budget counted characters and divided by four,
+which is accurate for French and under-reports Arabic by a factor of nearly three: the same
+6,000-character chunk is roughly 1,450 tokens of French but 4,150 of Arabic. Nothing overflowed
+the model's 8,191-token limit, but an Arabic chunk packed close to three times as much of its
+provision into one 768-dimension vector, and Arabic retrieval was correspondingly coarser.
+
+`estimateTokens` splits a string's characters between the two rates in proportion to its letters,
+which holds to within 3% on French, on Arabic and on text that mixes them, and errs high. The
+metadata prefix is charged against the same budget, because it is embedded along with the
+content. Splits land on paragraph and then sentence boundaries; chunks do not overlap, since a
+chunk is the retrieval index and a hit pulls up its whole provision downstream, so a chunk only
+has to be findable rather than complete.
+
+`chunkingVersion` is `normative-v3`. Chunk boundaries and token counts both changed, so a
+revision chunked under `normative-v2` is not comparable and has to be reprocessed -- reindexing
+alone re-embeds the old boundaries.
+
+## Structure quality
+
+`structure_detection` scores what segmentation produced and records the score as the stage's
+`qualityScore`, with the signals behind it in `outputMetadata`. Segmentation fails quietly --
+it still yields provisions and chunks, just the wrong ones, and nothing downstream notices until
+a reviewer reads them or a citation lands on the wrong article.
+
+The signals are all free, taken from structure the segmenter already computed: identifier
+coverage, fragments (an identified provision under 120 characters is its own heading with the
+body left elsewhere), the share of provisions nobody could cite, how many blocks carried a layout
+label, and -- the one that cannot be argued with -- gaps in the numbering. Articles are
+consecutive by construction, so a missing number is a boundary the segmenter did not find.
+
+Below `STRUCTURE_REVIEW_THRESHOLD` (0.7) the stage logs `structure_quality_low` with its
+concerns. That is the gate to hang an expensive path off: a model-assisted pass over the blocks,
+or a reviewer, should be spent on the documents that score badly rather than on every document.
+To find them: query `document_processing_jobs` for `job_type = 'structure_detection'` with a
+`quality_score` below 0.7.
+
+`pnpm eval:extraction` grades the segmenter against captured extractor output in
+`evals/document-extraction`. It needs no container and no model weights, so it belongs in the
+inner loop rather than at the end of one. Its fixtures record the layouts that actually broke:
+an article whose number and title arrive as two headings, a keyword split from its number by a
+column break, a chapter whose roman numeral OCR read as a lowercase l.
+
+Changing segmentation or identifier normalization does not update revisions that are already
+ingested: `POST /v1/documents/{documentId}/versions/{revisionId}/reindex` only re-embeds. A
+revision has to be reprocessed for new provision boundaries or identifiers to take effect.
+
 ## Accuracy-first regulatory analysis
 
 The regulatory worker uses `OPENAI_REGULATORY_MODEL=gpt-5-mini` and

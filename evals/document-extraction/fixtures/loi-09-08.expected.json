@@ -1,0 +1,39 @@
+{
+  "name": "loi-09-08",
+  "language": "fr",
+  "notes": "Loi 09-08 as the Bulletin officiel publishes it. Its fonts carry no ToUnicode CMap, so the fixture was captured after the extractor's forced full-page OCR pass. Official legislation, committed verbatim.",
+  "minStructureScore": 0.9,
+  "maxFragments": 0,
+  "contiguousNumbering": { "from": 1, "to": 67 },
+  "requiredIdentifiers": [
+    "Article premier",
+    "Article 2",
+    "Article 6",
+    "Article 14",
+    "Article 15",
+    "Article 67"
+  ],
+  "spotChecks": [
+    {
+      "why": "the article number and its title arrive as two separate headings",
+      "identifier": "Article 6",
+      "titleContains": "Limites au droit à l'information",
+      "contentContains": "n'est pas applicable"
+    },
+    {
+      "why": "a column break splits the keyword from its number",
+      "identifier": "Article 14",
+      "contentContains": "responsable du traitement"
+    },
+    {
+      "why": "OCR reads the chapter's roman numeral as a lowercase l",
+      "identifier": "Article 5",
+      "headingPathStartsWith": "Chapitre Il"
+    },
+    {
+      "why": "a chapter governs the articles under it",
+      "identifier": "Article 2",
+      "headingPathStartsWith": "Chapitre premier"
+    }
+  ]
+}

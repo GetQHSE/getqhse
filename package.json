@@ -27,6 +27,8 @@
     "test:contracts": "vitest run --config tests/contracts/vitest.config.ts",
     "test:coverage": "turbo test:coverage",
     "test:docling": "vitest run --config services/docling/integration/vitest.config.ts",
+    "eval:extraction": "vitest run --config evals/document-extraction/vitest.config.ts",
+    "eval:extraction:capture": "tsx evals/document-extraction/capture-fixture.mts",
     "infra:up": "docker compose up -d postgres redis minio minio-init mailpit docling",
     "infra:down": "docker compose down",
     "obs:up": "docker compose up -d loki tempo alloy grafana",

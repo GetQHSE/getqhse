@@ -84,6 +84,18 @@ jobs:
           node-version: 24.17.0
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      # The extractor's segmentation, text-layer and repair logic is pure Python and needs
+      # neither Docling nor its model weights, so it runs before the image is even built.
+      - name: Docling unit tests
+        working-directory: services/docling
+        run: |
+          python -m pip install --quiet pydantic pydantic-settings fastapi
+          python -m unittest discover -s tests -t .
+      # Replays captured extractor output through segmentation. No container, no model weights.
+      - run: pnpm eval:extraction
       - name: Start Docling
         run: |
           mkdir -p artifacts

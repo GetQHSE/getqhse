@@ -1,0 +1,21 @@
+{
+  "name": "nm-22-0-010",
+  "language": "fr",
+  "notes": "Moroccan standard NM 22.0.010. IMANOR licensed content, so the fixture is redacted: headings verbatim, body text replaced by inert filler. It measures boundary detection only.",
+  "minStructureScore": 0.9,
+  "maxFragments": 0,
+  "contiguousNumbering": { "from": 1, "to": 5 },
+  "requiredIdentifiers": ["1", "2", "3", "4", "5", "Annexe"],
+  "spotChecks": [
+    {
+      "why": "a standard numbers its clauses with a single level, not 4.1",
+      "identifier": "1",
+      "titleContains": "OBJET"
+    },
+    {
+      "why": "the contents page repeats every clause heading and must not duplicate them",
+      "identifier": "5",
+      "titleContains": "MARQUAGE"
+    }
+  ]
+}

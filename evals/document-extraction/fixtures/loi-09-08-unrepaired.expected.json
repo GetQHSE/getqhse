@@ -1,0 +1,10 @@
+{
+  "name": "loi-09-08-unrepaired",
+  "language": "fr",
+  "notes": "The same law before the extractor's OCR repair. Its layout is perfect and its text is not language: Docling rebuilt the word spacing from the page geometry, so spacing, word length and character class all look ordinary while every glyph decoded wrong. This fixture exists to prove the quality gate refuses it -- if it ever scores well, the gate has stopped working.",
+  "expectDegraded": true,
+  "maxStructureScore": 0.5,
+  "maxFragments": 999,
+  "requiredIdentifiers": [],
+  "expectedConcern": "no provision carries an article or clause identifier"
+}
