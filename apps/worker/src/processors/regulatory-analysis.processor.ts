@@ -1648,7 +1648,10 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
               maxOutputTokens: limits.maxOutputTokens,
               maxRetries: 0,
               providerOptions: regulatoryProviderOptions({
-                reasoningEffort: "none",
+                // Triage is a yes/no/unsure sort against a short excerpt, so it gets the cheapest
+                // reasoning the gpt-5 family offers. It is "minimal" rather than "none" because
+                // the models this stage runs on reject "none" outright.
+                reasoningEffort: "minimal",
                 promptCacheKey: `regulatory-triage:${run.id}`,
               }),
               telemetry: { isEnabled: false },
@@ -1911,8 +1914,9 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
             providerOptions: regulatoryProviderOptions({
               // Verification is a containment check that runs only after
               // validateRequirementDraft has already confirmed every excerpt is a verbatim
-              // substring of the source, so it has nothing left to reason about.
-              reasoningEffort: context.stage === "verification" ? "none" : reasoningEffort,
+              // substring of the source, so it has almost nothing left to reason about. The
+              // gpt-5 family rejects "none", so the floor here is "minimal".
+              reasoningEffort: context.stage === "verification" ? "minimal" : reasoningEffort,
               promptCacheKey: `regulatory-${context.stage}:${run.id}`,
             }),
             telemetry: { isEnabled: false },

@@ -1,4 +1,5 @@
 import { llmSettings } from "@qhse/ai";
+import type { LlmReasoningEffort } from "@qhse/config";
 
 // The Responses API scaffolding plus the structured-output JSON schema. The largest schema this
 // pipeline sends (classification) serializes to ~1.1KB / ~350 tokens, so this is several times
@@ -96,7 +97,7 @@ export function regulatoryCostMicroUsd(usage: RegulatoryTokenUsage, model: strin
 // to one cache prefix: the system prompt plus the run's profile snapshot is identical across
 // every candidate, so explicit keying turns best-effort implicit caching into reliable hits.
 export function regulatoryProviderOptions(input: {
-  reasoningEffort: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+  reasoningEffort: LlmReasoningEffort;
   promptCacheKey: string;
 }): {
   openai: {
