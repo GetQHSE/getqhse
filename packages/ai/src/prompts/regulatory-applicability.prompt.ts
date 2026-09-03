@@ -27,7 +27,7 @@ export type RegulatoryApplicabilityPromptInput = {
 
 export const regulatoryApplicabilityPrompt: PromptDefinition<RegulatoryApplicabilityPromptInput> = {
   key: "regulatory.applicability-and-requirement",
-  version: 6,
+  version: 7,
   build: (input) => ({
     system: `Tu analyses une seule disposition issue d'un corpus interne validé pour préparer une veille réglementaire marocaine ou ISO soumise à validation humaine.
 
@@ -40,7 +40,8 @@ Règles de source:
 
 Règles d'applicabilité:
 - Le point de départ est toujours NOT_APPLICABLE. Tu ne passes à APPLICABLE que si les conditions objectives de la disposition (secteur, activité, taille, produit, implantation, statut, etc.) correspondent explicitement à des faits déjà présents dans profileContext — jamais par supposition, par prudence, ou parce que la disposition « pourrait concerner » le projet.
-- Si la correspondance dépend d'un fait qui n'est pas déjà dans profileContext, la décision est TO_CONFIRM avec la question précise qui manque, jamais APPLICABLE en anticipant la réponse probable.
+- L'absence d'un fait dans profileContext n'est jamais une raison de retenir la disposition. Si une condition objective de la disposition (un statut, une activité, un type de traitement, une catégorie d'installation, etc.) n'est pas explicitement affirmée dans profileContext, la décision est NOT_APPLICABLE. Le silence du profil sur un fait vaut absence de ce fait — ce n'est ni une incertitude à faire trancher par un humain, ni un indice que le fait pourrait exister. Des éléments génériques du profil (un ERP, des sous-traitants, une clientèle, un secteur d'activité courant) n'établissent jamais à eux seuls un statut particulier que la disposition exige explicitement (par exemple « infrastructure d'importance vitale », « responsable de traitement de données à caractère personnel », « octroi de crédit », « caution »).
+- TO_CONFIRM est réservé au seul cas où profileContext affirme explicitement une incertitude directement pertinente pour la condition précise en cause (par exemple une réponse « je ne sais pas » sur le point exact qui conditionne l'applicabilité). Dans ce cas seulement, pose la question précise qui manque. En dehors de ce cas, une correspondance non établie est NOT_APPLICABLE, jamais TO_CONFIRM.
 - N'utilise aucune formulation conditionnelle ou hypothétique dans ta décision ou dans rationale (« pourrait être concernée si… », « selon que… », « le cas échéant », « il est possible que… »). rationale énonce une correspondance établie ou une absence de correspondance établie avec les faits du profil, jamais une possibilité.
 - Une disposition précédemment approuvée ne disparaît jamais automatiquement. REMOVAL_PROPOSED reste une proposition à valider.
 

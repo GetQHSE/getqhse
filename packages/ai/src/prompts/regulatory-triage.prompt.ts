@@ -16,19 +16,19 @@ export type RegulatoryTriagePromptInput = {
 
 export const regulatoryTriagePrompt: PromptDefinition<RegulatoryTriagePromptInput> = {
   key: "regulatory.triage",
-  version: 2,
+  version: 3,
   build: (input) => ({
     system: `Tu effectues un tri rapide et peu coûteux d'un lot de dispositions issues d'un corpus normatif, avant leur analyse détaillée par un autre modèle.
 
-Pour chaque disposition du lot, réponds uniquement: est-elle plausiblement applicable aux activités et au périmètre du projet décrit dans profileContext ?
-- YES: l'extrait, le titre ou headingPath rattache la disposition aux activités, au secteur, aux produits ou au périmètre du projet.
-- NO: l'extrait, le titre ou headingPath montre que la disposition gouverne un autre secteur d'activité, un autre territoire, une autre catégorie d'installation ou un autre type d'acteur que ceux du profil.
-- UNSURE: l'extrait fourni ne dit pas assez pour trancher dans un sens ou dans l'autre.
+Pour chaque disposition du lot, réponds uniquement: la ou les conditions posées par l'extrait sont-elles explicitement satisfaites par des faits déjà présents dans profileContext ?
+- YES: l'extrait pose une condition (secteur, activité, produit, statut, type de traitement, périmètre, etc.) et profileContext affirme explicitement ce fait pour le projet.
+- NO: l'extrait pose une condition que profileContext ne confirme pas — soit parce que profileContext décrit un autre secteur, territoire ou type d'acteur, soit parce que profileContext ne mentionne tout simplement pas le fait ou le statut exigé. Des éléments génériques du profil (un ERP, des sous-traitants, une clientèle, un secteur d'activité courant) ne suffisent jamais à eux seuls à établir un statut particulier que l'extrait exige explicitement (par exemple « infrastructure d'importance vitale », « traitement de données à caractère personnel », « octroi de crédit »). Le silence du profil sur une condition vaut absence de cette condition.
+- UNSURE: l'extrait lui-même ne dit pas assez pour identifier QUELLE condition il pose — pas pour savoir si le profil la satisfait.
 
-Calibre ta réponse sur ce que l'extrait montre réellement:
-- Réponds NO quand l'extrait est explicite sur un domaine d'application qui n'est pas celui du projet. Un extrait clair ne devient pas UNSURE au motif qu'il ne détaille pas tout le texte de la disposition.
-- Réserve UNSURE aux extraits réellement peu informatifs: un intitulé seul, un renvoi à un autre article, un fragment tronqué, ou une portée qui dépend d'un seuil ou d'une condition absente de l'extrait.
-- Ce tri reste volontairement approximatif et l'erreur n'a pas le même coût des deux côtés: un NO incorrect fait perdre une exigence réelle du projet, un UNSURE coûte seulement une analyse détaillée supplémentaire. À doute égal, réponds donc UNSURE plutôt que NO.
+Calibre ta réponse sur ce que profileContext établit réellement, pas sur ce que le projet pourrait plausiblement faire:
+- Réponds NO dès que la condition posée par l'extrait n'est pas explicitement affirmée dans profileContext, que ce soit par contradiction ou par simple silence. Un extrait clair sur sa condition ne devient pas UNSURE au seul motif que le profil ne la confirme pas.
+- Réserve UNSURE aux extraits qui ne permettent même pas de formuler la condition à vérifier: un intitulé seul, un renvoi à un autre article, ou un fragment tronqué.
+- Ce tri est volontaire: NO signifie que rien dans le profil ne rattache la disposition au projet, pas que son inapplicabilité est prouvée hors de tout doute. C'est le résultat recherché — seules les correspondances établies survivent à l'analyse détaillée.
 
 Ne rédige aucune exigence, ne cite aucun extrait, ne justifie pas ta réponse.
 
