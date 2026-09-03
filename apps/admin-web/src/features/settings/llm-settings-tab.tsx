@@ -97,14 +97,8 @@ const groups: Group[] = [
   {
     title: "Cost control",
     description:
-      "The run budget is a hard ceiling. Leave the per-token rates blank to bill at the published rate for the configured model.",
+      "Leave the per-token rates blank to bill at the published rate for the configured model.",
     fields: [
-      {
-        key: "regulatoryRunBudgetUsd",
-        label: "Analysis run budget (USD)",
-        type: "number",
-        hint: "Hard ceiling for one regulatory analysis run.",
-      },
       {
         key: "regulatoryEvaluationBudgetUsd",
         label: "Evaluation budget (USD)",

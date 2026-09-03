@@ -11,7 +11,6 @@ import {
   isVerbatimRequirement,
   matchProvisionRevision,
   regulatoryClassificationProgress,
-  reservationOutcome,
   regulatoryCostMicroUsd,
   batchForTriage,
   isMissingProvisionForeignKeyError,
@@ -36,53 +35,6 @@ import {
   regulatoryTriageModel,
 } from "./regulatory-model-cost.js";
 import { regulatoryProvisionGoldenFixtures } from "./fixtures/regulatory-provisions.golden.js";
-
-describe("budget exhaustion versus reservation contention", () => {
-  const budgetMicroUsd = 1_000_000;
-
-  it("admits a call that fits against everything already committed", () => {
-    expect(
-      reservationOutcome(
-        { spentMicroUsd: 500_000, reservedMicroUsd: 100_000, budgetMicroUsd },
-        50_000,
-      ),
-    ).toBe("FITS");
-  });
-
-  it("stops the run when the call cannot fit even with nothing in flight", () => {
-    // Spend is permanent, so no amount of waiting frees room for this call.
-    expect(
-      reservationOutcome({ spentMicroUsd: 990_000, reservedMicroUsd: 0, budgetMicroUsd }, 50_000),
-    ).toBe("EXHAUSTED");
-    expect(
-      reservationOutcome(
-        { spentMicroUsd: 990_000, reservedMicroUsd: 500_000, budgetMicroUsd },
-        50_000,
-      ),
-    ).toBe("EXHAUSTED");
-  });
-
-  it("waits when only in-flight reservations are in the way", () => {
-    // 400k spent + 50k for this call fits inside the budget; it is the peers' 580k of
-    // conservative reservations that does not, and every one of those will be released.
-    expect(
-      reservationOutcome(
-        { spentMicroUsd: 400_000, reservedMicroUsd: 580_000, budgetMicroUsd },
-        50_000,
-      ),
-    ).toBe("CONTENDED");
-  });
-
-  it("never admits a call that would take the run past its ceiling", () => {
-    // The boundary: exactly at the ceiling is allowed, one micro-dollar past it is not.
-    expect(
-      reservationOutcome({ spentMicroUsd: 900_000, reservedMicroUsd: 0, budgetMicroUsd }, 100_000),
-    ).toBe("FITS");
-    expect(
-      reservationOutcome({ spentMicroUsd: 900_000, reservedMicroUsd: 0, budgetMicroUsd }, 100_001),
-    ).toBe("EXHAUSTED");
-  });
-});
 
 describe("conservative reservation sizing", () => {
   const bytesOf = (text: string) => Buffer.byteLength(text, "utf8");
@@ -582,152 +534,19 @@ describe("regulatory model-call ledger", () => {
     );
   });
 
-  it("retries past reservations held by in-flight peers and succeeds once they settle", async () => {
-    vi.useFakeTimers();
-    try {
-      const processor = new RegulatoryAnalysisProcessor();
-      const prompt = { system: "system", context: "context" };
-      const maxOutputTokens = 12_000;
-      const model = "gpt-5-mini";
-      const reservedMicroUsd = computeCallCost(
-        { inputTokens: conservativeInputTokens(prompt), outputTokens: maxOutputTokens },
-        model,
-      );
-      const budgetMicroUsd = reservedMicroUsd + 1_000;
-      // First attempt: a peer's reservation alone pushes this call over budget, but spend by
-      // itself would still leave room — CONTENDED, not EXHAUSTED, so the reserve should retry
-      // rather than give up.
-      const contended = {
-        status: "RUNNING",
-        budgetMicroUsd,
-        spentMicroUsd: 0,
-        reservedMicroUsd: budgetMicroUsd,
-      };
-      // Second attempt: the peer settled and freed its reservation.
-      const clear = { status: "RUNNING", budgetMicroUsd, spentMicroUsd: 0, reservedMicroUsd: 0 };
-      const create = vi.fn().mockResolvedValue({ id: "call-1" });
-      const runUpdate = vi.fn().mockResolvedValue({});
-      const queryRaw = vi.fn().mockResolvedValueOnce([contended]).mockResolvedValueOnce([clear]);
-      const transactionClient = {
-        $queryRaw: queryRaw,
-        regulatoryAnalysisRun: { update: runUpdate },
-        regulatoryModelCall: { create },
-      };
-      (processor as unknown as { database: object }).database = {
-        $transaction: vi.fn(async (callback: (tx: typeof transactionClient) => Promise<unknown>) =>
-          callback(transactionClient),
-        ),
-      };
-      const reserve = (
-        processor as unknown as {
-          reserveModelCall(
-            input: Record<string, unknown>,
-          ): Promise<{ id: string; reservedMicroUsd: number }>;
-        }
-      ).reserveModelCall.bind(processor);
-
-      const pending = reserve({
-        runId: "run-1",
-        provisionId: "article-1",
-        clarificationRevision: 0,
-        stage: "drafting",
-        attempt: 1,
-        model,
-        prompt,
-        maxOutputTokens,
-      });
-      // Lets the first CONTENDED attempt run, then fast-forwards past its backoff (base delay
-      // plus the full jitter window, since the actual sleep is randomized) so the retry fires
-      // without the test actually waiting real seconds.
-      await vi.advanceTimersByTimeAsync(7_000);
-      const reservation = await pending;
-
-      expect(reservation).toEqual({ id: "call-1", model, reservedMicroUsd });
-      expect(queryRaw).toHaveBeenCalledTimes(2);
-      expect(create).toHaveBeenCalledTimes(1);
-    } finally {
-      vi.useRealTimers();
-    }
-  });
-
-  it("gives up once contention outlasts every retry, without ever finding room to spend", async () => {
-    vi.useFakeTimers();
-    try {
-      const processor = new RegulatoryAnalysisProcessor();
-      const prompt = { system: "system", context: "context" };
-      const maxOutputTokens = 12_000;
-      const model = "gpt-5-mini";
-      const reservedMicroUsd = computeCallCost(
-        { inputTokens: conservativeInputTokens(prompt), outputTokens: maxOutputTokens },
-        model,
-      );
-      const budgetMicroUsd = reservedMicroUsd + 1_000;
-      // Always contended, never exhausted by spend alone: a saturated but genuinely solvent run.
-      const contended = {
-        status: "RUNNING",
-        budgetMicroUsd,
-        spentMicroUsd: 0,
-        reservedMicroUsd: budgetMicroUsd,
-      };
-      const create = vi.fn();
-      const queryRaw = vi.fn().mockResolvedValue([contended]);
-      const transactionClient = {
-        $queryRaw: queryRaw,
-        regulatoryAnalysisRun: { update: vi.fn().mockResolvedValue({}) },
-        regulatoryModelCall: { create },
-      };
-      (processor as unknown as { database: object }).database = {
-        $transaction: vi.fn(async (callback: (tx: typeof transactionClient) => Promise<unknown>) =>
-          callback(transactionClient),
-        ),
-      };
-      const reserve = (
-        processor as unknown as {
-          reserveModelCall(input: Record<string, unknown>): Promise<unknown>;
-        }
-      ).reserveModelCall.bind(processor);
-
-      const pending = reserve({
-        runId: "run-1",
-        provisionId: "article-1",
-        clarificationRevision: 0,
-        stage: "drafting",
-        attempt: 1,
-        model,
-        prompt,
-        maxOutputTokens,
-      });
-      const assertion = expect(pending).rejects.toThrow("budget is exhausted");
-      // BUDGET_CONTENTION_MAX_ATTEMPTS is 6, each attempt separated by a jittered ~5-7s backoff.
-      await vi.advanceTimersByTimeAsync(6 * 7_000);
-      await assertion;
-      expect(queryRaw).toHaveBeenCalledTimes(6);
-      expect(create).not.toHaveBeenCalled();
-    } finally {
-      vi.useRealTimers();
-    }
-  });
-
-  it("stops before creating a call whose reservation would exceed the run budget", async () => {
+  it("reserves a call by creating its ledger row and incrementing the run's reserved total", async () => {
     const processor = new RegulatoryAnalysisProcessor();
-    const create = vi.fn();
+    const prompt = { system: "system", context: "context" };
+    const maxOutputTokens = 12_000;
+    const model = "gpt-5-mini";
+    const reservedMicroUsd = computeCallCost(
+      { inputTokens: conservativeInputTokens(prompt), outputTokens: maxOutputTokens },
+      model,
+    );
+    const create = vi.fn().mockResolvedValue({ id: "call-1" });
+    const runUpdate = vi.fn().mockResolvedValue({});
     const transactionClient = {
-      $queryRaw: vi.fn().mockResolvedValue([
-        {
-          status: "RUNNING",
-          budgetMicroUsd: 10_000,
-          spentMicroUsd: 9_900,
-          reservedMicroUsd: 0,
-        },
-      ]),
-      regulatoryAnalysisRun: {
-        findUnique: vi.fn().mockResolvedValue({
-          status: "RUNNING",
-          budgetMicroUsd: 10_000,
-          spentMicroUsd: 9_900,
-          reservedMicroUsd: 0,
-        }),
-      },
+      regulatoryAnalysisRun: { update: runUpdate },
       regulatoryModelCall: { create },
     };
     (processor as unknown as { database: object }).database = {
@@ -737,23 +556,30 @@ describe("regulatory model-call ledger", () => {
     };
     const reserve = (
       processor as unknown as {
-        reserveModelCall(input: Record<string, unknown>): Promise<unknown>;
+        reserveModelCall(
+          input: Record<string, unknown>,
+        ): Promise<{ id: string; reservedMicroUsd: number }>;
       }
     ).reserveModelCall.bind(processor);
 
-    await expect(
-      reserve({
-        runId: "run-1",
-        provisionId: "article-1",
-        clarificationRevision: 0,
-        stage: "drafting",
-        attempt: 1,
-        model: "gpt-5-mini",
-        prompt: { system: "system", context: "context" },
-        maxOutputTokens: 12_000,
+    const reservation = await reserve({
+      runId: "run-1",
+      provisionId: "article-1",
+      clarificationRevision: 0,
+      stage: "drafting",
+      attempt: 1,
+      model,
+      prompt,
+      maxOutputTokens,
+    });
+
+    expect(reservation).toEqual({ id: "call-1", model, reservedMicroUsd });
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(runUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: { reservedMicroUsd: { increment: reservedMicroUsd } },
       }),
-    ).rejects.toThrow("budget is exhausted");
-    expect(create).not.toHaveBeenCalled();
+    );
   });
 });
 

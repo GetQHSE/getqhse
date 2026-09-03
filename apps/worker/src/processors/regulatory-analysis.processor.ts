@@ -85,13 +85,6 @@ type ReservedModelCall = {
   reservedMicroUsd: number;
 };
 
-class RegulatoryBudgetLimitError extends Error {
-  constructor() {
-    super("The regulatory analysis budget is exhausted");
-    this.name = "RegulatoryBudgetLimitError";
-  }
-}
-
 const TRIAGE_PROGRESS_START = 35;
 const TRIAGE_PROGRESS_END = 50;
 const CLASSIFICATION_PROGRESS_START = 50;
@@ -115,35 +108,14 @@ function regulatoryTokensPerMinute(): number {
   return positiveNumber("REGULATORY_TOKENS_PER_MINUTE", REGULATORY_TOKENS_PER_MINUTE_FALLBACK);
 }
 
-// A reservation bounds a call's cost from above, so several lanes running at once hold far more
-// budget than they will end up spending. Near the end of a run that peak can reject a call the
-// run could actually afford, which used to end the whole classification and publish a partial
-// result. Budget genuinely spent is permanent and still stops the run immediately; budget merely
-// held by an in-flight call frees itself when that call settles, so it is worth waiting out.
-const BUDGET_CONTENTION_MAX_ATTEMPTS = 6;
-const BUDGET_CONTENTION_DELAY_MS = 5_000;
-// Concurrent lanes (classification, triage batches, and now retrieval queries) can all hit a 429
-// or budget contention in the same instant. Retrying at an identical fixed delay just collides
-// them again on the next attempt; spreading the next attempt over a random window means most of
-// them succeed without a second round of contention.
+// Concurrent lanes (classification, triage batches, and retrieval queries) can all hit a 429 in
+// the same instant. Retrying at an identical fixed delay just collides them again on the next
+// attempt; spreading the next attempt over a random window means most of them succeed without a
+// second round of contention.
 const RETRY_JITTER_MS = 2_000;
 
 export function jitteredDelay(baseMs: number, jitterMs: number = RETRY_JITTER_MS): number {
   return baseMs + Math.round(Math.random() * jitterMs);
-}
-
-type ReservationRefused = "EXHAUSTED" | "CONTENDED";
-
-// Distinguishes the two ways a budget check fails: EXHAUSTED means the call cannot fit even with
-// nothing in flight, CONTENDED means it only fails against reservations that will be released.
-export function reservationOutcome(
-  run: { spentMicroUsd: number; reservedMicroUsd: number; budgetMicroUsd: number },
-  reservedMicroUsd: number,
-): "FITS" | "EXHAUSTED" | "CONTENDED" {
-  if (run.spentMicroUsd + run.reservedMicroUsd + reservedMicroUsd <= run.budgetMicroUsd) {
-    return "FITS";
-  }
-  return run.spentMicroUsd + reservedMicroUsd > run.budgetMicroUsd ? "EXHAUSTED" : "CONTENDED";
 }
 
 function sleep(ms: number): Promise<void> {
@@ -585,83 +557,31 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
       { inputTokens: conservativeInputTokens(input.prompt), outputTokens: input.maxOutputTokens },
       input.model,
     );
-    const claim = async (): Promise<ReservedModelCall | ReservationRefused> =>
-      this.database.$transaction(async (tx) => {
-        // Locks the run row for the transaction so concurrent candidate classifications
-        // can't all read the same spent/reserved snapshot and jointly overshoot the budget.
-        const [run] = await tx.$queryRaw<
-          Array<{
-            status: string;
-            budgetMicroUsd: number;
-            spentMicroUsd: number;
-            reservedMicroUsd: number;
-          }>
-        >(Prisma.sql`
-        SELECT status, budget_micro_usd AS "budgetMicroUsd", spent_micro_usd AS "spentMicroUsd",
-          reserved_micro_usd AS "reservedMicroUsd"
-        FROM regulatory_analysis_runs WHERE id = ${input.runId} FOR UPDATE
-      `);
-        if (!run || run.status !== "RUNNING") return "EXHAUSTED";
-        const outcome = reservationOutcome(run, reservedMicroUsd);
-        if (outcome !== "FITS") return outcome;
-        const call = await tx.regulatoryModelCall.create({
-          data: {
-            runId: input.runId,
-            provisionId: input.provisionId,
-            clarificationRevision: input.clarificationRevision,
-            stage: input.stage,
-            attempt: input.attempt,
-            model: input.model,
-            reservedMicroUsd,
-          },
-          select: { id: true },
-        });
-        await tx.regulatoryAnalysisRun.update({
-          where: { id: input.runId },
-          data: { reservedMicroUsd: { increment: reservedMicroUsd } },
-        });
-        return { id: call.id, model: input.model, reservedMicroUsd };
-      });
-    return this.claimWithinBudget(claim, {
-      runId: input.runId,
-      stage: input.stage,
-      provisionId: input.provisionId,
-      reservedMicroUsd,
-    });
-  }
-
-  // Retries a reservation that only lost to in-flight peers, and gives up immediately once the
-  // budget is really spent. Every lane that waits here has a peer holding a reservation that
-  // will settle, so the wait always has something to wait for.
-  private async claimWithinBudget<T>(
-    claim: () => Promise<T | ReservationRefused>,
-    context: { runId: string; stage: string; provisionId?: string; reservedMicroUsd: number },
-  ): Promise<T> {
-    for (let attempt = 1; ; attempt += 1) {
-      const outcome = await claim();
-      if (outcome !== "EXHAUSTED" && outcome !== "CONTENDED") return outcome;
-      if (outcome === "EXHAUSTED" || attempt >= BUDGET_CONTENTION_MAX_ATTEMPTS) {
-        throw new RegulatoryBudgetLimitError();
-      }
-      const delayMs = jitteredDelay(BUDGET_CONTENTION_DELAY_MS);
-      this.logger.info(
-        {
-          event: "regulatory_budget_contention",
-          ...context,
-          attempt,
-          delayMs,
+    const call = await this.database.$transaction(async (tx) => {
+      const created = await tx.regulatoryModelCall.create({
+        data: {
+          runId: input.runId,
+          provisionId: input.provisionId,
+          clarificationRevision: input.clarificationRevision,
+          stage: input.stage,
+          attempt: input.attempt,
+          model: input.model,
+          reservedMicroUsd,
         },
-        "regulatory model call is waiting for an in-flight reservation to settle",
-      );
-      await sleep(delayMs);
-    }
+        select: { id: true },
+      });
+      await tx.regulatoryAnalysisRun.update({
+        where: { id: input.runId },
+        data: { reservedMicroUsd: { increment: reservedMicroUsd } },
+      });
+      return created;
+    });
+    return { id: call.id, model: input.model, reservedMicroUsd };
   }
 
   // One triage call covers a batch of provisions, but the ledger's regulatory_model_call
-  // rows are per-provision. Reserve the batch's total cost once (one lock, one budget
-  // check), then record it as one ledger row per provisionId with its even split of the
-  // reservation, so the run's budget accounting stays exact and per-provision cost stays
-  // queryable like every other stage.
+  // rows are per-provision. Record it as one ledger row per provisionId with its even split of
+  // the reservation, so per-provision cost stays queryable like every other stage.
   private async reserveTriageBatchCall(input: {
     runId: string;
     provisionIds: string[];
@@ -676,49 +596,28 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
       input.model,
     );
     const shares = splitReservedCost(totalReservedMicroUsd, input.provisionIds.length);
-    const claim = async (): Promise<{ ids: string[]; shares: number[] } | ReservationRefused> =>
-      this.database.$transaction(async (tx) => {
-        const [run] = await tx.$queryRaw<
-          Array<{
-            status: string;
-            budgetMicroUsd: number;
-            spentMicroUsd: number;
-            reservedMicroUsd: number;
-          }>
-        >(Prisma.sql`
-        SELECT status, budget_micro_usd AS "budgetMicroUsd", spent_micro_usd AS "spentMicroUsd",
-          reserved_micro_usd AS "reservedMicroUsd"
-        FROM regulatory_analysis_runs WHERE id = ${input.runId} FOR UPDATE
-      `);
-        if (!run || run.status !== "RUNNING") return "EXHAUSTED";
-        const outcome = reservationOutcome(run, totalReservedMicroUsd);
-        if (outcome !== "FITS") return outcome;
-        const ids: string[] = [];
-        for (const [index, provisionId] of input.provisionIds.entries()) {
-          const call = await tx.regulatoryModelCall.create({
-            data: {
-              runId: input.runId,
-              provisionId,
-              clarificationRevision: input.clarificationRevision,
-              stage: "triage",
-              attempt: input.attempt,
-              model: input.model,
-              reservedMicroUsd: shares[index]!,
-            },
-            select: { id: true },
-          });
-          ids.push(call.id);
-        }
-        await tx.regulatoryAnalysisRun.update({
-          where: { id: input.runId },
-          data: { reservedMicroUsd: { increment: totalReservedMicroUsd } },
+    return this.database.$transaction(async (tx) => {
+      const ids: string[] = [];
+      for (const [index, provisionId] of input.provisionIds.entries()) {
+        const call = await tx.regulatoryModelCall.create({
+          data: {
+            runId: input.runId,
+            provisionId,
+            clarificationRevision: input.clarificationRevision,
+            stage: "triage",
+            attempt: input.attempt,
+            model: input.model,
+            reservedMicroUsd: shares[index]!,
+          },
+          select: { id: true },
         });
-        return { ids, shares };
+        ids.push(call.id);
+      }
+      await tx.regulatoryAnalysisRun.update({
+        where: { id: input.runId },
+        data: { reservedMicroUsd: { increment: totalReservedMicroUsd } },
       });
-    return this.claimWithinBudget(claim, {
-      runId: input.runId,
-      stage: "triage",
-      reservedMicroUsd: totalReservedMicroUsd,
+      return { ids, shares };
     });
   }
 
@@ -1183,11 +1082,6 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
       "regulatory triage started",
     );
     const triage = await this.triageAdditions(run, discoveredAdditions, job);
-    if (triage.budgetExhausted) {
-      if (!(await this.stillCurrent(run.id))) return;
-      await this.completePartial(run.id, run.watchId, job);
-      return;
-    }
     const additions = triage.survivors;
     this.logger.info(
       {
@@ -1277,11 +1171,6 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
       },
       "regulatory provision classification finished",
     );
-    if (classification.budgetExhausted) {
-      if (!(await this.stillCurrent(run.id))) return;
-      await this.completePartial(run.id, run.watchId, job);
-      return;
-    }
     const byProvision = new Map(classified.map((item) => [item.provisionId, item]));
     for (const candidate of toClassify) {
       if (!byProvision.has(candidate.provisionId)) {
@@ -1613,8 +1502,8 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
     },
     additions: CandidateInput[],
     job: Job<JobEnvelope>,
-  ): Promise<{ survivors: CandidateInput[]; budgetExhausted: boolean }> {
-    if (!additions.length) return { survivors: [], budgetExhausted: false };
+  ): Promise<{ survivors: CandidateInput[] }> {
+    if (!additions.length) return { survivors: [] };
     const includeUnsure = llmSettings().triageIncludeUnsure;
     const batchSize = Math.round(positiveNumber("REGULATORY_TRIAGE_BATCH_SIZE", 25));
     // Triage only pays for itself when its NO is trustworthy, and a 600-character window was
@@ -1631,10 +1520,9 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
     const decisions: TriageDecision[] = [];
     // Batches are independent triage questions: the only shared state a lane touches is the
     // `decisions` push (synchronous, no `await` inside it, so concurrent lanes cannot interleave
-    // mid-write) and the budget/cancellation flags below. Sequential batches used to serialize a
+    // mid-write) and the cancellation flag below. Sequential batches used to serialize a
     // profile's worth of network round trips — including every rate-limit retry — before
     // classification could even begin.
-    let budgetExhausted = false;
     let cancelled = false;
     let completedBatches = 0;
 
@@ -1671,14 +1559,6 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
           maxOutputTokens: limits.maxOutputTokens,
         });
       } catch (error) {
-        if (error instanceof RegulatoryBudgetLimitError) {
-          this.logger.warn(
-            { event: "regulatory_triage_budget_exhausted", runId: run.id, jobId: job.id },
-            "regulatory triage stopped before exceeding its run budget",
-          );
-          budgetExhausted = true;
-          return;
-        }
         if (!isMissingProvisionForeignKeyError(error)) throw error;
         this.logger.warn(
           {
@@ -1859,7 +1739,7 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
     let batchCursor = 0;
     const batchWorker = async (): Promise<void> => {
       for (;;) {
-        if (cancelled || budgetExhausted) return;
+        if (cancelled) return;
         if (batchCursor >= batches.length) return;
         const batchIndex = batchCursor;
         batchCursor += 1;
@@ -1874,12 +1754,7 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
     );
     if (failure) throw failure.reason;
 
-    if (budgetExhausted) return { survivors: [], budgetExhausted: true };
-
-    return {
-      survivors: selectTriageSurvivors(additions, decisions, includeUnsure),
-      budgetExhausted: false,
-    };
+    return { survivors: selectTriageSurvivors(additions, decisions, includeUnsure) };
   }
 
   private async classifyProvisions(
@@ -1901,8 +1776,8 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
     candidates: CandidateInput[],
     profileChanges: Array<{ key: string; previous: unknown; current: unknown }>,
     job: Job<JobEnvelope>,
-  ): Promise<{ results: ClassifiedCandidate[]; budgetExhausted: boolean }> {
-    if (!candidates.length) return { results: [], budgetExhausted: false };
+  ): Promise<{ results: ClassifiedCandidate[] }> {
+    if (!candidates.length) return { results: [] };
     const model = regulatoryPrimaryModel();
     const reasoningEffort = llmSettings().regulatoryReasoningEffort;
     const results: ClassifiedCandidate[] = [];
@@ -2114,7 +1989,6 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
 
     let completedCount = 0;
     let cancelled = false;
-    let budgetExhausted = false;
 
     const processCandidate = async (
       candidateIndex: number,
@@ -2316,8 +2190,7 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
           // fails outright (rate limits exhausted, or a model that reasoned through its whole
           // output budget without emitting the schema — NoOutputGeneratedError) — one candidate's
           // independent verifier hiccup must not discard every other candidate this run already
-          // classified. Budget exhaustion is the one exception: it has to keep propagating so the
-          // run stops cleanly instead of continuing to spend past its ceiling.
+          // classified.
           let verification: z.infer<typeof verificationSchema> | null = null;
           try {
             verification = await generate(verificationPrompt, verificationSchema, {
@@ -2328,7 +2201,6 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
               stage: "verification",
             });
           } catch (error) {
-            if (error instanceof RegulatoryBudgetLimitError) throw error;
             this.logger.warn(
               {
                 event: "regulatory_verification_call_failed",
@@ -2405,12 +2277,11 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
 
     // Bounded worker pool: each lane pulls the next candidate off a shared cursor so up to
     // CLASSIFICATION_CONCURRENCY provisions are drafted/verified concurrently instead of one
-    // at a time. Budget reservation is safe under this concurrency because reserveModelCall
-    // locks the run row (SELECT ... FOR UPDATE) for its check-and-increment transaction.
+    // at a time.
     let cursor = 0;
     const worker = async (): Promise<void> => {
       for (;;) {
-        if (cancelled || budgetExhausted) return;
+        if (cancelled) return;
         if (!(await this.stillCurrent(run.id))) {
           cancelled = true;
           return;
@@ -2422,10 +2293,6 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
         try {
           await processCandidate(candidateIndex, candidate);
         } catch (error) {
-          if (error instanceof RegulatoryBudgetLimitError) {
-            budgetExhausted = true;
-            return;
-          }
           if (isMissingProvisionForeignKeyError(error)) {
             this.logger.warn(
               {
@@ -2537,21 +2404,8 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
     );
     if (failure) throw failure.reason;
 
-    if (budgetExhausted) {
-      this.logger.warn(
-        {
-          event: "regulatory_budget_exhausted",
-          runId: run.id,
-          jobId: job.id,
-          completed: results.length,
-          total: candidates.length,
-        },
-        "regulatory analysis stopped before exceeding its run budget",
-      );
-      return { results, budgetExhausted: true };
-    }
     if (cancelled) {
-      return { results, budgetExhausted: false };
+      return { results };
     }
     await this.database.regulatoryAnalysisRun.update({
       where: { id: run.id },
@@ -2561,7 +2415,7 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
         promptVersion: regulatoryApplicabilityPrompt.version,
       },
     });
-    return { results, budgetExhausted: false };
+    return { results };
   }
 
   private async persistCandidate(
@@ -2623,46 +2477,6 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
     for (const candidate of candidates) {
       await this.persistCandidate(runId, clarificationRevision, candidate);
     }
-  }
-
-  private async completePartial(
-    runId: string,
-    watchId: string,
-    job: Job<JobEnvelope>,
-  ): Promise<void> {
-    const run = await this.database.regulatoryAnalysisRun.findUnique({
-      where: { id: runId },
-      select: { completedProvisions: true, totalProvisions: true },
-    });
-    const completed = run?.completedProvisions ?? 0;
-    const total = run?.totalProvisions ?? 0;
-    const progress = regulatoryClassificationProgress(completed, total);
-    const now = new Date();
-    await this.database.$transaction([
-      this.database.regulatoryAnalysisRun.update({
-        where: { id: runId },
-        data: {
-          status: "PARTIAL",
-          phase: "budget-limit",
-          progressPercent: progress,
-          errorCode: "REGULATORY_BUDGET_LIMIT",
-          errorMessage: "The run stopped before another model call to preserve its budget ceiling.",
-          completedAt: now,
-        },
-      }),
-      this.database.projectRegulatoryWatch.update({
-        where: { id: watchId },
-        data: { status: "REVIEW_REQUIRED", lastCheckedAt: now },
-      }),
-    ]);
-    await job.updateProgress({
-      phase: "budget-limit",
-      progress,
-      completed,
-      total,
-      stopReason: "REGULATORY_BUDGET_LIMIT",
-      updatedAt: now.toISOString(),
-    });
   }
 
   private async awaitClarification(

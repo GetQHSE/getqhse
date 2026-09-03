@@ -45,20 +45,13 @@ describe("independent regulatory requirement verification", () => {
       requirementStatus: string;
       requirementIssues: string[];
     }>;
-    budgetExhausted: boolean;
   };
 
   function createDatabaseStub() {
     let modelCallSequence = 0;
     const update = vi.fn().mockResolvedValue({});
-    const runSnapshot = {
-      status: "RUNNING",
-      budgetMicroUsd: 1_000_000,
-      spentMicroUsd: 0,
-      reservedMicroUsd: 0,
-    };
+    const runSnapshot = { status: "RUNNING" };
     const database = {
-      $queryRaw: vi.fn().mockResolvedValue([runSnapshot]),
       regulatoryAnalysisRun: {
         findUnique: vi.fn().mockResolvedValue(runSnapshot),
         update,
@@ -223,21 +216,8 @@ describe("independent regulatory requirement verification", () => {
     const update = vi.fn().mockResolvedValue({});
     let modelCallSequence = 0;
     const database = {
-      $queryRaw: vi.fn().mockResolvedValue([
-        {
-          status: "RUNNING",
-          budgetMicroUsd: 1_000_000,
-          spentMicroUsd: 0,
-          reservedMicroUsd: 0,
-        },
-      ]),
       regulatoryAnalysisRun: {
-        findUnique: vi.fn().mockResolvedValue({
-          status: "RUNNING",
-          budgetMicroUsd: 1_000_000,
-          spentMicroUsd: 0,
-          reservedMicroUsd: 0,
-        }),
+        findUnique: vi.fn().mockResolvedValue({ status: "RUNNING" }),
         update,
       },
       regulatoryModelCall: {
@@ -270,7 +250,6 @@ describe("independent regulatory requirement verification", () => {
             requirementStatus: string;
             requirementIssues: string[];
           }>;
-          budgetExhausted: boolean;
         }>;
       }
     ).classifyProvisions.bind(processor);
@@ -532,7 +511,7 @@ describe("independent regulatory requirement verification", () => {
           candidates: unknown[],
           changes: unknown[],
           job: unknown,
-        ): Promise<{ results: Array<{ provisionId: string }>; budgetExhausted: boolean }>;
+        ): Promise<{ results: Array<{ provisionId: string }> }>;
       }
     ).classifyProvisions.bind(processor);
     const updateProgress = vi.fn().mockResolvedValue(undefined);
