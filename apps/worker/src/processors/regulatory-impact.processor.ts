@@ -1,6 +1,7 @@
 import { InjectQueue, Processor, WorkerHost } from "@nestjs/bullmq";
 import { Injectable, OnApplicationBootstrap, OnModuleDestroy } from "@nestjs/common";
 import type { JobEnvelope } from "@qhse/contracts";
+import { llmSettings } from "@qhse/ai";
 import { createPrismaClient, type DatabaseClient } from "@qhse/database";
 import type { Job, Queue } from "bullmq";
 
@@ -86,9 +87,7 @@ export class RegulatoryImpactProcessor extends WorkerHost {
               triggerDocumentVersionId: event.publishedVersionId,
               asOf: new Date(new Date().toISOString().slice(0, 10)),
               languages: ["fr", "ar"],
-              budgetMicroUsd: Math.round(
-                Number(process.env["OPENAI_REGULATORY_RUN_BUDGET_USD"] ?? 1) * 1_000_000,
-              ),
+              budgetMicroUsd: Math.round(llmSettings().regulatoryRunBudgetUsd * 1_000_000),
             },
           });
           await tx.projectRegulatoryWatch.update({

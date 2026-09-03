@@ -1,7 +1,7 @@
 import { Processor, WorkerHost } from "@nestjs/bullmq";
 import type { Job } from "bullmq";
+import { llmSettings, openAiProvider } from "@qhse/ai";
 import type { JobEnvelope } from "@qhse/contracts";
-import { openai } from "@ai-sdk/openai";
 import {
   createPrismaClient,
   embeddableRevisionFilter,
@@ -32,7 +32,7 @@ export class EmbeddingGenerationProcessor extends RepresentativeProcessor {
   private readonly database: DatabaseClient = createPrismaClient();
 
   protected async perform(envelope: JobEnvelope): Promise<void> {
-    if (process.env["NORMATIVE_RAG_ENABLED"] !== "true") {
+    if (!llmSettings().ragEnabled) {
       throw new Error("Normative RAG is disabled");
     }
     const versionId =
@@ -74,7 +74,7 @@ export class EmbeddingGenerationProcessor extends RepresentativeProcessor {
     for (let offset = 0; offset < pending.length; offset += batchSize) {
       const batch = pending.slice(offset, offset + batchSize);
       const result = await embedMany({
-        model: openai.embedding(profile.model),
+        model: openAiProvider().embedding(profile.model),
         values: batch.map(({ searchText }) => searchText),
         maxParallelCalls: 2,
         maxRetries: 3,

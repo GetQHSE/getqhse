@@ -1,13 +1,16 @@
 import { Processor, WorkerHost } from "@nestjs/bullmq";
 import { GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { llmSettings } from "@qhse/ai";
 import { createPrismaClient, type DatabaseClient, type Prisma } from "@qhse/database";
 import { shouldRunOcr, type ProcessingJobType } from "@qhse/documents";
 import {
   assertRevisionRight,
+  assessStructureQuality,
   chunkNormativeProvisions,
   detectNormativeProvisions,
   detectNormativeProvisionsFromBlocks,
   normalizeExtractedText,
+  STRUCTURE_REVIEW_THRESHOLD,
   type ExtractedBlock,
   type ExtractedPage,
   type NormativeLanguage,
@@ -27,10 +30,52 @@ type ExtractedDocument = {
     text: string;
     pageNumber: number;
     boundingBox?: number[];
+    headingLevel?: number;
   }>;
-  provider: "docling" | "native_text";
+  provider: ExtractionProvider;
   metadata: Record<string, string>;
 };
+
+// The extractor falls back to pdftotext -- with or without a per-page OCR pass -- whenever
+// Docling itself raises. That fallback produces no layout labels, so structure detection drops
+// to line scanning and the provisions it finds are markedly worse. The stage used to record
+// "docling" either way, which left no way to ask which revisions had silently degraded.
+const extractionProviders = [
+  "docling",
+  "docling+full_page_ocr",
+  "native_text",
+  "pdftotext",
+  "pdftotext+ocr",
+] as const;
+type ExtractionProvider = (typeof extractionProviders)[number];
+
+function extractionProvider(reported: string | undefined): ExtractionProvider {
+  return extractionProviders.find((provider) => provider === reported) ?? "docling";
+}
+
+/**
+ * Scores how much of the extractor's output is worth trusting.
+ *
+ * The two ways an extraction goes wrong are not equally visible. Falling back to flat text is
+ * merely worse -- the words are right, the layout labels are gone. A text layer that decoded to
+ * nothing usable is worse than that and looks fine from the outside: it yields plenty of
+ * characters, so every count-based check downstream passes and the garbage reaches a reviewer
+ * looking like an ordinary document. It scores lowest so the difference is visible without
+ * reading the provisions.
+ */
+export function extractionQuality(
+  provider: ExtractionProvider,
+  metadata: Record<string, string>,
+): number {
+  if (metadata["text_layer_degenerate"] === "true" && metadata["text_layer_repair"] !== "applied")
+    return 0.3;
+  if (provider.startsWith("pdftotext")) return 0.5;
+  if (metadata["conversion_status"] === "partial_success") return 0.6;
+  const grade = metadata["confidence_mean_grade"];
+  if (grade === "poor") return 0.5;
+  if (grade === "fair") return 0.7;
+  return 0.9;
+}
 
 function revisionRights(version: {
   storageAllowed: boolean;
@@ -343,6 +388,26 @@ export class DocumentProcessingProcessor extends WorkerHost {
             : extracted.text,
         );
         if (!normalizedText) throw new Error("Document extraction returned no text");
+        // A degraded extraction still yields text, so nothing downstream fails outright -- the
+        // revision simply reaches review with worse provisions. Saying so here is what makes it
+        // findable, both in the logs and in the stage's own quality score.
+        const quality = extractionQuality(extracted.provider, extracted.metadata);
+        if (quality < 0.9)
+          this.logger.warn(
+            {
+              event: "extraction_degraded",
+              provider: extracted.provider,
+              quality,
+              textLayer: extracted.metadata["text_layer_reason"],
+              textLayerRepair: extracted.metadata["text_layer_repair"],
+              conversionStatus: extracted.metadata["conversion_status"],
+              confidence: extracted.metadata["confidence_mean_grade"],
+              documentId: version.documentId,
+              versionId,
+              jobId: processingJobId,
+            },
+            "document extraction is below full quality",
+          );
         await Promise.all([
           this.putText(raw, extracted.text),
           this.putText(normalized, normalizedText),
@@ -370,7 +435,7 @@ export class DocumentProcessingProcessor extends WorkerHost {
               ? { providerMetadata: extracted.metadata }
               : {}),
           },
-          quality: 0.9,
+          quality,
         };
       }
       case "ocr": {
@@ -421,6 +486,22 @@ export class DocumentProcessingProcessor extends WorkerHost {
               await this.getExtractedPages(version.documentId, version.id, text),
               language,
             );
+        // The way segmentation goes wrong is quiet: it still yields provisions and chunks, just
+        // the wrong ones, and nothing downstream notices until a reviewer reads them or a
+        // citation lands on the wrong article. Scoring the structure is what makes that visible.
+        const structure = assessStructureQuality(blocks, provisions);
+        if (structure.score < STRUCTURE_REVIEW_THRESHOLD)
+          this.logger.warn(
+            {
+              event: "structure_quality_low",
+              score: structure.score,
+              concerns: structure.concerns,
+              documentId: version.documentId,
+              versionId,
+              jobId: processingJobId,
+            },
+            "segmented structure is below the review threshold",
+          );
         await this.database.$transaction([
           this.database.documentChunk.deleteMany({ where: { documentVersionId: versionId } }),
           this.database.documentProvision.deleteMany({ where: { documentVersionId: versionId } }),
@@ -463,8 +544,14 @@ export class DocumentProcessingProcessor extends WorkerHost {
             provider: "normative-structure-v1",
             sections: String(sections.length),
             provisions: String(provisions.length),
+            identified: String(structure.signals.identified),
+            identifierCoverage: Number(structure.signals.identifierCoverage.toFixed(3)),
+            fragments: String(structure.signals.fragments),
+            missingNumbers: structure.signals.missingNumbers.slice(0, 20).join(","),
+            duplicateIdentifiers: structure.signals.duplicateIdentifiers.slice(0, 20).join(","),
+            ...(structure.concerns.length ? { concerns: structure.concerns } : {}),
           },
-          quality: provisions.length ? 0.9 : 0.5,
+          quality: structure.score,
         };
       }
       case "classification": {
@@ -542,7 +629,7 @@ export class DocumentProcessingProcessor extends WorkerHost {
               pageStart: content.pageStart,
               pageEnd: content.pageEnd,
               contentHash: content.contentHash,
-              chunkingVersion: "normative-v2",
+              chunkingVersion: "normative-v3",
               embeddingStatus: "PENDING",
               sourceLocation: {
                 provisionOrderIndex: content.provisionOrderIndex,
@@ -553,11 +640,11 @@ export class DocumentProcessingProcessor extends WorkerHost {
           }),
           this.database.documentVersion.update({
             where: { id: versionId },
-            data: { chunkingVersion: "normative-v2" },
+            data: { chunkingVersion: "normative-v3" },
           }),
         ]);
         return {
-          metadata: { provider: "normative-v2", chunks: String(chunks.length) },
+          metadata: { provider: "normative-v3", chunks: String(chunks.length) },
           quality: 0.9,
         };
       }
@@ -614,7 +701,7 @@ export class DocumentProcessingProcessor extends WorkerHost {
         assertRevisionRight(revisionRights(version), "embed");
         assertRevisionRight(revisionRights(version), "ai-process");
         assertRevisionRight(revisionRights(version), "external-process");
-        return process.env["NORMATIVE_RAG_ENABLED"] === "true"
+        return llmSettings().ragEnabled
           ? { metadata: { configured: true, queue: "embedding-generation" } }
           : { skipped: true, metadata: { reason: "disabled" } };
       default:
@@ -660,6 +747,7 @@ export class DocumentProcessingProcessor extends WorkerHost {
         text: string;
         page_number: number;
         bounding_box?: number[];
+        heading_level?: number;
       }>;
       metadata?: Record<string, string>;
     };
@@ -674,8 +762,9 @@ export class DocumentProcessingProcessor extends WorkerHost {
         text: block.text,
         pageNumber: block.page_number,
         ...(block.bounding_box ? { boundingBox: block.bounding_box } : {}),
+        ...(typeof block.heading_level === "number" ? { headingLevel: block.heading_level } : {}),
       })),
-      provider: "docling",
+      provider: extractionProvider(result.metadata?.["provider"]),
       metadata: result.metadata ?? {},
     };
   }
@@ -735,13 +824,16 @@ export class DocumentProcessingProcessor extends WorkerHost {
       if (!Array.isArray(parsed)) return [];
       return parsed.flatMap((entry): ExtractedBlock[] => {
         if (typeof entry !== "object" || entry === null) return [];
-        const { blockType, text, pageNumber } = entry as Record<string, unknown>;
+        const { blockType, text, pageNumber, headingLevel } = entry as Record<string, unknown>;
         if (typeof text !== "string" || !text.trim()) return [];
         return [
           {
             blockType: typeof blockType === "string" ? blockType : "text",
             text,
             pageNumber: typeof pageNumber === "number" ? pageNumber : 1,
+            ...(typeof headingLevel === "number" && Number.isInteger(headingLevel)
+              ? { headingLevel }
+              : {}),
           },
         ];
       });

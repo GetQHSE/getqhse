@@ -1,0 +1,279 @@
+{
+  "name": "nm-22-0-010",
+  "source": "22.0.010.pdf",
+  "redacted": true,
+  "capturedFrom": {
+    "provider": "docling",
+    "conversionStatus": "success",
+    "textLayerRepair": "none"
+  },
+  "blocks": [
+    {
+      "blockType": "section_header",
+      "pageNumber": 1,
+      "text": "Emballage et marquage des équipements et accessoires pour véhicules",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 1,
+      "text": "Norme Marocaine homologuée",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "xxx xxxxxxxx xx xxxxxxxxx xx xxxxxxxxxx xxxxxxxx xx xxxxxxxxxxxxx xx xxxxxx xx xx xxxxxxx xxxxx xxxxxx xx xxxx xx xxxx xx xx xxxxx xxxxx"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "xx xxxxxxxx xxxxx xxxxxx xx xxxxxxxx xx xx xxxxxxxx xxxxxxxxxx xx xxxxx"
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 1,
+      "text": "Correspondance",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 1,
+      "text": "Droits d'auteur",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "xxxxx xx xxxxxxxxxxxx xxxxxxxx xxxx xxxxxxxxxxxx xxxxxxxxxx xxxxxx xxxxxx xx xxxxx xxxxxxxxxxx xx xxxx xxxx xxxxxxxxxx xx xxxxxxxx xxxx xxxxxxx xxxxx xxx xx xxxx xx xxx xxxxx xxxxxxx xxxxxxxxxxxx xx xxxxxxxxx x xxxxxxx xx xxxxxxxxxx xx xxx xxxxxxxxxx xxxx xxxxxx xxxxxxx xx xxxxxxxx xxx x xxxxx xxxxxxxx xx xxx xxxxxxxxx xxx xxxxxxx xx xxxxxxxxx xxxxx xxxx xx xxxxxxx xxxxxxxxxxxx xx xxxxxxxxxxxx xxxx xxxxxxx xxxxx xxx xx xxxxx xxxx xxxxxxxxxx xxxx xxxxxxxxxxx xxxxxxxxxxx"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "xx xxxxxxxx xxxx"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "xxx x xxxxxx"
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 2,
+      "text": "Avant-Propos National",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 2,
+      "text": "xxxxxxxxxx xxxxxxxx xx xxxxxxxxxxxxx xxxxxxxx xxx xxxxxxxxxxx xxxxxxxx xx xxxxxxxxxxxxxx xx x xxx xxxx xxx xx xxx xx xxxxx xxxxxxxx x xx xxxxxxxxxxxxxx x xx xxxxxxxxxxxxx xx x xxxxxxxxxxxxxxx xxxx xxxxx xxxx xxxxxxxxxxxxx xxxxxx xxxx xxxxxxx xx xxxxxxxxx xxxxxx xx xxxxxxxxxxx xx xx xxxxxxxxx"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 2,
+      "text": "xxx xxxxxx xxxxxxxxxx xxxx xxxxxxxxx xx xxxxxxxxxxx xxxxxxxxxxxx xxx xxxxxxxxxxxx xx xx xxx xxxxxxxxxxxxxxxxxxxxx"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 2,
+      "text": "xx xxxxxxxx xxxxx xxxxxxxxx xx xxxxxxxx x xxx xxxxxxxx xx xxxxxxx xxx xx xxxxxxxxxx xx xxxxxxxxxxxxx xxx xxxxxxxxxxx xxxxxxxxxxx xxxxx"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 3,
+      "text": "x"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 3,
+      "text": "xxxx"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 3,
+      "text": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 3,
+      "text": "x"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 3,
+      "text": "xxxxxxx xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 3,
+      "text": "x"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 3,
+      "text": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 3,
+      "text": "x"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 3,
+      "text": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 3,
+      "text": "x"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 3,
+      "text": "xxxxxxxx xx xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 3,
+      "text": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 3,
+      "text": "SOMMAIRE",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 4,
+      "text": "1 OBJET",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 4,
+      "text": "xx xxxxxxxx xxxxx xxxxxxxx xxx xxxxxxxxxx xxxxxxxxxxx xxx xxxxxxxxxxx xx xxxxxxxxxxx xxxx xxxxxxxxx xxxx xxx xxxxxxx xxxx xx xxxxx xxxxxxxxx xx xxx xxxxx xxxxx xxx xxx xxxxxxxxxxx xxxxxxxx xxx xxxxxxx xxxx xxxxxxx xxx xxxxxxxx xxx xxxx xxxxxx xxx xxx xxxxxxxxxx xx xxx xxx xxxxxxxxx xx xxx xx xxxxxxxxx xxxxxxxxxxxxxxxx xxx xxxxxxxx xx xxxxxxxxx xxx xxxxxxxxx xxxxxxxxxxx xxxx xxxxx xxxxxxxxxxxxx"
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 4,
+      "text": "2 DOMAINE D'APPLICATION",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 4,
+      "text": "xx xxxxxxxx xxxxx xxxxxxxxxx xxx xxxxxxxxxxxx xxxxxxxxxxx xx xxxxxxxxxxxx xxxx xxxxxxxxx xxxxxxxx xxxxx xxxxxx xx xxxxxxxx xx xxxxxxxx xxxxxxxxxxxxx"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 4,
+      "text": "xxx xxxxxxxxxxxx xx xx xxxxxxxx xxxxx xxxxxxxxxxxx xxx xxxxxxxxxxx xxx xxxxxxxxxxxxx xxxxxxxxxxxxx xx xxx xxxxxxxxxxxx xx xx xxxx xx xxxxx xxx xx xxxxxx xx xxx xxxxxxxxxxx xx xxxxxxxxxxx xxxxxxxxxxxx"
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 4,
+      "text": "3 REFERENCE",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 4,
+      "text": "xxx xxxxx x xxxxxxxx x xx xxxxxxxx xxx xxxxxxxx xx xxx xxxxxxxx x"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 4,
+      "text": "xxx xxxxxxx xxxxxxxx xxx xxxxxxx xx xxxxxxxxxx xx xxxxxxxxxxxx xxxxxxxxxx xxx xx xxxxx xxxxxxxxx xx xx xxxxx x xxxx xxx xxxxxxx xxxxx x"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 4,
+      "text": "xx xxx xxxx xxxxxxxxx xxxxxxxxxxxxxxxxxxxxxxxxxxxx xx xxxxxxxxxxxx"
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 4,
+      "text": "4 EMBALLAGE",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 4,
+      "text": "xxxx xxxxxxx xxxxxxx xxxxxxx xx xx xxxxxxxx xxxxx xxxx xxxx xxxxxxx x xxxxxxxxxxx xxx xxxxxxxx xxxx xx xxxxx xxx xxxxxx xx xxxxxxx"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 4,
+      "text": "xxx xxxxxx xxxx xxxxxxxxx xxx xxxxx xxxxxxxxxxxxx xx xxx xxxxxxx xx xxxxxxxxxx xxxx xx xxxxx xxx xxx xxx xxxxxxxxx xxx xxxx xxxxxxxxxx xx xxxxxxxxxx xx xx xxxxxxxxx xxxxxxxxxxxx"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 4,
+      "text": "xxxxxxxxxxxx xxxx xx xxxxxx xxx xxxxxxx xx xxxxx xx xxxxxxxxx xxxxx xx xxxxxxxxxxxxxx xxxx xxxxxxxxx xxx xxxxxxxxxx xxxxxxxxxx xxx xxxxxxxxxx xx xxxxxxxxx xx xx xxxxxxxxxxx xx xxxx xxxx xxxxx xxxx xxxxxxx xxxxx xxxxxxxxx xxxxxxxxxx x"
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 4,
+      "text": "5 MARQUAGE ET ETIQUETAGE",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 4,
+      "text": "xxxxx xxx xxxxxxxxxxx xx xxxxxxxx xx xxxxxxxxxxxx xxxxxxx xxxx xxx xxxxxx xxxxxxxxxxx x xxxxxx xxxxxxxx xxxxxxxxxxx xx xx xxxxxxx xxxxxxx xxxxxx xx xxxxx xxxxxxxx xxxxxxx xx xxxxxxxxxxx xxx xxxxxxxxxxx xxxxxxxxx x"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 4,
+      "text": "xxxxxxxxxxxx xx xxxx xx xxxxxxx x"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 4,
+      "text": "xxxxxxxxxxx xxxxxxxxxxxx xxxxx xxxxxxxxxx xx xxxxxxx x"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 4,
+      "text": "xxxxx xx xxxxxxxxxxx xxxx xxx xxxxxxxx xxxxxxxxxxx x"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 4,
+      "text": "xxxxxxxx xx xxxxxxxx xx xxxxxxxx xxxxxxxxxxxxxx xxxx xxx xxxxxxxx xxxxxxxxxxxx x"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 4,
+      "text": "xxxx xx xxxxxxxxx xx xx xxxxxxxxxxxx x"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 4,
+      "text": "xxxxxxxx xxxxxxx xx xxxxxxx xx xx xxxx xx xxxxxxxxxxx x"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 4,
+      "text": "xxxxxxxxx xx xxxxxx xx xxxxxx xxxxxxxxx xxxx xxxxxxxxxxxx"
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 5,
+      "text": "ANNEXE",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 5,
+      "text": "xxxxx xxx xxxxxxxx xxxxxx xx xxxxxxxxxxxx xxxxxxxxxxx"
+    },
+    {
+      "blockType": "table",
+      "pageNumber": 5,
+      "text": "x xxx xxxxxxxxx x x\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\nx xxx xxxxxxxxx x x\nx xxx xxxxxxx x x\nx xxx xxxxxxxx xx xxxxxxxxxx x x\nx xxx xxxxx x x\nx xxx xxxxxx xx xxxxxxxxxxx xxxxxxx xxxxxxxxx xxxxx xxxxxx xxxxxxxxxx x x\nx xxx xxxxxx xx xxxxx x x\nx xxx xxxxxx xxxxxxxxxxxxx x x\nx xxx xxxxxx xxxx xxxxx xxxxxx x x\nx xxx xxxxxxxxxxxxx xxxx xxxxx xxxxxx x x\nx xxx xxxxxxx xx xxxx x x\nx xxx xxxxxx xx xxxx xxxx xxxxx xxxxxx x x\nx xxx xxxxxx xx xxxxxxxxxxxx x x\nx xxx xxxxxxxx xx xxxxxxxxxx xxxxxxxxxxx xx xxxxxxxx x xxxxx x x\nx xxx xxxxxxxxx xx xxxxxxxxxx xxxx xxxxx xxxxxxx x\nx xxx xxxxxx xx xxxxxxxx xxxx xxxxx xxxxx x\nx xxx xxxxxx xx xxxxxxx xxxxxxxx xxxxxx xxxxxxx x\nx xxx xxxx xxxxxx xx xxxxxx xx xxxxxx xxxxxxxxxxx x"
+    }
+  ]
+}

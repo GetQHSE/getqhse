@@ -359,6 +359,7 @@ model User {
   regulatoryEvidenceCreated           RegulatoryEvaluationEvidence[]     @relation("RegulatoryEvidenceCreator")
   regulatoryActionsAssigned           RegulatoryEvaluationAction[]       @relation("RegulatoryActionAssignee")
   regulatorySyncEventsCreated         RegulatorySyncEvent[]              @relation("RegulatorySyncEventActor")
+  llmSettingsUpdated                  LlmSetting[]                       @relation("LlmSettingUpdatedBy")
 
   @@map("users")
 }
@@ -1170,6 +1171,7 @@ model RegulatoryAnalysisRun {
   promptKey                String?                  @map("prompt_key")
   promptVersion            Int?                     @map("prompt_version")
   inputTokens              Int                      @default(0) @map("input_tokens")
+  cachedInputTokens        Int                      @default(0) @map("cached_input_tokens")
   outputTokens             Int                      @default(0) @map("output_tokens")
   reasoningTokens          Int                      @default(0) @map("reasoning_tokens")
   budgetMicroUsd           Int                      @default(1000000) @map("budget_micro_usd")
@@ -1268,6 +1270,7 @@ model RegulatoryModelCall {
   reservedMicroUsd      Int                       @map("reserved_micro_usd")
   costMicroUsd          Int?                      @map("cost_micro_usd")
   inputTokens           Int?                      @map("input_tokens")
+  cachedInputTokens     Int?                      @map("cached_input_tokens")
   outputTokens          Int?                      @map("output_tokens")
   reasoningTokens       Int?                      @map("reasoning_tokens")
   latencyMs             Int?                      @map("latency_ms")
@@ -1729,4 +1732,48 @@ model AuditLogEntry {
   @@index([organizationId, createdAt])
   @@index([organizationId, entityType, entityId])
   @@map("audit_log_entries")
+}
+
+/// Platform-wide LLM configuration, edited from the administration workspace. Exactly one row
+/// exists (id "singleton"). Every column is nullable and means "not overridden": the resolved
+/// value then comes from the process environment, and failing that from the built-in default,
+/// so an untouched deployment behaves exactly as it did before this table existed.
+model LlmSetting {
+  id String @id @default("singleton")
+
+  ragEnabled                            Boolean? @map("rag_enabled")
+  profileModel                          String?  @map("profile_model")
+  transcriptionModel                    String?  @map("transcription_model")
+  regulatoryModel                       String?  @map("regulatory_model")
+  regulatoryTriageModel                 String?  @map("regulatory_triage_model")
+  regulatoryVerificationModel           String?  @map("regulatory_verification_model")
+  regulatoryServiceTier                 String?  @map("regulatory_service_tier")
+  regulatoryTextVerbosity               String?  @map("regulatory_text_verbosity")
+  regulatoryPromptCacheRetention        String?  @map("regulatory_prompt_cache_retention")
+  regulatoryReasoningEffort             String?  @map("regulatory_reasoning_effort")
+  regulatoryTimeoutMs                   Int?     @map("regulatory_timeout_ms")
+  regulatoryDraftMaxOutputTokens        Int?     @map("regulatory_draft_max_output_tokens")
+  regulatoryVerificationMaxOutputTokens Int?     @map("regulatory_verification_max_output_tokens")
+  regulatoryTriageMaxOutputTokens       Int?     @map("regulatory_triage_max_output_tokens")
+  regulatoryRunBudgetUsd                Decimal? @map("regulatory_run_budget_usd") @db.Decimal(10, 4)
+  regulatoryEvaluationBudgetUsd         Decimal? @map("regulatory_evaluation_budget_usd") @db.Decimal(10, 4)
+  regulatoryInputUsdPerMTok             Decimal? @map("regulatory_input_usd_per_mtok") @db.Decimal(12, 6)
+  regulatoryCachedInputUsdPerMTok       Decimal? @map("regulatory_cached_input_usd_per_mtok") @db.Decimal(12, 6)
+  regulatoryOutputUsdPerMTok            Decimal? @map("regulatory_output_usd_per_mtok") @db.Decimal(12, 6)
+  regulatoryFlexRateMultiplier          Decimal? @map("regulatory_flex_rate_multiplier") @db.Decimal(6, 4)
+  conservativeBytesPerToken             Decimal? @map("conservative_bytes_per_token") @db.Decimal(6, 3)
+  triageIncludeUnsure                   Boolean? @map("triage_include_unsure")
+
+  /// AES-256-GCM ciphertext of the provider API key, keyed off BETTER_AUTH_SECRET. Never leaves
+  /// the API in readable form — the admin workspace only ever sees a masked preview.
+  apiKeyCiphertext String? @map("api_key_ciphertext")
+  apiKeyPreview    String? @map("api_key_preview")
+
+  updatedByUserId String?  @map("updated_by_user_id")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  updatedBy User? @relation("LlmSettingUpdatedBy", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+
+  @@map("llm_settings")
 }

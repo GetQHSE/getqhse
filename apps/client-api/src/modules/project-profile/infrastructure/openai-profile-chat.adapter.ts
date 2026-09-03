@@ -1,7 +1,6 @@
 import { Injectable, ServiceUnavailableException } from "@nestjs/common";
-import { openai } from "@ai-sdk/openai";
 import type { ServerResponse } from "node:http";
-import { profileChatPrompt } from "@qhse/ai";
+import { isLlmConfigured, llmSettings, openAiProvider, profileChatPrompt } from "@qhse/ai";
 import {
   getProfileFieldValueJsonSchema,
   profileToolInputSchema,
@@ -28,10 +27,10 @@ import {
 @Injectable()
 export class OpenAiProfileChatAdapter extends ProfileChatModelPort {
   private prepare(input: ProfileChatModelInput) {
-    if (!process.env["OPENAI_API_KEY"]) {
+    if (!isLlmConfigured()) {
       throw new ServiceUnavailableException("Profile chat is not configured");
     }
-    const model = process.env["OPENAI_PROFILE_MODEL"] ?? "gpt-5-mini";
+    const model = llmSettings().profileModel;
     const prompt = profileChatPrompt.build({
       language: input.language,
       currentQuestion: input.currentQuestion,
@@ -75,7 +74,7 @@ export class OpenAiProfileChatAdapter extends ProfileChatModelPort {
     const { model, prompt, messages, tools } = this.prepare(input);
 
     const result = await generateText({
-      model: openai.responses(model),
+      model: openAiProvider().responses(model),
       system: prompt.system,
       messages,
       tools,
@@ -98,7 +97,7 @@ export class OpenAiProfileChatAdapter extends ProfileChatModelPort {
   streamTurn(input: ProfileChatStreamInput) {
     const { model, prompt, messages, tools } = this.prepare(input);
     const result = streamText({
-      model: openai.responses(model),
+      model: openAiProvider().responses(model),
       system: prompt.system,
       messages,
       tools,

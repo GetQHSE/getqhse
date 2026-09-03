@@ -16,15 +16,15 @@
   {
     "id": "ar-exact-article-001",
     "language": "ar",
-    "query": "ما هي مقتضيات المادة ٥؟",
-    "expectedIdentifiers": ["المادة ٥"],
+    "query": "ما هي مقتضيات المادة 5؟",
+    "expectedIdentifiers": ["المادة 5"],
     "kind": "exact"
   },
   {
     "id": "ar-semantic-compliance-001",
     "language": "ar",
     "query": "ما التزامات المؤسسة بشأن توثيق إجراءات الجودة؟",
-    "expectedIdentifiers": ["المادة ٧"],
+    "expectedIdentifiers": ["المادة 7"],
     "kind": "semantic"
   }
 ]

@@ -19,6 +19,7 @@ import type {
   ProjectProfileStreamRequest,
   UpdateProjectProfile,
 } from "@qhse/contracts";
+import { llmSettings } from "@qhse/ai";
 import { createPrismaClient, Prisma, type DatabaseClient } from "@qhse/database";
 import {
   PROFILE_SCHEMA_VERSION,
@@ -661,7 +662,7 @@ export class ProjectProfilesService {
       },
     });
     const projectId = profile.project.id;
-    const modelName = process.env["OPENAI_PROFILE_MODEL"] ?? "gpt-5-mini";
+    const modelName = llmSettings().profileModel;
     const invocation = await this.database.aiInvocation.create({
       data: {
         organizationId: tenant.organizationId,
@@ -853,7 +854,7 @@ export class ProjectProfilesService {
       },
     });
     const assistantMessageId = randomUUID();
-    const modelName = process.env["OPENAI_PROFILE_MODEL"] ?? "gpt-5-mini";
+    const modelName = llmSettings().profileModel;
     const invocation = await this.database.aiInvocation.create({
       data: {
         organizationId: tenant.organizationId,

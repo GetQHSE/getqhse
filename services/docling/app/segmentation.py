@@ -11,6 +11,9 @@ class ExtractedBlock(BaseModel):
     text: str
     page_number: int = Field(ge=1)
     bounding_box: list[float] | None = None
+    # Depth of a section header, once Docling has inferred it from bookmarks, numbering or font
+    # size. Absent for body items, and absent for every item when the inference is switched off.
+    heading_level: int | None = None
 
 
 # Docling tags every layout item with a label. Running headers/footers and footnotes are
@@ -23,6 +26,18 @@ def block_label(item) -> str:
     """Read an item's layout label, whether it is an enum or already a plain string."""
     label = getattr(item, "label", None)
     return str(getattr(label, "value", label) or "text")
+
+
+def block_level(item) -> int | None:
+    """Read a section header's inferred depth, when Docling assigned one.
+
+    Docling's layout model only flags a region as a section header; the level comes from a
+    later step that reads PDF bookmarks, outline numbering and font size. Without it every
+    heading in a PDF sits at level 1 and the document's nesting has to be guessed downstream
+    from the wording of the heading itself.
+    """
+    level = getattr(item, "level", None)
+    return level if isinstance(level, int) and level > 0 else None
 
 
 def block_text(item, document) -> str:

@@ -18,9 +18,13 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
+    "@ai-sdk/openai": "^4.0.36",
+    "@qhse/config": "workspace:*",
+    "@qhse/database": "workspace:*",
     "@qhse/profile": "workspace:*"
   },
   "devDependencies": {
+    "@types/node": "^24.10.10",
     "typescript": "^6.0.3",
     "vitest": "^4.1.10"
   }

@@ -1,14 +1,17 @@
 import { RegulatoryAnalysisError } from "@qhse/contracts";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { regulatoryCostMicroUsd as computeCallCost } from "./regulatory-model-cost.js";
 import {
   buildRegulatoryQueries,
   canCarryForwardRequirement,
   computeProfileChanges,
   dedupeRegulatoryProvisions,
   isStructurallyEligibleProvision,
+  isVerbatimRequirement,
   matchProvisionRevision,
   regulatoryClassificationProgress,
+  reservationOutcome,
   regulatoryCostMicroUsd,
   batchForTriage,
   isMissingProvisionForeignKeyError,
@@ -21,9 +24,158 @@ import {
   splitReservedCost,
   validateRequirementDraft,
 } from "./regulatory-analysis.processor.js";
+import {
+  conservativeInputTokens,
+  failureUsage,
+  regulatoryModelRates,
+  regulatoryVerificationModel,
+  regulatoryProviderOptions,
+  regulatoryServiceTier,
+  regulatoryTriageModel,
+} from "./regulatory-model-cost.js";
 import { regulatoryProvisionGoldenFixtures } from "./fixtures/regulatory-provisions.golden.js";
 
+describe("budget exhaustion versus reservation contention", () => {
+  const budgetMicroUsd = 1_000_000;
+
+  it("admits a call that fits against everything already committed", () => {
+    expect(
+      reservationOutcome(
+        { spentMicroUsd: 500_000, reservedMicroUsd: 100_000, budgetMicroUsd },
+        50_000,
+      ),
+    ).toBe("FITS");
+  });
+
+  it("stops the run when the call cannot fit even with nothing in flight", () => {
+    // Spend is permanent, so no amount of waiting frees room for this call.
+    expect(
+      reservationOutcome({ spentMicroUsd: 990_000, reservedMicroUsd: 0, budgetMicroUsd }, 50_000),
+    ).toBe("EXHAUSTED");
+    expect(
+      reservationOutcome(
+        { spentMicroUsd: 990_000, reservedMicroUsd: 500_000, budgetMicroUsd },
+        50_000,
+      ),
+    ).toBe("EXHAUSTED");
+  });
+
+  it("waits when only in-flight reservations are in the way", () => {
+    // 400k spent + 50k for this call fits inside the budget; it is the peers' 580k of
+    // conservative reservations that does not, and every one of those will be released.
+    expect(
+      reservationOutcome(
+        { spentMicroUsd: 400_000, reservedMicroUsd: 580_000, budgetMicroUsd },
+        50_000,
+      ),
+    ).toBe("CONTENDED");
+  });
+
+  it("never admits a call that would take the run past its ceiling", () => {
+    // The boundary: exactly at the ceiling is allowed, one micro-dollar past it is not.
+    expect(
+      reservationOutcome({ spentMicroUsd: 900_000, reservedMicroUsd: 0, budgetMicroUsd }, 100_000),
+    ).toBe("FITS");
+    expect(
+      reservationOutcome({ spentMicroUsd: 900_000, reservedMicroUsd: 0, budgetMicroUsd }, 100_001),
+    ).toBe("EXHAUSTED");
+  });
+});
+
+describe("conservative reservation sizing", () => {
+  const bytesOf = (text: string) => Buffer.byteLength(text, "utf8");
+
+  it("stays above the real token count for French and Arabic alike", () => {
+    // A reservation is a cap, not an estimate: under-reserving would let a run outspend its
+    // budget. French runs ~3.5 bytes per token and Arabic far fewer, so the bound must hold
+    // for the denser of the two.
+    const french = { system: "L’employeur ".repeat(400), context: "" };
+    const arabic = { system: "يجب على صاحب العمل ".repeat(400), context: "" };
+    for (const prompt of [french, arabic]) {
+      const bytes = bytesOf(prompt.system) + bytesOf(prompt.context);
+      // One token can never be fewer than two UTF-8 bytes of either script.
+      expect(conservativeInputTokens(prompt)).toBeGreaterThanOrEqual(bytes / 2);
+    }
+  });
+
+  it("no longer reserves the flat 16k-token overhead on top of every byte", () => {
+    const prompt = { system: "a".repeat(20_000), context: "" };
+    // Previously bytes + 16_384 = 36_384 for this prompt.
+    expect(conservativeInputTokens(prompt)).toBe(12_048);
+  });
+});
+
+describe("failure cost accounting", () => {
+  it("charges a failure at its measured usage when the SDK reports one", () => {
+    expect(
+      failureUsage({
+        usage: { inputTokens: 900, outputTokens: 120, inputTokenDetails: { cacheReadTokens: 400 } },
+      }),
+    ).toEqual({ inputTokens: 900, cachedInputTokens: 400, outputTokens: 120 });
+  });
+
+  it("falls back to the reservation when the failure carries no usable usage", () => {
+    // Timeouts and transport errors: the tokens the provider generated are genuinely unknown,
+    // so the conservative reservation stands rather than under-charging the run budget.
+    expect(failureUsage(new Error("timed out"))).toBeNull();
+    expect(failureUsage({ usage: { outputTokens: 10 } })).toBeNull();
+    expect(failureUsage({ usage: null })).toBeNull();
+    expect(failureUsage(null)).toBeNull();
+  });
+});
+
+describe("verbatim requirement detection", () => {
+  const source =
+    "L'employeur est tenu de tenir un registre des accidents du travail.\nCe registre est conservé pendant cinq ans et présenté à l'inspecteur du travail sur demande.";
+
+  it("recognises a contiguous quote of the source", () => {
+    expect(
+      isVerbatimRequirement(
+        source,
+        "L'employeur est tenu de tenir un registre des accidents du travail.",
+      ),
+    ).toBe(true);
+  });
+
+  it("looks through layout artefacts that carry no meaning", () => {
+    expect(
+      isVerbatimRequirement(
+        source,
+        "Ce registre est conservé pendant cinq ans   et présenté à l'inspecteur du travail sur demande",
+      ),
+    ).toBe(true);
+    expect(isVerbatimRequirement(source, "CE REGISTRE EST CONSERVE PENDANT CINQ ANS")).toBe(true);
+  });
+
+  it("rejects wording the source does not contain, so the verifier still runs", () => {
+    // A changed number: the single highest-consequence kind of drift in a requirement.
+    expect(isVerbatimRequirement(source, "Ce registre est conservé pendant dix ans")).toBe(false);
+    // An added obligation that appears nowhere in the source.
+    expect(
+      isVerbatimRequirement(source, "L'employeur est tenu de tenir un registre numérique"),
+    ).toBe(false);
+    // Words of the source, reordered: not a quote.
+    expect(
+      isVerbatimRequirement(
+        source,
+        "Un registre des accidents du travail est tenu par l'employeur",
+      ),
+    ).toBe(false);
+    expect(isVerbatimRequirement(source, null)).toBe(false);
+    expect(isVerbatimRequirement(source, "   ")).toBe(false);
+  });
+});
+
 describe("regulatory analysis query planning", () => {
+  const costEnvironmentKeys = [
+    "OPENAI_REGULATORY_SERVICE_TIER",
+    "OPENAI_REGULATORY_INPUT_USD_PER_MTOK",
+  ] as const;
+
+  afterEach(() => {
+    for (const key of costEnvironmentKeys) delete process.env[key];
+  });
+
   it("applies stage-specific output bounds and the three-minute timeout", () => {
     expect(regulatoryModelLimits("drafting")).toEqual({
       timeoutMs: 180_000,
@@ -35,9 +187,75 @@ describe("regulatory analysis query planning", () => {
     });
   });
 
-  it("calculates GPT-5 mini cost in integer micro-dollars", () => {
-    expect(regulatoryCostMicroUsd(1_000_000, 1_000_000)).toBe(2_250_000);
-    expect(regulatoryCostMicroUsd(1_000, 500)).toBe(1_250);
+  it("calculates GPT-5 mini cost in integer micro-dollars at the standard tier", () => {
+    process.env["OPENAI_REGULATORY_SERVICE_TIER"] = "default";
+    expect(
+      regulatoryCostMicroUsd({ inputTokens: 1_000_000, outputTokens: 1_000_000 }, "gpt-5-mini"),
+    ).toBe(2_250_000);
+    expect(regulatoryCostMicroUsd({ inputTokens: 1_000, outputTokens: 500 }, "gpt-5-mini")).toBe(
+      1_250,
+    );
+  });
+
+  it("bills prompt-cache reads at a tenth of the fresh input rate", () => {
+    process.env["OPENAI_REGULATORY_SERVICE_TIER"] = "default";
+    // cachedInputTokens is a subset of inputTokens, not an addition to it.
+    expect(
+      regulatoryCostMicroUsd(
+        { inputTokens: 1_000_000, cachedInputTokens: 800_000, outputTokens: 0 },
+        "gpt-5-mini",
+      ),
+    ).toBe(70_000);
+    // A cache count above the reported input total can never bill more than the input total.
+    expect(
+      regulatoryCostMicroUsd(
+        { inputTokens: 1_000, cachedInputTokens: 5_000, outputTokens: 0 },
+        "gpt-5-mini",
+      ),
+    ).toBe(25);
+  });
+
+  it("halves every rate on the flex service tier", () => {
+    delete process.env["OPENAI_REGULATORY_SERVICE_TIER"];
+    expect(regulatoryServiceTier()).toBe("flex");
+    expect(
+      regulatoryCostMicroUsd({ inputTokens: 1_000_000, outputTokens: 1_000_000 }, "gpt-5-mini"),
+    ).toBe(1_125_000);
+  });
+
+  it("prices the triage model off its own rates, not the drafting model's", () => {
+    process.env["OPENAI_REGULATORY_SERVICE_TIER"] = "default";
+    expect(regulatoryTriageModel()).toBe("gpt-5-nano");
+    expect(
+      regulatoryCostMicroUsd({ inputTokens: 1_000_000, outputTokens: 1_000_000 }, "gpt-5-nano"),
+    ).toBe(450_000);
+  });
+
+  it("lets the per-mtok overrides retune the primary model without touching triage", () => {
+    process.env["OPENAI_REGULATORY_SERVICE_TIER"] = "default";
+    process.env["OPENAI_REGULATORY_INPUT_USD_PER_MTOK"] = "1";
+    expect(regulatoryModelRates("gpt-5-mini").inputUsdPerMTok).toBe(1);
+    expect(regulatoryModelRates("gpt-5-nano").inputUsdPerMTok).toBe(0.05);
+  });
+
+  it("pins each run stage to its own prompt cache prefix and drops output verbosity", () => {
+    delete process.env["OPENAI_REGULATORY_SERVICE_TIER"];
+    expect(
+      regulatoryProviderOptions({ reasoningEffort: "none", promptCacheKey: "regulatory:run-1" }),
+    ).toEqual({
+      openai: {
+        store: false,
+        reasoningEffort: "none",
+        serviceTier: "flex",
+        textVerbosity: "low",
+        promptCacheKey: "regulatory:run-1",
+        promptCacheRetention: "24h",
+      },
+    });
+  });
+
+  it("routes verification to its own model without touching drafting", () => {
+    expect(regulatoryVerificationModel()).toBe("gpt-5-nano");
   });
 
   it("advances classification progress from 50 to 92 percent", () => {
@@ -260,6 +478,131 @@ describe("regulatory model-call ledger", () => {
         },
       }),
     );
+  });
+
+  it("retries past reservations held by in-flight peers and succeeds once they settle", async () => {
+    vi.useFakeTimers();
+    try {
+      const processor = new RegulatoryAnalysisProcessor();
+      const prompt = { system: "system", context: "context" };
+      const maxOutputTokens = 12_000;
+      const model = "gpt-5-mini";
+      const reservedMicroUsd = computeCallCost(
+        { inputTokens: conservativeInputTokens(prompt), outputTokens: maxOutputTokens },
+        model,
+      );
+      const budgetMicroUsd = reservedMicroUsd + 1_000;
+      // First attempt: a peer's reservation alone pushes this call over budget, but spend by
+      // itself would still leave room — CONTENDED, not EXHAUSTED, so the reserve should retry
+      // rather than give up.
+      const contended = {
+        status: "RUNNING",
+        budgetMicroUsd,
+        spentMicroUsd: 0,
+        reservedMicroUsd: budgetMicroUsd,
+      };
+      // Second attempt: the peer settled and freed its reservation.
+      const clear = { status: "RUNNING", budgetMicroUsd, spentMicroUsd: 0, reservedMicroUsd: 0 };
+      const create = vi.fn().mockResolvedValue({ id: "call-1" });
+      const runUpdate = vi.fn().mockResolvedValue({});
+      const queryRaw = vi.fn().mockResolvedValueOnce([contended]).mockResolvedValueOnce([clear]);
+      const transactionClient = {
+        $queryRaw: queryRaw,
+        regulatoryAnalysisRun: { update: runUpdate },
+        regulatoryModelCall: { create },
+      };
+      (processor as unknown as { database: object }).database = {
+        $transaction: vi.fn(async (callback: (tx: typeof transactionClient) => Promise<unknown>) =>
+          callback(transactionClient),
+        ),
+      };
+      const reserve = (
+        processor as unknown as {
+          reserveModelCall(
+            input: Record<string, unknown>,
+          ): Promise<{ id: string; reservedMicroUsd: number }>;
+        }
+      ).reserveModelCall.bind(processor);
+
+      const pending = reserve({
+        runId: "run-1",
+        provisionId: "article-1",
+        clarificationRevision: 0,
+        stage: "drafting",
+        attempt: 1,
+        model,
+        prompt,
+        maxOutputTokens,
+      });
+      // Lets the first CONTENDED attempt run, then fast-forwards past its backoff so the retry
+      // fires without the test actually waiting 5 real seconds.
+      await vi.advanceTimersByTimeAsync(5_000);
+      const reservation = await pending;
+
+      expect(reservation).toEqual({ id: "call-1", model, reservedMicroUsd });
+      expect(queryRaw).toHaveBeenCalledTimes(2);
+      expect(create).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("gives up once contention outlasts every retry, without ever finding room to spend", async () => {
+    vi.useFakeTimers();
+    try {
+      const processor = new RegulatoryAnalysisProcessor();
+      const prompt = { system: "system", context: "context" };
+      const maxOutputTokens = 12_000;
+      const model = "gpt-5-mini";
+      const reservedMicroUsd = computeCallCost(
+        { inputTokens: conservativeInputTokens(prompt), outputTokens: maxOutputTokens },
+        model,
+      );
+      const budgetMicroUsd = reservedMicroUsd + 1_000;
+      // Always contended, never exhausted by spend alone: a saturated but genuinely solvent run.
+      const contended = {
+        status: "RUNNING",
+        budgetMicroUsd,
+        spentMicroUsd: 0,
+        reservedMicroUsd: budgetMicroUsd,
+      };
+      const create = vi.fn();
+      const queryRaw = vi.fn().mockResolvedValue([contended]);
+      const transactionClient = {
+        $queryRaw: queryRaw,
+        regulatoryAnalysisRun: { update: vi.fn().mockResolvedValue({}) },
+        regulatoryModelCall: { create },
+      };
+      (processor as unknown as { database: object }).database = {
+        $transaction: vi.fn(async (callback: (tx: typeof transactionClient) => Promise<unknown>) =>
+          callback(transactionClient),
+        ),
+      };
+      const reserve = (
+        processor as unknown as {
+          reserveModelCall(input: Record<string, unknown>): Promise<unknown>;
+        }
+      ).reserveModelCall.bind(processor);
+
+      const pending = reserve({
+        runId: "run-1",
+        provisionId: "article-1",
+        clarificationRevision: 0,
+        stage: "drafting",
+        attempt: 1,
+        model,
+        prompt,
+        maxOutputTokens,
+      });
+      const assertion = expect(pending).rejects.toThrow("budget is exhausted");
+      // BUDGET_CONTENTION_MAX_ATTEMPTS is 6, each attempt separated by a 5s backoff.
+      await vi.advanceTimersByTimeAsync(6 * 5_000);
+      await assertion;
+      expect(queryRaw).toHaveBeenCalledTimes(6);
+      expect(create).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("stops before creating a call whose reservation would exceed the run budget", async () => {

@@ -9,6 +9,7 @@ import {
   NotFoundException,
   ServiceUnavailableException,
 } from "@nestjs/common";
+import { llmSettings } from "@qhse/ai";
 import { regulatoryEvidencePayloadIssue, staleAiEvaluationMs } from "@qhse/contracts";
 import type {
   AnswerRegulatoryClarifications,
@@ -413,7 +414,7 @@ export class RegulatoryWatchService {
     input: StartRegulatoryAnalysis,
   ) {
     if (!canContribute(tenant.role)) throw new ForbiddenException("Regulatory access is required");
-    if (process.env["NORMATIVE_RAG_ENABLED"] !== "true" || !process.env["OPENAI_API_KEY"]) {
+    if (!llmSettings().ragEnabled || !llmSettings().apiKey) {
       throw new ServiceUnavailableException({
         code: "REGULATORY_WORKER_UNAVAILABLE",
         message: "Regulatory analysis is not configured",
@@ -449,9 +450,7 @@ export class RegulatoryWatchService {
           triggerKey: randomUUID(),
           asOf,
           languages: input.languages,
-          budgetMicroUsd: Math.round(
-            Number(process.env["OPENAI_REGULATORY_RUN_BUDGET_USD"] ?? 1) * 1_000_000,
-          ),
+          budgetMicroUsd: Math.round(llmSettings().regulatoryRunBudgetUsd * 1_000_000),
         },
       });
       await tx.projectRegulatoryWatch.update({

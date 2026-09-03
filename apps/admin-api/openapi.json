@@ -18,6 +18,38 @@
         "tags": ["documents"]
       }
     },
+    "/v1/documents/embedding-profiles": {
+      "get": {
+        "operationId": "DocumentsController_profileReadiness",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["documents"]
+      },
+      "post": {
+        "operationId": "DocumentsController_createProfile",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["documents"]
+      }
+    },
     "/v1/documents": {
       "get": {
         "operationId": "DocumentsController_list",
@@ -282,23 +314,6 @@
         "tags": ["documents"]
       }
     },
-    "/v1/documents/embedding-profiles": {
-      "post": {
-        "operationId": "DocumentsController_createProfile",
-        "parameters": [],
-        "responses": {
-          "201": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "cookie": []
-          }
-        ],
-        "tags": ["documents"]
-      }
-    },
     "/v1/documents/embedding-profiles/{profileId}/activate": {
       "post": {
         "operationId": "DocumentsController_activateProfile",
@@ -450,6 +465,40 @@
           }
         ],
         "tags": ["documents"]
+      }
+    },
+    "/v1/documents/{documentId}/purge": {
+      "delete": {
+        "operationId": "DocumentsController_purge",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["documents"]
+      }
+    },
+    "/v1/normative-search-testing/search": {
+      "post": {
+        "operationId": "NormativeSearchTestingController_search",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Full retrieved chunk content, for inspecting what the AI sees"
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["normative-search-testing"]
       }
     },
     "/v1/platform-users": {
@@ -625,6 +674,169 @@
           }
         ],
         "tags": ["platform-users"]
+      }
+    },
+    "/v1/llm-settings": {
+      "get": {
+        "operationId": "LlmSettingsController_read",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["llm-settings"]
+      },
+      "put": {
+        "operationId": "LlmSettingsController_update",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "description": "Every field is optional. `null` clears an override and falls back to the environment; an omitted field is left as-is. `apiKey` is write-only and never read back.",
+                "properties": {
+                  "apiKey": {
+                    "type": "string",
+                    "nullable": true,
+                    "maxLength": 400
+                  },
+                  "ragEnabled": {
+                    "type": "boolean",
+                    "nullable": true
+                  },
+                  "profileModel": {
+                    "type": "string",
+                    "nullable": true,
+                    "maxLength": 120
+                  },
+                  "transcriptionModel": {
+                    "type": "string",
+                    "nullable": true,
+                    "maxLength": 120
+                  },
+                  "regulatoryModel": {
+                    "type": "string",
+                    "nullable": true,
+                    "maxLength": 120
+                  },
+                  "regulatoryTriageModel": {
+                    "type": "string",
+                    "nullable": true,
+                    "maxLength": 120
+                  },
+                  "regulatoryVerificationModel": {
+                    "type": "string",
+                    "nullable": true,
+                    "maxLength": 120
+                  },
+                  "regulatoryServiceTier": {
+                    "type": "string",
+                    "nullable": true,
+                    "enum": ["auto", "default", "flex", "priority"]
+                  },
+                  "regulatoryTextVerbosity": {
+                    "type": "string",
+                    "nullable": true,
+                    "enum": ["low", "medium", "high"]
+                  },
+                  "regulatoryPromptCacheRetention": {
+                    "type": "string",
+                    "nullable": true,
+                    "enum": ["in_memory", "24h"]
+                  },
+                  "regulatoryReasoningEffort": {
+                    "type": "string",
+                    "nullable": true,
+                    "enum": ["none", "low", "medium", "high", "xhigh", "max"]
+                  },
+                  "regulatoryTimeoutMs": {
+                    "type": "integer",
+                    "nullable": true
+                  },
+                  "regulatoryDraftMaxOutputTokens": {
+                    "type": "integer",
+                    "nullable": true
+                  },
+                  "regulatoryVerificationMaxOutputTokens": {
+                    "type": "integer",
+                    "nullable": true
+                  },
+                  "regulatoryTriageMaxOutputTokens": {
+                    "type": "integer",
+                    "nullable": true
+                  },
+                  "regulatoryRunBudgetUsd": {
+                    "type": "number",
+                    "nullable": true
+                  },
+                  "regulatoryEvaluationBudgetUsd": {
+                    "type": "number",
+                    "nullable": true
+                  },
+                  "regulatoryInputUsdPerMTok": {
+                    "type": "number",
+                    "nullable": true
+                  },
+                  "regulatoryCachedInputUsdPerMTok": {
+                    "type": "number",
+                    "nullable": true
+                  },
+                  "regulatoryOutputUsdPerMTok": {
+                    "type": "number",
+                    "nullable": true
+                  },
+                  "regulatoryFlexRateMultiplier": {
+                    "type": "number",
+                    "nullable": true
+                  },
+                  "conservativeBytesPerToken": {
+                    "type": "number",
+                    "nullable": true
+                  },
+                  "triageIncludeUnsure": {
+                    "type": "boolean",
+                    "nullable": true
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["llm-settings"]
+      },
+      "delete": {
+        "operationId": "LlmSettingsController_reset",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["llm-settings"]
       }
     },
     "/health/live": {

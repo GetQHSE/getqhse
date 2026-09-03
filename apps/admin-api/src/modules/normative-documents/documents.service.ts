@@ -11,6 +11,7 @@ import {
   Optional,
   UnprocessableEntityException,
 } from "@nestjs/common";
+import { llmSettings } from "@qhse/ai";
 import type { CurrentUser } from "@qhse/auth";
 import {
   createPrismaClient,
@@ -53,8 +54,8 @@ function searchUnavailableReason(
   active: { complete: boolean } | undefined,
   pending: { status: string } | undefined,
 ): RegulatoryAnalysisErrorCode | null {
-  if (process.env["NORMATIVE_RAG_ENABLED"] !== "true") return "NORMATIVE_RAG_DISABLED";
-  if (!process.env["OPENAI_API_KEY"]) return "OPENAI_KEY_MISSING";
+  if (!llmSettings().ragEnabled) return "NORMATIVE_RAG_DISABLED";
+  if (!llmSettings().apiKey) return "OPENAI_KEY_MISSING";
   if (active) return active.complete ? null : "EMBEDDING_PROFILE_STALE";
   if (!pending) return "EMBEDDING_PROFILE_MISSING";
   if (pending.status === "READY") return "EMBEDDING_PROFILE_NOT_ACTIVATED";
@@ -848,7 +849,7 @@ export class DocumentsService {
     const version = await this.findVersion(documentId, versionId);
     this.transition(version.status, "published");
     if (
-      process.env["NORMATIVE_RAG_ENABLED"] === "true" &&
+      llmSettings().ragEnabled &&
       version.storageAllowed &&
       version.extractionAllowed &&
       version.embeddingAllowed &&
@@ -1086,8 +1087,8 @@ export class DocumentsService {
       searchable: reason === null,
       reason,
       message: reason ? regulatoryAnalysisErrorMessages[reason] : null,
-      ragEnabled: process.env["NORMATIVE_RAG_ENABLED"] === "true",
-      openAiConfigured: Boolean(process.env["OPENAI_API_KEY"]),
+      ragEnabled: llmSettings().ragEnabled,
+      openAiConfigured: Boolean(llmSettings().apiKey),
       searchableChunks,
       profiles: detailed,
     };

@@ -1,14 +1,14 @@
 import { Injectable } from "@nestjs/common";
-import { openai } from "@ai-sdk/openai";
 import { embed } from "ai";
 
 import { NormativeQueryEmbeddingPort } from "../application/normative-search-testing.port.js";
+import { openAiProvider } from "@qhse/ai";
 
 @Injectable()
 export class OpenAiQueryEmbeddingAdapter extends NormativeQueryEmbeddingPort {
   async embedQuery(model: string, value: string): Promise<number[]> {
     const result = await embed({
-      model: openai.embedding(model),
+      model: openAiProvider().embedding(model),
       value,
       maxRetries: 3,
       providerOptions: {

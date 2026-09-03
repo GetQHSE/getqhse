@@ -1,6 +1,7 @@
 import { createServer, type Server } from "node:http";
 
 import { Injectable, type OnModuleDestroy } from "@nestjs/common";
+import { llmSettings } from "@qhse/ai";
 import { createPrismaClient, Prisma, type DatabaseClient } from "@qhse/database";
 import { Redis } from "ioredis";
 
@@ -48,9 +49,9 @@ export class WorkerHealthServer implements OnModuleDestroy {
       service: "qhse-worker",
       checks: { database, redis },
       regulatory: {
-        enabled: process.env["NORMATIVE_RAG_ENABLED"] === "true",
-        openAiConfigured: Boolean(process.env["OPENAI_API_KEY"]),
-        model: process.env["OPENAI_REGULATORY_MODEL"] ?? "gpt-5-mini",
+        enabled: llmSettings().ragEnabled,
+        openAiConfigured: Boolean(llmSettings().apiKey),
+        model: llmSettings().regulatoryModel,
       },
     };
   }

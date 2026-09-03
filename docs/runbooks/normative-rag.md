@@ -10,17 +10,140 @@ retrieval logs.
 2. Because the development migration history is now a clean baseline, reset disposable local data
    with `pnpm --filter @qhse/database exec prisma migrate reset --force`, then seed it.
 3. Set `OPENAI_API_KEY`. Keep `NORMATIVE_RAG_ENABLED=false` until rights and source
-   metadata have been reviewed.
+   metadata have been reviewed. Both are the fallback layer: the administration workspace's
+   **Settings → LLM** tab overrides them per environment without a redeploy (see
+   [LLM settings](#llm-settings)).
 4. Upload one licensed ISO source and one official Moroccan source. The UI requires explicit rights
    confirmations; database defaults remain false.
 5. Process, review, classify, and validate each revision.
-6. Set `NORMATIVE_RAG_ENABLED=true`. Create an inactive profile with
+6. Enable retrieval — `NORMATIVE_RAG_ENABLED=true`, or the switch in Settings → LLM. Create an
+   inactive profile with
    `POST /v1/documents/embedding-profiles`, then call
    `POST /v1/documents/{documentId}/versions/{revisionId}/reindex`, and wait for its BullMQ job.
 7. After every eligible chunk exists under the READY profile, call
    `POST /v1/documents/embedding-profiles/{profileId}/activate`.
 8. Evaluate the synthetic French/Arabic dataset, then exercise `POST /v1/normative/search` from an
    authenticated customer session.
+
+## Document extraction quality
+
+The extractor runs one Docling pass per document, then measures the text it produced. A PDF can
+carry a text layer that decodes to nothing recoverable -- subsetted CID fonts with no ToUnicode
+CMap map every glyph to an arbitrary code point -- and Docling's default OCR mode is PDF-aware,
+so it skips regions that already hold text cells and never OCRs those pages. The result is a
+document that passes every character-count check and reaches review as unusable garbage.
+
+The decisive measurement is lexical. Docling's parser rebuilds word spacing from the page
+geometry, so a broken text layer still comes back with ordinary-looking words of ordinary length
+-- "Article" simply arrives as "$UWLFOH". On the two documents in `tests/factories`, function
+words run at 0.03 per thousand characters for the broken law against 39 for a cleanly extracted
+standard; spacing, word length and character class are indistinguishable between them.
+
+When the measured text layer is degenerate (no recognizable words, control characters where
+spaces belong, word spacing lost, words running together, undecodable characters), the document
+is converted a second time
+with `OcrMode.FULL_PAGE`. The second pass is kept only if it is both assessable and no longer
+degenerate; a failed or worse pass leaves the first conversion untouched. Set
+`DOCLING_REPAIR_DEGENERATE_TEXT_LAYER=false` to restore the single-pass behaviour.
+
+The OCR engine is named explicitly as Tesseract with `DOCLING_OCR_LANGUAGES` (default `fra+ara`).
+Docling's automatic engine selection defers to whichever engine it picks, and every one of those
+defaults to European languages only -- Arabic sources were being recognized as French.
+
+Docling's own confidence report is not a substitute for any of this: the broken law converts with
+`confidence_mean_grade = excellent`, because its layout and parse stages both succeeded. Only the
+character mapping behind them failed.
+
+Section-header depth is inferred from PDF bookmarks and outline numbering
+(`DOCLING_INFER_HEADING_HIERARCHY`), with font-size inference switched off -- measured on the
+same law it buckets headings by typography rather than structure. The level rides along on each
+block for diagnostics but deliberately does not drive the heading hierarchy in `@qhse/knowledge`.
+
+Conversions are serialized by `DOCLING_MAX_CONCURRENT_CONVERSIONS` (default 1). Docling's
+converter carries model state that is not safe to drive from several threads at once, and
+FastAPI's threadpool will happily do so.
+
+`text_extraction` records what actually happened. `extractionMethod` on the revision holds the
+provider the extractor reports -- `docling`, `docling+full_page_ocr`, `pdftotext`, or
+`pdftotext+ocr` -- rather than always claiming Docling, and the stage's `qualityScore` grades the
+outcome: 0.9 clean, 0.7/0.6/0.5 for a fair or poor converter confidence, a partial conversion or
+a flat-text fallback, and 0.3 for a text layer that never decoded. Anything below 0.9 also emits
+an `extraction_degraded` log line carrying the measurements. To find revisions worth
+re-extracting, query `document_processing_jobs` for `job_type = 'text_extraction'` with a
+`quality_score` below 0.9.
+
+Model weights are baked into the extractor image. The production compose file mounts
+`docling-cache` over the HuggingFace cache directory: Docker seeds a _newly created_ named volume
+from the image, but an existing one is left alone, so remove that volume when deploying an image
+whose model set changed. Otherwise the container downloads at startup instead -- the service now
+converts a small PDF before reporting ready, so that cost lands on the health check rather than
+on the first real document.
+
+## Chunking
+
+Chunks are budgeted in tokens, not characters, because the corpus is bilingual. Measured against
+`cl100k_base` -- the encoder the `text-embedding-3` models use -- French runs about 4.1 characters
+to a token and Arabic about 1.44. The previous budget counted characters and divided by four,
+which is accurate for French and under-reports Arabic by a factor of nearly three: the same
+6,000-character chunk is roughly 1,450 tokens of French but 4,150 of Arabic. Nothing overflowed
+the model's 8,191-token limit, but an Arabic chunk packed close to three times as much of its
+provision into one 768-dimension vector, and Arabic retrieval was correspondingly coarser.
+
+`estimateTokens` splits a string's characters between the two rates in proportion to its letters,
+which holds to within 3% on French, on Arabic and on text that mixes them, and errs high. The
+metadata prefix is charged against the same budget, because it is embedded along with the
+content. Splits land on paragraph and then sentence boundaries; chunks do not overlap, since a
+chunk is the retrieval index and a hit pulls up its whole provision downstream, so a chunk only
+has to be findable rather than complete.
+
+`chunkingVersion` is `normative-v3`. Chunk boundaries and token counts both changed, so a
+revision chunked under `normative-v2` is not comparable and has to be reprocessed -- reindexing
+alone re-embeds the old boundaries.
+
+## Structure quality
+
+`structure_detection` scores what segmentation produced and records the score as the stage's
+`qualityScore`, with the signals behind it in `outputMetadata`. Segmentation fails quietly --
+it still yields provisions and chunks, just the wrong ones, and nothing downstream notices until
+a reviewer reads them or a citation lands on the wrong article.
+
+The signals are all free, taken from structure the segmenter already computed: identifier
+coverage, fragments (an identified provision under 120 characters is its own heading with the
+body left elsewhere), the share of provisions nobody could cite, how many blocks carried a layout
+label, and -- the one that cannot be argued with -- gaps in the numbering. Articles are
+consecutive by construction, so a missing number is a boundary the segmenter did not find.
+
+Below `STRUCTURE_REVIEW_THRESHOLD` (0.7) the stage logs `structure_quality_low` with its
+concerns. That is the gate to hang an expensive path off: a model-assisted pass over the blocks,
+or a reviewer, should be spent on the documents that score badly rather than on every document.
+To find them: query `document_processing_jobs` for `job_type = 'structure_detection'` with a
+`quality_score` below 0.7.
+
+`pnpm eval:extraction` grades the segmenter against captured extractor output in
+`evals/document-extraction`. It needs no container and no model weights, so it belongs in the
+inner loop rather than at the end of one. Its fixtures record the layouts that actually broke:
+an article whose number and title arrive as two headings, a keyword split from its number by a
+column break, a chapter whose roman numeral OCR read as a lowercase l.
+
+Changing segmentation or identifier normalization does not update revisions that are already
+ingested: `POST /v1/documents/{documentId}/versions/{revisionId}/reindex` only re-embeds. A
+revision has to be reprocessed for new provision boundaries or identifiers to take effect.
+
+## LLM settings
+
+Every value below — the API key, each model, the service tier, the token ceilings, the run budget,
+the per-token rates, and the retrieval switch — resolves in three layers: the `llm_settings` row
+the administration workspace writes, then the environment variable, then a built-in default. An
+unset column falls through, so a deployment that never opens the tab behaves exactly as it did
+when these were environment-only.
+
+Writes need the `super_admin` or `platform_admin` role. The API key is encrypted with AES-256-GCM
+under a key derived from `BETTER_AUTH_SECRET` and is never read back — the tab shows a masked
+preview. Rotating `BETTER_AUTH_SECRET` therefore orphans a stored key: the services fall back to
+`OPENAI_API_KEY` and an administrator has to re-enter it.
+
+Each service polls the row every 30 seconds, so a saved change reaches the workers within a
+minute rather than on the next deploy. "Reset everything to the environment" deletes the row.
 
 ## Accuracy-first regulatory analysis
 
@@ -167,18 +290,18 @@ curl -s --cookie "$ADMIN_COOKIE" https://<admin-api>/v1/documents/embedding-prof
 `reason` is `null` when search is healthy; otherwise it is the same code the worker writes to
 `RegulatoryAnalysisRun.errorCode`, and the customer UI renders its French translation:
 
-| `reason`                          | Meaning                                                                  | Fix                                                                                                                                         |
-| --------------------------------- | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| `NORMATIVE_RAG_DISABLED`          | The **worker** does not see `NORMATIVE_RAG_ENABLED=true`.                | Export it into the worker container; `compose.production.yaml` defaults it to `false`.                                                      |
-| `OPENAI_KEY_MISSING`              | `OPENAI_API_KEY` is unset.                                               | Set it, restart the worker.                                                                                                                 |
-| `EMBEDDING_PROFILE_MISSING`       | The corpus was never indexed.                                            | Run rollout steps 6–7.                                                                                                                      |
-| `EMBEDDING_PROFILE_BUILDING`      | Indexing is under way.                                                   | Wait for the BullMQ jobs; check `missingChunks` per profile.                                                                                |
-| `EMBEDDING_PROFILE_NOT_ACTIVATED` | A profile is READY but step 7 was skipped.                               | `POST /v1/documents/embedding-profiles/{profileId}/activate`.                                                                               |
-| `EMBEDDING_PROFILE_STALE`         | Content was published after the active profile was built.                | Reindex the new revisions, then activate the refreshed profile.                                                                             |
-| `REGULATORY_MODEL_UNAVAILABLE`    | The configured accuracy model failed or was rejected (not a rate limit). | Verify model access and both regulatory model variables; restart the worker.                                                                |
-| `REGULATORY_MODEL_RATE_LIMITED`   | An OpenAI TPM rate limit persisted past all 3 retries.                   | Transient — retrying from the veille page works as-is. If it recurs, see the TPM note above (raise the account limit or lower concurrency). |
-| `REGULATORY_WORKER_UNAVAILABLE`   | No BullMQ regulatory worker is registered.                               | Check worker readiness/logs and its Redis connection before retrying.                                                                       |
-| `REGULATORY_BUDGET_LIMIT`         | The run stopped before exceeding its configured budget.                  | Review completed candidates, then start a new run or explicitly revise the budget.                                                          |
+| `reason`                          | Meaning                                                                  | Fix                                                                                                                                               |
+| --------------------------------- | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `NORMATIVE_RAG_DISABLED`          | Retrieval is off for the **worker**.                                     | Turn it on in Settings → LLM, or export `NORMATIVE_RAG_ENABLED=true` into the worker container; `compose.production.yaml` defaults it to `false`. |
+| `OPENAI_KEY_MISSING`              | No API key resolves, from the settings row or `OPENAI_API_KEY`.          | Save one in Settings → LLM, or set the variable and restart the worker.                                                                           |
+| `EMBEDDING_PROFILE_MISSING`       | The corpus was never indexed.                                            | Run rollout steps 6–7.                                                                                                                            |
+| `EMBEDDING_PROFILE_BUILDING`      | Indexing is under way.                                                   | Wait for the BullMQ jobs; check `missingChunks` per profile.                                                                                      |
+| `EMBEDDING_PROFILE_NOT_ACTIVATED` | A profile is READY but step 7 was skipped.                               | `POST /v1/documents/embedding-profiles/{profileId}/activate`.                                                                                     |
+| `EMBEDDING_PROFILE_STALE`         | Content was published after the active profile was built.                | Reindex the new revisions, then activate the refreshed profile.                                                                                   |
+| `REGULATORY_MODEL_UNAVAILABLE`    | The configured accuracy model failed or was rejected (not a rate limit). | Verify model access and both regulatory model variables; restart the worker.                                                                      |
+| `REGULATORY_MODEL_RATE_LIMITED`   | An OpenAI TPM rate limit persisted past all 3 retries.                   | Transient — retrying from the veille page works as-is. If it recurs, see the TPM note above (raise the account limit or lower concurrency).       |
+| `REGULATORY_WORKER_UNAVAILABLE`   | No BullMQ regulatory worker is registered.                               | Check worker readiness/logs and its Redis connection before retrying.                                                                             |
+| `REGULATORY_BUDGET_LIMIT`         | The run stopped before exceeding its configured budget.                  | Review completed candidates, then start a new run or explicitly revise the budget.                                                                |
 
 ### Driving the rollout
 

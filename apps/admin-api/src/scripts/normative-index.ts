@@ -1,4 +1,10 @@
 import {
+  configureLlmSettingsLoader,
+  llmSettings,
+  refreshLlmSettings,
+  LLM_SETTINGS_ROW_ID,
+} from "@qhse/ai";
+import {
   createPrismaClient,
   embeddableRevisionFilter,
   searchableRevisionFilter,
@@ -51,8 +57,8 @@ async function report(database: DatabaseClient) {
     })),
   );
   return {
-    ragEnabled: process.env["NORMATIVE_RAG_ENABLED"] === "true",
-    openAiConfigured: Boolean(process.env["OPENAI_API_KEY"]),
+    ragEnabled: llmSettings().ragEnabled,
+    openAiConfigured: Boolean(llmSettings().apiKey),
     publishedDocuments,
     searchableRevisions,
     embeddableRevisions,
@@ -170,6 +176,12 @@ function selectedMode(): Mode {
 async function main() {
   const mode = selectedMode();
   const database = createPrismaClient();
+  // A one-shot script does not need the polling sync, but it does need to report the same
+  // configuration the services are running on rather than this shell's environment.
+  configureLlmSettingsLoader(() =>
+    database.llmSetting.findUnique({ where: { id: LLM_SETTINGS_ROW_ID } }),
+  );
+  await refreshLlmSettings();
   const queue =
     mode === "index"
       ? new Queue(workQueueNames.embeddingGeneration, { connection: redisConnection() })

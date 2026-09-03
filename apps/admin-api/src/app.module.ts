@@ -6,6 +6,7 @@ import { LoggerModule } from "nestjs-pino";
 import { AuthModule } from "./modules/auth/auth.module.js";
 import { PlatformAdminGuard } from "./modules/auth/platform-admin.guard.js";
 import { HealthModule } from "./modules/health/health.module.js";
+import { LlmSettingsModule } from "./modules/llm-settings/llm-settings.module.js";
 import { NormativeDocumentsModule } from "./modules/normative-documents/normative-documents.module.js";
 import { NormativeEntitlementsModule } from "./modules/normative-entitlements/normative-entitlements.module.js";
 import { NormativeLicensingModule } from "./modules/normative-licensing/normative-licensing.module.js";
@@ -37,6 +38,7 @@ import { PlatformUsersModule } from "./modules/platform-users/platform-users.mod
     NormativeEntitlementsModule,
     NormativeSearchTestingModule,
     PlatformUsersModule,
+    LlmSettingsModule,
     HealthModule,
   ],
   providers: [

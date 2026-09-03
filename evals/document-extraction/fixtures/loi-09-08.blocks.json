@@ -1,0 +1,2070 @@
+{
+  "name": "loi-09-08",
+  "source": "09-08.pdf",
+  "redacted": false,
+  "capturedFrom": {
+    "provider": "docling+full_page_ocr",
+    "conversionStatus": "success",
+    "textLayerRepair": "applied"
+  },
+  "blocks": [
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "Dahir n° 1-09-15 du 22 safar 1430 (18 février 2009) portant promulgation de la loi n° 09-08 relative à la protection des personnes physiques à l'égard du traitement des données à caractère personnel."
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 1,
+      "text": "LOUANGE A DIEU SEUL !",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "(Grand Sceau de Sa Majesté Mohammed VI)"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "Que l'on sache par les présentes — puisse Dieu en élever et en fortifier la teneur !"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "Que Notre Majesté Chérifienne,"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "Vu la Constitution, notamment ses articles 26 et 58,"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "A DÉCIDÉ CE QUI SUIT :"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "Est promulguée et sera publiée au Bulletin officiel à la suite du présent dahir, la loi n° 09-08 relative à la protection des personnes physiques à l'égard du traitement des données à caractère personnel, telle qu'adoptée par la Chambre des représentants et la Chambre des conseillers."
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "Fait à Fès, le 22 safar 1430 (18 février 2009)."
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "Pour :"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "Le Premier"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "contreseing ministre,"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "ABBAS EL FASSI."
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "*"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "*"
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 1,
+      "text": "Loi n° 09-08",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 1,
+      "text": "relative à la protection des personnes physiques à l'égard du traitement des données à caractère personnel",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 1,
+      "text": "Chapitre premier",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "DISPOSITIONS GENERALES"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "Section première. — Définitions et champ d'application"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "Article premier"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "L'informatique est au service du citoyen et évolue dans le cadre de la coopération internationale. Elle ne doit pas porter atteinte à l'identité, aux droits et aux libertés collectives ou individuelles de l'Homme. Elle ne doit pas constituer un moyen de divulguer des secrets de la vie privée des citoyens."
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "Pour l'application de la présente loi, on entend par :"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "1. « données à caractère personnel » : toute information, de quelque nature qu'elle soit et indépendamment de son support, y compris le son et l'image, concernant une personne physique identifiée ou identifiable, dénommée ci-après « personne concernée »."
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "Est réputée identifiable une personne qui peut être identifiée, directement ou indirectement, notamment par référence à un numéro d'identification ou à un ou plusieurs éléments spécifiques de son identité physique, physiologique, génétique, psychique, économique, culturelle ou sociale ;"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 1,
+      "text": "2.« traitement de données à caractère personnel » («traitement ») : toute opération ou ensemble d'opérations effectuées ou non à l'aide de procédés automatisés et appliquées à des données à caractère personnel, telles que la collecte, l'enregistrement, l'organisation, la conservation, l'adaptation ou la modification, l'extraction, la consultation, l'utilisation, la communication par transmission, diffusion ou toute autre forme de mise à disposition, le rapprochement ou l'interconnexion, ainsi que le verrouillage, l'effacement ou la destruction ;"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 2,
+      "text": "« données sensibles » : données à caractère personnel qui révèlent l'origine raciale ou ethnique, les opinions politiques, les convictions religieuses ou philosophiques ou l'appartenance syndicale de la personne concernée ou qui sont relatives à 5 santé y compris ses données génétiques ;"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 2,
+      "text": "« fichier de données à caractère personnel » (« fichier ») : tout ensemble structuré de données à caractère personnel accessibles selon des critères déterminés, que cet ensemble soit centralisé, décentralisé ou réparti de manière fonctionnelle ou géographique, tels que les archives, les banques de données, les fichiers de recensement ;"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 2,
+      "text": "5. « responsable du traitement » : la personne physique ou morale, l'autorité publique, le service ou tout autre organisme qui, seul ou conjointement avec d'autres, détermine les finalités et les moyens du traitement de données à caractère personnel. Lorsque les finalités et les moyens du traitement sont déterminés par des dispositions législatives ou réglementaires, le responsable du traitement doit être indiqué dans la loi d'organisation et de fonctionnement ou dans le statut de l'entité légalement ou statutairement compétente pour traiter les données à caractère personnel en cause ;"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 2,
+      "text": "6. « sous-traitant » : la personne physique ou morale, l'autorité publique, le service ou tout autre organisme qui traite des données à caractère personnel pour le compte du responsable du traitement ;"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 2,
+      "text": "7.« tiers » : la personne physique ou morale, l'autorité publique, le service ou tout autre organisme autre que la personne concernée, le responsable du traitement, le sous-traitant et les personnes qui, placées sous l'autorité directe du responsable du traitement ou du sous-traitant, sont habilitées à traiter les données ;"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 2,
+      "text": "8. « destinataire » : la personne physique ou morale, l'autorité publique, le service ou tout autre organisme qui reçoit communication de données, qu'il s'agisse ou non d'un tiers. Les organismes qui sont susceptibles de recevoir communication de données dans le cadre d'une disposition légale ne sont pas considérées comme destinataires, notamment la Commission nationale de contrôle de la protection des données à caractère personnel instituée à l'article 27 ci-après et dénommée la Commission nationale ;"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 2,
+      "text": "9.« consentement de la personne concernée » : toute manifestation de volonté, libre, spécifique et informée, par laquelle la personne concernée accepte que les données à caractère personnel la concernant fassent l'objet d'un traitement ;"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 2,
+      "text": "10. « cession ou communication» : toute divulgation ou information d'une donnée portée à la connaissance d'une personne autre que la personne concernée ;"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 2,
+      "text": "11. « interconnexion de données » : forme de traitement qui consiste à établir un rapport entre les données d'un fichier et les données d'un fichier ou de plusieurs fichiers tenus par un autre ou par d'autres responsables, ou tenus par le même responsable mais dans un autre but."
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 2,
+      "text": "Article 2",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 2,
+      "text": "La présente loi s'applique au traitement des données à caractère personnel, automatisé en tout ou en partie, ainsi qu'au traitement non automatisé de données à caractère personnel contenues ou appelées à figurer dans des fichiers manuels ;"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 2,
+      "text": "La présente loi s'applique au traitement des données à caractère personnel répondant à la définition du paragraphe 1 ci-dessus :"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 2,
+      "text": "a) lorsqu'il est effectué par une personne physique ou morale dont le responsable est établi sur le territoire marocain. Le responsable d'un traitement qui exerce une activité sur le territoire marocain dans le cadre d'une installation, quelle que soit sa forme juridique, y est considéré comme établi ;"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 2,
+      "text": "b)lorsque le responsable n'est pas établi sur le territoire marocain mais recourt, à des fins de traitement des données à caractère personnel, à des moyens automatisés ou non, situés sur le territoire marocain, à l'exclusion des traitements qui ne sont utilisés qu'à des fins de transit sur le territoire national ou sur celui d'un Etat dont la législation est reconnue équivalente à celle du Maroc en matière de protection des données à caractère personnel ;"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 2,
+      "text": "3. Dans le cas visé au b du paragraphe 2 ci-dessus, le responsable du traitement doit notifier à la Commission nationale, l'identité d'un représentant installé au Maroc qui, sans préjudice de sa responsabilité personnelle, se substitue à lui dans tous ses droits et obligations résultant des dispositions de la présente loi et des textes pris pour son application ;"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 2,
+      "text": "4. La présente loi ne s'applique pas :"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 2,
+      "text": "— au traitement de données à caractère personnel effectué par une personne physique pour l'exercice d'activités exclusivement personnelles ou domestiques ;"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 2,
+      "text": "— aux données à caractère personnel recueillies et traitées dans l'intérêt de la défense nationale et de la sécurité intérieure ou extérieure de l'Etat. Elle ne s'applique aux données à caractère personnel recueillies et traitées à des fins de prévention et de répression des crimes et délits que dans les conditions fixées par la loi ou le règlement qui crée le fichier en cause ; ce règlement précise le responsable du traitement, la condition de légitimité du traitement, la ou les finalités du traitement, la ou les catégories de personnes concernées et les données ou les catégories de données s'y rapportant, l'origine de ces données, les tiers ou les catégories de tiers auxquels ces données peuvent être communiquées et les mesures à prendre pour assurer la sécurité du traitement. Il est soumis à l'avis préalable de la Commission nationale ;"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 2,
+      "text": "—aux données à caractère personnel recueillies en application d'une législation particulière. Les projets ou propositions de loi portant création de fichiers relatifs aux données précitées sont communiqués à la Commission nationale en précisant l'autorité responsable du fichier, la ou les finalités du traitement, la ou les catégories de personnes concernées et les données ou les catégories de données s'y rapportant, l'origine de ces données, les tiers ou les catégories de tiers auxquels ces données peuvent être communiquées et les mesures à prendre pour assurer la sécurité du traitement."
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 3,
+      "text": "Section 2. -Qualité des données et consentement préalable de la personne concernée",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 3,
+      "text": "Article 3",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 3,
+      "text": "Les données à caractère personnel doivent être :"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 3,
+      "text": "traitées loyalement et licitement ;"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 3,
+      "text": "b) collectées pour des finalités déterminées, explicites et légitimes, et ne pas être traitées ultérieurement de manière incompatible avec ces finalités ;"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 3,
+      "text": "c)adéquates, pertinentes et non excessives au regard des finalités pour lesquelles elles sont collectées et pour lesquelles elles sont traitées ultérieurement ;"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 3,
+      "text": "d) exactes et, si nécessaire, mises à jour. Toutes les mesures raisonnables doivent être prises pour que les données inexactes ou incomplètes, au regard des finalités pour lesquelles elles sont collectées ou pour lesquelles elles sont traitées ultérieurement, soient effacées ou rectifiées ;"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 3,
+      "text": "e) conservées sous une forme permettant l'identification des personnes concernées pendant une durée n'excédant pas celle nécessaire à la réalisation des finalités pour lesquelles elles sont collectées et pour lesquelles elles sont traitées ultérieurement."
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 3,
+      "text": "Sur demande du responsable du traitement et, s'il existe un intérêt légitime, la Commission nationale peut autoriser la conservation de données à caractère personnel à des fins historiques, statistiques ou scientifiques au-delà de la période citée au e) du paragraphe précédent ;"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 3,
+      "text": "Il incombe au responsable du traitement d'assurer le respect des dispositions des paragraphes qui précèdent, sous le contrôle de la Commission nationale."
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 3,
+      "text": "Article 4",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 3,
+      "text": "Le traitement des données à caractère personnel ne peut être effectué que si la personne concernée a indubitablement donné son consentement à l'opération ou à l'ensemble des opérations envisagées."
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 3,
+      "text": "Les données à caractère personnel objet du traitement ne peuvent être communiquées à un tiers que pour la réalisation de fins directement liées aux fonctions du cédant et du cessionnaire et sous réserve du consentement préalable de la personne concernée."
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 3,
+      "text": "Toutefois, ce consentement n'est pas exigé si le traitement est nécessaire :"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 3,
+      "text": "au respect d'une obligation légale à laquelle est soumis (e) la personne concernée ou le responsable du traitement ;"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 3,
+      "text": "à l'exécution d'un contrat auquel la personne concernée est partie ou à l'exécution de mesures précontractuelles prises à la demande de celle-ci ;"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 3,
+      "text": "c)à la sauvegarde d'intérêts vitaux de la personne concernée, si elle est physiquement ou juridiquement dans l'incapacité de donner son consentement ;"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 3,
+      "text": "à l'exécution d'une mission d'intérêt public ou relevant de l'exercice de l'autorité publique, dont est investi le responsable du traitement ou le tiers auquel les données sont communiquées ;"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 3,
+      "text": "e)à la réalisation de l'intérêt légitime poursuivi par le responsable du traitement ou par le destinataire, sous réserve de ne pas méconnaître l'intérêt ou les droits et libertés fondamentaux de la personne concernée."
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 3,
+      "text": "Chapitre Il",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 3,
+      "text": "DES DROITS DE LA PERSONNE CONCERNEE"
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 3,
+      "text": "Article 5",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 3,
+      "text": "Droit à l'information lors de la collecte des données"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 3,
+      "text": "Toute personne sollicitée directement, en vue d'une collecte de ses données personnelles, doit être préalablement informée de manière expresse, précise et non équivoque par le responsable du traitement ou son représentant, sauf si elle en a déjà eu connaissance, des éléments suivants :"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 3,
+      "text": "l'identité du responsable du traitement et, le cas échéant, de son représentant ;"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 3,
+      "text": "b)les finalités du traitement auquel les données sont destinées ;"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 3,
+      "text": "c)toutes informations supplémentaires telles que :"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 3,
+      "text": "٠ les destinataires ou les catégories de destinataires ;"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 3,
+      "text": "٠ le fait de savoir si la réponse aux questions est obligatoire ou facultative, ainsi que les conséquences éventuelles d'un défaut de réponse ;"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 3,
+      "text": "«l'existence d'un droit d'accès aux données à caractère personnel la concernant et de rectification de ces données,"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 3,
+      "text": "dans la mesure où, compte tenu des circonstances particulières dans lesquelles les données sont collectées, ces informations sont nécessaires pour assurer un traitement loyal des données à l'égard de la personne concernée ;"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 3,
+      "text": "les caractéristiques du récépissé de la déclaration auprès de la Commission nationale ou de celles de l'autorisation délivrée par ladite commission ;"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 3,
+      "text": "Les documents qui servent de base à la collecte des données à caractère personnel doivent contenir les informations visées au paragraphe précédent ;"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 3,
+      "text": "Lorsque les données à caractère personnel n'ont pas été collectées auprès de la personne concernée, le responsable du traitement ou son représentant doit, avant l'enregistrement des données ou si une communication de données à un tiers est envisagée, au plus tard lors de la première communication de données, fournir à la personne concernée au moins les informations visées aux a), b) et c) ci-dessus, sauf si la personne en a déjà eu connaissance."
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 3,
+      "text": "En cas de collecte de données en réseaux ouverts, la personne concernée doit être informée, sauf si elle sait déjà que les données à caractère personnel la concernant peuvent circuler sur les réseaux sans garanties de sécurité et qu'elles risquent d'être lues et utilisées par des tiers non autorisés."
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 3,
+      "text": "Article 6",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 3,
+      "text": "Limites au droit à l'information",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 3,
+      "text": "L'obligation d'information prévue à l'article 5 ci-dessus n'est pas applicable :"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 3,
+      "text": "a) aux données à caractère personnel dont la collecte et le traitement sont nécessaires à la défense nationale, la sûreté intérieure ou extérieure de l'Etat, la prévention ou la répression du crime ;"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 4,
+      "text": "b) lorsque l'information de la personne concernée se révèle impossible, notamment en cas de traitement de données à caractère personnel à des fins statistiques, historiques ou scientifiques. Dans ce cas, le responsable du traitement est tenu d'aviser la Commission de l'impossibilité d'informer la personne concernée et de lui présenter le motif de cette impossibilité ;"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 4,
+      "text": "0 51 la législation prévoit expressément l'enregistrement ou la communication des données à caractère personnel ;"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 4,
+      "text": "d) au traitement de données à caractère personnel effectuées à des fins exclusivement journalistiques, artistiques ou littéraires."
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 4,
+      "text": "Article 7",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 4,
+      "text": "Droit d'accès",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 4,
+      "text": "La personne concernée, justifiant de son identité, a le droit d'obtenir du responsable du traitement, à des intervalles raisonnables, sans délais et gratuitement :"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 4,
+      "text": "a) la confirmation que les données à caractère personnel la concernant sont ou ne sont pas traitées, ainsi que des informations portant au moins sur les finalités du traitement, les catégories de données sur lesquelles il porte et les destinataires ou les catégories de destinataires auxquels les données à caractère personnel sont communiquées ;"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 4,
+      "text": "b)la communication, sous une forme intelligible, des données à caractère personnel faisant l'objet des traitements, ainsi que de toute information disponible sur l'origine des données."
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 4,
+      "text": "Le responsable du traitement peut demander à la Commission nationale des délais de réponse aux demandes d'accès légitimes et peut s'opposer aux demandes manifestement abusives, notamment, par leur nombre et leur caractère répétitif."
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 4,
+      "text": "En cas d'opposition, la charge de la preuve du caractère manifestement abusif, incombe au responsable du traitement auprès duquel ces demandes ont été faites."
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 4,
+      "text": "c)la connaissance de la logique qui sous-tend tout traitement automatisé des données à caractère personnel la concernant."
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 4,
+      "text": "Article 8",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 4,
+      "text": "Droit de rectification",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 4,
+      "text": "La personne concernée, justifiant de son identité, a le droit d'obtenir du responsable du traitement :"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 4,
+      "text": "a) l'actualisation, la rectification, l'effacement ou le verrouillage des données à caractère personnel dont le traitement n'est pas conforme à la présente loi, notamment en raison du caractère incomplet et inexact de ces données ; le responsable du traitement est tenu de procéder aux rectifications nécessaires sans frais pour le demandeur et ce, dans un délai franc de dix jours."
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 4,
+      "text": "En cas de refus ou de non réponse dans le délai précité, la personne concernée peut introduire une demande de rectification auprès de la Commission nationale, laquelle charge l'un de ses membres à l'effet de mener toutes investigations utiles et faire procéder aux rectifications nécessaires, dans les plus brefs délais. La personne concernée est tenue informée des suites réservées à sa demande ;"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 4,
+      "text": "b) la notification aux tiers auxquels les données à caractère personnel ont été communiquées de toute actualisation, toute rectification, tout effacement ou tout verrouillage effectué conformément au point a) ci-dessus, si cela ne s'avère pas impossible."
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 4,
+      "text": "Article 9",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 4,
+      "text": "Droit d'opposition",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 4,
+      "text": "La personne concernée, justifiant de son identité, a le droit de s'opposer, pour des motifs légitimes, à ce que des données la concernant fassent l'objet d'un traitement."
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 4,
+      "text": "Elle a le droit de s'opposer, sans frais, à ce que les données la concernant soient utilisées à des fins de prospection, notamment commerciale, par le responsable actuel du traitement ou celui d'un traitement ultérieur."
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 4,
+      "text": "Les dispositions du premier alinéa ne s'appliquent pas lorsque le traitement répond à une obligation légale ou lorsque l'application de ces dispositions a été écartée par une disposition expresse de l'acte autorisant le traitement."
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 4,
+      "text": "Article 10",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 4,
+      "text": "Interdiction de la prospection directe",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 4,
+      "text": "Est interdite la prospection directe au moyen d'un automate d'appel, d'un télécopieur ou d'un courrier électronique ou d'un moyen employant une technologie de même nature qui utilise, sous quelque forme que ce soit, les coordonnées d'une personne physique qui n'a pas exprimé son consentement préalable à recevoir des prospections directes par ce moyen."
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 4,
+      "text": "Pour l'application du présent article, on entend par consentement toute manifestation de volonté libre, spécifique et informée par laquelle une personne accepte que des données à caractère personnel la concernant soient utilisées à des fins de prospection directe."
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 4,
+      "text": "Constitue une prospection directe l'envoi de tout message destiné à promouvoir, directement ou indirectement, des biens, des services ou l'image d'une personne vendant des biens ou fournissant des services."
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 4,
+      "text": "Toutefois, la prospection directe par courrier électronique est autorisée si les coordonnées du destinataire ont été recueillies directement auprès de lui, dans le respect des dispositions de la présente loi, à l'occasion d'une vente ou d'une prestation de services, si la prospection directe concerne des produits ou services analogues fournis par la même personne physique ou morale, et si le destinataire se voit offrir, de manière expresse, dénuée d'ambiguïté et simple, la possibilité de s'opposer, sans frais, hormis ceux liés à la transmission du refus, à l'utilisation de ses coordonnées lorsque celles-ci sont recueillies et chaque fois qu'un courrier électronique de prospection lui est adressé."
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 4,
+      "text": "Dans tous les cas, il est interdit d'émettre, à des fins de prospection directe, des messages au moyen d'automates d'appel, télécopieurs et courriers électroniques, sans indiquer de coordonnées valables auxquelles le destinataire puisse utilement transmettre une demande tendant à obtenir que ces communications cessent sans frais autres que ceux liés à la transmission de celle-ci."
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 4,
+      "text": "Il est également interdit de dissimuler l'identité de la personne pour le compte de laquelle la communication est émise et de mentionner un objet sans rapport avec la prestation ou le service proposé."
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 5,
+      "text": "Article 11",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 5,
+      "text": "Neutralité des effets",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 5,
+      "text": "Aucune décision de justice impliquant une appréciation sur le comportement d'une personne ne peut avoir pour fondement un traitement automatisé de données à caractère personnel destiné à évaluer certains aspects de sa personnalité."
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 5,
+      "text": "Aucune autre décision produisant des effets juridiques à l'égard d'une personne ne peut être prise sur le seul fondement d'un traitement automatisé de données destiné à définir le profil de l'intéressé ou à évaluer certains aspects de sa personnalité."
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 5,
+      "text": "Ne sont pas considérées comme prises sur le seul fondement d'un traitement automatisé les décisions prises dans le cadre de la conclusion ou de l'exécution d'un contrat et pour lesquelles la personne concernée a été mise à même de présenter ses observations, ni celles satisfaisant les demandes de la personne concernée."
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 5,
+      "text": "Chapitre III",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 5,
+      "text": "DES OBLIGATIONS DES RESPONSABLES DU TRAITEMENT"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 5,
+      "text": "Article 12"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 5,
+      "text": "Sauf dispositions législatives particulières, le traitement de données à caractère personnel doit faire l'objet :"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 5,
+      "text": "d'une autorisation préalable lorsque les traitements concernent :"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 5,
+      "text": "a)les données sensibles visées à l'alinéa 3 de l'article premier ci-dessus."
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 5,
+      "text": "Toutefois, sont dispensés de ladite autorisation les traitements mis en œuvre par une association ou tout autre groupement à but non lucratif et à caractère religieux, philosophique, politique, syndical, culturel ou sportif :"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 5,
+      "text": "— pour les seules données qui révèlent l'une ou plusieurs des caractéristiques visées au paragraphe 3 de l'article premier ci-dessus et correspondant à l'objet de ladite association ou dudit groupement ;"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 5,
+      "text": "— sous réserve que les données ne concernent que les membres de cette association ou de ce groupement et, le cas échéant, les personnes qui entretiennent avec celui-ci des contacts réguliers dans le cadre de son activité ;"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 5,
+      "text": "—et qu'ils ne portent que sur des données non communiquées à des tiers, à moins que les personnes concernées n'y consentent expressément et que le groupement puisse fournir la preuve de ce consentement à première requête de l'autorité compétente ;"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 5,
+      "text": "l'utilisation de données à caractère personnel à d'autres fins que celles pour lesquelles elles ont été collectées ;"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 5,
+      "text": "c)des données génétiques, à l'exception de ceux mis en oeuvre par des personnels de santé et qui répondent à des fins médicales, qu'il s'agisse de la médecine préventive, des diagnostics ou des soins ;"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 5,
+      "text": "d)des données portant sur les infractions, condamnations ou mesures de sûreté, à l'exception de ceux mis en œuvre par les auxiliaires de justice ;"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 5,
+      "text": "e) des données comportant le numéro de la carte d'identité nationale de la personne concernée ;"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 5,
+      "text": "fl'interconnexion de fichiers relevant d'une ou de plusieurs personnes morales gérant un service public et dont les finalités d'intérêt public sont différentes ou l'interconnexion de fichiers relevant d'autres personnes morales et dont les finalités principales sont différentes."
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 5,
+      "text": "d'une déclaration préalable dans les autres cas."
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 5,
+      "text": "Section première. — Déclaration préalable",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 5,
+      "text": "Article 13",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 5,
+      "text": "La déclaration préalable prévue à l'article 12 ci-dessus, qui comporte l'engagement que le traitement sera effectué conformément aux dispositions de la présente loi, est déposée auprès de la Commission nationale dans les conditions prévues à la présente section."
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 5,
+      "text": "Cette déclaration a pour objet de permettre à la Commission nationale d'exercer les compétences qui lui sont dévolues par la présente loi, afin de contrôler le respect de ses dispositions et d'assurer la publicité du traitement des données personnelles."
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 5,
+      "text": "Article",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 5,
+      "text": "14",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 5,
+      "text": "Le responsable du traitement ou, le cas échéant, son représentant doit adresser une déclaration à la Commission nationale préalablement à la mise en oeuvre d'un traitement entièrement ou partiellement automatisé ou d'un ensemble de tels traitements ayant une même finalité ou des finalités liées."
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 5,
+      "text": "Article"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 5,
+      "text": "15"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 5,
+      "text": "La déclaration prévue à l'article 12 ci-dessus doit comprendre :"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 5,
+      "text": "le nom et l'adresse du responsable du traitement et, le cas échéant, de son représentant ;"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 5,
+      "text": "la dénomination, les caractéristiques et la ou les finalités du traitement envisagé ;"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 5,
+      "text": "c)une description de la ou des catégories de personnes concernées et des données ou des catégories de données à caractère personnel s'y rapportant ;"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 5,
+      "text": "d)les destinataires ou les catégories de destinataires auxquels les données sont susceptibles d'être communiquées ;"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 5,
+      "text": "les transferts de données envisagés à destination d'Etats étrangers ;"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 5,
+      "text": "f) la durée de conservation des données ;"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 5,
+      "text": "2) le service auprès duquel la personne concernée pourra exercer, le cas échéant, les droits qui lui sont reconnus par les dispositions de la présente loi, ainsi que les mesures prises pour faciliter l'exercice de ceux-ci ;"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 5,
+      "text": "h) une description générale permettant d'apprécier de façon préliminaire le caractère approprié des mesures prises pour assurer la confidentialité et la sécurité du traitement en application des dispositions des articles 23 et 24 ci-dessous ;"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 5,
+      "text": "i) les recoupements, les interconnexions, ou toutes autres formes de rapprochement des données ainsi que leur cession, sous-traitance, sous toute forme, à des tiers, à titre gratuit ou onéreux."
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 5,
+      "text": "Toute modification aux informations ci-dessus et toute suppression de traitement doivent être portées, sans délai, à la connaissance de la Commission nationale."
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 5,
+      "text": "En cas de cession d'un fichier de données, le cessionnaire est tenu de remplir les formalités de déclaration prévues par la présente loi."
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 6,
+      "text": "Les modalités de la déclaration à la Commission nationale des changements affectant les informations visées à l'alinéa ci-dessus sont fixées par le gouvernement, après avis de ladite commission."
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 6,
+      "text": "Article 16",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 6,
+      "text": "La Commission nationale fixe la liste des catégories de traitements de données à caractère personnel qui, compte tenu des données à traiter, ne sont pas susceptibles de porter atteinte aux droits et libertés des personnes concernées, et pour lesquelles la déclaration doit préciser uniquement les éléments prévus aux b), c), d), e)et 2 عل‎ l'article 15 ci-dessus."
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 6,
+      "text": "La décision de la Commission nationale est soumise à homologation du gouvernement."
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 6,
+      "text": "Article 17",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 6,
+      "text": "La Commission nationale fixe la liste des traitements non automatisés de données à caractère personnel qui peuvent faire l'objet d'une déclaration simplifiée, dont elle précise les éléments par une décision homologuée par le gouvernement."
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 6,
+      "text": "Article 18",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 6,
+      "text": "L'obligation de déclaration ne s'applique pas aux traitements ayant pour seul objet la tenue d'un registre qui est, en vertu de dispositions législatives ou réglementaires, destiné à l'information du public et ouvert à la consultation du public ou de toute personne justifiant d'un intérêt légitime."
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 6,
+      "text": "Toutefois, dans ce cas, il doit être désigné un responsable du traitement des données dont l'identité est rendue publique et notifiée à la Commission nationale et qui est responsable de l'application des dispositions du chapitre Il de la présente loi vis-à-vis des personnes concernées."
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 6,
+      "text": "Le responsable du traitement dispensé de déclaration doit communiquer à toute personne qui en fait la demande les informations relatives à la dénomination et à la finalité du traitement, à l'identité du responsable, aux données traitées, à leurs destinataires et, le cas échéant, aux transferts envisagés à destination de l'étranger."
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 6,
+      "text": "La Commission nationale fixe la liste des traitements répondant à la définition prévue ci-dessus par une décision soumise à l'homologation du gouvernement."
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 6,
+      "text": "Article 19",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 6,
+      "text": "La Commission nationale délivre, dans un délai de 24 heures courant à compter de la date du dépôt de la déclaration, un récépissé de ladite déclaration, dont les caractéristiques doivent figurer dans toutes les opérations de collecte ou de transmission des données. Le responsable du traitement peut mettre ledit traitement en œuvre dès réception dudit récépissé."
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 6,
+      "text": "Article 20",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 6,
+      "text": "Lorsqu'il apparaît à la Commission nationale, à l'examen de la déclaration qui lui est fournie, que le traitement envisagé présente des dangers manifestes pour le respect et la protection de la vie privée et des libertés et droits fondamentaux des personnes à l'égard du traitement dont ces données font l'objet ou peuvent faire l'objet, elle décide de soumettre ledit traitement au régime d'autorisation préalable prévu ci-après."
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 6,
+      "text": "Sa décision, motivée, est notifiée au déclarant dans les huit jours suivant celui du dépôt de la déclaration."
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 6,
+      "text": "Section 2. -Autorisation préalable",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 6,
+      "text": "Article 21",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 6,
+      "text": "Le traitement des données sensibles est subordonné à une autorisation de la loi qui en fixe les conditions. A défaut, il doit être autorisé par la Commission nationale ;"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 6,
+      "text": "Cette autorisation est accordée au vu du consentement exprès de la personne concernée ou lorsque le traitement des données est indispensable à l'exercice des fonctions légales ou statutaires du responsable du traitement ;"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 6,
+      "text": "Outre l'ordre de la loi, le consentement exprès de la personne concernée ou l'obligation légale ou statutaire du responsable, l'autorisation préalable de la Commission nationale peut également être accordée dans les cas où :"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 6,
+      "text": "le traitement est nécessaire à la défense d'intérêts vitaux de la personne concernée ou d'une autre personne et si la personne concernée se trouve dans l'incapacité physique ou juridique de donner son consentement ;"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 6,
+      "text": "b)le traitement porte sur des données manifestement rendues publiques par la personne concernée et que son consentement au traitement des données peut légitimement être déduit de ses déclarations ;"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 6,
+      "text": "c)le traitement est nécessaire à la reconnaissance, l'exercice ou la défense d'un droit en justice et est effectué exclusivement à cette fin."
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 6,
+      "text": "Article 22",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 6,
+      "text": "Par dérogation aux dispositions de l'article 21 ci-dessus, le traitement des données relatives à la santé est subordonné à une déclaration à la Commission nationale, lorsqu'il a pour seule finalité :"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 6,
+      "text": "—la médecine préventive, les diagnostics médicaux, l'administration de soins ou de traitements ou la gestion des services de santé et qu'il est effectué par un praticien de la santé soumis au secret professionnel ou par toute autre personne également soumise à une obligation de secret ;"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 6,
+      "text": "— de sélectionner les personnes susceptibles de bénéficier d'un droit, d'une prestation ou d'un contrat, dès lors qu'elles n'en sont exclues par aucune disposition légale ou réglementaire."
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 6,
+      "text": "Section 3. -Des obligations de confidentialité et de sécurité des traitements et de secret professionnel",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 6,
+      "text": "Article 23",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 6,
+      "text": "Le responsable du traitement doit mettre en oeuvre les mesures techniques et organisationnelles appropriées pour protéger les données à caractère personnel contre la destruction accidentelle ou illicite, la perte accidentelle, l'altération, la diffusion ou l'accès non autorisé, notamment lorsque le traitement comporte des transmissions de données dans un réseau, ainsi que contre toute autre forme de traitement illicite. Ces mesures doivent assurer, compte tenu de l'état de l'art et des coûts liés à leur mise en œuvre, un niveau de sécurité approprié au regard des risques présentés par le traitement et de la nature des données à protéger ;"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 6,
+      "text": "Le responsable du traitement, lorsque le traitement est effectué pour son compte, doit choisir un sous-traitant qui apporte des garanties suffisantes au regard des mesures de sécurité technique et d'organisation relatives aux traitements à effectuer et il doit veiller au respect de ces mesures ;"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 7,
+      "text": "La réalisation de traitements en sous-traitance doit être régie par un contrat ou un acte juridique qui lie le sous-traitant au responsable du traitement et qui prévoit notamment que le sous-traitant n'agit que sous la seule instruction du responsable du traitement et que les obligations visées au paragraphe 1 ci-dessus lui incombent également ;"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 7,
+      "text": "Aux fins de la conservation des preuves, les éléments du contrat ou de l'acte juridique relatif à la protection des données et les exigences portant sur les mesures visées au paragraphe 1 ci-dessus sont consignés par écrit ou sous une autre forme équivalente."
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 7,
+      "text": "Article 24",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 7,
+      "text": "Les responsables du traitement des données sensibles ou relatives à la santé doivent prendre les mesures appropriées pour :"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 7,
+      "text": "a) empêcher l'accès de toute personne non autorisée aux installations utilisées pour le traitement de ces données (contrôle de l'entrée dans les installations) ;"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 7,
+      "text": "b) empêcher que les supports de données puissent être lus, copiés, modifiés ou retirés par des personnes non autorisées (contrôle des supports de données) ;"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 7,
+      "text": "c) empêcher l'introduction non autorisée, ainsi que la prise de connaissance, la modification ou l'élimination non autorisées de données à caractère personnel introduites (contrôle de l'insertion) ;"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 7,
+      "text": "d) empêcher que les systèmes de traitement automatisés de données puissent être utilisés par des personnes non autorisées au moyen d'installations de transmission de données (contrôle de l'utilisation) ;"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 7,
+      "text": "e)garantir que seules les personnes autorisées puissent avoir accès aux données visées par l'autorisation (contrôle de l'accès) ;"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 7,
+      "text": "1) garantir la vérification des entités auxquelles les données à caractère personnel peuvent être transmises par des installations de transmission de données (contrôle de la transmission) ;"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 7,
+      "text": "£) garantir qu'il soit possible de vérifier a posteriori, dans un délai approprié en fonction de la nature du traitement à fixer dans la réglementation applicable à chaque secteur particulier, quelles données à caractère personnel sont introduites, quand elles l'ont été et pour qui (contrôle de l'introduction) ;"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 7,
+      "text": "h)empêcher que lors de la transmission de données à caractère personnel et du transport des supports, les données puissent être lues, reproduites, modifiées ou éliminées sans autorisation (contrôle du transport)."
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 7,
+      "text": "Suivant la nature des organismes responsables du traitement et du type d'installations avec lequel il est effectué, la Commission nationale peut dispenser de certaines mesures de sécurité, à condition que le respect des droits, libertés et garanties des personnes concernées soit assuré."
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 7,
+      "text": "Article 25",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 7,
+      "text": "Toute personne agissant sous l'autorité du responsable du traitement ou de celle du sous-traitant, ainsi que le sous-traitant lui-même qui accède à des données à caractère personnel ne peut les traiter que sur instruction du responsable du traitement, sauf en vertu d'obligations légales."
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 7,
+      "text": "Article 26",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 7,
+      "text": "Le responsable du traitement de données à caractère personnel, ainsi que les personnes qui, dans l'exercice de leurs fonctions, ont connaissance de données à caractère personnel traitées, sont tenues de respecter le secret professionnel même après avoir cessé d'exercer leurs fonctions, dans les termes prévus par la loi pénale."
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 7,
+      "text": "Les dispositions de l'alinéa premier ci-dessus n'exemptent pas de l'obligation de fournir des informations, conformément aux dispositions légales applicables aux fichiers en cause ou conformément à la législation de droit commun."
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 7,
+      "text": "Chapitre IV",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 7,
+      "text": "De la Commission nationale de contrôle de la protection des données à caractère personnel"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 7,
+      "text": "Section première. — Institution, pouvoirs et attributions"
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 7,
+      "text": "Article 27",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 7,
+      "text": "Il est institué auprès du Premier ministre une Commission nationale de contrôle de la protection des données à caractère personnel, chargée de mettre en œuvre et de veiller au respect des dispositions de la présente loi et des textes pris pour son application."
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 7,
+      "text": "A cet effet, elle est chargée de :",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 7,
+      "text": "A. — Donner son avis :",
+      "headingLevel": 2
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 7,
+      "text": "l.au gouvernement ou au parlement sur les projets ou propositions de lois ou projets de règlements relatifs au traitement de données à caractère personnel dont elle est saisie ;"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 7,
+      "text": "à l'autorité compétente sur les projets de règlements créant des fichiers relatifs aux données à caractère personnel recueillies et traitées à des fins de prévention et de répression des crimes et délits, l'avis demandé, dans le cas d'espèce, vaut déclaration ;"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 7,
+      "text": "à l'autorité compétente sur les projets et propositions de lois portant création et traitement des données relatives aux enquêtes et données statistiques recueillies et traitées par des autorités publiques ;"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 7,
+      "text": "4.au gouvernement sur les modalités de la déclaration prévue au paragraphe 2 de l'article 12 ci-dessus ;"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 7,
+      "text": "5.au gouvernement sur les modalités d'inscription au registre national institué par l'article 45 de la présente loi ;"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 7,
+      "text": "6.au gouvernement sur les règles de procédure et de protection des données des traitements de fichiers sécurité qui doivent faire l'objet d'un enregistrement."
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 7,
+      "text": "B. — Recevoir :",
+      "headingLevel": 2
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 7,
+      "text": "notification de l'identité du représentant installé au Maroc qui se substitue au responsable du traitement résidant à l'étranger ;"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 7,
+      "text": "les déclarations prévues aux articles 12 (paragraphe 2) et 13 et délivrer récépissé de la déclaration ;"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 7,
+      "text": "l'identité du responsable du traitement des registres tenus pour être ouverts au public, prévu à l'article 19 ci-dessus."
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 8,
+      "text": "Article 28",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 8,
+      "text": "Aux fins prévues à l'article 27 (1 alinéa) ci-dessus, la Commission nationale est habilitée à :"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 8,
+      "text": "autoriser la conservation des données au-delà d'une durée prévue ;"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 8,
+      "text": "accorder au responsable du traitement un délai supplémentaire pour répondre aux demandes de communication présentée par la personne concernée ;"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 8,
+      "text": "faire procéder aux rectifications justifiées lorsque le responsable du traitement refuse d'y procéder à la demande de l'intéressé ;"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 8,
+      "text": "instruire et délivrer les autorisations prévues à l'article 12 ci-dessus ;"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 8,
+      "text": "fixer la liste des catégories de traitements bénéficiant d'une déclaration simplifiée ;"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 8,
+      "text": "fixer la liste des traitements non automatisés soumis à déclaration simplifiée ;"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 8,
+      "text": "fixer la liste des traitements correspondant à la définition de l'article 18 de la présente loi ;"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 8,
+      "text": "délivrer récépissé de la déclaration prévue à l'article 13, en en précisant le contenu ;"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 8,
+      "text": "délivrer les autorisations prévues à l'article 21 ci-dessus ;"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 8,
+      "text": "établir la liste des pays à législation adéquate en matière de protection des personnes physiques à l'égard du traitement des données à caractère personnel ;"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 8,
+      "text": "autoriser les transferts de données dans les cas prévus à l'article 43 ci-dessous ;"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 8,
+      "text": "assurer la tenue du registre national de la protection des données prévu à l'article 45 ci-dessous ;"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 8,
+      "text": "accorder les dispenses des mesures de sécurité eu égard à la qualité du responsable du traitement et du type d'installations avec lequel ce traitement est effectué ;"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 8,
+      "text": "décider de soumettre à autorisation un traitement légalement soumis à déclaration conformément à l'article 20 ci-dessus ;"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 8,
+      "text": "procéder au retrait du récépissé ou de l'autorisation conformément aux dispositions de l'article 51 de la présente loi."
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 8,
+      "text": "La Commission nationale est également compétente pour :"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 8,
+      "text": "recevoir les plaintes de toute personne concernée estimant être lésée par la publication d'un traitement de données à caractère personnel, de les instruire et de leur donner suite en ordonnant la publication de rectificatifs ou/et la saisine du procureur du Roi aux fins de poursuites ;"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 8,
+      "text": "expertiser, à la demande des autorités publiques, notamment des autorités judiciaires, les éléments soumis à leur appréciation lors des contentieux nés de l'application de la présente loi ou des textes pris pour son application ;"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 8,
+      "text": "assister le gouvernement dans la préparation et la définition de la position marocaine lors des négociations internationales dans le domaine de la protection des données à caractère personnel ;"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 8,
+      "text": "coopérer avec les organismes similaires de contrôle du traitement des données à caractère personnel dans les Etats étrangers."
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 8,
+      "text": "Article 29",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 8,
+      "text": "Afin de permettre une mise en application appropriée de la protection des données, la Commission nationale mène une mission permanente d'information du public et des personnes concernées sur les droits et obligations édictés par la présente loi et les textes pris pour son application."
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 8,
+      "text": "Article 30",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 8,
+      "text": "La Commission nationale est dotée :"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 8,
+      "text": "des pouvoirs d'investigation et d'enquête permettant à ses agents, régulièrement commissionnés à cet effet par le président, d'avoir accès aux données faisant l'objet de traitement, de requérir l'accès direct aux locaux au sein desquels le traitement est effectué, de recueillir et de saisir toutes les informations et tous documents nécessaires pour remplir les fonctions de contrôle, le tout conformément aux termes de la commission qu'ils exécutent ;"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 8,
+      "text": "du pouvoir d'ordonner que lui soient communiqués, dans les délais et selon les modalités ou sanctions éventuelles qu'elle fixe, les documents de toute nature ou sur tous supports lui permettant d'examiner les faits concernant les plaintes dont elle est saisie ;"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 8,
+      "text": "3.du pouvoir d'ordonner ou de procéder ou de faire procéder aux modificatifs nécessaires pour une tenue loyale des données contenues dans le fichier ;"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 8,
+      "text": "du pouvoir d'ordonner le verrouillage, l'effacement ou la destruction de données et celui d'interdire, provisoirement ou définitivement, le traitement de données à caractère personnel, même de celles incluses dans des réseaux ouverts de transmission de données à partir de serveurs situés sur le territoire national."
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 8,
+      "text": "Article 31",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 8,
+      "text": "L'exercice des pouvoirs visés aux paragraphes 2 et 4 de l'article 30 ci-dessus est subordonné au respect d'une procédure disciplinaire garantissant les droits de la défense et, notamment, le principe du contradictoire, précisé dans le règlement intérieur de la Commission nationale et applicable à toutes les autres procédures mises en œuvre par la Commission nationale et présentant un caractère disciplinaire."
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 8,
+      "text": "Section 2. -Composition de la commission nationale",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 8,
+      "text": "Article 32",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 8,
+      "text": "La Commission nationale de contrôle de la protection des données à caractère personnel se compose de sept membres :"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 8,
+      "text": "— un président nommé par Sa Majesté le Roi ;"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 8,
+      "text": "— six membres nommés également par Sa Majesté le Roi, sur proposition :"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 8,
+      "text": "du Premier ministre ;"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 8,
+      "text": "-du président de la Chambre des représentants ;"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 8,
+      "text": "-du président de la Chambre des conseillers."
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 8,
+      "text": "La durée du mandat des membres de la Commission nationale est de cinq ans renouvelable une seule fois."
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 8,
+      "text": "Les modalités et les conditions de nomination des membres de la Commission nationale sont fixées par décret."
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 9,
+      "text": "Section 3. -Organisation et fonctionnement de la Commission nationale",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 9,
+      "text": "Article 33",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 9,
+      "text": "La Commission nationale se réunit sur convocation de son président, agissant de sa propre initiative ou à la demande de la moitié des membres. Le président fixe l'ordre du jour de la réunion."
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 9,
+      "text": "Article 34",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 9,
+      "text": "Les réunions de la Commission nationale se tiennent valablement lorsque les deux tiers au moins des membres sont présents. Les décisions sont prises valablement à la majorité des membres présents, la voix du président étant prépondérante en cas de partage égal des voix."
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 9,
+      "text": "Section 4. — Statut des membres",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 9,
+      "text": "Article 35",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 9,
+      "text": "Les fonctions de membre de la Commission nationale sont incompatibles avec celles d'administrateur, de gérant, de membre du directoire ou de directeur général unique ou de membre du conseil de surveillance d'une société de traitement de données à caractère personnel."
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 9,
+      "text": "Un membre de la Commission nationale ne peut participer à une délibération ou à des vérifications relatives à un organisme au sein duquel il a détenu un intérêt, direct ou indirect, ou a exercé un mandat ou une fonction, si un délai de cinq ans ne s'est écoulé entre la date où est intervenue la cessation de fonction, la fin du mandat ou de la disposition de l'intérêt et la date de sa nomination au sein de la Commission nationale."
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 9,
+      "text": "Si l'incompatibilité édictée par l'alinéa précédent concerne le président de la Commission nationale, il désigne un membre de la Commission nationale pour exercer la plénitude de ses compétences lorsque l'affaire concernant l'organisme en cause est appelée devant la Commission nationale. La décision du président est publiée au « Bulletin officiel »."
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 9,
+      "text": "Article 36",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 9,
+      "text": "Les membres de la Commission nationale sont tenus au secret professionnel pour les faits, actes et informations dont ils ont pu avoir connaissance à l'occasion de l'accomplissement de leurs fonctions. Ils sont soumis à la même obligation, même après la fin de leur mandat."
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 9,
+      "text": "Les fonctionnaires, agents ou techniciens qui exercent des fonctions au sein de la Commission nationale ou auprès de ses membres sont également soumis à l'obligation de respecter le secret professionnel."
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 9,
+      "text": "Article 37",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 9,
+      "text": "Les membres et les fonctionnaires ou agents et techniciens de la Commission nationale sont protégés contre les outrages ou les atteintes à leur personne dans les termes des articles 265 et 267 du code pénal."
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 9,
+      "text": "Article 38",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 9,
+      "text": "Lorsque la Commission nationale délibère sur une question mettant en cause une administration, les membres représentants du gouvernement participent aux délibérations avec voix consultative."
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 9,
+      "text": "Article 39",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 9,
+      "text": "La Commission nationale élabore et approuve son règlement intérieur, qui est soumis à l'homologation du gouvernement avant sa publication au « Bulletin officiel »."
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 9,
+      "text": "Section 5. -Administration",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 9,
+      "text": "Article 40",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 9,
+      "text": "Le président est assisté, dans l'exercice de ses fonctions administratives et financières, par un secrétaire général nommé par le gouvernement sur proposition du président."
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 9,
+      "text": "Le secrétaire général, outre les pouvoirs qu'il exerce par délégation du président, est chargé :"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 9,
+      "text": "— de gérer le personnel recruté ou détaché selon les décisions du président ;"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 9,
+      "text": "— de préparer et d'exécuter le budget de la Commission nationale dont il est sous-ordonnateur ;"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 9,
+      "text": "— de préparer et de passer les marchés de la Commission nationale ;"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 9,
+      "text": "— de préparer les documents de travail des réunions de la Commission nationale et de tenir le registre de ses décisions ;"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 9,
+      "text": "— de suivre les travaux des comités mis en place par la Commission nationale et de mettre à leur disposition les moyens matériels et humains nécessaires à l'accomplissement de leurs missions."
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 9,
+      "text": "Article 41",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 9,
+      "text": "Le secrétaire général dispose, pour l'exercice de ses attributions, d'un personnel administratif et technique composé de fonctionnaires des administrations publiques ou d'agents publics, détachés auprès de la Commission nationale, et d'un personnel recruté conformément aux procédures applicables en la matière, notamment par voie contractuelle."
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 9,
+      "text": "Article 42",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 9,
+      "text": "La Commission nationale crée les comités permanents ou ad hoc nécessaires à l'accomplissement de ses missions par des dispositions du règlement intérieur."
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 9,
+      "text": "Elle fixe dans le même règlement les modalités de fonctionnement et d'organisation de ces comités, qui doivent être présidés par un membre de la Commission nationale, mais peuvent être composés de personnalités choisies en dehors des membres de la Commission nationale ou faisant partie de son personnel."
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 9,
+      "text": "Chapitre V",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 9,
+      "text": "Du transfert de données vers un pays étranger"
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 9,
+      "text": "Article 43",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 9,
+      "text": "Le responsable d'un traitement ne peut transférer des données à caractère personnel vers un Etat étranger que si cet Etat assure un niveau de protection suffisant de la vie privée et des libertés et droits fondamentaux des personnes à l'égard du traitement dont ces données font l'objet ou peuvent faire l'objet."
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 9,
+      "text": "Le caractère suffisant du niveau de protection assuré par un État s'apprécie notamment en fonction des dispositions en vigueur dans cet Etat, des mesures de sécurité qui y sont appliquées, des caractéristiques propres du traitement telles que ses fins et sa durée, ainsi que de la nature, de l'origine et de la destination des données traitées."
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 9,
+      "text": "La Commission nationale établit la liste des Etats répondant aux critères définis aux alinéas 1 et 2 ci-dessus."
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 10,
+      "text": "Article 44",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 10,
+      "text": "Par dérogation aux dispositions de l'article 43 ci-dessus, le responsable d'un traitement peut transférer des données à caractère personnel vers un Etat ne répondant pas aux conditions prévues à l'article ci-dessus, si la personne à laquelle se rapportent les données a consenti expressément à leur transfert ou :"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 10,
+      "text": "Si le transfert est nécessaire :"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 10,
+      "text": "à la sauvegarde de la vie de cette personne ;"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 10,
+      "text": "à la préservation de l'intérêt public ;"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 10,
+      "text": "c)au respect d'obligations permettant d'assurer la constatation, l'exercice ou la défense d'un droit en justice ;"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 10,
+      "text": "d)à l'exécution d'un contrat entre le responsable du traitement et l'intéressé, ou de mesures précontractuelles prises à la demande de celui-ci ;"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 10,
+      "text": "à la conclusion ou à l'exécution d'un contrat conclu ou à conclure, dans l'intérêt de la personne concernée, entre le responsable du traitement et un tiers ;"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 10,
+      "text": "fà l'exécution d'une d'entraide internationale ; mesure judiciaire"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 10,
+      "text": "à la prévention, le diagnostic ou le traitement d'affections médicales."
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 10,
+      "text": "Si le transfert s'effectue en application d'un accord bilatéral ou multilatéral auquel le Royaume du Maroc est partie ;"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 10,
+      "text": "Sur autorisation expresse et motivée de la Commission nationale lorsque le traitement garantit un niveau de protection suffisant de la vie privée ainsi que des libertés et droits fondamentaux des personnes, notamment en raison des clauses contractuelles ou règles internes dont il fait l'objet."
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 10,
+      "text": "Chapitre VI",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 10,
+      "text": "Du registre national de la protection des données à caractère personnel et des limites à la création ou à l'usage de registres centraux et de fichiers"
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 10,
+      "text": "Article 45",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 10,
+      "text": "Il est institué un registre national de la protection des données à caractère personnel, désigné ci-après par registre national, dont la tenue est dévolue à la commission, qui en assure la mise à disposition du public."
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 10,
+      "text": "Article 46",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 10,
+      "text": "Sont inscrits au registre national :"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 10,
+      "text": "les fichiers dont sont responsables du traitement les autorités publiques ;"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 10,
+      "text": "b)les fichiers dont le traitement est effectué par des personnes privées ;"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 10,
+      "text": "c)les références aux lois ou règlements publiés portant création de fichiers publics ;"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 10,
+      "text": "d)les autorisations délivrées en application de la présente loi et des textes pris pour son application ;"
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 10,
+      "text": "e)les données relatives aux fichiers qui sont nécessaires pour permettre aux personnes concernées d'exercer les droits d'information, d'accès, de rectification, de suppression et d'opposition prévus par la présente loi, notamment les précisions que comporte la déclaration, fixées aux a) à ك‎ de l'article 15 ci-dessus."
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 10,
+      "text": "Article 47",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 10,
+      "text": "Les fichiers dont le traitement a pour seul objet la tenue d'un registre qui, en vertu de dispositions législatives ou réglementaires, est destiné à l'information du public et est ouvert à la consultation du public sont dispensés de l'inscription au registre national."
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 10,
+      "text": "Toutefois, doit figurer audit registre national l'identité de la personne responsable du traitement aux fins d'exercice par les personnes concernées des droits prévus au chapitre II de la présente loi."
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 10,
+      "text": "Article 48",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 10,
+      "text": "Les modalités d'inscription des données prévues à l'article 46 ci-dessus au registre national et celles de sa tenue à jour sont fixées par le gouvernement, après avis de la Commission nationale."
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 10,
+      "text": "Article 49",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 10,
+      "text": "Les traitements de données à caractère personnel relatives aux infractions, condamnations et mesures de sûreté ne peuvent être mis en œuvre que par :"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 10,
+      "text": "— les juridictions, les autorités publiques et les personnes morales gérant un service public, agissant dans le cadre de leurs attributions légales ;"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 10,
+      "text": "—les auxiliaires de justice, pour les stricts besoins de l'exercice des missions qui leur sont confiées par la loi ;"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 10,
+      "text": "— l'organisme chargé de la protection des droits d'auteur et des droits voisins visé à l'article 11 (2° alinéa) de la loi n° 34-05 modifiant et complétant la loi n° 2-00 relative aux droits d'auteur et droits voisins."
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 10,
+      "text": "Article 50",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 10,
+      "text": "La création, la tenue et le traitement de registres centraux concernant les personnes soupçonnées d'activités illicites, de délits et d'infractions administratives et les décisions prévoyant des peines, des mesures de sûreté, des amendes et des sanctions accessoires relèvent des seuls services publics qui ont une compétence expresse en vertu de la loi d'organisation et de fonctionnement et qui doivent respecter les règles de procédure et de protection des données prévues par la loi, après avis de la Commission nationale."
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 10,
+      "text": "Chapitre VII",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 10,
+      "text": "Des sanctions"
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 10,
+      "text": "Article 51",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 10,
+      "text": "Sans préjudice des sanctions pénales, lorsqu'il apparaît, à la suite de la mise en œuvre du traitement objet de la déclaration ou de l'autorisation prévue à l'article 12 de la présente loi, que ce traitement porte atteinte à la sûreté ou à l'ordre public ou est contraire à la morale et aux bonnes mœurs, la Commission nationale peut, sans délais, retirer, selon le cas, le récépissé de la déclaration ou l'autorisation."
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 10,
+      "text": "Article 52",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 10,
+      "text": "Sans préjudice de la responsabilité civile à l'égard des personnes ayant subi des dommages du fait de l'infraction, est puni d'une amende de 10.000 à 100.000 DH, quiconque aura mis en œuvre un fichier de données à caractère personnel sans la déclaration ou l'autorisation exigée à l'article 12 ci-dessus ou aura continué son activité de traitement de données à caractère personnel malgré le retrait du récépissé de la déclaration ou de l'autorisation."
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 11,
+      "text": "Article 53",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 11,
+      "text": "Est puni d'une amende de 20.000 à 200.000 DH par infraction, tout responsable de traitement de données à caractère personnel refusant les droits d'accès, de rectification ou d'opposition prévus aux articles 7, 8 et 9 ci-dessus."
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 11,
+      "text": "Article 54",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 11,
+      "text": "Est puni d'un emprisonnement de trois mois à un an et d'une amende de 20.000 à 200.000 DH ou de l'une de ces deux peines seulement quiconque, en violation des 2), b)et c) de l'article 3 de la présente loi, collecte des données à caractère personnel par un moyen frauduleux, déloyal ou illicite, met en oeuvre un traitement à des fins autres que celles déclarées ou autorisées ou soumet les données précitées à un traitement ultérieur incompatible avec les finalités déclarées ou autorisées."
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 11,
+      "text": "Article 55",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 11,
+      "text": "Est puni d'un emprisonnement de trois mois à un an et d'une amende de 20.000 à 200.000 DH ou de l'une de ces deux peines seulement quiconque :"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 11,
+      "text": "— conserve des données à caractère personnel au-delà de la durée prévue par la législation en vigueur ou celle prévue dans la déclaration ou l'autorisation ;"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 11,
+      "text": "— conserve les données précitées en violation des dispositions du e) de l'article 3 de la présente loi."
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 11,
+      "text": "Est puni des mêmes peines le fait de traiter à des fins autres qu'historiques, statistiques ou scientifiques des données à caractère personnel conservées au-delà de la durée mentionnée au premier alinéa ci-dessus."
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 11,
+      "text": "Article 56",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 11,
+      "text": "Est puni d'un emprisonnement de trois mois à un an et d'une amende de 20.000 à 200.000 DH ou de l'une de ces deux peines seulement quiconque procède à un traitement de données à caractère personnel en violation des dispositions de l'article 4 ci-dessus."
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 11,
+      "text": "Article 57",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 11,
+      "text": "Est puni d'un emprisonnement de six mois à deux ans et d'une amende de 50.000 à 300.000 DH ou de l'une de ces deux peines seulement quiconque procède, sans le consentement exprès des personnes intéressées, au traitement des données à caractère personnel qui, directement ou indirectement, font apparaître les origines raciales ou ethniques, les opinions politiques, philosophiques ou religieuses, les appartenances syndicales des personnes ou qui sont relatives à la santé de celles-ci."
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 11,
+      "text": "Est puni des mêmes peines quiconque procède au traitement des données à caractère personnel concernant des infractions, des condamnations ou des mesures de sûreté."
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 11,
+      "text": "Article 58",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 11,
+      "text": "Est puni d'un emprisonnement de trois mois à un an et d'une amende de 20.000 à 200.000 DH ou de l'une de ces deux peines seulement, quiconque aura procédé ou fait procéder à un traitement de données à caractère personnel sans mettre en œuvre les mesures visant à préserver la sécurité des données prévues aux articles 23 et 24 ci-dessus."
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 11,
+      "text": "Article 59",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 11,
+      "text": "Est puni d'un emprisonnement de trois mois à un an et d'une amende de 20.000 à 200.000 DH ou de l'une de ces deux peines seulement, quiconque procède à un traitement de données à caractère personnel concernant une personne physique malgré l'opposition de cette personne, lorsque cette opposition est fondée sur des motifs légitimes ou lorsque ce traitement répond à des fins de prospection, notamment commerciale, tel que mentionné à l'article 9 ou par voie électronique tel que prévu à l'article 10 de la présente loi."
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 11,
+      "text": "Article 60",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 11,
+      "text": "Est puni d'un emprisonnement de trois mois à un an et d'une amende de 20.000 à 200.000 DH ou de l'une de ces deux peines seulement, quiconque effectue un transfert de données à caractère personnel vers un Etat étranger, en violation des dispositions des articles 43 et 44 de la présente loi."
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 11,
+      "text": "Article 61",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 11,
+      "text": "Est puni d'un emprisonnement de six mois à un an et d'une amende de 20.000 à 300.000 DH ou de l'une de ces deux peines seulement, tout responsable de traitement, tout sous-traitant et toute personne qui, en raison de ses fonctions, est chargé (e) de traiter des données à caractère personnel et qui, même par négligence, cause ou facilite l'usage abusif ou frauduleux des données traitées ou reçues ou les communique à des tiers non habilités."
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 11,
+      "text": "Le tribunal pourra, en outre, prononcer la saisie du matériel ayant servi à commettre l'infraction ainsi que l'effacement de tout ou partie des données à caractère personnel faisant l'objet du traitement ayant donné lieu à l'infraction."
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 11,
+      "text": "Article 62",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 11,
+      "text": "Est puni d'un emprisonnement de trois à six mois et d'une amende de 10.000 à 50.000 DH ou de l'une de ces deux peines seulement, quiconque :"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 11,
+      "text": "—entrave l'exercice des missions de contrôle de la Commission nationale ;"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 11,
+      "text": "— refuse de recevoir les contrôleurs et de les laisser remplir leurs commissions ;"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 11,
+      "text": "— refuse d'envoyer les documents ou informations demandé (e) s ;"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 11,
+      "text": "— refuse de transmettre les documents prévus par la loi."
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 11,
+      "text": "Article 63",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 11,
+      "text": "Tout responsable qui refuse d'appliquer les décisions de la Commission nationale est passible d'un emprisonnement de trois mois à un an et d'une amende de 10.000 à 100.000 DH ou de l'une de ces deux peines seulement."
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 12,
+      "text": "Article 64",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 12,
+      "text": "Lorsque l'auteur de l'une des infractions prévues et sanctionnées au titre du présent chapitre est une personne morale et sans préjudice des peines qui peuvent être appliquées à ses dirigeants auteurs de l'une des infractions prévues ci-dessus, les peines d'amende sont portées au double."
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 12,
+      "text": "En outre, la personne morale peut être punie de l'une des peines suivantes :"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 12,
+      "text": "— la confiscation partielle de ses biens ;"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 12,
+      "text": "— la confiscation prévue à l'article 89 du code pénal ;"
+    },
+    {
+      "blockType": "list_item",
+      "pageNumber": 12,
+      "text": "— la fermeture du ou des établissements de la personne morale où l'infraction a été commise."
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 12,
+      "text": "Article 65",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 12,
+      "text": "En cas de récidive, les sanctions prévues au présent chapitre sont portées au double."
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 12,
+      "text": "Est en état de récidive, toute personne ayant été condamnée par décision de justice devenue irrévocable pour l'une des infractions prévues au présent chapitre a commis une infraction de même nature dans l'année qui suit le prononcé d'une telle décision."
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 12,
+      "text": "Article 66",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 12,
+      "text": "Outre les officiers de police judiciaire, les agents de la Commission nationale spécialement commissionnés à cet effet par le président et assermentés dans les formes du droit commun peuvent rechercher et constater, par procès-verbal, les infractions aux dispositions de la présente loi et des textes pris pour son application. Leurs procès-verbaux sont adressés au procureur du Roi dans les cinq jours suivant les opérations de recherche et de constatation."
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 12,
+      "text": "Chapitre VIII",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 12,
+      "text": "Dispositions transitoires"
+    },
+    {
+      "blockType": "section_header",
+      "pageNumber": 12,
+      "text": "Article 67",
+      "headingLevel": 1
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 12,
+      "text": "Les personnes physiques ou morales dont l'activité consistait, avant la date de publication de la présente loi au Bulletin officiel à effectuer, à titre principal ou accessoire, des traitements de données à caractère personnel répondant à la définition prévue à l'article premier ci-dessus, disposent d'un délai maximum de deux ans, courant à compter de la date d'installation de la Commission nationale qui sera constatée par un acte administratif publié au Bulletin officiel pour régulariser leur situation en conformité avec les dispositions de la présente loi."
+    },
+    {
+      "blockType": "text",
+      "pageNumber": 12,
+      "text": "A défaut de cette régularisation dans le délai précité, leurs activités sont réputées être exercées sans déclaration ou sans autorisation. Le contrevenant s'expose, dans ce cas, aux sanctions prévues par la présente loi."
+    },
+    {
+      "blockType": "footnote",
+      "pageNumber": 12,
+      "text": "Le texte en langue arabe a été publié dans l'édition générale du « Bulletin officiel » n° 5711 du 27 safar 1430 (23 février 2009)."
+    }
+  ]
+}

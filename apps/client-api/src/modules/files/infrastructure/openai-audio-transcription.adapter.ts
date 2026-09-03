@@ -1,5 +1,5 @@
-import { openai } from "@ai-sdk/openai";
 import { Injectable, ServiceUnavailableException } from "@nestjs/common";
+import { isLlmConfigured, llmSettings, openAiProvider } from "@qhse/ai";
 import { transcribe } from "ai";
 
 import {
@@ -10,12 +10,12 @@ import {
 @Injectable()
 export class OpenAiAudioTranscriptionAdapter extends AudioTranscriptionPort {
   async transcribe(audio: Uint8Array): Promise<AudioTranscriptionResult> {
-    if (!process.env["OPENAI_API_KEY"]) {
+    if (!isLlmConfigured()) {
       throw new ServiceUnavailableException("Audio transcription is not configured");
     }
-    const model = process.env["OPENAI_TRANSCRIPTION_MODEL"] ?? "gpt-4o-mini-transcribe";
+    const model = llmSettings().transcriptionModel;
     const result = await transcribe({
-      model: openai.transcription(model),
+      model: openAiProvider().transcription(model),
       audio,
       maxRetries: 2,
     });
