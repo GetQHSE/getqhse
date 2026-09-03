@@ -701,33 +701,6 @@ function ReviewState({
             )}
           </div>
         </div>
-        {partial && watch.currentAnalysis && (
-          <div
-            role="alert"
-            className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900"
-          >
-            <p className="font-semibold">Budget d’analyse atteint</p>
-            <p className="mt-1 text-xs leading-5 text-amber-800">
-              {watch.currentAnalysis.coverage.completed} disposition
-              {watch.currentAnalysis.coverage.completed === 1 ? "" : "s"} sur{" "}
-              {watch.currentAnalysis.coverage.total} terminée
-              {watch.currentAnalysis.coverage.completed === 1 ? "" : "s"}. Coût estimé :{" "}
-              {watch.currentAnalysis.usage.estimatedCostUsd.toFixed(3)} $ sur{" "}
-              {watch.currentAnalysis.usage.budgetUsd.toFixed(2)} $. Vous pouvez examiner et publier
-              les résultats terminés; les dispositions restantes seront traitées lors d’une nouvelle
-              analyse.
-            </p>
-            <Button
-              className="mt-3 bg-white"
-              disabled={deciding || publishing}
-              onClick={onRerun}
-              size="sm"
-              variant="outline"
-            >
-              <RefreshCwIcon /> Lancer une nouvelle analyse
-            </Button>
-          </div>
-        )}
         {blocked.length > 0 && (
           <div
             role="alert"
@@ -872,6 +845,13 @@ function ReviewState({
                           {candidate.changeType === "REMOVAL_PROPOSED" ? "Conserver" : "Applicable"}
                         </Button>
                       </div>
+                    ) : candidate.decision === "NOT_APPLICABLE" ? (
+                      <Badge
+                        className="shrink-0 border-slate-200 bg-slate-100 text-slate-600"
+                        variant="outline"
+                      >
+                        <XIcon /> Non applicable (IA)
+                      </Badge>
                     ) : (
                       <Badge
                         className="shrink-0 border-emerald-200 bg-emerald-50 text-emerald-700"

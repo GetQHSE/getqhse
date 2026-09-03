@@ -920,9 +920,7 @@ describe("RegulatoryWatchPage", () => {
     } as never);
     renderPage();
 
-    expect(await screen.findByText("Budget d’analyse atteint")).toBeInTheDocument();
-    expect(screen.getByText(/1 disposition sur 2 terminée/)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Applicable" })).toBeEnabled();
+    expect(await screen.findByRole("button", { name: "Applicable" })).toBeEnabled();
     // The one completed candidate hasn't been decided yet, so publishing is still blocked —
     // not because the run is partial.
     expect(screen.getByRole("button", { name: /Publier le référentiel/ })).toBeDisabled();
@@ -985,8 +983,7 @@ describe("RegulatoryWatchPage", () => {
     } as never);
     renderPage();
 
-    expect(await screen.findByText("Budget d’analyse atteint")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Publier le référentiel/ })).toBeEnabled();
+    expect(await screen.findByRole("button", { name: /Publier le référentiel/ })).toBeEnabled();
   });
   it("shows every exported column in the register and lets the reviewer hide one", async () => {
     vi.mocked(clientApi.regulatoryWatch).mockResolvedValue(activeWatch as never);
