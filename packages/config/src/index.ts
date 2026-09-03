@@ -48,8 +48,8 @@ export const serverEnvironmentSchema = z.object({
     .number()
     .int()
     .positive()
-    .default(6_000),
-  OPENAI_REGULATORY_TRIAGE_MAX_OUTPUT_TOKENS: z.coerce.number().int().positive().default(2_000),
+    .default(10_000),
+  OPENAI_REGULATORY_TRIAGE_MAX_OUTPUT_TOKENS: z.coerce.number().int().positive().default(4_000),
   OPENAI_REGULATORY_RUN_BUDGET_USD: z.coerce.number().positive().default(1),
   OPENAI_REGULATORY_INPUT_USD_PER_MTOK: z.coerce.number().positive().default(0.25),
   OPENAI_REGULATORY_CACHED_INPUT_USD_PER_MTOK: z.coerce.number().positive().default(0.025),
