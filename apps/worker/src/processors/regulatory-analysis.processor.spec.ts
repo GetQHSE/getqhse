@@ -20,7 +20,9 @@ import {
   parseRateLimitRetryDelayMs,
   regulatoryModelLimits,
   RegulatoryAnalysisProcessor,
+  jitteredDelay,
   selectTriageSurvivors,
+  settlementChargeMicroUsd,
   splitReservedCost,
   validateRequirementDraft,
 } from "./regulatory-analysis.processor.js";
@@ -121,6 +123,92 @@ describe("failure cost accounting", () => {
     expect(failureUsage({ usage: { outputTokens: 10 } })).toBeNull();
     expect(failureUsage({ usage: null })).toBeNull();
     expect(failureUsage(null)).toBeNull();
+  });
+});
+
+describe("settlement charging", () => {
+  it("charges the real measured cost on success", () => {
+    expect(
+      settlementChargeMicroUsd(
+        12_553,
+        {
+          status: "SUCCEEDED",
+          inputTokens: 900,
+          cachedInputTokens: 0,
+          outputTokens: 120,
+          reasoningTokens: 0,
+          latencyMs: 1_000,
+        },
+        "gpt-5-mini",
+      ),
+    ).toBe(computeCallCost({ inputTokens: 900, outputTokens: 120 }, "gpt-5-mini"));
+  });
+
+  it("charges the SDK's measured usage on a failure that reports one", () => {
+    expect(
+      settlementChargeMicroUsd(
+        12_553,
+        {
+          status: "FAILED",
+          latencyMs: 500,
+          errorCode: "REGULATORY_MODEL_UNAVAILABLE",
+          usage: { inputTokens: 900, outputTokens: 120 },
+        },
+        "gpt-5-mini",
+      ),
+    ).toBe(computeCallCost({ inputTokens: 900, outputTokens: 120 }, "gpt-5-mini"));
+  });
+
+  it("charges nothing for a rate-limited rejection with no usage — the provider never ran it", () => {
+    // The flex tier answers capacity pressure with a 429 by design, and each of up to
+    // RATE_LIMIT_MAX_ATTEMPTS retries reserves and settles its own ledger row. Charging the
+    // conservative reservation here billed every one of those retries in full for zero real
+    // tokens, which is what let a handful of successful drafts eat most of a run's budget.
+    expect(
+      settlementChargeMicroUsd(
+        12_553,
+        { status: "FAILED", latencyMs: 200, errorCode: "REGULATORY_MODEL_RATE_LIMITED" },
+        "gpt-5-mini",
+      ),
+    ).toBe(0);
+  });
+
+  it("still charges the full reservation for a rate-limited failure that did report usage", () => {
+    expect(
+      settlementChargeMicroUsd(
+        12_553,
+        {
+          status: "FAILED",
+          latencyMs: 200,
+          errorCode: "REGULATORY_MODEL_RATE_LIMITED",
+          usage: { inputTokens: 900, outputTokens: 120 },
+        },
+        "gpt-5-mini",
+      ),
+    ).toBe(computeCallCost({ inputTokens: 900, outputTokens: 120 }, "gpt-5-mini"));
+  });
+
+  it("keeps the conservative reservation for a fatal, non-rate-limited failure with no usage", () => {
+    // A bare "FAILED" here is a run-ending error (schema validation, an unhandled 4xx/5xx) and
+    // this code cannot tell whether it happened before or after generation started, so the
+    // conservative charge stands rather than guessing.
+    expect(
+      settlementChargeMicroUsd(
+        12_553,
+        { status: "FAILED", latencyMs: 200, errorCode: "REGULATORY_MODEL_UNAVAILABLE" },
+        "gpt-5-mini",
+      ),
+    ).toBe(12_553);
+  });
+
+  it("keeps the conservative reservation for a timeout, since its real usage is unknowable", () => {
+    expect(
+      settlementChargeMicroUsd(
+        12_553,
+        { status: "TIMED_OUT", latencyMs: 180_000, errorCode: "REGULATORY_MODEL_TIMEOUT" },
+        "gpt-5-mini",
+      ),
+    ).toBe(12_553);
   });
 });
 
@@ -360,6 +448,20 @@ describe("regulatory triage", () => {
     expect(parseRateLimitRetryDelayMs(new Error("no hint here"), 5_000)).toBe(5_000);
   });
 
+  it("spreads retries over a random window without ever waiting less than the base delay", () => {
+    // Concurrent lanes (classification, triage batches, retrieval queries) that all hit a 429 or
+    // budget contention at the same instant would otherwise retry at an identical fixed delay and
+    // collide again on the next attempt. Jitter only ever adds to the base delay — it must never
+    // shorten a provider-specified backoff, or the retry would be rate-limited again for sure.
+    const samples = Array.from({ length: 200 }, () => jitteredDelay(5_000, 2_000));
+    for (const sample of samples) {
+      expect(sample).toBeGreaterThanOrEqual(5_000);
+      expect(sample).toBeLessThanOrEqual(7_000);
+    }
+    expect(new Set(samples).size).toBeGreaterThan(1);
+    expect(jitteredDelay(5_000, 0)).toBe(5_000);
+  });
+
   it("recognizes a regulatory_model_calls foreign key violation on a deleted provision", () => {
     const prismaError = {
       code: "P2003",
@@ -534,9 +636,10 @@ describe("regulatory model-call ledger", () => {
         prompt,
         maxOutputTokens,
       });
-      // Lets the first CONTENDED attempt run, then fast-forwards past its backoff so the retry
-      // fires without the test actually waiting 5 real seconds.
-      await vi.advanceTimersByTimeAsync(5_000);
+      // Lets the first CONTENDED attempt run, then fast-forwards past its backoff (base delay
+      // plus the full jitter window, since the actual sleep is randomized) so the retry fires
+      // without the test actually waiting real seconds.
+      await vi.advanceTimersByTimeAsync(7_000);
       const reservation = await pending;
 
       expect(reservation).toEqual({ id: "call-1", model, reservedMicroUsd });
@@ -595,8 +698,8 @@ describe("regulatory model-call ledger", () => {
         maxOutputTokens,
       });
       const assertion = expect(pending).rejects.toThrow("budget is exhausted");
-      // BUDGET_CONTENTION_MAX_ATTEMPTS is 6, each attempt separated by a 5s backoff.
-      await vi.advanceTimersByTimeAsync(6 * 5_000);
+      // BUDGET_CONTENTION_MAX_ATTEMPTS is 6, each attempt separated by a jittered ~5-7s backoff.
+      await vi.advanceTimersByTimeAsync(6 * 7_000);
       await assertion;
       expect(queryRaw).toHaveBeenCalledTimes(6);
       expect(create).not.toHaveBeenCalled();

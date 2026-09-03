@@ -97,6 +97,8 @@ const CLASSIFICATION_PROGRESS_START = 50;
 const CLASSIFICATION_PROGRESS_END = 92;
 const MODEL_HEARTBEAT_INTERVAL_MS = 30_000;
 const CLASSIFICATION_CONCURRENCY = 5;
+const RETRIEVAL_QUERY_CONCURRENCY = 5;
+const TRIAGE_CONCURRENCY = 5;
 // The flex service tier answers with a 429 when capacity is unavailable, which is a normal
 // scheduling outcome rather than a quota problem, so it needs a longer runway than a plain
 // rate limit would. parseRateLimitRetryDelayMs still honours any delay the error names.
@@ -110,6 +112,15 @@ const RATE_LIMIT_FALLBACK_DELAY_MS = 5_000;
 // held by an in-flight call frees itself when that call settles, so it is worth waiting out.
 const BUDGET_CONTENTION_MAX_ATTEMPTS = 6;
 const BUDGET_CONTENTION_DELAY_MS = 5_000;
+// Concurrent lanes (classification, triage batches, and now retrieval queries) can all hit a 429
+// or budget contention in the same instant. Retrying at an identical fixed delay just collides
+// them again on the next attempt; spreading the next attempt over a random window means most of
+// them succeed without a second round of contention.
+const RETRY_JITTER_MS = 2_000;
+
+export function jitteredDelay(baseMs: number, jitterMs: number = RETRY_JITTER_MS): number {
+  return baseMs + Math.round(Math.random() * jitterMs);
+}
 
 type ReservationRefused = "EXHAUSTED" | "CONTENDED";
 
@@ -127,6 +138,41 @@ export function reservationOutcome(
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+export type ModelCallSettlement =
+  | {
+      status: "SUCCEEDED";
+      inputTokens: number;
+      cachedInputTokens: number;
+      outputTokens: number;
+      reasoningTokens: number;
+      latencyMs: number;
+    }
+  | {
+      status: "FAILED" | "TIMED_OUT";
+      latencyMs: number;
+      errorCode: string;
+      usage?: RegulatoryTokenUsage | null;
+    };
+
+// A rate-limited call never reached the provider's generation step, so its real cost is zero —
+// charging it the full conservative reservation billed retries for work that never happened, and
+// on the flex tier (which answers capacity pressure with 429s by design) that repeats on every
+// attempt, up to RATE_LIMIT_MAX_ATTEMPTS times per call. Only the rate-limit case is trusted with
+// this: a bare "FAILED" with no usage also covers a fatal, run-ending error whose failure point
+// (validation before or after generation) is not something this code can tell apart, so it keeps
+// the conservative charge. TIMED_OUT keeps it too, since an aborted request's real token count is
+// genuinely unknown.
+export function settlementChargeMicroUsd(
+  reservedMicroUsd: number,
+  result: ModelCallSettlement,
+  model: string,
+): number {
+  if (result.status === "SUCCEEDED") return regulatoryCostMicroUsd(result, model);
+  if (result.usage) return regulatoryCostMicroUsd(result.usage, model);
+  if (result.errorCode === "REGULATORY_MODEL_RATE_LIMITED") return 0;
+  return reservedMicroUsd;
 }
 
 export function regulatoryModelLimits(stage: ClassificationModelStage) {
@@ -587,16 +633,17 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
       if (outcome === "EXHAUSTED" || attempt >= BUDGET_CONTENTION_MAX_ATTEMPTS) {
         throw new RegulatoryBudgetLimitError();
       }
+      const delayMs = jitteredDelay(BUDGET_CONTENTION_DELAY_MS);
       this.logger.info(
         {
           event: "regulatory_budget_contention",
           ...context,
           attempt,
-          delayMs: BUDGET_CONTENTION_DELAY_MS,
+          delayMs,
         },
         "regulatory model call is waiting for an in-flight reservation to settle",
       );
-      await sleep(BUDGET_CONTENTION_DELAY_MS);
+      await sleep(delayMs);
     }
   }
 
@@ -668,27 +715,14 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
   private async settleModelCall(
     runId: string,
     reservation: ReservedModelCall,
-    result:
-      | {
-          status: "SUCCEEDED";
-          inputTokens: number;
-          cachedInputTokens: number;
-          outputTokens: number;
-          reasoningTokens: number;
-          latencyMs: number;
-        }
-      | {
-          status: "FAILED" | "TIMED_OUT";
-          latencyMs: number;
-          errorCode: string;
-          usage?: RegulatoryTokenUsage | null;
-        },
+    result: ModelCallSettlement,
   ): Promise<void> {
     const succeeded = result.status === "SUCCEEDED";
-    const measured = succeeded ? result : result.usage;
-    const chargedMicroUsd = measured
-      ? regulatoryCostMicroUsd(measured, reservation.model)
-      : reservation.reservedMicroUsd;
+    const chargedMicroUsd = settlementChargeMicroUsd(
+      reservation.reservedMicroUsd,
+      result,
+      reservation.model,
+    );
     await this.database.$transaction(async (tx) => {
       const call = await tx.regulatoryModelCall.findUnique({
         where: { id: reservation.id },
@@ -1357,7 +1391,12 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
   ): Promise<RetrievedProvision[]> {
     const seeds = new Map<string, RetrievedProvision>();
     const queries = buildRegulatoryQueries(run.profileSnapshot.data);
-    for (const [index, query] of queries.entries()) {
+    // Each query is an independent embed-then-search round trip merged into `seeds` by score, so
+    // running them one at a time serialized a profile's worth of network latency before
+    // classification could even begin. The merge itself is a synchronous Map write per query with
+    // no `await` in between, so it stays safe under this bounded concurrency.
+    let completedQueries = 0;
+    const runQuery = async (index: number, query: string): Promise<void> => {
       const queryStartedAt = Date.now();
       const vectorResult = await embed({
         model: openAiProvider().embedding(embeddingModel),
@@ -1444,11 +1483,12 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
         if (!existing || score > Number(existing.score))
           seeds.set(row.provisionId, { ...row, score });
       }
-      const progress = 10 + Math.round(((index + 1) / queries.length) * 25);
+      completedQueries += 1;
+      const progress = 10 + Math.round((completedQueries / queries.length) * 25);
       await this.reportProgress(run.id, job, {
         phase: "retrieval",
         percent: progress,
-        completed: index + 1,
+        completed: completedQueries,
         total: queries.length,
         stage: "hybrid_search",
       });
@@ -1466,7 +1506,21 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
         },
         "regulatory retrieval query finished",
       );
-    }
+    };
+    let queryCursor = 0;
+    const queryWorker = async (): Promise<void> => {
+      for (;;) {
+        if (queryCursor >= queries.length) return;
+        const index = queryCursor;
+        queryCursor += 1;
+        await runQuery(index, queries[index]!);
+      }
+    };
+    await Promise.all(
+      Array.from({ length: Math.min(RETRIEVAL_QUERY_CONCURRENCY, queries.length) }, () =>
+        queryWorker(),
+      ),
+    );
     const rankedSeeds = dedupeRegulatoryProvisions([...seeds.values()]);
     const documentScores = new Map<string, number>();
     for (const seed of rankedSeeds) {
@@ -1563,9 +1617,20 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
     const model = regulatoryTriageModel();
     const limits = regulatoryModelLimits("triage");
     const decisions: TriageDecision[] = [];
+    // Batches are independent triage questions: the only shared state a lane touches is the
+    // `decisions` push (synchronous, no `await` inside it, so concurrent lanes cannot interleave
+    // mid-write) and the budget/cancellation flags below. Sequential batches used to serialize a
+    // profile's worth of network round trips — including every rate-limit retry — before
+    // classification could even begin.
+    let budgetExhausted = false;
+    let cancelled = false;
+    let completedBatches = 0;
 
-    for (const [batchIndex, batch] of batches.entries()) {
-      if (!(await this.stillCurrent(run.id))) break;
+    const processBatch = async (batchIndex: number, batch: CandidateInput[]): Promise<void> => {
+      if (!(await this.stillCurrent(run.id))) {
+        cancelled = true;
+        return;
+      }
       const prompt = regulatoryTriagePrompt.build({
         profileContext: run.profileSnapshot.data,
         batch: batch.map((candidate) => ({
@@ -1599,7 +1664,8 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
             { event: "regulatory_triage_budget_exhausted", runId: run.id, jobId: job.id },
             "regulatory triage stopped before exceeding its run budget",
           );
-          return { survivors: [], budgetExhausted: true };
+          budgetExhausted = true;
+          return;
         }
         if (!isMissingProvisionForeignKeyError(error)) throw error;
         this.logger.warn(
@@ -1726,7 +1792,9 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
               );
             }
             if (rateLimited && rateLimitAttempt < RATE_LIMIT_MAX_ATTEMPTS) {
-              const delayMs = parseRateLimitRetryDelayMs(error, RATE_LIMIT_FALLBACK_DELAY_MS);
+              const delayMs = jitteredDelay(
+                parseRateLimitRetryDelayMs(error, RATE_LIMIT_FALLBACK_DELAY_MS),
+              );
               this.logger.warn(
                 {
                   event: "regulatory_triage_batch_rate_limited",
@@ -1761,14 +1829,35 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
         }
       }
 
+      completedBatches += 1;
       await this.reportProgress(run.id, job, {
         phase: "triage",
-        percent: regulatoryTriageProgress(batchIndex + 1, batches.length),
-        completed: batchIndex + 1,
+        percent: regulatoryTriageProgress(completedBatches, batches.length),
+        completed: completedBatches,
         total: batches.length,
         stage: "triage_batch_completed",
       });
-    }
+    };
+
+    let batchCursor = 0;
+    const batchWorker = async (): Promise<void> => {
+      for (;;) {
+        if (cancelled || budgetExhausted) return;
+        if (batchCursor >= batches.length) return;
+        const batchIndex = batchCursor;
+        batchCursor += 1;
+        await processBatch(batchIndex, batches[batchIndex]!);
+      }
+    };
+    const outcomes = await Promise.allSettled(
+      Array.from({ length: Math.min(TRIAGE_CONCURRENCY, batches.length) }, () => batchWorker()),
+    );
+    const failure = outcomes.find(
+      (outcome): outcome is PromiseRejectedResult => outcome.status === "rejected",
+    );
+    if (failure) throw failure.reason;
+
+    if (budgetExhausted) return { survivors: [], budgetExhausted: true };
 
     return {
       survivors: selectTriageSurvivors(additions, decisions, includeUnsure),
@@ -1960,7 +2049,9 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
             usage: failureUsage(error),
           });
           if (rateLimited && rateLimitAttempt < RATE_LIMIT_MAX_ATTEMPTS) {
-            const delayMs = parseRateLimitRetryDelayMs(error, RATE_LIMIT_FALLBACK_DELAY_MS);
+            const delayMs = jitteredDelay(
+              parseRateLimitRetryDelayMs(error, RATE_LIMIT_FALLBACK_DELAY_MS),
+            );
             this.logger.warn(
               {
                 event: "regulatory_model_call_rate_limited",

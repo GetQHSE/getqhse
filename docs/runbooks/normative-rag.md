@@ -160,15 +160,23 @@ and output ceilings of 12,000 tokens for drafting, 6,000 tokens for verification
 one explicit corrected draft after verifier feedback.
 
 An OpenAI TPM rate limit response is not treated as a failed call: each call site (drafting,
-verification, triage) retries the same request up to `RATE_LIMIT_MAX_ATTEMPTS` (3) times, sleeping
-the delay OpenAI's own error message suggests (falling back to 2s if none is given) between tries.
-Every try still reserves and settles its own ledger row — a rate-limited attempt settles with
-`REGULATORY_MODEL_RATE_LIMITED` and is followed by a separate row for the retry, so nothing is
-double-counted. Retries exhausted still ends the run with `REGULATORY_MODEL_UNAVAILABLE`. This
-raises the account's OpenAI token throughput per run (more provisions retrieved, plus the triage
-pass's own calls); if runs start exhausting retries rather than just absorbing an occasional dip,
-that's a sign the org's TPM limit needs raising, or `CLASSIFICATION_CONCURRENCY` (5) /
-the regulatory-analysis worker's job concurrency (2) need lowering to match it.
+verification, triage) retries the same request up to `RATE_LIMIT_MAX_ATTEMPTS` (6) times, sleeping
+the delay OpenAI's own error message suggests (falling back to 5s if none is given), plus up to 2s
+of random jitter so concurrent lanes that got rate-limited together don't retry in lockstep and
+collide again. A rate-limited attempt that reports no token usage — the flex tier's normal way of
+saying "no capacity right now" — settles for **zero cost**: charging the reservation there would
+bill every retry in full for work the provider never started. Every try still reserves and settles
+its own ledger row, so nothing is silently merged. Retries exhausted still ends the run with
+`REGULATORY_MODEL_UNAVAILABLE`. This raises the account's OpenAI token throughput per run (more
+provisions retrieved, plus the triage pass's own calls); if runs start exhausting retries rather
+than just absorbing an occasional dip, that's a sign the org's TPM limit needs raising, or
+`CLASSIFICATION_CONCURRENCY` / `TRIAGE_CONCURRENCY` / `RETRIEVAL_QUERY_CONCURRENCY` (5 each) / the
+regulatory-analysis worker's job concurrency (2) need lowering to match it.
+
+Retrieval's per-query embed-and-search round trips and triage's batches both run up to 5 at a time
+(`RETRIEVAL_QUERY_CONCURRENCY`, `TRIAGE_CONCURRENCY`) instead of one after another — previously a
+profile with many fields, or a large discovered set, serialized that whole phase's network latency,
+including every rate-limit retry, before classification could even start.
 
 Every generation call has a durable ledger row containing its candidate, stage, attempt, status,
 duration, token and reasoning-token usage, reserved cost, and reconciled cost. Before a call, the
