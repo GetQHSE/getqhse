@@ -9,12 +9,11 @@ vi.mock("ai", () => ({
 }));
 
 const responses = vi.hoisted(() => vi.fn((modelId: string) => ({ modelId })));
+const embedding = vi.hoisted(() => vi.fn(() => ({ modelId: "embedding" })));
 
 vi.mock("@ai-sdk/openai", () => ({
-  openai: {
-    responses,
-    embedding: vi.fn(() => ({ modelId: "embedding" })),
-  },
+  createOpenAI: () => ({ responses, embedding }),
+  openai: { responses, embedding },
 }));
 
 import { RegulatoryAnalysisProcessor } from "./regulatory-analysis.processor.js";
@@ -24,6 +23,7 @@ describe("independent regulatory requirement verification", () => {
 
   beforeEach(() => {
     process.env["DATABASE_URL"] ??= "postgresql://postgres:postgres@localhost:5432/qhse_test";
+    process.env["OPENAI_API_KEY"] = "sk-test";
     process.env["OPENAI_REGULATORY_MODEL"] = "gpt-5-mini";
     process.env["OPENAI_REGULATORY_REASONING_EFFORT"] = "low";
     generated.mockReset();
@@ -33,6 +33,7 @@ describe("independent regulatory requirement verification", () => {
   afterEach(() => {
     if (previousDatabaseUrl === undefined) delete process.env["DATABASE_URL"];
     else process.env["DATABASE_URL"] = previousDatabaseUrl;
+    delete process.env["OPENAI_API_KEY"];
     delete process.env["OPENAI_REGULATORY_MODEL"];
     delete process.env["OPENAI_REGULATORY_REASONING_EFFORT"];
   });

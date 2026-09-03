@@ -43,6 +43,9 @@ Compose ports directly from the VPS firewall.
    `OPENAI_REGULATORY_RUN_BUDGET_USD` (default `$1`). It does not silently fall back to another model.
    Keep `NORMATIVE_RAG_ENABLED=false` until the licensed corpus is processed, indexed, and its
    embedding profile is ACTIVE; then set it to `true` and restart both APIs and the worker.
+   These variables are the fallback layer. Once the platform is running, the same values are
+   editable from the administration workspace's **Settings → LLM** tab and take effect within a
+   minute without a restart; see `docs/runbooks/normative-rag.md`.
 6. Configure the Compose application to build `compose.production.yaml` from `main`. Disable Dokploy's
    direct push auto-deploy so an unverified commit cannot bypass CI.
 7. Deploy once. The `migrate` container runs `prisma migrate deploy` with

@@ -1,5 +1,6 @@
 import { Processor, WorkerHost } from "@nestjs/bullmq";
 import { GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { llmSettings } from "@qhse/ai";
 import { createPrismaClient, type DatabaseClient, type Prisma } from "@qhse/database";
 import { shouldRunOcr, type ProcessingJobType } from "@qhse/documents";
 import {
@@ -700,7 +701,7 @@ export class DocumentProcessingProcessor extends WorkerHost {
         assertRevisionRight(revisionRights(version), "embed");
         assertRevisionRight(revisionRights(version), "ai-process");
         assertRevisionRight(revisionRights(version), "external-process");
-        return process.env["NORMATIVE_RAG_ENABLED"] === "true"
+        return llmSettings().ragEnabled
           ? { metadata: { configured: true, queue: "embedding-generation" } }
           : { skipped: true, metadata: { reason: "disabled" } };
       default:

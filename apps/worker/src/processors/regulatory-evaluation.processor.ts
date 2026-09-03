@@ -1,6 +1,5 @@
-import { openai } from "@ai-sdk/openai";
 import { Processor, WorkerHost } from "@nestjs/bullmq";
-import { regulatoryConformityPrompt } from "@qhse/ai";
+import { llmSettings, openAiProvider, regulatoryConformityPrompt } from "@qhse/ai";
 import { jobEnvelopeSchema, type JobEnvelope } from "@qhse/contracts";
 import { Prisma, createPrismaClient, type DatabaseClient } from "@qhse/database";
 import { createLogger } from "@qhse/observability";
@@ -13,7 +12,6 @@ import {
   conservativeInputTokens,
   failureUsage,
   isTimeoutError,
-  positiveNumber,
   regulatoryCostMicroUsd,
   regulatoryPrimaryModel,
   regulatoryProviderOptions,
@@ -258,7 +256,7 @@ export class RegulatoryEvaluationProcessor extends WorkerHost {
     const baselineId =
       typeof envelope.payload["baselineId"] === "string" ? envelope.payload["baselineId"] : null;
     if (!baselineId) throw new Error("baselineId is required");
-    if (!process.env["OPENAI_API_KEY"]) throw new Error("OPENAI_API_KEY is required");
+    if (!llmSettings().apiKey) throw new Error("An OpenAI API key is required");
 
     const baseline = await this.database.regulatoryBaseline.findFirst({
       where: { id: baselineId, watch: { organizationId: envelope.organizationId } },
@@ -290,14 +288,10 @@ export class RegulatoryEvaluationProcessor extends WorkerHost {
         (entry.evaluation.aiStatus === "PENDING" || entry.evaluation.aiStatus === "RUNNING"),
     );
     const model = regulatoryPrimaryModel();
-    const reasoningEffort = (process.env["OPENAI_REGULATORY_REASONING_EFFORT"] ?? "low") as
-      "none" | "low" | "medium" | "high" | "xhigh" | "max";
-    const maxOutputTokens = positiveNumber(
-      "OPENAI_REGULATORY_VERIFICATION_MAX_OUTPUT_TOKENS",
-      6_000,
-    );
-    const timeoutMs = positiveNumber("OPENAI_REGULATORY_TIMEOUT_MS", 180_000);
-    const budgetMicroUsd = positiveNumber("REGULATORY_EVALUATION_BUDGET_MICRO_USD", 10_000_000);
+    const reasoningEffort = llmSettings().regulatoryReasoningEffort;
+    const maxOutputTokens = llmSettings().regulatoryVerificationMaxOutputTokens;
+    const timeoutMs = llmSettings().regulatoryTimeoutMs;
+    const budgetMicroUsd = Math.round(llmSettings().regulatoryEvaluationBudgetUsd * 1_000_000);
     const attempt = job.attemptsMade + 1;
     await this.recoverAbandonedModelCalls(baseline.analysisRunId);
 
@@ -379,7 +373,7 @@ export class RegulatoryEvaluationProcessor extends WorkerHost {
       const callStartedAt = Date.now();
       try {
         const generated = await generateText({
-          model: openai.responses(model),
+          model: openAiProvider().responses(model),
           system: prompt.system,
           prompt: prompt.context,
           output: Output.object({ schema: conformityAssessmentSchema }),

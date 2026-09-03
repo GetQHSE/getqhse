@@ -1,20 +1,9 @@
+import { llmSettings } from "@qhse/ai";
+
 // The Responses API scaffolding plus the structured-output JSON schema. The largest schema this
 // pipeline sends (classification) serializes to ~1.1KB / ~350 tokens, so this is several times
 // the real fixed cost and still a rounding error next to the prompt itself.
 const CONSERVATIVE_PROMPT_OVERHEAD_TOKENS = 2_048;
-
-// Reservations must bound the real token count from above or the run budget stops being a cap,
-// so this divides UTF-8 bytes by the *worst* density the corpus can produce rather than the
-// average. French provisions run around 3.5 bytes per token, but the corpus is fr + ar, and
-// Arabic is 2 bytes per character before tokenization — so 2 stays above the real count for both
-// languages instead of quietly under-reserving every Arabic provision.
-const CONSERVATIVE_BYTES_PER_TOKEN = 2;
-
-// OpenAI's flex service tier bills the gpt-5 family at half the standard rate in exchange for
-// slower, best-effort scheduling. The regulatory processors are background BullMQ workers with
-// a 180s timeout and a rate-limit retry loop, so the latency is free and the discount is not.
-// If OpenAI changes the flex discount, override it rather than editing this constant.
-const FLEX_RATE_MULTIPLIER = 0.5;
 
 export type RegulatoryServiceTier = "auto" | "default" | "flex" | "priority";
 
@@ -46,18 +35,15 @@ export function positiveNumber(name: string, fallback: number): number {
 }
 
 export function regulatoryServiceTier(): RegulatoryServiceTier {
-  const configured = process.env["OPENAI_REGULATORY_SERVICE_TIER"];
-  return configured === "auto" || configured === "default" || configured === "priority"
-    ? configured
-    : "flex";
+  return llmSettings().regulatoryServiceTier;
 }
 
 export function regulatoryPrimaryModel(): string {
-  return process.env["OPENAI_REGULATORY_MODEL"] ?? "gpt-5-mini";
+  return llmSettings().regulatoryModel;
 }
 
 export function regulatoryTriageModel(): string {
-  return process.env["OPENAI_REGULATORY_TRIAGE_MODEL"] ?? "gpt-5-nano";
+  return llmSettings().regulatoryTriageModel;
 }
 
 // Verification is a containment check that only ever runs after validateRequirementDraft has
@@ -67,34 +53,27 @@ export function regulatoryTriageModel(): string {
 // unsure answers unsupported, which routes the candidate to human review rather than publishing
 // something unverified.
 export function regulatoryVerificationModel(): string {
-  return process.env["OPENAI_REGULATORY_VERIFICATION_MODEL"] ?? "gpt-5-nano";
+  return llmSettings().regulatoryVerificationModel;
 }
 
 // Rates are per-model because triage runs on a cheaper model than drafting: billing every stage
 // at the primary model's rate would charge triage ~5x what it costs and exhaust the run budget
-// against spend that never happened. The OPENAI_REGULATORY_*_USD_PER_MTOK variables predate the
-// second model and name the primary model's rates, so they only override that model's entry.
+// against spend that never happened. The configured rates predate the second model and name the
+// primary model's rates, so they only override that model's entry.
 export function regulatoryModelRates(model: string): RegulatoryModelRates {
+  const settings = llmSettings();
   const listed = MODEL_RATES[model] ?? FALLBACK_RATES;
   const base =
-    model === regulatoryPrimaryModel()
+    model === settings.regulatoryModel
       ? {
-          inputUsdPerMTok: positiveNumber(
-            "OPENAI_REGULATORY_INPUT_USD_PER_MTOK",
-            listed.inputUsdPerMTok,
-          ),
-          cachedInputUsdPerMTok: positiveNumber(
-            "OPENAI_REGULATORY_CACHED_INPUT_USD_PER_MTOK",
-            listed.cachedInputUsdPerMTok,
-          ),
-          outputUsdPerMTok: positiveNumber(
-            "OPENAI_REGULATORY_OUTPUT_USD_PER_MTOK",
-            listed.outputUsdPerMTok,
-          ),
+          inputUsdPerMTok: settings.regulatoryInputUsdPerMTok ?? listed.inputUsdPerMTok,
+          cachedInputUsdPerMTok:
+            settings.regulatoryCachedInputUsdPerMTok ?? listed.cachedInputUsdPerMTok,
+          outputUsdPerMTok: settings.regulatoryOutputUsdPerMTok ?? listed.outputUsdPerMTok,
         }
       : listed;
-  if (regulatoryServiceTier() !== "flex") return base;
-  const multiplier = positiveNumber("OPENAI_REGULATORY_FLEX_RATE_MULTIPLIER", FLEX_RATE_MULTIPLIER);
+  if (settings.regulatoryServiceTier !== "flex") return base;
+  const multiplier = settings.regulatoryFlexRateMultiplier;
   return {
     inputUsdPerMTok: base.inputUsdPerMTok * multiplier,
     cachedInputUsdPerMTok: base.cachedInputUsdPerMTok * multiplier,
@@ -129,16 +108,17 @@ export function regulatoryProviderOptions(input: {
     promptCacheRetention: string;
   };
 } {
+  const settings = llmSettings();
   return {
     openai: {
       store: false,
       reasoningEffort: input.reasoningEffort,
-      serviceTier: regulatoryServiceTier(),
+      serviceTier: settings.regulatoryServiceTier,
       // Output tokens cost 8x input tokens, and every schema field this pipeline asks for is
       // short by contract (2-4 sentence rationale, 1-3 verbatim excerpts).
-      textVerbosity: process.env["OPENAI_REGULATORY_TEXT_VERBOSITY"] ?? "low",
+      textVerbosity: settings.regulatoryTextVerbosity,
       promptCacheKey: input.promptCacheKey,
-      promptCacheRetention: process.env["OPENAI_REGULATORY_PROMPT_CACHE_RETENTION"] ?? "24h",
+      promptCacheRetention: settings.regulatoryPromptCacheRetention,
     },
   };
 }
@@ -146,11 +126,9 @@ export function regulatoryProviderOptions(input: {
 export function conservativeInputTokens(prompt: { system: string; context: string }): number {
   const bytes =
     Buffer.byteLength(prompt.system, "utf8") + Buffer.byteLength(prompt.context, "utf8");
-  const bytesPerToken = positiveNumber(
-    "REGULATORY_CONSERVATIVE_BYTES_PER_TOKEN",
-    CONSERVATIVE_BYTES_PER_TOKEN,
+  return (
+    Math.ceil(bytes / llmSettings().conservativeBytesPerToken) + CONSERVATIVE_PROMPT_OVERHEAD_TOKENS
   );
-  return Math.ceil(bytes / bytesPerToken) + CONSERVATIVE_PROMPT_OVERHEAD_TOKENS;
 }
 
 // A failed call still burned tokens, so it still has to be charged against the run budget. The

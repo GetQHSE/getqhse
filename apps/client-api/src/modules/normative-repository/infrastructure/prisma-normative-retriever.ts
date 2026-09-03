@@ -6,6 +6,7 @@ import type {
   NormativeSearchResponse,
   NormativeSearchResult,
 } from "@qhse/contracts";
+import { llmSettings } from "@qhse/ai";
 import { createPrismaClient, Prisma, type DatabaseClient } from "@qhse/database";
 import {
   boundedExcerpt,
@@ -56,7 +57,7 @@ export class PrismaNormativeRetriever extends NormativeRetriever {
     organizationId: string,
     input: NormativeSearchRequest,
   ): Promise<NormativeSearchResponse> {
-    if (process.env["NORMATIVE_RAG_ENABLED"] !== "true") {
+    if (!llmSettings().ragEnabled) {
       throw new ServiceUnavailableException("Normative search is disabled");
     }
     const startedAt = Date.now();

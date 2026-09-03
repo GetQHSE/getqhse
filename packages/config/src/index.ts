@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+export * from "./llm-settings.js";
+
 const booleanString = z
   .enum(["true", "false"])
   .default("false")
@@ -44,12 +46,17 @@ export const serverEnvironmentSchema = z.object({
     .int()
     .positive()
     .default(6_000),
+  OPENAI_REGULATORY_TRIAGE_MAX_OUTPUT_TOKENS: z.coerce.number().int().positive().default(2_000),
   OPENAI_REGULATORY_RUN_BUDGET_USD: z.coerce.number().positive().default(1),
   OPENAI_REGULATORY_INPUT_USD_PER_MTOK: z.coerce.number().positive().default(0.25),
   OPENAI_REGULATORY_CACHED_INPUT_USD_PER_MTOK: z.coerce.number().positive().default(0.025),
   OPENAI_REGULATORY_OUTPUT_USD_PER_MTOK: z.coerce.number().positive().default(2),
   OPENAI_REGULATORY_FLEX_RATE_MULTIPLIER: z.coerce.number().positive().default(0.5),
   REGULATORY_CONSERVATIVE_BYTES_PER_TOKEN: z.coerce.number().positive().default(2),
+  REGULATORY_TRIAGE_INCLUDE_UNSURE: z
+    .enum(["true", "false"])
+    .default("true")
+    .transform((value) => value === "true"),
   OPENAI_TRANSCRIPTION_MODEL: z.string().min(1).default("gpt-4o-mini-transcribe"),
   NORMATIVE_RAG_ENABLED: booleanString,
   WORKER_HOST: z.string().min(1).default("127.0.0.1"),
@@ -80,12 +87,14 @@ export const workerEnvironmentSchema = serverEnvironmentSchema.pick({
   OPENAI_REGULATORY_TIMEOUT_MS: true,
   OPENAI_REGULATORY_DRAFT_MAX_OUTPUT_TOKENS: true,
   OPENAI_REGULATORY_VERIFICATION_MAX_OUTPUT_TOKENS: true,
+  OPENAI_REGULATORY_TRIAGE_MAX_OUTPUT_TOKENS: true,
   OPENAI_REGULATORY_RUN_BUDGET_USD: true,
   OPENAI_REGULATORY_INPUT_USD_PER_MTOK: true,
   OPENAI_REGULATORY_CACHED_INPUT_USD_PER_MTOK: true,
   OPENAI_REGULATORY_OUTPUT_USD_PER_MTOK: true,
   OPENAI_REGULATORY_FLEX_RATE_MULTIPLIER: true,
   REGULATORY_CONSERVATIVE_BYTES_PER_TOKEN: true,
+  REGULATORY_TRIAGE_INCLUDE_UNSURE: true,
   NORMATIVE_RAG_ENABLED: true,
   WORKER_HOST: true,
   WORKER_PORT: true,

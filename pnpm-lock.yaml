@@ -98,6 +98,9 @@ importers:
       '@nestjs/throttler':
         specifier: ^6.5.0
         version: 6.5.0(@nestjs/common@11.1.28(class-transformer@0.5.1)(class-validator@0.15.1)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.28)(reflect-metadata@0.2.2)
+      '@qhse/ai':
+        specifier: workspace:*
+        version: link:../../packages/ai
       '@qhse/auth':
         specifier: workspace:*
         version: link:../../packages/auth
@@ -561,10 +564,22 @@ importers:
 
   packages/ai:
     dependencies:
+      '@ai-sdk/openai':
+        specifier: ^4.0.36
+        version: 4.0.36(zod@4.4.3)
+      '@qhse/config':
+        specifier: workspace:*
+        version: link:../config
+      '@qhse/database':
+        specifier: workspace:*
+        version: link:../database
       '@qhse/profile':
         specifier: workspace:*
         version: link:../profile
     devDependencies:
+      '@types/node':
+        specifier: ^24.10.10
+        version: 24.13.3
       typescript:
         specifier: ^6.0.3
         version: 6.0.3

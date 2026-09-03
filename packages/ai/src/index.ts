@@ -1,3 +1,6 @@
+export * from "./llm-provider.js";
+export * from "./llm-secret.js";
+export * from "./llm-settings-store.js";
 export * from "./prompt-definition.js";
 export * from "./prompts/profile-chat.prompt.js";
 export * from "./prompts/regulatory-applicability.prompt.js";

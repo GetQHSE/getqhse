@@ -10,11 +10,14 @@ retrieval logs.
 2. Because the development migration history is now a clean baseline, reset disposable local data
    with `pnpm --filter @qhse/database exec prisma migrate reset --force`, then seed it.
 3. Set `OPENAI_API_KEY`. Keep `NORMATIVE_RAG_ENABLED=false` until rights and source
-   metadata have been reviewed.
+   metadata have been reviewed. Both are the fallback layer: the administration workspace's
+   **Settings → LLM** tab overrides them per environment without a redeploy (see
+   [LLM settings](#llm-settings)).
 4. Upload one licensed ISO source and one official Moroccan source. The UI requires explicit rights
    confirmations; database defaults remain false.
 5. Process, review, classify, and validate each revision.
-6. Set `NORMATIVE_RAG_ENABLED=true`. Create an inactive profile with
+6. Enable retrieval — `NORMATIVE_RAG_ENABLED=true`, or the switch in Settings → LLM. Create an
+   inactive profile with
    `POST /v1/documents/embedding-profiles`, then call
    `POST /v1/documents/{documentId}/versions/{revisionId}/reindex`, and wait for its BullMQ job.
 7. After every eligible chunk exists under the READY profile, call
@@ -125,6 +128,22 @@ column break, a chapter whose roman numeral OCR read as a lowercase l.
 Changing segmentation or identifier normalization does not update revisions that are already
 ingested: `POST /v1/documents/{documentId}/versions/{revisionId}/reindex` only re-embeds. A
 revision has to be reprocessed for new provision boundaries or identifiers to take effect.
+
+## LLM settings
+
+Every value below — the API key, each model, the service tier, the token ceilings, the run budget,
+the per-token rates, and the retrieval switch — resolves in three layers: the `llm_settings` row
+the administration workspace writes, then the environment variable, then a built-in default. An
+unset column falls through, so a deployment that never opens the tab behaves exactly as it did
+when these were environment-only.
+
+Writes need the `super_admin` or `platform_admin` role. The API key is encrypted with AES-256-GCM
+under a key derived from `BETTER_AUTH_SECRET` and is never read back — the tab shows a masked
+preview. Rotating `BETTER_AUTH_SECRET` therefore orphans a stored key: the services fall back to
+`OPENAI_API_KEY` and an administrator has to re-enter it.
+
+Each service polls the row every 30 seconds, so a saved change reaches the workers within a
+minute rather than on the next deploy. "Reset everything to the environment" deletes the row.
 
 ## Accuracy-first regulatory analysis
 
@@ -271,18 +290,18 @@ curl -s --cookie "$ADMIN_COOKIE" https://<admin-api>/v1/documents/embedding-prof
 `reason` is `null` when search is healthy; otherwise it is the same code the worker writes to
 `RegulatoryAnalysisRun.errorCode`, and the customer UI renders its French translation:
 
-| `reason`                          | Meaning                                                                  | Fix                                                                                                                                         |
-| --------------------------------- | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| `NORMATIVE_RAG_DISABLED`          | The **worker** does not see `NORMATIVE_RAG_ENABLED=true`.                | Export it into the worker container; `compose.production.yaml` defaults it to `false`.                                                      |
-| `OPENAI_KEY_MISSING`              | `OPENAI_API_KEY` is unset.                                               | Set it, restart the worker.                                                                                                                 |
-| `EMBEDDING_PROFILE_MISSING`       | The corpus was never indexed.                                            | Run rollout steps 6–7.                                                                                                                      |
-| `EMBEDDING_PROFILE_BUILDING`      | Indexing is under way.                                                   | Wait for the BullMQ jobs; check `missingChunks` per profile.                                                                                |
-| `EMBEDDING_PROFILE_NOT_ACTIVATED` | A profile is READY but step 7 was skipped.                               | `POST /v1/documents/embedding-profiles/{profileId}/activate`.                                                                               |
-| `EMBEDDING_PROFILE_STALE`         | Content was published after the active profile was built.                | Reindex the new revisions, then activate the refreshed profile.                                                                             |
-| `REGULATORY_MODEL_UNAVAILABLE`    | The configured accuracy model failed or was rejected (not a rate limit). | Verify model access and both regulatory model variables; restart the worker.                                                                |
-| `REGULATORY_MODEL_RATE_LIMITED`   | An OpenAI TPM rate limit persisted past all 3 retries.                   | Transient — retrying from the veille page works as-is. If it recurs, see the TPM note above (raise the account limit or lower concurrency). |
-| `REGULATORY_WORKER_UNAVAILABLE`   | No BullMQ regulatory worker is registered.                               | Check worker readiness/logs and its Redis connection before retrying.                                                                       |
-| `REGULATORY_BUDGET_LIMIT`         | The run stopped before exceeding its configured budget.                  | Review completed candidates, then start a new run or explicitly revise the budget.                                                          |
+| `reason`                          | Meaning                                                                  | Fix                                                                                                                                               |
+| --------------------------------- | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `NORMATIVE_RAG_DISABLED`          | Retrieval is off for the **worker**.                                     | Turn it on in Settings → LLM, or export `NORMATIVE_RAG_ENABLED=true` into the worker container; `compose.production.yaml` defaults it to `false`. |
+| `OPENAI_KEY_MISSING`              | No API key resolves, from the settings row or `OPENAI_API_KEY`.          | Save one in Settings → LLM, or set the variable and restart the worker.                                                                           |
+| `EMBEDDING_PROFILE_MISSING`       | The corpus was never indexed.                                            | Run rollout steps 6–7.                                                                                                                            |
+| `EMBEDDING_PROFILE_BUILDING`      | Indexing is under way.                                                   | Wait for the BullMQ jobs; check `missingChunks` per profile.                                                                                      |
+| `EMBEDDING_PROFILE_NOT_ACTIVATED` | A profile is READY but step 7 was skipped.                               | `POST /v1/documents/embedding-profiles/{profileId}/activate`.                                                                                     |
+| `EMBEDDING_PROFILE_STALE`         | Content was published after the active profile was built.                | Reindex the new revisions, then activate the refreshed profile.                                                                                   |
+| `REGULATORY_MODEL_UNAVAILABLE`    | The configured accuracy model failed or was rejected (not a rate limit). | Verify model access and both regulatory model variables; restart the worker.                                                                      |
+| `REGULATORY_MODEL_RATE_LIMITED`   | An OpenAI TPM rate limit persisted past all 3 retries.                   | Transient — retrying from the veille page works as-is. If it recurs, see the TPM note above (raise the account limit or lower concurrency).       |
+| `REGULATORY_WORKER_UNAVAILABLE`   | No BullMQ regulatory worker is registered.                               | Check worker readiness/logs and its Redis connection before retrying.                                                                             |
+| `REGULATORY_BUDGET_LIMIT`         | The run stopped before exceeding its configured budget.                  | Review completed candidates, then start a new run or explicitly revise the budget.                                                                |
 
 ### Driving the rollout
 

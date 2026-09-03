@@ -4,6 +4,7 @@ import type {
   AdminNormativeSearchResult,
   NormativeSearchRequest,
 } from "@qhse/contracts";
+import { llmSettings } from "@qhse/ai";
 import { createPrismaClient, Prisma, type DatabaseClient } from "@qhse/database";
 import { extractExactReference, reciprocalRankFusion, stableCitationLabel } from "@qhse/knowledge";
 
@@ -52,7 +53,7 @@ export class PrismaNormativeSearchTester extends NormativeSearchTester {
   }
 
   async search(input: NormativeSearchRequest): Promise<AdminNormativeSearchResponse> {
-    if (process.env["NORMATIVE_RAG_ENABLED"] !== "true") {
+    if (!llmSettings().ragEnabled) {
       throw new ServiceUnavailableException("Normative search is disabled");
     }
     const asOf = input.asOf ?? new Date().toISOString().slice(0, 10);

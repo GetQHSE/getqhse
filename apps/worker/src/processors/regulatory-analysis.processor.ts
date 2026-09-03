@@ -1,6 +1,7 @@
-import { openai } from "@ai-sdk/openai";
 import { Processor, WorkerHost } from "@nestjs/bullmq";
 import {
+  llmSettings,
+  openAiProvider,
   regulatoryApplicabilityPrompt,
   regulatoryRequirementVerificationPrompt,
   regulatoryTriagePrompt,
@@ -129,14 +130,15 @@ function sleep(ms: number): Promise<void> {
 }
 
 export function regulatoryModelLimits(stage: ClassificationModelStage) {
+  const settings = llmSettings();
   return {
-    timeoutMs: positiveNumber("OPENAI_REGULATORY_TIMEOUT_MS", 180_000),
+    timeoutMs: settings.regulatoryTimeoutMs,
     maxOutputTokens:
       stage === "drafting"
-        ? positiveNumber("OPENAI_REGULATORY_DRAFT_MAX_OUTPUT_TOKENS", 12_000)
+        ? settings.regulatoryDraftMaxOutputTokens
         : stage === "verification"
-          ? positiveNumber("OPENAI_REGULATORY_VERIFICATION_MAX_OUTPUT_TOKENS", 6_000)
-          : positiveNumber("OPENAI_REGULATORY_TRIAGE_MAX_OUTPUT_TOKENS", 2_000),
+          ? settings.regulatoryVerificationMaxOutputTokens
+          : settings.regulatoryTriageMaxOutputTokens,
   };
 }
 
@@ -920,14 +922,14 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
   }
 
   private async analyze(runId: string, job: Job<JobEnvelope>): Promise<void> {
-    if (process.env["NORMATIVE_RAG_ENABLED"] !== "true") {
+    if (!llmSettings().ragEnabled) {
       throw new RegulatoryAnalysisError(
         "NORMATIVE_RAG_DISABLED",
-        "NORMATIVE_RAG_ENABLED must be true for the worker to run a regulatory analysis",
+        "Retrieval must be enabled in the LLM settings for the worker to run a regulatory analysis",
       );
     }
-    if (!process.env["OPENAI_API_KEY"]) {
-      throw new RegulatoryAnalysisError("OPENAI_KEY_MISSING", "OPENAI_API_KEY is required");
+    if (!llmSettings().apiKey) {
+      throw new RegulatoryAnalysisError("OPENAI_KEY_MISSING", "An OpenAI API key is required");
     }
     const run = await this.database.regulatoryAnalysisRun.findUnique({
       where: { id: runId },
@@ -1358,7 +1360,7 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
     for (const [index, query] of queries.entries()) {
       const queryStartedAt = Date.now();
       const vectorResult = await embed({
-        model: openai.embedding(embeddingModel),
+        model: openAiProvider().embedding(embeddingModel),
         value: query,
         maxRetries: 3,
         providerOptions: { openai: { dimensions: 768 } },
@@ -1547,7 +1549,7 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
     job: Job<JobEnvelope>,
   ): Promise<{ survivors: CandidateInput[]; budgetExhausted: boolean }> {
     if (!additions.length) return { survivors: [], budgetExhausted: false };
-    const includeUnsure = process.env["REGULATORY_TRIAGE_INCLUDE_UNSURE"] !== "false";
+    const includeUnsure = llmSettings().triageIncludeUnsure;
     const batchSize = Math.round(positiveNumber("REGULATORY_TRIAGE_BATCH_SIZE", 25));
     // Triage only pays for itself when its NO is trustworthy, and a 600-character window was
     // often too little to see a provision's scope, so nearly everything came back UNSURE and
@@ -1638,7 +1640,7 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
           heartbeat.unref();
           try {
             const generated = await generateText({
-              model: openai.responses(model),
+              model: openAiProvider().responses(model),
               system: prompt.system,
               prompt: prompt.context,
               output: Output.object({ schema: triageBatchSchema }),
@@ -1793,8 +1795,7 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
   ): Promise<{ results: ClassifiedCandidate[]; budgetExhausted: boolean }> {
     if (!candidates.length) return { results: [], budgetExhausted: false };
     const model = regulatoryPrimaryModel();
-    const reasoningEffort = (process.env["OPENAI_REGULATORY_REASONING_EFFORT"] ?? "low") as
-      "none" | "low" | "medium" | "high" | "xhigh" | "max";
+    const reasoningEffort = llmSettings().regulatoryReasoningEffort;
     const results: ClassifiedCandidate[] = [];
     const savedCandidates = await this.database.regulatoryApplicabilityCandidate.findMany({
       where: { runId: run.id, classificationRevision: run.clarificationRevision },
@@ -1900,7 +1901,7 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
         heartbeat.unref();
         try {
           const generated = await generateText({
-            model: openai.responses(stageModel),
+            model: openAiProvider().responses(stageModel),
             system: prompt.system,
             prompt: prompt.context,
             output: Output.object({ schema }),

@@ -7,8 +7,11 @@ vi.mock("ai", () => ({
   Output: { object: vi.fn(({ schema }) => ({ schema })) },
 }));
 
+const responses = vi.hoisted(() => vi.fn(() => ({ modelId: "gpt-5-mini" })));
+
 vi.mock("@ai-sdk/openai", () => ({
-  openai: { responses: vi.fn(() => ({ modelId: "gpt-5-mini" })) },
+  createOpenAI: () => ({ responses }),
+  openai: { responses },
 }));
 
 import {

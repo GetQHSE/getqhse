@@ -8,6 +8,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { useAdminAuth } from "../../auth.js";
 import { adminApi } from "../../lib/admin-api.js";
+import { LlmSettingsTab } from "./llm-settings-tab.js";
 
 type EmbeddingProfile = {
   id: string;
@@ -94,6 +95,7 @@ export function SettingsPage() {
       <Tabs defaultValue="search-index" className="min-w-0">
         <TabsList variant="line">
           <TabsTrigger value="search-index">Search index</TabsTrigger>
+          <TabsTrigger value="llm">LLM</TabsTrigger>
         </TabsList>
         <TabsContent value="search-index">
           <Card>
@@ -172,6 +174,9 @@ export function SettingsPage() {
               )}
             </CardContent>
           </Card>
+        </TabsContent>
+        <TabsContent value="llm">
+          <LlmSettingsTab canManage={canManage} />
         </TabsContent>
       </Tabs>
     </section>

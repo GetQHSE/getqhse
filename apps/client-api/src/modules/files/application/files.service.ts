@@ -6,6 +6,7 @@ import {
   NotFoundException,
   Optional,
 } from "@nestjs/common";
+import { llmSettings } from "@qhse/ai";
 import type { CreateFileUpload } from "@qhse/contracts";
 import { createPrismaClient, type DatabaseClient } from "@qhse/database";
 
@@ -126,7 +127,7 @@ export class FilesService {
     if (file.purpose !== "VOICE_NOTE" || !audioTypes.has(file.contentType)) {
       throw new BadRequestException("Only ready voice notes can be transcribed");
     }
-    const model = process.env["OPENAI_TRANSCRIPTION_MODEL"] ?? "gpt-4o-mini-transcribe";
+    const model = llmSettings().transcriptionModel;
     const existing = await this.database.fileTranscription.findUnique({
       where: { fileId_model: { fileId: file.id, model } },
     });
