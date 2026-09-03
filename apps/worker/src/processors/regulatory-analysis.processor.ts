@@ -32,6 +32,7 @@ import {
   regulatoryVerificationModel,
   type RegulatoryTokenUsage,
 } from "./regulatory-model-cost.js";
+import { acquireModelTokens } from "./regulatory-rate-limiter.js";
 
 export { regulatoryCostMicroUsd };
 
@@ -104,6 +105,15 @@ const TRIAGE_CONCURRENCY = 5;
 // rate limit would. parseRateLimitRetryDelayMs still honours any delay the error names.
 const RATE_LIMIT_MAX_ATTEMPTS = 6;
 const RATE_LIMIT_FALLBACK_DELAY_MS = 5_000;
+// Default sits comfortably under the 500k TPM tier this pipeline was built against. Set
+// REGULATORY_TOKENS_PER_MINUTE to whatever the account's real per-model ceiling is — a value
+// left too high stops preventing 429s at all, and one left too low just paces calls slower than
+// the account could actually sustain.
+const REGULATORY_TOKENS_PER_MINUTE_FALLBACK = 400_000;
+
+function regulatoryTokensPerMinute(): number {
+  return positiveNumber("REGULATORY_TOKENS_PER_MINUTE", REGULATORY_TOKENS_PER_MINUTE_FALLBACK);
+}
 
 // A reservation bounds a call's cost from above, so several lanes running at once hold far more
 // budget than they will end up spending. Near the end of a run that peak can reject a call the
@@ -1707,6 +1717,11 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
           }, MODEL_HEARTBEAT_INTERVAL_MS);
           heartbeat.unref();
           try {
+            await acquireModelTokens(
+              model,
+              conservativeInputTokens(prompt) + limits.maxOutputTokens,
+              regulatoryTokensPerMinute(),
+            );
             const generated = await generateText({
               model: openAiProvider().responses(model),
               system: prompt.system,
@@ -1994,6 +2009,11 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
         }, MODEL_HEARTBEAT_INTERVAL_MS);
         heartbeat.unref();
         try {
+          await acquireModelTokens(
+            stageModel,
+            conservativeInputTokens(prompt) + limits.maxOutputTokens,
+            regulatoryTokensPerMinute(),
+          );
           const generated = await generateText({
             model: openAiProvider().responses(stageModel),
             system: prompt.system,
