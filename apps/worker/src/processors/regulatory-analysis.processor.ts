@@ -773,31 +773,33 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
     });
   }
 
+  // A call abandoned by a worker restart never reached a settlement, so — like a rate-limited
+  // call — whether it billed anything is unknown, and charging it as if it had spent its entire
+  // conservative reservation (full input estimate plus the whole output-token ceiling) is a
+  // worst case, not a measurement. That worst case used to get charged in full on every recovery,
+  // so a run that kept retrying (worker crash-looping, a deploy landing mid-run, a stalled lock)
+  // burned through its budget on phantom cost that had no relationship to what OpenAI actually
+  // billed. Zero is the same call this code already makes for rate limits: the honest answer when
+  // the real cost cannot be known is to not fabricate one.
   private async recoverAbandonedModelCalls(runId: string): Promise<void> {
     await this.database.$transaction(async (tx) => {
       const abandoned = await tx.regulatoryModelCall.findMany({
         where: { runId, status: "RUNNING" },
-        select: { id: true, reservedMicroUsd: true },
+        select: { id: true },
       });
       if (!abandoned.length) return;
-      const chargedMicroUsd = abandoned.reduce((total, call) => total + call.reservedMicroUsd, 0);
-      for (const call of abandoned) {
-        await tx.regulatoryModelCall.update({
-          where: { id: call.id },
-          data: {
-            status: "FAILED",
-            costMicroUsd: call.reservedMicroUsd,
-            errorCode: "WORKER_RESTARTED",
-            completedAt: new Date(),
-          },
-        });
-      }
+      await tx.regulatoryModelCall.updateMany({
+        where: { id: { in: abandoned.map((call) => call.id) } },
+        data: {
+          status: "FAILED",
+          costMicroUsd: 0,
+          errorCode: "WORKER_RESTARTED",
+          completedAt: new Date(),
+        },
+      });
       await tx.regulatoryAnalysisRun.update({
         where: { id: runId },
-        data: {
-          reservedMicroUsd: 0,
-          spentMicroUsd: { increment: chargedMicroUsd },
-        },
+        data: { reservedMicroUsd: 0 },
       });
     });
   }
