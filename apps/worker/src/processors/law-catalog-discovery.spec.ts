@@ -17,8 +17,8 @@ vi.mock("@ai-sdk/openai", () => ({ createOpenAI: () => ({ responses: vi.fn() }) 
 
 import { RegulatoryAnalysisProcessor } from "./regulatory-analysis.processor.js";
 
-// Replaces the excerpt-triage tests: discovery now selects laws directly from the catalog.
-describe("MVP catalog discovery", () => {
+// Discovery understands the project first; only then does source resolution consult PostgreSQL.
+describe("MVP applicable-law discovery", () => {
   beforeEach(() => {
     vi.stubEnv("OPENAI_API_KEY", "sk-test");
     generated.mockReset();
@@ -48,14 +48,26 @@ describe("MVP catalog discovery", () => {
     score: 1,
   };
   const lead = {
-    reference: "Loi inconnue",
-    title: "Texte potentiel",
-    reason: "Vérifier le champ d’application.",
+    reference: "Loi 09-08",
+    title: "Protection des données personnelles",
+    reason: "Le projet traite des données personnelles.",
+  };
+  const storedProposal = {
+    reference: "Loi n° 1",
+    title: "Loi test",
+    reason: "Le projet emploie des salariés.",
   };
 
   function harness(entries = catalog) {
+    const events: string[] = [];
     const db = {
-      $queryRaw: vi.fn().mockResolvedValueOnce(entries).mockResolvedValueOnce([article]),
+      $queryRaw: vi
+        .fn()
+        .mockImplementationOnce(async () => {
+          events.push("database");
+          return entries;
+        })
+        .mockResolvedValueOnce([article]),
       regulatoryAnalysisRun: {
         findUnique: vi.fn().mockResolvedValue({ status: "RUNNING" }),
         update: vi.fn().mockResolvedValue({}),
@@ -88,20 +100,31 @@ describe("MVP catalog discovery", () => {
         },
         { updateProgress: vi.fn() },
       );
-    return { db, run };
+    return { db, events, run };
   }
 
-  function respond(ids = ["law-1"]) {
-    generated.mockResolvedValue({
-      output: { selectedDocumentIds: ids, missingLaws: [lead] },
-      totalUsage: { inputTokens: 100, outputTokens: 50 },
+  function respond(laws = [storedProposal, lead], events?: string[]) {
+    generated.mockImplementation(async (input: { prompt: string }) => {
+      events?.push("model");
+      expect(input.prompt).not.toContain("law-1");
+      expect(input.prompt).not.toContain("Loi test");
+      return {
+        output: { laws },
+        totalUsage: { inputTokens: 100, outputTokens: 50 },
+      };
     });
   }
 
-  it("loads approved selected articles without any embedding profile and records discovery cost", async () => {
-    const { db, run } = harness();
-    respond();
+  it("asks the model from the full profile before reading the law catalog", async () => {
+    const { db, events, run } = harness();
+    respond([storedProposal, lead], events);
     await expect(run()).resolves.toEqual([article]);
+    expect(events).toEqual(["model", "database"]);
+    expect(generated).toHaveBeenCalledWith(
+      expect.objectContaining({
+        prompt: expect.stringContaining("employeeCount"),
+      }),
+    );
     expect(db.regulatoryModelCall.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({ stage: "discovery", provisionId: null }),
@@ -116,20 +139,35 @@ describe("MVP catalog discovery", () => {
     expect(sql.sql).not.toContain("embedding");
   });
 
-  it("never turns an invented document ID into a source query", async () => {
+  it("loads text only for laws whose references resolve to an approved database source", async () => {
     const { db, run } = harness();
-    respond(["invented"]);
-    await expect(run()).rejects.toThrow(/outside/);
-    expect(db.$queryRaw).toHaveBeenCalledTimes(1);
+    respond();
+    await expect(run()).resolves.toEqual([article]);
+    const sourceSql = db.$queryRaw.mock.calls[1]![0] as { values: unknown[] };
+    expect(sourceSql.values).toContain("law-1");
   });
 
-  it("retains source-needed leads with an empty corpus and creates no requirements", async () => {
+  it("retains every proposed law as source-required when the corpus is empty", async () => {
     const { db, run } = harness([]);
-    respond([]);
+    respond();
     await expect(run()).resolves.toEqual([]);
     expect(db.regulatoryAnalysisRun.update).toHaveBeenCalledWith({
       where: { id: "run" },
-      data: { missingLaws: [lead] },
+      data: { missingLaws: [storedProposal, lead] },
+    });
+    expect(db.$queryRaw).toHaveBeenCalledTimes(1);
+  });
+
+  it("allows the model to return no potentially applicable law", async () => {
+    const { db, run } = harness();
+    generated.mockResolvedValue({
+      output: { laws: [] },
+      totalUsage: { inputTokens: 100, outputTokens: 50 },
+    });
+    await expect(run()).resolves.toEqual([]);
+    expect(db.regulatoryAnalysisRun.update).toHaveBeenCalledWith({
+      where: { id: "run" },
+      data: { missingLaws: [] },
     });
     expect(db.$queryRaw).toHaveBeenCalledTimes(1);
   });

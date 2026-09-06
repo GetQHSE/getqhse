@@ -78,7 +78,9 @@ function aiEvaluationActive(watch: RegulatoryWatch | undefined): boolean {
 const analysisPhaseLabels: Record<string, string> = {
   queued: "Préparation de l’analyse",
   planning: "Lecture du profil",
-  retrieval: "Recherche dans le fonds documentaire",
+  retrieval: "Préparation de la recherche réglementaire",
+  "law-discovery": "Identification des textes applicables au projet",
+  "source-resolution": "Recherche des textes dans la plateforme",
   classification: "Analyse de l’applicabilité",
   classification_drafting: "Rédaction d’une exigence applicable",
   classification_verifying: "Vérification indépendante de l’exigence",
@@ -560,7 +562,7 @@ function ClarificationState({
   const complete = questions.length > 0 && questions.every((item) => answers[item.key]?.trim());
   return (
     <StateShell tone="light">
-      <MissingLawSuggestions watch={watch} />
+      <SourceRequired watch={watch} />
       <div className="mx-auto max-w-2xl py-8">
         <span className="grid size-12 place-items-center rounded-2xl bg-amber-50 text-amber-700">
           <CircleAlertIcon className="size-5" />
@@ -614,18 +616,19 @@ function ClarificationState({
   );
 }
 
-export function MissingLawSuggestions({ watch }: { watch: RegulatoryWatch }) {
-  const leads = watch.currentAnalysis?.missingLaws ?? [];
+export function SourceRequired({ watch }: { watch: RegulatoryWatch }) {
+  const leads = watch.currentAnalysis?.sourceRequired ?? [];
   if (!leads.length) return null;
   return (
     <aside
       className="my-5 rounded-xl border border-amber-200 bg-amber-50 p-5"
       aria-label="Sources à obtenir"
     >
-      <h2 className="font-semibold text-amber-950">Textes à vérifier — source à obtenir</h2>
+      <h2 className="font-semibold text-amber-950">Source requise</h2>
       <p className="mt-2 text-sm text-amber-900">
-        Ces pistes proposées par l’IA ne sont pas vérifiées et ne constituent pas des exigences
-        applicables. Faites ajouter leur source officielle au catalogue avant de les analyser.
+        L’IA estime que ces textes peuvent s’appliquer au projet, mais leur contenu n’est pas dans
+        la plateforme. Ajoutez leur source officielle pour analyser leurs articles et confirmer les
+        exigences.
       </p>
       <ul className="mt-3 space-y-3">
         {leads.map((lead) => (
@@ -691,7 +694,7 @@ function ReviewState({
   return (
     <StateShell tone="light">
       <div className="mx-auto max-w-4xl py-3">
-        <MissingLawSuggestions watch={watch} />
+        <SourceRequired watch={watch} />
         <Badge className="border-violet-200 bg-violet-50 text-violet-700" variant="outline">
           <SparklesIcon /> {partial ? "Résultats partiels" : "Proposition prête"}
         </Badge>
@@ -2165,7 +2168,7 @@ export function RegulatoryWatchPage() {
   if (!hasBaseline && watch.status === "FAILED")
     return (
       <StateShell tone="light">
-        <MissingLawSuggestions watch={watch} />
+        <SourceRequired watch={watch} />
         <div className="mx-auto max-w-xl py-20 text-center">
           <span className="mx-auto grid size-14 place-items-center rounded-2xl bg-rose-50 text-rose-700">
             <AlertCircleIcon className="size-6" />
@@ -2211,7 +2214,7 @@ export function RegulatoryWatchPage() {
 
   return (
     <div className="space-y-6">
-      <MissingLawSuggestions watch={watch} />
+      <SourceRequired watch={watch} />
       {analysisStatus === "AWAITING_CLARIFICATION" && (
         <ClarificationState
           watch={watch}

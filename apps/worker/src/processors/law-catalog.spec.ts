@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { lawContext, materializeLawStructure, validateCatalogSelection } from "./law-catalog.js";
+import { lawContext, materializeLawStructure, resolveApplicableLaws } from "./law-catalog.js";
 
 const blocks = [
   { blockType: "heading", pageNumber: 1, text: "Chapitre I" },
@@ -87,15 +87,47 @@ describe("source-backed law ingestion", () => {
 });
 
 describe("law catalog and context", () => {
-  it("rejects model-invented database IDs and keeps missing-law leads separate", () => {
-    const catalog = [{ documentId: "law-1", title: "Code", referenceNumber: null, tags: [] }];
-    const missingLaws = [{ reference: "Unknown", title: "Unverified law", reason: "Needs source" }];
-    expect(
-      validateCatalogSelection(catalog, { selectedDocumentIds: ["law-1", "law-1"], missingLaws }),
-    ).toEqual(["law-1"]);
-    expect(() =>
-      validateCatalogSelection(catalog, { selectedDocumentIds: ["invented"], missingLaws }),
-    ).toThrow(/outside/);
+  it("resolves canonical law references after discovery and keeps absent sources separate", () => {
+    const catalog = [
+      {
+        documentId: "law-1",
+        title: "Code du travail",
+        referenceNumber: "Loi n° 65-99",
+        tags: [],
+      },
+    ];
+    const stored = {
+      reference: "Loi 65-99",
+      title: "Code du travail marocain",
+      reason: "Le projet emploie des salariés.",
+    };
+    const absent = {
+      reference: "Loi 09-08",
+      title: "Protection des données personnelles",
+      reason: "Le projet traite des données.",
+    };
+    expect(resolveApplicableLaws(catalog, [stored, stored, absent])).toEqual({
+      documentIds: ["law-1"],
+      sourceRequired: [absent],
+    });
+  });
+
+  it("requires a source when title matching is ambiguous", () => {
+    const proposal = {
+      reference: "Référence inconnue",
+      title: "Réglementation sécurité industrielle",
+      reason: "Activité industrielle.",
+    };
+    const catalog = ["law-1", "law-2"].map((documentId) => ({
+      documentId,
+      title: "Réglementation sécurité industrielle",
+      referenceNumber: null,
+      tags: [],
+    }));
+    expect(resolveApplicableLaws(catalog, [proposal])).toEqual({
+      documentIds: [],
+      sourceRequired: [proposal],
+    });
   });
 
   const provisions = [

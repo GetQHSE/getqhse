@@ -3,7 +3,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { regulatoryCostMicroUsd as computeCallCost } from "./regulatory-model-cost.js";
 import {
-  buildRegulatoryQueries,
   canCarryForwardRequirement,
   computeProfileChanges,
   dedupeRegulatoryProvisions,
@@ -12,17 +11,13 @@ import {
   matchProvisionRevision,
   regulatoryClassificationProgress,
   regulatoryCostMicroUsd,
-  batchForTriage,
   isMissingProvisionForeignKeyError,
   isRateLimitError,
-  normalizeTriageDecisions,
   parseRateLimitRetryDelayMs,
   regulatoryModelLimits,
   RegulatoryAnalysisProcessor,
   jitteredDelay,
-  selectTriageSurvivors,
   settlementChargeMicroUsd,
-  splitReservedCost,
   validateRequirementDraft,
 } from "./regulatory-analysis.processor.js";
 import {
@@ -306,23 +301,6 @@ describe("regulatory analysis query planning", () => {
     expect(regulatoryClassificationProgress(12, 10)).toBe(92);
   });
 
-  it("builds bounded searches from the regulatory profile snapshot", () => {
-    const queries = buildRegulatoryQueries({
-      fields: {
-        "organization.primarySector": "Métallurgie",
-        "organization.offerings": ["Armoires métalliques", "Soudage"],
-        "operations.keyProcesses": ["Découpe", "Peinture"],
-        "scope.operatingCountries": ["MA"],
-        "regulatory.knownRequirements": ["ISO 9001"],
-      },
-    });
-    expect(queries.length).toBeGreaterThan(6);
-    expect(queries.length).toBeLessThanOrEqual(12);
-    expect(queries[0]).toContain("Métallurgie");
-    expect(queries.some((query) => query.includes("ISO 9001"))).toBe(true);
-    expect(queries.every((query) => query.length < 20_000)).toBe(true);
-  });
-
   it("computes only material profile changes", () => {
     expect(
       computeProfileChanges(
@@ -367,25 +345,7 @@ describe("regulatory analysis query planning", () => {
   });
 });
 
-describe("regulatory triage", () => {
-  it("splits the retrieved candidates into groups of at most batchSize", () => {
-    const candidates = [
-      { provisionId: "a" },
-      { provisionId: "b" },
-      { provisionId: "c" },
-      { provisionId: "d" },
-      { provisionId: "e" },
-    ];
-
-    expect(batchForTriage(candidates, 2)).toEqual([
-      [{ provisionId: "a" }, { provisionId: "b" }],
-      [{ provisionId: "c" }, { provisionId: "d" }],
-      [{ provisionId: "e" }],
-    ]);
-    expect(batchForTriage(candidates, 10)).toEqual([candidates]);
-    expect(batchForTriage([], 10)).toEqual([]);
-  });
-
+describe("regulatory model retry behavior", () => {
   it("recognizes an OpenAI TPM rate limit error and parses its suggested retry delay", () => {
     const rateLimitError = new Error(
       "Rate limit reached for gpt-5-mini in organization org-x on tokens per min (TPM): " +
@@ -428,50 +388,6 @@ describe("regulatory triage", () => {
     expect(isMissingProvisionForeignKeyError({ code: "P2002" })).toBe(false);
     expect(isMissingProvisionForeignKeyError(new Error("boom"))).toBe(false);
     expect(isMissingProvisionForeignKeyError(null)).toBe(false);
-  });
-
-  it("splits a shared batch cost across its members, exactly and without remainder loss", () => {
-    expect(splitReservedCost(100, 4)).toEqual([25, 25, 25, 25]);
-    expect(splitReservedCost(10, 3)).toEqual([4, 3, 3]);
-    const shares = splitReservedCost(101, 7);
-    expect(shares).toHaveLength(7);
-    expect(shares.reduce((total, share) => total + share, 0)).toBe(101);
-    expect(splitReservedCost(50, 1)).toEqual([50]);
-  });
-
-  it("ignores decisions outside the batch and drops duplicates, keeping the first", () => {
-    const batch = [{ provisionId: "a" }, { provisionId: "b" }];
-    const rawDecisions = [
-      { provisionId: "a", likelyApplicable: "YES" as const },
-      { provisionId: "hallucinated-id", likelyApplicable: "NO" as const },
-      { provisionId: "a", likelyApplicable: "NO" as const },
-    ];
-
-    expect(normalizeTriageDecisions(batch, rawDecisions)).toEqual([
-      { provisionId: "a", likelyApplicable: "YES" },
-    ]);
-  });
-
-  it("keeps undecided and YES candidates, drops NO, gates UNSURE behind includeUnsure", () => {
-    const candidates = [
-      { provisionId: "no-decision-made" },
-      { provisionId: "said-no" },
-      { provisionId: "said-yes" },
-      { provisionId: "said-unsure" },
-    ];
-    const decisions = [
-      { provisionId: "said-no", likelyApplicable: "NO" as const },
-      { provisionId: "said-yes", likelyApplicable: "YES" as const },
-      { provisionId: "said-unsure", likelyApplicable: "UNSURE" as const },
-    ];
-
-    expect(
-      selectTriageSurvivors(candidates, decisions, true).map((candidate) => candidate.provisionId),
-    ).toEqual(["no-decision-made", "said-yes", "said-unsure"]);
-
-    expect(
-      selectTriageSurvivors(candidates, decisions, false).map((candidate) => candidate.provisionId),
-    ).toEqual(["no-decision-made", "said-yes"]);
   });
 });
 

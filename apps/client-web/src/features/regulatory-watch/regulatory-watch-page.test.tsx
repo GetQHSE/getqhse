@@ -297,7 +297,7 @@ describe("RegulatoryWatchPage", () => {
         ...analysis,
         status: "READY_FOR_REVIEW",
         candidates: [],
-        missingLaws: [
+        sourceRequired: [
           {
             reference: "Référence à vérifier",
             title: "Texte potentiel",
@@ -310,7 +310,7 @@ describe("RegulatoryWatchPage", () => {
     expect(
       await screen.findByRole("complementary", { name: "Sources à obtenir" }),
     ).toBeInTheDocument();
-    expect(screen.getByText(/ne constituent pas des exigences applicables/)).toBeInTheDocument();
+    expect(screen.getByText(/leur contenu n’est pas dans/)).toBeInTheDocument();
     expect(screen.getByText(/Référence à vérifier — Texte potentiel/)).toBeInTheDocument();
   });
 

@@ -137,15 +137,17 @@ minute rather than on the next deploy. "Reset everything to the environment" del
 
 ## Accuracy-first regulatory analysis
 
-The worker reads approved current source records directly from PostgreSQL. It sends law titles,
-references and taxonomy labels to the configured regulatory model in batches of 40, then loads
-all eligible articles from the selected laws. There is no embedding-profile prerequisite, query
+The worker first asks the configured regulatory model to understand the complete project profile
+and propose potentially applicable laws without seeing the platform catalog. It then reads approved
+current source records from PostgreSQL, resolves the proposed references and titles, and loads all
+eligible articles from the matched laws. There is no embedding-profile prerequisite, query
 expansion, excerpt triage, or 150-provision retrieval cutoff in this path.
 
 Discovery calls use a 4,000-token output ceiling and the existing model-call ledger (with no
-provision attached yet). An empty corpus may still yield unverified source-needed suggestions,
-which are stored on the analysis and displayed separately from requirements. Failed selection or
-unknown selected IDs fail visibly rather than producing an apparently complete empty assessment.
+provision attached yet). An empty corpus may still yield source-required suggestions, which are
+stored on the analysis and displayed separately from requirements. Ambiguous catalog matches also
+require a source rather than guessing which stored document the model meant. Failed discovery fails
+visibly rather than producing an apparently complete empty assessment.
 
 Each article is analyzed with the whole law when it fits within 24,000 context characters.
 Long laws use complete nearby and same-section provisions, explicitly marked as partial context.
@@ -199,13 +201,14 @@ and permitted by every required rights flag.
 
 ### Following a running analysis
 
-The customer page polls every two seconds. Catalog selection advances from 10–45%, provision-by-provision classification advances from
-50–92%, and finalization is reported at 95%. Exactly 50% means catalog selection finished and the worker is at
+The customer page polls every two seconds. Law discovery and source resolution advance from 10–45%,
+provision-by-provision classification advances from 50–92%, and finalization is reported at 95%.
+Exactly 50% means source resolution finished and the worker is at
 the first classification candidate; it is not itself evidence of a deadlock. During a model
 call the phase identifies whether the worker is selecting laws, drafting, independently verifying,
 or retrying an exigence. A percentage that changes confirms completed work; the worker log heartbeat
-confirms a long-running model request is still alive. Each completed article candidate is persisted immediately. A restart resumes article checkpoints;
-catalog selection is repeated.
+confirms a long-running model request is still alive. Each completed article candidate is persisted
+immediately. A restart resumes article checkpoints; law discovery is repeated.
 
 Follow the structured worker log locally:
 

@@ -11,9 +11,9 @@ import {
 } from "@nestjs/common";
 import { llmSettings } from "@qhse/ai";
 import {
+  lawSourceRequiredSchema,
   regulatoryEvidencePayloadIssue,
   staleAiEvaluationMs,
-  missingLawSuggestionSchema,
 } from "@qhse/contracts";
 import type {
   AnswerRegulatoryClarifications,
@@ -215,7 +215,7 @@ export class RegulatoryWatchService {
     const currentAnalysis = analysis
       ? {
           id: analysis.id,
-          missingLaws: missingLawSuggestionSchema.array().parse(analysis.missingLaws ?? []),
+          sourceRequired: lawSourceRequiredSchema.array().parse(analysis.missingLaws ?? []),
           profileSnapshotId: analysis.profileSnapshotId,
           baseBaselineId: analysis.baseBaselineId,
           triggerType: analysis.triggerType,

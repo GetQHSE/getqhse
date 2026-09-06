@@ -79,9 +79,8 @@ export function materializeLawStructure(
   return provisions;
 }
 
-export const lawCatalogSelectionSchema = z.object({
-  selectedDocumentIds: z.array(z.string()).max(40),
-  missingLaws: z
+export const applicableLawDiscoverySchema = z.object({
+  laws: z
     .array(
       z.object({
         reference: z.string().trim().min(1).max(200),
@@ -89,7 +88,7 @@ export const lawCatalogSelectionSchema = z.object({
         reason: z.string().trim().min(1).max(600),
       }),
     )
-    .max(10),
+    .max(40),
 });
 
 export type LawCatalogEntry = {
@@ -99,14 +98,79 @@ export type LawCatalogEntry = {
   tags: string[];
 };
 
-export function validateCatalogSelection(
+export type ApplicableLawProposal = z.infer<typeof applicableLawDiscoverySchema>["laws"][number];
+
+function normalizedIdentity(value: string | null): string {
+  return (value ?? "")
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[٠-٩۰-۹]/gu, (digit) => {
+      const code = digit.codePointAt(0) ?? 0;
+      return String(code - (code >= 0x06f0 ? 0x06f0 : 0x0660));
+    })
+    .toLowerCase()
+    .replace(/\b(?:numero|num|no)\b|n[°º]/gu, " ")
+    .replace(/[^a-z0-9\u0600-\u06ff]+/gu, " ")
+    .trim();
+}
+
+function legalKind(value: string): string {
+  return value.match(/\b(?:loi|decret|dahir|arrete|code|iso)\b/u)?.[0] ?? "";
+}
+
+function numericIdentity(value: string): string {
+  return [...value.matchAll(/\d+/gu)].map(([number]) => String(Number(number))).join("-");
+}
+
+function matchScore(proposal: ApplicableLawProposal, entry: LawCatalogEntry): number {
+  const proposedReference = normalizedIdentity(proposal.reference);
+  const storedReference = normalizedIdentity(entry.referenceNumber);
+  const proposedTitle = normalizedIdentity(proposal.title);
+  const storedTitle = normalizedIdentity(entry.title);
+  if (proposedReference && proposedReference === storedReference) return 100;
+  const proposedKind = legalKind(proposedReference);
+  const storedKind = legalKind(storedReference);
+  const proposedNumber = numericIdentity(proposedReference);
+  if (
+    proposedKind &&
+    proposedKind === storedKind &&
+    proposedNumber.length >= 3 &&
+    proposedNumber === numericIdentity(storedReference)
+  )
+    return 90;
+  if (proposedTitle && proposedTitle === storedTitle) return 80;
+  if (
+    proposedTitle.length >= 12 &&
+    storedTitle.length >= 12 &&
+    (proposedTitle.includes(storedTitle) || storedTitle.includes(proposedTitle))
+  )
+    return 60;
+  return 0;
+}
+
+/** Resolve model knowledge against stored sources. Ambiguous and absent matches need a source. */
+export function resolveApplicableLaws(
   catalog: LawCatalogEntry[],
-  result: z.infer<typeof lawCatalogSelectionSchema>,
-) {
-  const allowed = new Set(catalog.map((law) => law.documentId));
-  if (result.selectedDocumentIds.some((id) => !allowed.has(id)))
-    throw new Error("The model selected a document outside the supplied law catalog");
-  return [...new Set(result.selectedDocumentIds)];
+  proposals: ApplicableLawProposal[],
+): { documentIds: string[]; sourceRequired: ApplicableLawProposal[] } {
+  const documentIds = new Set<string>();
+  const unresolved = new Set<string>();
+  const sourceRequired: ApplicableLawProposal[] = [];
+  for (const proposal of proposals) {
+    const scored = catalog
+      .map((entry) => ({ entry, score: matchScore(proposal, entry) }))
+      .filter(({ score }) => score > 0)
+      .sort((left, right) => right.score - left.score);
+    const best = scored[0];
+    if (!best || (scored[1]?.score ?? 0) === best.score) {
+      const key = `${normalizedIdentity(proposal.reference)}:${normalizedIdentity(proposal.title)}`;
+      if (!unresolved.has(key)) sourceRequired.push(proposal);
+      unresolved.add(key);
+      continue;
+    }
+    documentIds.add(best.entry.documentId);
+  }
+  return { documentIds: [...documentIds], sourceRequired };
 }
 
 export type ContextProvision = {

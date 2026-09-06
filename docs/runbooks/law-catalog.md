@@ -29,17 +29,19 @@ The model cannot recover unreadable OCR: correct or re-extract that source befor
 
 The existing LLM enable switch and API key are still required. An embedding profile is not.
 
-- Read the approved, visible catalog with allowed source rights and the existing jurisdiction,
-  language and effective-date filters.
-- Ask the configured regulatory model to select law IDs from titles, references and tags, in
-  batches of 40. Process every catalog batch; do not cap the candidate articles at 150.
+- Ask the configured regulatory model to understand the complete project profile and propose up
+  to 40 potentially applicable laws from its own knowledge. The model receives no database catalog
+  and produces canonical references, titles and short profile-grounded reasons.
+- Read the approved, visible catalog afterward, with allowed source rights and the existing
+  jurisdiction, language and effective-date filters. Deterministically resolve model references
+  and titles against stored sources; do not let the model choose internal database IDs.
 - Load articles directly from PostgreSQL. For short laws, supply all provisions as context.
   For larger laws, use complete nearby/same-section provisions and opening scope, capped at
   24,000 characters. Mark partial context explicitly; unresolved references block extraction.
 - Keep exact requirement wording and citations tied to the selected article. Existing drafting,
   verification and human review remain. Unknown material profile facts prompt clarification.
-- Save model-suggested missing laws as unverified leads on the run and display them in a separate
-  “source à obtenir” panel. They never become source provisions or requirements automatically.
+- Save absent or ambiguous matches on the run and display them in a separate “Source requise”
+  panel. They never become source provisions or requirements automatically.
 
 The catalog model's choices still need evaluation with real profiles. These regression tests
 prove source containment, plumbing and failure behavior, not legal accuracy or completeness.
