@@ -637,6 +637,16 @@ export function SourceRequired({ watch }: { watch: RegulatoryWatch }) {
               {lead.reference} — {lead.title}
             </p>
             <p className="text-sm text-amber-900">{lead.reason}</p>
+            {lead.sourceUrl && (
+              <a
+                className="mt-1 inline-block text-sm font-medium text-amber-950 underline underline-offset-2"
+                href={lead.sourceUrl}
+                rel="noreferrer"
+                target="_blank"
+              >
+                Consulter la source web repérée
+              </a>
+            )}
           </li>
         ))}
       </ul>

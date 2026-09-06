@@ -13,7 +13,12 @@ vi.mock("@qhse/database", async (importOriginal) => ({
   ...(await importOriginal<typeof DatabaseModule>()),
   createPrismaClient: databaseFactory,
 }));
-vi.mock("@ai-sdk/openai", () => ({ createOpenAI: () => ({ responses: vi.fn() }) }));
+vi.mock("@ai-sdk/openai", () => ({
+  createOpenAI: () => ({
+    responses: vi.fn(),
+    tools: { webSearch: vi.fn(() => ({ type: "provider-defined" })) },
+  }),
+}));
 
 import { RegulatoryAnalysisProcessor } from "./regulatory-analysis.processor.js";
 
@@ -51,11 +56,13 @@ describe("MVP applicable-law discovery", () => {
     reference: "Loi 09-08",
     title: "Protection des données personnelles",
     reason: "Le projet traite des données personnelles.",
+    sourceUrl: null,
   };
   const storedProposal = {
     reference: "Loi n° 1",
     title: "Loi test",
     reason: "Le projet emploie des salariés.",
+    sourceUrl: null,
   };
 
   function harness(entries = catalog) {
@@ -111,6 +118,7 @@ describe("MVP applicable-law discovery", () => {
       return {
         output: { laws },
         totalUsage: { inputTokens: 100, outputTokens: 50 },
+        sources: [],
       };
     });
   }
@@ -123,6 +131,8 @@ describe("MVP applicable-law discovery", () => {
     expect(generated).toHaveBeenCalledWith(
       expect.objectContaining({
         prompt: expect.stringContaining("employeeCount"),
+        tools: expect.objectContaining({ web_search: expect.anything() }),
+        toolChoice: { type: "tool", toolName: "web_search" },
       }),
     );
     expect(db.regulatoryModelCall.create).toHaveBeenCalledWith(
@@ -158,11 +168,43 @@ describe("MVP applicable-law discovery", () => {
     expect(db.$queryRaw).toHaveBeenCalledTimes(1);
   });
 
+  it("keeps only source URLs returned by the web-search tool", async () => {
+    const { db, run } = harness([]);
+    generated.mockResolvedValue({
+      output: {
+        laws: [
+          { ...lead, sourceUrl: "https://adala.justice.gov.ma/official#article" },
+          { ...storedProposal, sourceUrl: "https://invented.example/law" },
+        ],
+      },
+      totalUsage: { inputTokens: 100, outputTokens: 50 },
+      sources: [
+        {
+          type: "source",
+          sourceType: "url",
+          id: "source-1",
+          url: "https://adala.justice.gov.ma/official",
+        },
+      ],
+    });
+    await expect(run()).resolves.toEqual([]);
+    expect(db.regulatoryAnalysisRun.update).toHaveBeenCalledWith({
+      where: { id: "run" },
+      data: {
+        missingLaws: [
+          { ...lead, sourceUrl: "https://adala.justice.gov.ma/official" },
+          storedProposal,
+        ],
+      },
+    });
+  });
+
   it("allows the model to return no potentially applicable law", async () => {
     const { db, run } = harness();
     generated.mockResolvedValue({
       output: { laws: [] },
       totalUsage: { inputTokens: 100, outputTokens: 50 },
+      sources: [],
     });
     await expect(run()).resolves.toEqual([]);
     expect(db.regulatoryAnalysisRun.update).toHaveBeenCalledWith({

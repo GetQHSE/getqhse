@@ -29,9 +29,12 @@ The model cannot recover unreadable OCR: correct or re-extract that source befor
 
 The existing LLM enable switch and API key are still required. An embedding profile is not.
 
-- Ask the configured regulatory model to understand the complete project profile and propose up
-  to 40 potentially applicable laws from its own knowledge. The model receives no database catalog
-  and produces canonical references, titles and short profile-grounded reasons.
+- Ask the configured regulatory model to understand the complete project profile. One bounded web
+  search call verifies current references and titles, prioritizing official Moroccan and ISO
+  sources. The model receives no database catalog and proposes up to 40 texts with short
+  profile-grounded reasons. Search queries must use generic sector, activity and risk terms rather
+  than organization names, contacts, identifiers or confidential values. A URL is kept only when
+  it appears in the search tool's cited sources.
 - Read the approved, visible catalog afterward, with allowed source rights and the existing
   jurisdiction, language and effective-date filters. Deterministically resolve model references
   and titles against stored sources; do not let the model choose internal database IDs.
@@ -41,7 +44,8 @@ The existing LLM enable switch and API key are still required. An embedding prof
 - Keep exact requirement wording and citations tied to the selected article. Existing drafting,
   verification and human review remain. Unknown material profile facts prompt clarification.
 - Save absent or ambiguous matches on the run and display them in a separate “Source requise”
-  panel. They never become source provisions or requirements automatically.
+  panel, with the cited web URL when available. They never become source provisions or
+  requirements automatically.
 
 The catalog model's choices still need evaluation with real profiles. These regression tests
 prove source containment, plumbing and failure behavior, not legal accuracy or completeness.

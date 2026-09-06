@@ -86,6 +86,7 @@ export const applicableLawDiscoverySchema = z.object({
         reference: z.string().trim().min(1).max(200),
         title: z.string().trim().min(1).max(300),
         reason: z.string().trim().min(1).max(600),
+        sourceUrl: z.string().url().max(2_048).nullable(),
       }),
     )
     .max(40),

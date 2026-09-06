@@ -138,16 +138,20 @@ minute rather than on the next deploy. "Reset everything to the environment" del
 ## Accuracy-first regulatory analysis
 
 The worker first asks the configured regulatory model to understand the complete project profile
-and propose potentially applicable laws without seeing the platform catalog. It then reads approved
-current source records from PostgreSQL, resolves the proposed references and titles, and loads all
-eligible articles from the matched laws. There is no embedding-profile prerequisite, query
-expansion, excerpt triage, or 150-provision retrieval cutoff in this path.
+without seeing the platform catalog. A single bounded web-enabled call verifies current references
+and titles against preferably official Moroccan and ISO sources, then proposes potentially
+applicable laws. Queries use generic sector, activity and risk terms and exclude organization
+names, contacts, identifiers and confidential values. The worker reads approved current source
+records from PostgreSQL, resolves the proposed references and titles, and loads all eligible
+articles from matched laws. There is no embedding-profile prerequisite, query expansion, excerpt
+triage, or 150-provision retrieval cutoff in this path.
 
 Discovery calls use a 4,000-token output ceiling and the existing model-call ledger (with no
 provision attached yet). An empty corpus may still yield source-required suggestions, which are
-stored on the analysis and displayed separately from requirements. Ambiguous catalog matches also
-require a source rather than guessing which stored document the model meant. Failed discovery fails
-visibly rather than producing an apparently complete empty assessment.
+stored on the analysis and displayed separately from requirements. A proposed URL is retained only
+when the search tool cited it. Ambiguous catalog matches also require a source rather than guessing
+which stored document the model meant. Failed discovery fails visibly rather than producing an
+apparently complete empty assessment.
 
 Each article is analyzed with the whole law when it fits within 24,000 context characters.
 Long laws use complete nearby and same-section provisions, explicitly marked as partial context.

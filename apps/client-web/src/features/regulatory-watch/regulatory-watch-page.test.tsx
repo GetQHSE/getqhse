@@ -302,6 +302,7 @@ describe("RegulatoryWatchPage", () => {
             reference: "Référence à vérifier",
             title: "Texte potentiel",
             reason: "Vérifier le champ.",
+            sourceUrl: "https://adala.justice.gov.ma/source",
           },
         ],
       },
@@ -312,6 +313,10 @@ describe("RegulatoryWatchPage", () => {
     ).toBeInTheDocument();
     expect(screen.getByText(/leur contenu n’est pas dans/)).toBeInTheDocument();
     expect(screen.getByText(/Référence à vérifier — Texte potentiel/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Consulter la source web repérée" })).toHaveAttribute(
+      "href",
+      "https://adala.justice.gov.ma/source",
+    );
   });
 
   it("shows live analysis progress while no baseline exists", async () => {

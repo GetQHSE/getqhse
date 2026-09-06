@@ -854,6 +854,7 @@ export const lawSourceRequiredSchema = z.object({
   reference: z.string().min(1).max(200),
   title: z.string().min(1).max(300),
   reason: z.string().min(1).max(600),
+  sourceUrl: z.string().url().max(2_048).nullish(),
 });
 
 export const regulatoryAnalysisRunSchema = z.object({
