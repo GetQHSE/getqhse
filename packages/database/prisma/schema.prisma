@@ -1179,6 +1179,7 @@ model RegulatoryAnalysisRun {
   reservedMicroUsd         Int                      @default(0) @map("reserved_micro_usd")
   completedProvisions      Int                      @default(0) @map("completed_provisions")
   totalProvisions          Int                      @default(0) @map("total_provisions")
+  missingLaws              Json                     @default("[]") @map("missing_laws")
   errorCode                String?                  @map("error_code")
   errorMessage             String?                  @map("error_message")
   startedAt                DateTime?                @map("started_at")
@@ -1261,7 +1262,7 @@ model RegulatoryApplicabilityCandidate {
 model RegulatoryModelCall {
   id                    String                    @id @default(cuid())
   runId                 String                    @map("run_id")
-  provisionId           String                    @map("provision_id")
+  provisionId           String?                   @map("provision_id")
   clarificationRevision Int                       @default(0) @map("clarification_revision")
   stage                 String
   attempt               Int
@@ -1279,7 +1280,7 @@ model RegulatoryModelCall {
   completedAt           DateTime?                 @map("completed_at")
 
   run       RegulatoryAnalysisRun @relation(fields: [runId], references: [id], onDelete: Cascade)
-  provision DocumentProvision     @relation(fields: [provisionId], references: [id], onDelete: Restrict)
+  provision DocumentProvision?    @relation(fields: [provisionId], references: [id], onDelete: Restrict)
 
   @@index([runId, createdAt])
   @@map("regulatory_model_calls")

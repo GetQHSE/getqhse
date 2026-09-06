@@ -173,7 +173,7 @@ describe("DocumentsService upload retries", () => {
     });
   });
 
-  it("atomically switches publication and closes the prior effective interval", async () => {
+  it("publishes without an embedding index and atomically switches the current source", async () => {
     const now = new Date("2026-08-08T00:00:00.000Z");
     const updateVersion = vi.fn().mockResolvedValue({ id: "version-2", status: "PUBLISHED" });
     const transactionClient = {
@@ -197,6 +197,12 @@ describe("DocumentsService upload retries", () => {
           documentId: "document-1",
           status: "VALIDATED",
           effectiveDate: now,
+          storageAllowed: true,
+          extractionAllowed: true,
+          embeddingAllowed: true,
+          aiProcessingAllowed: true,
+          externalProviderAllowed: true,
+          excerptDisplayAllowed: true,
         }),
       },
       documentActivity: { create: vi.fn().mockResolvedValue({}) },

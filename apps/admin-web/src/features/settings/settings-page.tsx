@@ -113,6 +113,10 @@ export function SettingsPage() {
               ) : null}
             </CardHeader>
             <CardContent className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                This index supports document search. Regulatory analysis reads the approved law
+                catalog directly and does not require an embedding profile.
+              </p>
               {!readiness ? (
                 <Skeleton className="h-24 w-full" />
               ) : (

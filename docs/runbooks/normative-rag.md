@@ -1,5 +1,8 @@
 # Normative RAG runbook
 
+Regulatory analysis now uses the [MVP law catalog](law-catalog.md) directly.
+The embedding setup below is only required for the separate normative search endpoint.
+
 The normative repository is global platform content. Customer requests never supply an
 `organizationId`; the authenticated tenant context is used only for access checks and content-free
 retrieval logs.
@@ -102,32 +105,19 @@ alone re-embeds the old boundaries.
 
 ## Structure quality
 
-`structure_detection` scores what segmentation produced and records the score as the stage's
-`qualityScore`, with the signals behind it in `outputMetadata`. Segmentation fails quietly --
-it still yields provisions and chunks, just the wrong ones, and nothing downstream notices until
-a reviewer reads them or a citation lands on the wrong article.
+Upload processing uses LLM source-range selection, followed by deterministic validation. Every
+extracted block belongs to exactly one stored provision, in order. The worker copies the source
+text itself, rejects unknown identifiers, and stores the parent heading hierarchy in sections.
+Metadata suggestions retain source excerpts; a reviewer accepts or rejects them before publication.
+Taxonomy classification uses the document's meaning rather than keyword matches.
 
-The signals are all free, taken from structure the segmenter already computed: identifier
-coverage, fragments (an identified provision under 120 characters is its own heading with the
-body left elsewhere), the share of provisions nobody could cite, how many blocks carried a layout
-label, and -- the one that cannot be argued with -- gaps in the numbering. Articles are
-consecutive by construction, so a missing number is a boundary the segmenter did not find.
+A missing API key, denied AI/external-processing rights, invalid source ranges, or oversized input
+fails the stage visibly. Correct the source and reprocess it. Reindexing alone does not change
+article boundaries. Existing published sources continue to work without reprocessing, but receive
+new metadata and structure only after explicit reprocessing and review.
 
-Below `STRUCTURE_REVIEW_THRESHOLD` (0.7) the stage logs `structure_quality_low` with its
-concerns. That is the gate to hang an expensive path off: a model-assisted pass over the blocks,
-or a reviewer, should be spent on the documents that score badly rather than on every document.
-To find them: query `document_processing_jobs` for `job_type = 'structure_detection'` with a
-`quality_score` below 0.7.
-
-`pnpm eval:extraction` grades the segmenter against captured extractor output in
-`evals/document-extraction`. It needs no container and no model weights, so it belongs in the
-inner loop rather than at the end of one. Its fixtures record the layouts that actually broke:
-an article whose number and title arrive as two headings, a keyword split from its number by a
-column break, a chapter whose roman numeral OCR read as a lowercase l.
-
-Changing segmentation or identifier normalization does not update revisions that are already
-ingested: `POST /v1/documents/{documentId}/versions/{revisionId}/reindex` only re-embeds. A
-revision has to be reprocessed for new provision boundaries or identifiers to take effect.
+The captured deterministic segmenter fixtures in `evals/document-extraction` remain useful for the
+legacy parser; new LLM ingestion regression tests live in the worker's `law-*.spec.ts` files.
 
 ## LLM settings
 
@@ -147,67 +137,21 @@ minute rather than on the next deploy. "Reset everything to the environment" del
 
 ## Accuracy-first regulatory analysis
 
-The regulatory worker uses `OPENAI_REGULATORY_MODEL=gpt-5-mini` and
-`OPENAI_REGULATORY_REASONING_EFFORT=low` by default. Keep both values explicit in production. The
-gpt-5 family accepts only `minimal`, `low`, `medium` and `high` for reasoning effort — `none`,
-`xhigh` and `max` are rejected by the API, and a rejected value fails the run only after drafting
-has already been paid for, so Settings → LLM offers just the four supported values and a
-superseded variable is mapped onto the nearest one (`none` → `minimal`, `xhigh`/`max` → `high`). A
-configured model failure stops the run with `REGULATORY_MODEL_UNAVAILABLE`; the worker never falls
-back silently to another model. Requests use `store=false`, a 180-second timeout, zero SDK retries,
-and output ceilings of 12,000 tokens for drafting, 6,000 tokens for verification, and
-`OPENAI_REGULATORY_TRIAGE_MAX_OUTPUT_TOKENS` (default 2,000) for triage. The only content retry is
-one explicit corrected draft after verifier feedback.
+The worker reads approved current source records directly from PostgreSQL. It sends law titles,
+references and taxonomy labels to the configured regulatory model in batches of 40, then loads
+all eligible articles from the selected laws. There is no embedding-profile prerequisite, query
+expansion, excerpt triage, or 150-provision retrieval cutoff in this path.
 
-An OpenAI TPM rate limit response is not treated as a failed call: each call site (drafting,
-verification, triage) retries the same request up to `RATE_LIMIT_MAX_ATTEMPTS` (6) times, sleeping
-the delay OpenAI's own error message suggests (falling back to 5s if none is given), plus up to 2s
-of random jitter so concurrent lanes that got rate-limited together don't retry in lockstep and
-collide again. A rate-limited attempt that reports no token usage — the flex tier's normal way of
-saying "no capacity right now" — settles for **zero cost**: charging the reservation there would
-bill every retry in full for work the provider never started. Every try still reserves and settles
-its own ledger row, so nothing is silently merged. Retries exhausted still ends the run with
-`REGULATORY_MODEL_UNAVAILABLE`. This raises the account's OpenAI token throughput per run (more
-provisions retrieved, plus the triage pass's own calls); if runs start exhausting retries rather
-than just absorbing an occasional dip, that's a sign the org's TPM limit needs raising, or
-`CLASSIFICATION_CONCURRENCY` / `TRIAGE_CONCURRENCY` / `RETRIEVAL_QUERY_CONCURRENCY` (5 each) / the
-regulatory-analysis worker's job concurrency (2) need lowering to match it.
+Discovery calls use a 4,000-token output ceiling and the existing model-call ledger (with no
+provision attached yet). An empty corpus may still yield unverified source-needed suggestions,
+which are stored on the analysis and displayed separately from requirements. Failed selection or
+unknown selected IDs fail visibly rather than producing an apparently complete empty assessment.
 
-Retrieval's per-query embed-and-search round trips and triage's batches both run up to 5 at a time
-(`RETRIEVAL_QUERY_CONCURRENCY`, `TRIAGE_CONCURRENCY`) instead of one after another — previously a
-profile with many fields, or a large discovered set, serialized that whole phase's network latency,
-including every rate-limit retry, before classification could even start.
-
-Every generation call has a durable ledger row containing its candidate, stage, attempt, status,
-duration, token and reasoning-token usage, reserved cost, and reconciled cost. Before a call, the
-worker reserves a conservative worst-case amount against the run's `$1` default budget. A timed-out
-call with unknown usage consumes its full reservation. When another call would exceed the budget,
-the run becomes `PARTIAL` with stop reason `REGULATORY_BUDGET_LIMIT`; completed candidates remain
-reviewable, publication stays disabled, and a new analysis may supersede the partial run.
-
-Each run expands queries from the validated project profile, fuses keyword and vector ranks,
-expands the best `REGULATORY_RETRIEVAL_MAX_DOCUMENTS` documents (default 40), deduplicates logical
-provisions, and retrieves at most `REGULATORY_RETRIEVAL_MAX_PROVISIONS` provisions (default 150).
-Cover pages, tables of contents, notes, definitions, tables, introductory `0.x` clauses, heading-only
-clauses, and informative annexes are removed before model review. Regulations require an identified
-article; standards require an identified clause or an explicitly normative annex.
-
-Before the newly discovered provisions reach the expensive per-provision pipeline below, a triage
-pass narrows them. Provisions are grouped into batches of `REGULATORY_TRIAGE_BATCH_SIZE` (default 25) and each batch gets one cheap `minimal`-reasoning model call asking only whether it plausibly applies
-to the project's profile — no drafting, no citations. A provision the triage call marks `NO` is
-dropped; `UNSURE` is kept unless `REGULATORY_TRIAGE_INCLUDE_UNSURE=false`; a provision the call
-never returned a decision for (missing from the response, or the whole batch call failed/timed out)
-is always kept. This stage can only ever reduce cost — it never removes a provision the full pipeline
-wasn't already going to see, since anything uncertain or undecided falls through to it. Provisions
-already carried over from the prior baseline skip triage entirely; only newly discovered candidates
-are triaged. Its ledger rows use `stage = 'triage'`; a batch's reserved and settled cost is split
-evenly across the provisions in that batch.
-
-Every provision that survives triage is drafted alone from its complete source text. The worker validates exact supporting
-excerpts, rejects copied passages and corrupted/truncated input, then runs an independent verification.
-It retries drafting once with verifier feedback. A remaining failure becomes
-`SOURCE_REVIEW_REQUIRED` and blocks both reviewer approval and baseline publication until the source
-document is corrected, reprocessed, reindexed, and the analysis is rerun.
+Each article is analyzed with the whole law when it fits within 24,000 context characters.
+Long laws use complete nearby and same-section provisions, explicitly marked as partial context.
+Requirements and supporting excerpts still have to originate in the candidate article itself.
+Missing material profile facts yield clarification questions; they are not automatic exclusions.
+The existing verification, progress, checkpointing and human-review workflow remains in place.
 
 Publishing an approved baseline automatically queues a second, separate conformity pass. That pass
 compares each newly assessable requirement with the baseline's immutable project-profile snapshot and
@@ -255,24 +199,22 @@ and permitted by every required rights flag.
 
 ### Following a running analysis
 
-The customer page polls every two seconds. Retrieval advances from 10–35%, the triage pass over newly
-discovered provisions advances from 35–50%, provision-by-provision classification advances from
-50–92%, and finalization is reported at 95%. Exactly 50% means triage finished and the worker is at
+The customer page polls every two seconds. Catalog selection advances from 10–45%, provision-by-provision classification advances from
+50–92%, and finalization is reported at 95%. Exactly 50% means catalog selection finished and the worker is at
 the first classification candidate; it is not itself evidence of a deadlock. During a model
-call the phase identifies whether the worker is triaging a batch, drafting, independently verifying,
+call the phase identifies whether the worker is selecting laws, drafting, independently verifying,
 or retrying an exigence. A percentage that changes confirms completed work; the worker log heartbeat
-confirms a long-running model request is still alive. Each completed candidate (and each completed
-triage batch) is persisted immediately, so a worker restart resumes from its checkpoints instead of
-repeating completed OpenAI calls.
+confirms a long-running model request is still alive. Each completed article candidate is persisted immediately. A restart resumes article checkpoints;
+catalog selection is repeated.
 
 Follow the structured worker log locally:
 
 ```bash
-docker compose logs -f worker | rg 'regulatory_(analysis|retrieval|triage|provision|model|finalization)'
+docker compose logs -f worker | rg 'regulatory_(analysis|retrieval|provision|model|finalization)'
 ```
 
-Useful events are `regulatory_triage_started`, `regulatory_triage_finished`,
-`regulatory_triage_batch_failed`, `regulatory_provision_started`, `regulatory_model_call_started`, the 30-second
+Useful events are `regulatory_retrieval_started`, `regulatory_retrieval_finished`,
+`regulatory_provision_started`, `regulatory_model_call_started`, the 30-second
 `regulatory_model_call_heartbeat`, `regulatory_model_call_finished`, and
 `regulatory_provision_finished`. Records contain run/job IDs, provision identifiers, candidate
 position and total, attempt, duration, token usage, and error details. They deliberately never

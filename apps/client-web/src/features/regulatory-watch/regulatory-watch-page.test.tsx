@@ -289,6 +289,31 @@ describe("RegulatoryWatchPage", () => {
     );
   });
 
+  it("shows source-needed leads separately when the stored corpus has no matching requirements", async () => {
+    vi.mocked(clientApi.regulatoryWatch).mockResolvedValue({
+      ...notStartedWatch,
+      status: "REVIEW_REQUIRED",
+      currentAnalysis: {
+        ...analysis,
+        status: "READY_FOR_REVIEW",
+        candidates: [],
+        missingLaws: [
+          {
+            reference: "Référence à vérifier",
+            title: "Texte potentiel",
+            reason: "Vérifier le champ.",
+          },
+        ],
+      },
+    } as never);
+    renderPage();
+    expect(
+      await screen.findByRole("complementary", { name: "Sources à obtenir" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/ne constituent pas des exigences applicables/)).toBeInTheDocument();
+    expect(screen.getByText(/Référence à vérifier — Texte potentiel/)).toBeInTheDocument();
+  });
+
   it("shows live analysis progress while no baseline exists", async () => {
     vi.mocked(clientApi.regulatoryWatch).mockResolvedValue({
       ...notStartedWatch,

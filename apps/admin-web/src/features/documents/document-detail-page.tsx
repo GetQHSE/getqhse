@@ -675,7 +675,9 @@ export function DocumentDetailPage() {
                       <Badge variant={item.isValidated ? "default" : "secondary"}>
                         {item.isValidated
                           ? "Approved"
-                          : `${Math.round((item.confidenceScore ?? 0) * 100)}% suggestion`}
+                          : item.confidenceScore === null
+                            ? "AI suggestion"
+                            : `${Math.round(item.confidenceScore * 100)}% suggestion`}
                       </Badge>
                       {!item.isValidated && canMutate ? (
                         <Button

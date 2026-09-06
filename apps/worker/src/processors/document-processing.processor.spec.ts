@@ -9,6 +9,13 @@ vi.mock("@qhse/database", () => ({
   createPrismaClient: createPrismaClientMock,
 }));
 
+vi.mock("./law-ingestion.js", () => ({
+  structureLaw: vi.fn(),
+  classifyLaw: vi.fn(),
+  detectLawMetadata: vi.fn(),
+}));
+import { structureLaw } from "./law-ingestion.js";
+
 import {
   chunkText,
   detectSections,
@@ -352,5 +359,73 @@ describe("DocumentProcessingProcessor Docling extraction", () => {
       },
     });
     expect(harness.storageSend).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("law hierarchy persistence", () => {
+  it("attaches unsectioned articles to the law root and nested articles to their own section", async () => {
+    const source = {
+      language: "fr",
+      content: "Article 1 — Contenu juridique original.",
+      contentHash: "hash",
+      pageStart: 1,
+      pageEnd: 1,
+    };
+    vi.mocked(structureLaw).mockResolvedValue([
+      {
+        ...source,
+        language: "fr",
+        type: "article",
+        sourceIdentifier: "Article 1",
+        title: null,
+        headingPath: [],
+        orderIndex: 0,
+      },
+      {
+        ...source,
+        language: "fr",
+        type: "article",
+        sourceIdentifier: "Article 2",
+        title: null,
+        headingPath: ["Titre I", "Chapitre I"],
+        orderIndex: 1,
+      },
+    ]);
+    const sections = vi.fn().mockResolvedValue({ count: 3 });
+    const provisions = vi.fn().mockResolvedValue({ count: 2 });
+    createPrismaClientMock.mockReturnValue({
+      documentVersion: {
+        findUniqueOrThrow: vi
+          .fn()
+          .mockResolvedValue({ ...version, document: { title: "Loi test", language: "fr" } }),
+      },
+      documentChunk: { deleteMany: vi.fn() },
+      documentProvision: { deleteMany: vi.fn(), createMany: provisions },
+      documentSection: { deleteMany: vi.fn(), createMany: sections },
+      $transaction: vi.fn().mockResolvedValue([]),
+    });
+    const processor = new DocumentProcessingProcessor();
+    Object.defineProperty(processor, "getText", {
+      value: vi.fn().mockResolvedValue(source.content),
+    });
+    Object.defineProperty(processor, "getExtractedBlocks", {
+      value: vi
+        .fn()
+        .mockResolvedValue([{ blockType: "text", text: source.content, pageNumber: 1 }]),
+    });
+    await (
+      processor as unknown as {
+        runStage(stage: string, versionId: string, jobId: string): Promise<unknown>;
+      }
+    ).runStage("structure_detection", "version-1", "job-1");
+    const rows = sections.mock.calls[0]![0].data;
+    expect(rows[0]).toMatchObject({ title: "Loi test", parentSectionId: null });
+    expect(rows[1].parentSectionId).toBe(rows[0].id);
+    expect(rows[2].parentSectionId).toBe(rows[1].id);
+    expect(rows[0].content).toBe(source.content);
+    expect(rows[2].content).toBe(source.content);
+    const articles = provisions.mock.calls[0]![0].data;
+    expect(articles[0].documentSectionId).toBe(rows[0].id);
+    expect(articles[1].documentSectionId).toBe(rows[2].id);
   });
 });

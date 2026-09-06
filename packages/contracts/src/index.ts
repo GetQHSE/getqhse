@@ -850,6 +850,12 @@ export class RegulatoryAnalysisError extends Error {
   }
 }
 
+export const missingLawSuggestionSchema = z.object({
+  reference: z.string().min(1).max(200),
+  title: z.string().min(1).max(300),
+  reason: z.string().min(1).max(600),
+});
+
 export const regulatoryAnalysisRunSchema = z.object({
   id: idSchema,
   profileSnapshotId: idSchema,
@@ -876,6 +882,7 @@ export const regulatoryAnalysisRunSchema = z.object({
   clarifications: z.array(
     z.object({ key: z.string(), question: z.string(), answer: z.unknown().nullable() }),
   ),
+  missingLaws: z.array(missingLawSuggestionSchema).optional(),
   candidates: z.array(regulatoryCandidateSchema),
   diff: z.object({
     added: z.number().int().nonnegative(),

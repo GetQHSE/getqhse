@@ -10,7 +10,11 @@ import {
   ServiceUnavailableException,
 } from "@nestjs/common";
 import { llmSettings } from "@qhse/ai";
-import { regulatoryEvidencePayloadIssue, staleAiEvaluationMs } from "@qhse/contracts";
+import {
+  regulatoryEvidencePayloadIssue,
+  staleAiEvaluationMs,
+  missingLawSuggestionSchema,
+} from "@qhse/contracts";
 import type {
   AnswerRegulatoryClarifications,
   CreateRegulatoryAction,
@@ -211,6 +215,7 @@ export class RegulatoryWatchService {
     const currentAnalysis = analysis
       ? {
           id: analysis.id,
+          missingLaws: missingLawSuggestionSchema.array().parse(analysis.missingLaws ?? []),
           profileSnapshotId: analysis.profileSnapshotId,
           baseBaselineId: analysis.baseBaselineId,
           triggerType: analysis.triggerType,

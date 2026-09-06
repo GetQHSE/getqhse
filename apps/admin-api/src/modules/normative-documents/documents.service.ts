@@ -848,32 +848,6 @@ export class DocumentsService {
       throw new UnprocessableEntityException("Explicit publication confirmation is required");
     const version = await this.findVersion(documentId, versionId);
     this.transition(version.status, "published");
-    if (
-      llmSettings().ragEnabled &&
-      version.storageAllowed &&
-      version.extractionAllowed &&
-      version.embeddingAllowed &&
-      version.aiProcessingAllowed &&
-      version.externalProviderAllowed &&
-      version.excerptDisplayAllowed
-    ) {
-      const profile = await this.database.embeddingProfile.findFirst({
-        where: { status: "ACTIVE" },
-      });
-      if (profile) {
-        const [chunks, embeddings] = await Promise.all([
-          this.database.documentChunk.count({ where: { documentVersionId: versionId } }),
-          this.database.documentEmbedding.count({
-            where: { embeddingProfileId: profile.id, chunk: { documentVersionId: versionId } },
-          }),
-        ]);
-        if (!chunks || chunks !== embeddings) {
-          throw new ConflictException(
-            "This searchable revision must be fully indexed before publication",
-          );
-        }
-      }
-    }
     const now = new Date();
     const publication = await this.database.$transaction(async (tx) => {
       const document = await tx.document.findUniqueOrThrow({

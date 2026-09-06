@@ -50,7 +50,9 @@ export function UploadDocumentPage() {
     excerptDisplay: false,
     export: false,
   });
-  const allRightsConfirmed = Object.values(rights).every(Boolean);
+  const allRightsConfirmed = Object.entries(rights).every(
+    ([key, allowed]) => key === "embedding" || allowed,
+  );
   const set = (key: keyof typeof form, value: string) =>
     setForm((current) => ({ ...current, [key]: value }));
   const choose = (files: FileList | null) => {
@@ -346,7 +348,7 @@ export function UploadDocumentPage() {
                     [
                       ["storage", "Store the immutable source"],
                       ["extraction", "Extract and structure its text"],
-                      ["embedding", "Create search embeddings"],
+                      ["embedding", "Create search embeddings (optional)"],
                       ["aiProcessing", "Process it with AI"],
                       ["externalProviderProcessing", "Send derived text to OpenAI"],
                       ["excerptDisplay", "Display bounded source excerpts"],
