@@ -1,5 +1,11 @@
 import { Processor, WorkerHost } from "@nestjs/bullmq";
-import { llmSettings, openAiProvider, regulatoryConformityPrompt } from "@qhse/ai";
+import {
+  isProviderConfigured,
+  languageModel,
+  llmSettings,
+  regulatoryConformityPrompt,
+} from "@qhse/ai";
+import type { LanguageProvider } from "@qhse/config";
 import { jobEnvelopeSchema, type JobEnvelope } from "@qhse/contracts";
 import { Prisma, createPrismaClient, type DatabaseClient } from "@qhse/database";
 import { createLogger } from "@qhse/observability";
@@ -14,6 +20,7 @@ import {
   isTimeoutError,
   regulatoryCostMicroUsd,
   regulatoryPrimaryModel,
+  regulatoryPrimaryProvider,
   regulatoryProviderOptions,
   type RegulatoryTokenUsage,
 } from "./regulatory-model-cost.js";
@@ -26,7 +33,12 @@ const ABANDONED_CALL_AFTER_MS = 15 * 60_000;
 /** Guards against burning the whole budget one doomed call at a time when the provider is down. */
 const MAX_CONSECUTIVE_FAILURES = 5;
 
-type ReservedModelCall = { id: string; model: string; reservedMicroUsd: number };
+type ReservedModelCall = {
+  id: string;
+  provider: LanguageProvider;
+  model: string;
+  reservedMicroUsd: number;
+};
 
 class RegulatoryEvaluationBudgetError extends Error {
   constructor() {
@@ -149,8 +161,9 @@ export class RegulatoryEvaluationProcessor extends WorkerHost {
 
   private async reserveModelCall(input: {
     runId: string;
-    provisionId: string;
+    provisionId: string | null;
     attempt: number;
+    provider: LanguageProvider;
     model: string;
     prompt: { system: string; context: string };
     maxOutputTokens: number;
@@ -159,6 +172,7 @@ export class RegulatoryEvaluationProcessor extends WorkerHost {
     const reservedMicroUsd = regulatoryCostMicroUsd(
       { inputTokens: conservativeInputTokens(input.prompt), outputTokens: input.maxOutputTokens },
       input.model,
+      input.provider,
     );
     const reservation = await this.database.$transaction(async (tx) => {
       // Locks the analysis run row for the transaction so two evaluation jobs on the same
@@ -186,11 +200,12 @@ export class RegulatoryEvaluationProcessor extends WorkerHost {
           stage: EVALUATION_STAGE,
           attempt: input.attempt,
           model: input.model,
+          provider: input.provider,
           reservedMicroUsd,
         },
         select: { id: true },
       });
-      return { id: call.id, model: input.model, reservedMicroUsd };
+      return { id: call.id, provider: input.provider, model: input.model, reservedMicroUsd };
     });
     if (!reservation) throw new RegulatoryEvaluationBudgetError();
     return reservation;
@@ -217,7 +232,7 @@ export class RegulatoryEvaluationProcessor extends WorkerHost {
     const succeeded = result.status === "SUCCEEDED";
     const measured = succeeded ? result : result.usage;
     const chargedMicroUsd = measured
-      ? regulatoryCostMicroUsd(measured, reservation.model)
+      ? regulatoryCostMicroUsd(measured, reservation.model, reservation.provider)
       : reservation.reservedMicroUsd;
     await this.database.regulatoryModelCall.updateMany({
       where: { id: reservation.id, status: "RUNNING" },
@@ -260,7 +275,9 @@ export class RegulatoryEvaluationProcessor extends WorkerHost {
     const baselineId =
       typeof envelope.payload["baselineId"] === "string" ? envelope.payload["baselineId"] : null;
     if (!baselineId) throw new Error("baselineId is required");
-    if (!llmSettings().apiKey) throw new Error("An OpenAI API key is required");
+    const provider = regulatoryPrimaryProvider();
+    if (!isProviderConfigured(provider))
+      throw new Error("The selected AI provider is not configured");
 
     const baseline = await this.database.regulatoryBaseline.findFirst({
       where: { id: baselineId, watch: { organizationId: envelope.organizationId } },
@@ -304,14 +321,19 @@ export class RegulatoryEvaluationProcessor extends WorkerHost {
     let consecutiveFailures = 0;
     for (const [index, entry] of pending.entries()) {
       const evaluation = entry.evaluation!;
-      if (!entry.requirementText) {
-        await this.failEvaluations(
-          [evaluation.id],
-          "The applicable requirement must be regenerated before evaluation",
-        );
-        failed += 1;
-        continue;
-      }
+      const requirementText = entry.requirementText ?? entry.applicabilityRationale;
+      const documentLabel = entry.provision
+        ? [entry.provision.version.document.referenceNumber, entry.provision.version.document.title]
+            .filter(Boolean)
+            .join(" — ")
+        : [entry.sourceReference, entry.sourceTitle].filter(Boolean).join(" — ") ||
+          "Texte réglementaire identifié";
+      const provisionIdentifier =
+        entry.provision?.sourceIdentifier ??
+        entry.sourceReference ??
+        entry.sourceTitle ??
+        "Texte complet";
+      const sourceText = entry.provision?.content ?? entry.applicabilityRationale;
       await job.updateProgress({
         phase: "evaluating_conformity",
         progress: pending.length ? Math.floor((index / pending.length) * 95) : 95,
@@ -327,16 +349,11 @@ export class RegulatoryEvaluationProcessor extends WorkerHost {
       const promptInput = {
         profileContext: baseline.profileSnapshot.data,
         requirement: {
-          text: entry.requirementText,
+          text: requirementText,
           applicabilityRationale: entry.applicabilityRationale,
-          document: [
-            entry.provision.version.document.referenceNumber,
-            entry.provision.version.document.title,
-          ]
-            .filter(Boolean)
-            .join(" — "),
-          provisionIdentifier: entry.provision.sourceIdentifier,
-          sourceText: entry.provision.content,
+          document: documentLabel,
+          provisionIdentifier,
+          sourceText,
           supportingExcerpts: entry.requirementSupportingExcerpts,
         },
         evidence: evaluation.evidence.map(({ kind, label, note, url }) => ({
@@ -355,6 +372,7 @@ export class RegulatoryEvaluationProcessor extends WorkerHost {
           runId: baseline.analysisRunId,
           provisionId: entry.provisionId,
           attempt,
+          provider,
           model,
           prompt,
           maxOutputTokens,
@@ -377,7 +395,7 @@ export class RegulatoryEvaluationProcessor extends WorkerHost {
       const callStartedAt = Date.now();
       try {
         const generated = await generateText({
-          model: openAiProvider().responses(model),
+          model: languageModel({ provider, model }),
           system: prompt.system,
           prompt: prompt.context,
           output: Output.object({ schema: conformityAssessmentSchema }),
@@ -385,6 +403,8 @@ export class RegulatoryEvaluationProcessor extends WorkerHost {
           maxOutputTokens,
           maxRetries: 0,
           providerOptions: regulatoryProviderOptions({
+            provider,
+            model,
             reasoningEffort,
             promptCacheKey: `regulatory-evaluation:${baseline.analysisRunId}`,
           }),
@@ -431,6 +451,7 @@ export class RegulatoryEvaluationProcessor extends WorkerHost {
               aiResponsible: normalized.action.responsible,
               aiEffectivenessCriteria: normalized.action.effectivenessCriteria,
               aiModel: model,
+              aiProvider: provider,
               aiPromptKey: regulatoryConformityPrompt.key,
               aiPromptVersion: regulatoryConformityPrompt.version,
               aiEvaluatedAt: new Date(),

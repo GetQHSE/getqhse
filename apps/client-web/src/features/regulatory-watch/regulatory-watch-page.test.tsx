@@ -142,6 +142,8 @@ const activeWatch = {
           reviewedAt: "2026-08-10T12:00:00.000Z",
         },
         source: {
+          type: "PLATFORM_PROVISION",
+          url: null,
           sourceId: "provision-1",
           documentId: "document-1",
           revisionId: "revision-1",
@@ -578,7 +580,7 @@ describe("RegulatoryWatchPage", () => {
     expect(screen.getAllByText("ISO 9001:2015").length).toBeGreaterThan(0);
   });
 
-  it("labels legacy requirements for regeneration and disables XLSX export", () => {
+  it("keeps XLSX export available when published laws have no extracted requirement", () => {
     const legacyWatch = {
       ...activeWatch,
       currentBaseline: {
@@ -603,8 +605,8 @@ describe("RegulatoryWatchPage", () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByText("Exigences à régénérer")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Exporter en Excel/ })).toBeDisabled();
+    expect(screen.queryByText("Exigences à régénérer")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Exporter en Excel/ })).toBeEnabled();
   });
 
   it("keeps the published baseline visible while grouped changes await review", async () => {

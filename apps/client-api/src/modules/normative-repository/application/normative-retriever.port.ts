@@ -1,4 +1,5 @@
 import type { NormativeSearchRequest, NormativeSearchResponse } from "@qhse/contracts";
+import type { EmbeddingProvider } from "@qhse/config";
 
 export abstract class NormativeRetriever {
   abstract search(
@@ -8,5 +9,5 @@ export abstract class NormativeRetriever {
 }
 
 export abstract class NormativeQueryEmbeddingPort {
-  abstract embedQuery(model: string, value: string): Promise<number[]>;
+  abstract embedQuery(provider: EmbeddingProvider, model: string, value: string): Promise<number[]>;
 }

@@ -1,5 +1,11 @@
 import { z } from "zod";
 
+import {
+  customModelDefinitionSchema,
+  embeddingProviderSchema,
+  languageProviderSchema,
+} from "./llm-model-catalog.js";
+
 // The LLM configuration used to live only in the process environment, which meant a model or a
 // price change needed a redeploy of three services. It is now a single database row that the
 // admin workspace edits, layered on top of the environment: an unset override falls back to the
@@ -13,20 +19,34 @@ export const llmPromptCacheRetentions = ["in_memory", "24h"] as const;
 // generations and are rejected outright — sending one costs a full run before it fails, so they
 // are not offered here. legacyReasoningEffort maps the old names onto the nearest supported one.
 export const llmReasoningEfforts = ["minimal", "low", "medium", "high"] as const;
+export const anthropicEfforts = ["low", "medium", "high"] as const;
+export const anthropicSpeeds = ["standard", "fast"] as const;
+export const googleThinkingLevels = ["minimal", "low", "medium", "high"] as const;
 
 const modelName = z.string().trim().min(1).max(120);
 
 export const llmSettingsSchema = z.object({
   ragEnabled: z.boolean(),
+  profileProvider: languageProviderSchema,
   profileModel: modelName,
   transcriptionModel: modelName,
+  embeddingProvider: embeddingProviderSchema,
+  embeddingModel: modelName,
+  regulatoryProvider: languageProviderSchema,
   regulatoryModel: modelName,
+  // Retained as an inert compatibility field so existing database rows and environment files
+  // continue to parse. The regulatory pipeline no longer has a triage stage.
   regulatoryTriageModel: modelName,
+  regulatoryVerificationProvider: languageProviderSchema,
   regulatoryVerificationModel: modelName,
   regulatoryServiceTier: z.enum(llmServiceTiers),
   regulatoryTextVerbosity: z.enum(llmTextVerbosities),
   regulatoryPromptCacheRetention: z.enum(llmPromptCacheRetentions),
   regulatoryReasoningEffort: z.enum(llmReasoningEfforts),
+  anthropicEffort: z.enum(anthropicEfforts),
+  anthropicSpeed: z.enum(anthropicSpeeds),
+  googleThinkingLevel: z.enum(googleThinkingLevels),
+  googleThinkingBudget: z.number().int().nonnegative().max(200_000).nullable(),
   regulatoryTimeoutMs: z.number().int().positive().max(600_000),
   regulatoryDraftMaxOutputTokens: z.number().int().positive().max(200_000),
   regulatoryVerificationMaxOutputTokens: z.number().int().positive().max(200_000),
@@ -42,6 +62,14 @@ export const llmSettingsSchema = z.object({
   regulatoryFlexRateMultiplier: z.number().positive().max(10),
   conservativeBytesPerToken: z.number().positive().max(100),
   triageIncludeUnsure: z.boolean(),
+  customModels: z
+    .array(customModelDefinitionSchema)
+    .max(100)
+    .refine(
+      (models) =>
+        new Set(models.map((model) => `${model.provider}:${model.model}`)).size === models.length,
+      "Custom provider/model pairs must be unique",
+    ),
 });
 
 export type LlmSettings = z.infer<typeof llmSettingsSchema>;
@@ -67,15 +95,24 @@ export type LlmSettingsOverrides = z.infer<typeof llmSettingsOverrideSchema>;
 
 export const llmSettingsDefaults: LlmSettings = {
   ragEnabled: false,
+  profileProvider: "openai",
   profileModel: "gpt-5-mini",
   transcriptionModel: "gpt-4o-mini-transcribe",
+  embeddingProvider: "openai",
+  embeddingModel: "text-embedding-3-small",
+  regulatoryProvider: "openai",
   regulatoryModel: "gpt-5-mini",
   regulatoryTriageModel: "gpt-5-nano",
+  regulatoryVerificationProvider: "openai",
   regulatoryVerificationModel: "gpt-5-nano",
   regulatoryServiceTier: "flex",
   regulatoryTextVerbosity: "low",
   regulatoryPromptCacheRetention: "24h",
   regulatoryReasoningEffort: "low",
+  anthropicEffort: "low",
+  anthropicSpeed: "standard",
+  googleThinkingLevel: "low",
+  googleThinkingBudget: null,
   regulatoryTimeoutMs: 180_000,
   regulatoryDraftMaxOutputTokens: 12_000,
   // Even "minimal" reasoning effort — the floor the gpt-5 family accepts, since "none" doesn't
@@ -93,21 +130,31 @@ export const llmSettingsDefaults: LlmSettings = {
   regulatoryFlexRateMultiplier: 0.5,
   conservativeBytesPerToken: 2,
   triageIncludeUnsure: true,
+  customModels: [],
 };
 
 /** The environment variable each field falls back to. Kept explicit so the admin tab and the
  * `.env` file stay describable by the same table. */
 export const llmSettingsEnvironmentKeys: Record<LlmSettingsKey, string> = {
   ragEnabled: "NORMATIVE_RAG_ENABLED",
-  profileModel: "OPENAI_PROFILE_MODEL",
+  profileProvider: "LLM_PROFILE_PROVIDER",
+  profileModel: "LLM_PROFILE_MODEL",
   transcriptionModel: "OPENAI_TRANSCRIPTION_MODEL",
-  regulatoryModel: "OPENAI_REGULATORY_MODEL",
-  regulatoryTriageModel: "OPENAI_REGULATORY_TRIAGE_MODEL",
-  regulatoryVerificationModel: "OPENAI_REGULATORY_VERIFICATION_MODEL",
+  embeddingProvider: "LLM_EMBEDDING_PROVIDER",
+  embeddingModel: "LLM_EMBEDDING_MODEL",
+  regulatoryProvider: "LLM_REGULATORY_PROVIDER",
+  regulatoryModel: "LLM_REGULATORY_MODEL",
+  regulatoryTriageModel: "LLM_REGULATORY_TRIAGE_MODEL",
+  regulatoryVerificationProvider: "LLM_REGULATORY_VERIFICATION_PROVIDER",
+  regulatoryVerificationModel: "LLM_REGULATORY_VERIFICATION_MODEL",
   regulatoryServiceTier: "OPENAI_REGULATORY_SERVICE_TIER",
   regulatoryTextVerbosity: "OPENAI_REGULATORY_TEXT_VERBOSITY",
   regulatoryPromptCacheRetention: "OPENAI_REGULATORY_PROMPT_CACHE_RETENTION",
   regulatoryReasoningEffort: "OPENAI_REGULATORY_REASONING_EFFORT",
+  anthropicEffort: "ANTHROPIC_REGULATORY_EFFORT",
+  anthropicSpeed: "ANTHROPIC_REGULATORY_SPEED",
+  googleThinkingLevel: "GOOGLE_REGULATORY_THINKING_LEVEL",
+  googleThinkingBudget: "GOOGLE_REGULATORY_THINKING_BUDGET",
   regulatoryTimeoutMs: "OPENAI_REGULATORY_TIMEOUT_MS",
   regulatoryDraftMaxOutputTokens: "OPENAI_REGULATORY_DRAFT_MAX_OUTPUT_TOKENS",
   regulatoryVerificationMaxOutputTokens: "OPENAI_REGULATORY_VERIFICATION_MAX_OUTPUT_TOKENS",
@@ -120,9 +167,15 @@ export const llmSettingsEnvironmentKeys: Record<LlmSettingsKey, string> = {
   regulatoryFlexRateMultiplier: "OPENAI_REGULATORY_FLEX_RATE_MULTIPLIER",
   conservativeBytesPerToken: "REGULATORY_CONSERVATIVE_BYTES_PER_TOKEN",
   triageIncludeUnsure: "REGULATORY_TRIAGE_INCLUDE_UNSURE",
+  customModels: "LLM_CUSTOM_MODELS_JSON",
 };
 
-export const llmApiKeyEnvironmentKey = "OPENAI_API_KEY";
+export const llmApiKeyEnvironmentKeys = {
+  openai: "OPENAI_API_KEY",
+  anthropic: "ANTHROPIC_API_KEY",
+  google: "GOOGLE_GENERATIVE_AI_API_KEY",
+} as const;
+export const llmApiKeyEnvironmentKey = llmApiKeyEnvironmentKeys.openai;
 
 type Environment = Record<string, string | undefined>;
 
@@ -135,7 +188,13 @@ export function llmSettingsFromEnvironment(environment: Environment): LlmSetting
     if (raw === undefined || raw === "") continue;
     // Environment variables are strings; the field's own schema decides which reading of the
     // string it accepts, so no second table of per-field types has to be kept in step.
-    for (const candidate of [raw, Number(raw), raw === "true"]) {
+    let json: unknown;
+    try {
+      json = JSON.parse(raw);
+    } catch {
+      json = undefined;
+    }
+    for (const candidate of [raw, Number(raw), raw === "true", json]) {
       const parsed = schema.safeParse(candidate);
       if (parsed.success) {
         Object.assign(resolved, { [key]: parsed.data });
@@ -156,6 +215,22 @@ const legacyReasoningEfforts: Record<string, (typeof llmReasoningEfforts)[number
  * honoured, so an existing deployment keeps the ceiling it configured. The newer USD variable
  * wins when both are present. */
 function applyLegacyKeys(resolved: LlmSettings, environment: Environment): LlmSettings {
+  const legacyModels: Array<[keyof LlmSettings, string, string]> = [
+    ["profileModel", "LLM_PROFILE_MODEL", "OPENAI_PROFILE_MODEL"],
+    ["regulatoryModel", "LLM_REGULATORY_MODEL", "OPENAI_REGULATORY_MODEL"],
+    ["regulatoryTriageModel", "LLM_REGULATORY_TRIAGE_MODEL", "OPENAI_REGULATORY_TRIAGE_MODEL"],
+    [
+      "regulatoryVerificationModel",
+      "LLM_REGULATORY_VERIFICATION_MODEL",
+      "OPENAI_REGULATORY_VERIFICATION_MODEL",
+    ],
+  ];
+  for (const [key, genericKey, legacyKey] of legacyModels) {
+    if (environment[genericKey] || !environment[legacyKey]) continue;
+    const parsed = llmSettingsSchema.shape[key].safeParse(environment[legacyKey]);
+    if (parsed.success) Object.assign(resolved, { [key]: parsed.data });
+  }
+
   const microUsd = Number(environment["REGULATORY_EVALUATION_BUDGET_MICRO_USD"]);
   if (
     environment[llmSettingsEnvironmentKeys.regulatoryEvaluationBudgetUsd] === undefined &&

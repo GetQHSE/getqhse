@@ -586,6 +586,7 @@ export const regulatoryRequirementStatusSchema = z.enum([
   "NOT_REQUIRED",
 ]);
 export const regulatoryRequirementSourceSchema = z.enum(["AI", "HUMAN", "CARRIED_FORWARD"]);
+export const regulatorySourceTypeSchema = z.enum(["PLATFORM_PROVISION", "DISCOVERED_LAW"]);
 export const regulatoryRunTriggerSchema = z.enum(["MANUAL", "DOCUMENT_REVISION"]);
 export const regulatoryApplicabilitySchema = z.enum(["APPLICABLE", "TO_CONFIRM", "NOT_APPLICABLE"]);
 export const assessmentResultSchema = z.enum([
@@ -727,26 +728,40 @@ export const updateRegulatoryActionSchema = createRegulatoryActionSchema.partial
 export type CreateRegulatoryAction = z.infer<typeof createRegulatoryActionSchema>;
 export type UpdateRegulatoryAction = z.infer<typeof updateRegulatoryActionSchema>;
 
-export const regulatoryCitationSchema = normativeSearchResultSchema.pick({
-  sourceId: true,
-  documentId: true,
-  revisionId: true,
-  documentTitle: true,
-  referenceNumber: true,
-  revisionLabel: true,
-  sourceEdition: true,
-  jurisdiction: true,
-  countryCode: true,
-  language: true,
-  documentFamily: true,
-  provisionType: true,
-  provisionIdentifier: true,
-  headingPath: true,
-  pageStart: true,
-  pageEnd: true,
-  excerpt: true,
-  citationLabel: true,
-});
+export const regulatoryCitationSchema = normativeSearchResultSchema
+  .pick({
+    sourceId: true,
+    documentId: true,
+    revisionId: true,
+    documentTitle: true,
+    referenceNumber: true,
+    revisionLabel: true,
+    sourceEdition: true,
+    jurisdiction: true,
+    countryCode: true,
+    language: true,
+    documentFamily: true,
+    provisionType: true,
+    provisionIdentifier: true,
+    headingPath: true,
+    pageStart: true,
+    pageEnd: true,
+    excerpt: true,
+    citationLabel: true,
+  })
+  .extend({
+    type: regulatorySourceTypeSchema,
+    url: z.string().url().nullable(),
+    sourceId: idSchema.nullable(),
+    documentId: idSchema.nullable(),
+    revisionId: idSchema.nullable(),
+    revisionLabel: z.string().nullable(),
+    sourceEdition: z.string().nullable(),
+    provisionType: z
+      .enum(["clause", "article", "definition", "annex", "table", "note", "section"])
+      .nullable(),
+    excerpt: z.string().max(1_201).nullable(),
+  });
 
 export const regulatoryCandidateSchema = z.object({
   id: idSchema,
@@ -782,8 +797,10 @@ export const regulatoryCandidateSchema = z.object({
 export const regulatoryAnalysisErrorCodeSchema = z.enum([
   /** `NORMATIVE_RAG_ENABLED` is not `true` in the worker environment. */
   "NORMATIVE_RAG_DISABLED",
-  /** `OPENAI_API_KEY` is missing in the worker environment. */
+  /** Legacy error retained so historical runs remain readable. */
   "OPENAI_KEY_MISSING",
+  /** The credential for the selected provider is unavailable. */
+  "LLM_PROVIDER_MISSING",
   /** No embedding profile exists at all: the corpus was never indexed. */
   "EMBEDDING_PROFILE_MISSING",
   /** A profile exists but is still indexing; nothing is searchable yet. */
@@ -814,6 +831,7 @@ export const regulatoryAnalysisErrorMessages: Record<RegulatoryAnalysisErrorCode
   NORMATIVE_RAG_DISABLED:
     "La recherche normative est désactivée sur cette plateforme. Contactez votre administrateur.",
   OPENAI_KEY_MISSING: "Le service d’analyse n’est pas configuré. Contactez votre administrateur.",
+  LLM_PROVIDER_MISSING: "Le service d’analyse n’est pas configuré. Contactez votre administrateur.",
   EMBEDDING_PROFILE_MISSING:
     "La base documentaire normative n’est pas encore indexée. Contactez votre administrateur.",
   EMBEDDING_PROFILE_BUILDING:

@@ -1,6 +1,12 @@
 import { Injectable, ServiceUnavailableException } from "@nestjs/common";
 import type { ServerResponse } from "node:http";
-import { isLlmConfigured, llmSettings, openAiProvider, profileChatPrompt } from "@qhse/ai";
+import {
+  isProviderConfigured,
+  languageModel,
+  languageProviderOptions,
+  llmSettings,
+  profileChatPrompt,
+} from "@qhse/ai";
 import {
   getProfileFieldValueJsonSchema,
   profileToolInputSchema,
@@ -27,7 +33,8 @@ import {
 @Injectable()
 export class OpenAiProfileChatAdapter extends ProfileChatModelPort {
   private prepare(input: ProfileChatModelInput) {
-    if (!isLlmConfigured()) {
+    const provider = llmSettings().profileProvider;
+    if (!isProviderConfigured(provider)) {
       throw new ServiceUnavailableException("Profile chat is not configured");
     }
     const model = llmSettings().profileModel;
@@ -67,25 +74,26 @@ export class OpenAiProfileChatAdapter extends ProfileChatModelPort {
         execute: async ({ answers }) => input.recordAnswers(answers),
       }),
     };
-    return { model, prompt, messages, tools };
+    return { provider, model, prompt, messages, tools };
   }
 
   async runTurn(input: ProfileChatModelInput): Promise<ProfileChatModelResult> {
-    const { model, prompt, messages, tools } = this.prepare(input);
+    const { provider, model, prompt, messages, tools } = this.prepare(input);
 
     const result = await generateText({
-      model: openAiProvider().responses(model),
+      model: languageModel({ provider, model }),
       system: prompt.system,
       messages,
       tools,
       stopWhen: stepCountIs(2),
       maxRetries: 2,
-      providerOptions: { openai: { store: false } },
+      providerOptions: languageProviderOptions(provider, { model }),
     });
 
     return {
       text: result.text.trim(),
       model,
+      provider,
       promptKey: profileChatPrompt.key,
       promptVersion: profileChatPrompt.version,
       inputTokens: result.totalUsage.inputTokens ?? null,
@@ -95,19 +103,20 @@ export class OpenAiProfileChatAdapter extends ProfileChatModelPort {
   }
 
   streamTurn(input: ProfileChatStreamInput) {
-    const { model, prompt, messages, tools } = this.prepare(input);
+    const { provider, model, prompt, messages, tools } = this.prepare(input);
     const result = streamText({
-      model: openAiProvider().responses(model),
+      model: languageModel({ provider, model }),
       system: prompt.system,
       messages,
       tools,
       stopWhen: stepCountIs(2),
       maxRetries: 2,
-      providerOptions: { openai: { store: false } },
+      providerOptions: languageProviderOptions(provider, { model }),
       onEnd: async (event) => {
         await input.onComplete({
           text: event.text.trim(),
           model,
+          provider,
           promptKey: profileChatPrompt.key,
           promptVersion: profileChatPrompt.version,
           inputTokens: event.usage.inputTokens ?? null,

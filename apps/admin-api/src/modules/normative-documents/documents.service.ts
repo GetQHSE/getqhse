@@ -11,8 +11,9 @@ import {
   Optional,
   UnprocessableEntityException,
 } from "@nestjs/common";
-import { llmSettings } from "@qhse/ai";
+import { isProviderConfigured, llmSettings } from "@qhse/ai";
 import type { CurrentUser } from "@qhse/auth";
+import type { EmbeddingProvider } from "@qhse/config";
 import {
   createPrismaClient,
   type DatabaseClient,
@@ -51,11 +52,13 @@ const enumValue = (value: string) => value.toUpperCase();
  * whether it still covers the corpus. Returns `null` when search is healthy.
  */
 function searchUnavailableReason(
-  active: { complete: boolean } | undefined,
+  active: { complete: boolean; provider: string } | undefined,
   pending: { status: string } | undefined,
 ): RegulatoryAnalysisErrorCode | null {
   if (!llmSettings().ragEnabled) return "NORMATIVE_RAG_DISABLED";
-  if (!llmSettings().apiKey) return "OPENAI_KEY_MISSING";
+  const provider = active?.provider ?? llmSettings().embeddingProvider;
+  if (provider !== "openai" && provider !== "google") return "LLM_PROVIDER_MISSING";
+  if (!isProviderConfigured(provider)) return "LLM_PROVIDER_MISSING";
   if (active) return active.complete ? null : "EMBEDDING_PROFILE_STALE";
   if (!pending) return "EMBEDDING_PROFILE_MISSING";
   if (pending.status === "READY") return "EMBEDDING_PROFILE_NOT_ACTIVATED";
@@ -956,11 +959,12 @@ export class DocumentsService {
     if (!profile) {
       const latest = await this.database.embeddingProfile.aggregate({ _max: { version: true } });
       const profileVersion = (latest._max.version ?? 0) + 1;
+      const settings = llmSettings();
       profile = await this.database.embeddingProfile.create({
         data: {
-          key: `openai:text-embedding-3-small:768:v${profileVersion}`,
-          provider: "openai",
-          model: "text-embedding-3-small",
+          key: `${settings.embeddingProvider}:${settings.embeddingModel}:768:v${profileVersion}`,
+          provider: settings.embeddingProvider,
+          model: settings.embeddingModel,
           dimensions: 768,
           version: profileVersion,
           status: "BUILDING",
@@ -998,7 +1002,10 @@ export class DocumentsService {
     };
   }
 
-  async createEmbeddingProfile(user: CurrentUser) {
+  async createEmbeddingProfile(
+    user: CurrentUser,
+    requested?: { provider: EmbeddingProvider; model: string },
+  ) {
     this.authorize(user, "process");
     const building = await this.database.embeddingProfile.findFirst({
       where: { status: "BUILDING" },
@@ -1006,11 +1013,14 @@ export class DocumentsService {
     if (building) throw new ConflictException("An embedding profile is already building");
     const latest = await this.database.embeddingProfile.aggregate({ _max: { version: true } });
     const profileVersion = (latest._max.version ?? 0) + 1;
+    const settings = llmSettings();
+    const provider = requested?.provider ?? settings.embeddingProvider;
+    const model = requested?.model ?? settings.embeddingModel;
     return this.database.embeddingProfile.create({
       data: {
-        key: `openai:text-embedding-3-small:768:v${profileVersion}`,
-        provider: "openai",
-        model: "text-embedding-3-small",
+        key: `${provider}:${model}:768:v${profileVersion}`,
+        provider,
+        model,
         dimensions: 768,
         version: profileVersion,
         status: "BUILDING",
@@ -1062,7 +1072,7 @@ export class DocumentsService {
       reason,
       message: reason ? regulatoryAnalysisErrorMessages[reason] : null,
       ragEnabled: llmSettings().ragEnabled,
-      openAiConfigured: Boolean(llmSettings().apiKey),
+      providerConfigured: isProviderConfigured(active?.provider === "google" ? "google" : "openai"),
       searchableChunks,
       profiles: detailed,
     };

@@ -28,6 +28,7 @@ export type ProfileChatModelInput = {
 };
 
 export type ProfileChatModelResult = {
+  provider: "openai" | "anthropic" | "google";
   text: string;
   model: string;
   promptKey: string;

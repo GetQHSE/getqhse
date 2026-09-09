@@ -137,7 +137,7 @@ type IndexingReadiness = {
   reason: string | null;
   message: string | null;
   ragEnabled: boolean;
-  openAiConfigured: boolean;
+  providerConfigured: boolean;
   searchableChunks: number;
   profiles: EmbeddingProfile[];
 };
@@ -767,8 +767,10 @@ export function DocumentDetailPage() {
                 <Badge variant={readiness?.ragEnabled ? "secondary" : "destructive"}>
                   {readiness?.ragEnabled ? "RAG enabled" : "RAG disabled"}
                 </Badge>
-                <Badge variant={readiness?.openAiConfigured ? "secondary" : "destructive"}>
-                  {readiness?.openAiConfigured ? "OpenAI configured" : "OpenAI not configured"}
+                <Badge variant={readiness?.providerConfigured ? "secondary" : "destructive"}>
+                  {readiness?.providerConfigured
+                    ? "Embedding provider configured"
+                    : "Embedding provider not configured"}
                 </Badge>
                 <Badge variant={readiness?.searchable ? "default" : "outline"}>
                   {readiness?.searchable

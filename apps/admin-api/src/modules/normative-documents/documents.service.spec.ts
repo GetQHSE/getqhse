@@ -416,13 +416,13 @@ describe("DocumentsService embedding profile readiness", () => {
     });
   });
 
-  it("reports a missing OpenAI key", async () => {
+  it("reports a missing selected provider key", async () => {
     delete process.env["OPENAI_API_KEY"];
     const service = serviceWith(databaseWith([profile({ status: "ACTIVE" })]));
 
     await expect(service.embeddingProfileReadiness(user)).resolves.toMatchObject({
-      reason: "OPENAI_KEY_MISSING",
-      openAiConfigured: false,
+      reason: "LLM_PROVIDER_MISSING",
+      providerConfigured: false,
     });
   });
 

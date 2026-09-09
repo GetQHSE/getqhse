@@ -225,6 +225,11 @@ enum RegulatoryRequirementSource {
   CARRIED_FORWARD
 }
 
+enum RegulatorySourceType {
+  PLATFORM_PROVISION
+  DISCOVERED_LAW
+}
+
 enum RegulatoryRunTrigger {
   MANUAL
   DOCUMENT_REVISION
@@ -1168,6 +1173,7 @@ model RegulatoryAnalysisRun {
   progressPercent          Int                      @default(0) @map("progress_percent")
   clarificationRevision    Int                      @default(0) @map("clarification_revision")
   model                    String?
+  provider                 String?
   promptKey                String?                  @map("prompt_key")
   promptVersion            Int?                     @map("prompt_version")
   inputTokens              Int                      @default(0) @map("input_tokens")
@@ -1222,7 +1228,11 @@ model RegulatoryScopeFact {
 model RegulatoryApplicabilityCandidate {
   id                            String                       @id @default(cuid())
   runId                         String                       @map("run_id")
-  provisionId                   String                       @map("provision_id")
+  provisionId                   String?                      @map("provision_id")
+  sourceType                    RegulatorySourceType         @default(PLATFORM_PROVISION) @map("source_type")
+  sourceReference               String?                      @map("source_reference")
+  sourceTitle                   String?                      @map("source_title")
+  sourceUrl                     String?                      @map("source_url")
   previousEntryId               String?                      @map("previous_entry_id")
   changeType                    RegulatoryChangeType         @default(ADDED) @map("change_type")
   changeSummary                 String?                      @map("change_summary")
@@ -1249,7 +1259,7 @@ model RegulatoryApplicabilityCandidate {
   updatedAt                     DateTime                     @updatedAt @map("updated_at")
 
   run                 RegulatoryAnalysisRun    @relation(fields: [runId], references: [id], onDelete: Cascade)
-  provision           DocumentProvision        @relation(fields: [provisionId], references: [id], onDelete: Restrict)
+  provision           DocumentProvision?       @relation(fields: [provisionId], references: [id], onDelete: Restrict)
   previousEntry       RegulatoryRegisterEntry? @relation("RegulatoryCandidatePreviousEntry", fields: [previousEntryId], references: [id], onDelete: Restrict)
   reviewedBy          User?                    @relation("RegulatoryCandidateReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
   requirementEditedBy User?                    @relation("RegulatoryRequirementEditor", fields: [requirementEditedById], references: [id], onDelete: SetNull)
@@ -1267,6 +1277,7 @@ model RegulatoryModelCall {
   stage                 String
   attempt               Int
   model                 String
+  provider              String                    @default("openai")
   status                RegulatoryModelCallStatus @default(RUNNING)
   reservedMicroUsd      Int                       @map("reserved_micro_usd")
   costMicroUsd          Int?                      @map("cost_micro_usd")
@@ -1316,7 +1327,11 @@ model RegulatoryBaseline {
 model RegulatoryRegisterEntry {
   id                            String                       @id @default(cuid())
   baselineId                    String                       @map("baseline_id")
-  provisionId                   String                       @map("provision_id")
+  provisionId                   String?                      @map("provision_id")
+  sourceType                    RegulatorySourceType         @default(PLATFORM_PROVISION) @map("source_type")
+  sourceReference               String?                      @map("source_reference")
+  sourceTitle                   String?                      @map("source_title")
+  sourceUrl                     String?                      @map("source_url")
   previousEntryId               String?                      @map("previous_entry_id")
   changeType                    RegulatoryChangeType         @default(ADDED) @map("change_type")
   orderIndex                    Int                          @map("order_index")
@@ -1330,7 +1345,7 @@ model RegulatoryRegisterEntry {
   createdAt                     DateTime                     @default(now()) @map("created_at")
 
   baseline              RegulatoryBaseline                 @relation(fields: [baselineId], references: [id], onDelete: Cascade)
-  provision             DocumentProvision                  @relation(fields: [provisionId], references: [id], onDelete: Restrict)
+  provision             DocumentProvision?                 @relation(fields: [provisionId], references: [id], onDelete: Restrict)
   previousEntry         RegulatoryRegisterEntry?           @relation("RegulatoryEntryLineage", fields: [previousEntryId], references: [id], onDelete: Restrict)
   successorEntries      RegulatoryRegisterEntry[]          @relation("RegulatoryEntryLineage")
   successorCandidates   RegulatoryApplicabilityCandidate[] @relation("RegulatoryCandidatePreviousEntry")
@@ -1366,6 +1381,7 @@ model RegulatoryEvaluation {
   aiResponsible           String?                      @map("ai_responsible")
   aiEffectivenessCriteria String?                      @map("ai_effectiveness_criteria")
   aiModel                 String?                      @map("ai_model")
+  aiProvider              String?                      @map("ai_provider")
   aiPromptKey             String?                      @map("ai_prompt_key")
   aiPromptVersion         Int?                         @map("ai_prompt_version")
   aiEvaluatedAt           DateTime?                    @map("ai_evaluated_at")
@@ -1486,6 +1502,7 @@ model ProjectProfileMessage {
   replyToMessageId String?            @map("reply_to_message_id")
   parts            Json?
   model            String?
+  provider         String?
   promptKey        String?            @map("prompt_key")
   promptVersion    Int?               @map("prompt_version")
   inputTokens      Int?               @map("input_tokens")
@@ -1526,6 +1543,7 @@ model AiInvocation {
   promptKey          String             @map("prompt_key")
   promptVersion      Int                @map("prompt_version")
   model              String
+  provider           String             @default("openai")
   inputSchemaVersion Int?               @map("input_schema_version")
   inputHash          String             @map("input_hash")
   outputHash         String?            @map("output_hash")
@@ -1743,15 +1761,24 @@ model LlmSetting {
   id String @id @default("singleton")
 
   ragEnabled                            Boolean? @map("rag_enabled")
+  profileProvider                       String?  @map("profile_provider")
   profileModel                          String?  @map("profile_model")
   transcriptionModel                    String?  @map("transcription_model")
+  embeddingProvider                     String?  @map("embedding_provider")
+  embeddingModel                        String?  @map("embedding_model")
+  regulatoryProvider                    String?  @map("regulatory_provider")
   regulatoryModel                       String?  @map("regulatory_model")
   regulatoryTriageModel                 String?  @map("regulatory_triage_model")
+  regulatoryVerificationProvider        String?  @map("regulatory_verification_provider")
   regulatoryVerificationModel           String?  @map("regulatory_verification_model")
   regulatoryServiceTier                 String?  @map("regulatory_service_tier")
   regulatoryTextVerbosity               String?  @map("regulatory_text_verbosity")
   regulatoryPromptCacheRetention        String?  @map("regulatory_prompt_cache_retention")
   regulatoryReasoningEffort             String?  @map("regulatory_reasoning_effort")
+  anthropicEffort                       String?  @map("anthropic_effort")
+  anthropicSpeed                        String?  @map("anthropic_speed")
+  googleThinkingLevel                   String?  @map("google_thinking_level")
+  googleThinkingBudget                  Int?     @map("google_thinking_budget")
   regulatoryTimeoutMs                   Int?     @map("regulatory_timeout_ms")
   regulatoryDraftMaxOutputTokens        Int?     @map("regulatory_draft_max_output_tokens")
   regulatoryVerificationMaxOutputTokens Int?     @map("regulatory_verification_max_output_tokens")
@@ -1764,11 +1791,16 @@ model LlmSetting {
   regulatoryFlexRateMultiplier          Decimal? @map("regulatory_flex_rate_multiplier") @db.Decimal(6, 4)
   conservativeBytesPerToken             Decimal? @map("conservative_bytes_per_token") @db.Decimal(6, 3)
   triageIncludeUnsure                   Boolean? @map("triage_include_unsure")
+  customModels                          Json?    @map("custom_models")
 
   /// AES-256-GCM ciphertext of the provider API key, keyed off BETTER_AUTH_SECRET. Never leaves
   /// the API in readable form — the admin workspace only ever sees a masked preview.
-  apiKeyCiphertext String? @map("api_key_ciphertext")
-  apiKeyPreview    String? @map("api_key_preview")
+  apiKeyCiphertext          String? @map("api_key_ciphertext")
+  apiKeyPreview             String? @map("api_key_preview")
+  anthropicApiKeyCiphertext String? @map("anthropic_api_key_ciphertext")
+  anthropicApiKeyPreview    String? @map("anthropic_api_key_preview")
+  googleApiKeyCiphertext    String? @map("google_api_key_ciphertext")
+  googleApiKeyPreview       String? @map("google_api_key_preview")
 
   updatedByUserId String?  @map("updated_by_user_id")
   createdAt       DateTime @default(now()) @map("created_at")

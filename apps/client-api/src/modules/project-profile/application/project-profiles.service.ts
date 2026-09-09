@@ -663,6 +663,7 @@ export class ProjectProfilesService {
     });
     const projectId = profile.project.id;
     const modelName = llmSettings().profileModel;
+    const providerName = llmSettings().profileProvider;
     const invocation = await this.database.aiInvocation.create({
       data: {
         organizationId: tenant.organizationId,
@@ -674,6 +675,7 @@ export class ProjectProfilesService {
         promptKey: "profile.chat",
         promptVersion: 1,
         model: modelName,
+        provider: providerName,
         inputSchemaVersion: PROFILE_SCHEMA_VERSION,
         inputHash: sha256(
           `${profile.profile.revision}:${request.message}:${request.attachmentIds.join(",")}`,
@@ -744,6 +746,7 @@ export class ProjectProfilesService {
           content: result.text || fallback,
           replyToMessageId: userMessage.id,
           model: result.model,
+          provider: result.provider,
           promptKey: result.promptKey,
           promptVersion: result.promptVersion,
           inputTokens: result.inputTokens,
@@ -760,6 +763,7 @@ export class ProjectProfilesService {
           data: {
             status: "COMPLETED",
             model: result.model,
+            provider: result.provider,
             promptKey: result.promptKey,
             promptVersion: result.promptVersion,
             outputHash: sha256(assistantMessage.content),
@@ -855,6 +859,7 @@ export class ProjectProfilesService {
     });
     const assistantMessageId = randomUUID();
     const modelName = llmSettings().profileModel;
+    const providerName = llmSettings().profileProvider;
     const invocation = await this.database.aiInvocation.create({
       data: {
         organizationId: tenant.organizationId,
@@ -866,6 +871,7 @@ export class ProjectProfilesService {
         promptKey: "profile.chat",
         promptVersion: 1,
         model: modelName,
+        provider: providerName,
         inputSchemaVersion: PROFILE_SCHEMA_VERSION,
         inputHash: sha256(
           `${profile.profile.revision}:${message}:${request.attachmentIds.join(",")}`,
@@ -935,6 +941,7 @@ export class ProjectProfilesService {
             content: result.text || fallback,
             replyToMessageId: userMessage.id,
             model: result.model,
+            provider: result.provider,
             promptKey: result.promptKey,
             promptVersion: result.promptVersion,
             inputTokens: result.inputTokens,
@@ -951,6 +958,7 @@ export class ProjectProfilesService {
             data: {
               status: "COMPLETED",
               model: result.model,
+              provider: result.provider,
               promptKey: result.promptKey,
               promptVersion: result.promptVersion,
               outputHash: sha256(assistant.content),

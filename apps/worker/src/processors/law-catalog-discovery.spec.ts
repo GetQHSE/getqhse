@@ -126,11 +126,12 @@ describe("MVP applicable-law discovery", () => {
   it("asks the model from the full profile before reading the law catalog", async () => {
     const { db, events, run } = harness();
     respond([storedProposal, lead], events);
-    await expect(run()).resolves.toEqual([article]);
+    await expect(run()).resolves.toEqual({ provisions: [article], discoveredLaws: [lead] });
     expect(events).toEqual(["model", "database"]);
     expect(generated).toHaveBeenCalledWith(
       expect.objectContaining({
         prompt: expect.stringContaining("employeeCount"),
+        maxRetries: 2,
         tools: expect.objectContaining({ web_search: expect.anything() }),
         toolChoice: { type: "tool", toolName: "web_search" },
       }),
@@ -142,17 +143,32 @@ describe("MVP applicable-law discovery", () => {
     );
     expect(db.regulatoryAnalysisRun.update).toHaveBeenCalledWith({
       where: { id: "run" },
-      data: { missingLaws: [lead] },
+      data: { missingLaws: [] },
     });
     const sql = db.$queryRaw.mock.calls[0]![0] as { sql: string };
     expect(sql.sql).toContain('"validated_at" IS NOT NULL');
     expect(sql.sql).not.toContain("embedding");
   });
 
+  it("can disable web search for local free-tier testing", async () => {
+    vi.stubEnv("REGULATORY_WEB_SEARCH_ENABLED", "false");
+    const { run } = harness();
+    respond();
+
+    await expect(run()).resolves.toEqual({ provisions: [article], discoveredLaws: [lead] });
+
+    expect(generated).toHaveBeenCalledWith(
+      expect.not.objectContaining({
+        tools: expect.anything(),
+        toolChoice: expect.anything(),
+      }),
+    );
+  });
+
   it("loads text only for laws whose references resolve to an approved database source", async () => {
     const { db, run } = harness();
     respond();
-    await expect(run()).resolves.toEqual([article]);
+    await expect(run()).resolves.toEqual({ provisions: [article], discoveredLaws: [lead] });
     const sourceSql = db.$queryRaw.mock.calls[1]![0] as { values: unknown[] };
     expect(sourceSql.values).toContain("law-1");
   });
@@ -160,10 +176,13 @@ describe("MVP applicable-law discovery", () => {
   it("retains every proposed law as source-required when the corpus is empty", async () => {
     const { db, run } = harness([]);
     respond();
-    await expect(run()).resolves.toEqual([]);
+    await expect(run()).resolves.toEqual({
+      provisions: [],
+      discoveredLaws: [storedProposal, lead],
+    });
     expect(db.regulatoryAnalysisRun.update).toHaveBeenCalledWith({
       where: { id: "run" },
-      data: { missingLaws: [storedProposal, lead] },
+      data: { missingLaws: [] },
     });
     expect(db.$queryRaw).toHaveBeenCalledTimes(1);
   });
@@ -187,15 +206,16 @@ describe("MVP applicable-law discovery", () => {
         },
       ],
     });
-    await expect(run()).resolves.toEqual([]);
+    await expect(run()).resolves.toEqual({
+      provisions: [],
+      discoveredLaws: [
+        { ...lead, sourceUrl: "https://adala.justice.gov.ma/official" },
+        storedProposal,
+      ],
+    });
     expect(db.regulatoryAnalysisRun.update).toHaveBeenCalledWith({
       where: { id: "run" },
-      data: {
-        missingLaws: [
-          { ...lead, sourceUrl: "https://adala.justice.gov.ma/official" },
-          storedProposal,
-        ],
-      },
+      data: { missingLaws: [] },
     });
   });
 
@@ -206,7 +226,7 @@ describe("MVP applicable-law discovery", () => {
       totalUsage: { inputTokens: 100, outputTokens: 50 },
       sources: [],
     });
-    await expect(run()).resolves.toEqual([]);
+    await expect(run()).resolves.toEqual({ provisions: [], discoveredLaws: [] });
     expect(db.regulatoryAnalysisRun.update).toHaveBeenCalledWith({
       where: { id: "run" },
       data: { missingLaws: [] },
@@ -218,5 +238,54 @@ describe("MVP applicable-law discovery", () => {
     const { run } = harness();
     generated.mockRejectedValue(new Error("provider down"));
     await expect(run()).rejects.toMatchObject({ code: "REGULATORY_MODEL_UNAVAILABLE" });
+  });
+
+  it("persists a source-less discovery as a first-class candidate", async () => {
+    const createMany = vi.fn().mockResolvedValue({ count: 1 });
+    const update = vi.fn().mockResolvedValue({});
+    databaseFactory.mockReturnValue({
+      regulatoryApplicabilityCandidate: {
+        createMany,
+        count: vi.fn().mockResolvedValue(1),
+      },
+      regulatoryAnalysisRun: { update },
+    });
+    const processor = new RegulatoryAnalysisProcessor();
+    const persist = (
+      processor as unknown as {
+        persistDiscoveredLawCandidates(
+          runId: string,
+          revision: number,
+          candidates: unknown[],
+        ): Promise<void>;
+      }
+    ).persistDiscoveredLawCandidates.bind(processor);
+
+    await persist("run", 0, [
+      {
+        ...lead,
+        previousEntryId: null,
+        changeType: "ADDED",
+        requiresReview: true,
+        decision: null,
+      },
+    ]);
+
+    expect(createMany).toHaveBeenCalledWith({
+      data: [
+        expect.objectContaining({
+          provisionId: null,
+          sourceType: "DISCOVERED_LAW",
+          sourceReference: lead.reference,
+          sourceTitle: lead.title,
+          suggestion: "TO_CONFIRM",
+          requirementStatus: "NOT_REQUIRED",
+        }),
+      ],
+    });
+    expect(update).toHaveBeenCalledWith({
+      where: { id: "run" },
+      data: { completedProvisions: 1 },
+    });
   });
 });

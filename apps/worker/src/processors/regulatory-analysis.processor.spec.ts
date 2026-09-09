@@ -27,7 +27,6 @@ import {
   regulatoryVerificationModel,
   regulatoryProviderOptions,
   regulatoryServiceTier,
-  regulatoryTriageModel,
 } from "./regulatory-model-cost.js";
 import { regulatoryProvisionGoldenFixtures } from "./fixtures/regulatory-provisions.golden.js";
 
@@ -258,15 +257,7 @@ describe("regulatory analysis query planning", () => {
     ).toBe(1_125_000);
   });
 
-  it("prices the triage model off its own rates, not the drafting model's", () => {
-    process.env["OPENAI_REGULATORY_SERVICE_TIER"] = "default";
-    expect(regulatoryTriageModel()).toBe("gpt-5-nano");
-    expect(
-      regulatoryCostMicroUsd({ inputTokens: 1_000_000, outputTokens: 1_000_000 }, "gpt-5-nano"),
-    ).toBe(450_000);
-  });
-
-  it("lets the per-mtok overrides retune the primary model without touching triage", () => {
+  it("lets the per-mtok overrides retune the primary model without touching other models", () => {
     process.env["OPENAI_REGULATORY_SERVICE_TIER"] = "default";
     process.env["OPENAI_REGULATORY_INPUT_USD_PER_MTOK"] = "1";
     expect(regulatoryModelRates("gpt-5-mini").inputUsdPerMTok).toBe(1);
@@ -361,7 +352,7 @@ describe("regulatory model retry behavior", () => {
   });
 
   it("spreads retries over a random window without ever waiting less than the base delay", () => {
-    // Concurrent lanes (classification, triage batches, retrieval queries) that all hit a 429 or
+    // Concurrent classification and retrieval lanes that all hit a 429 or
     // budget contention at the same instant would otherwise retry at an identical fixed delay and
     // collide again on the next attempt. Jitter only ever adds to the base delay — it must never
     // shorten a provider-specified backoff, or the retry would be rate-limited again for sure.

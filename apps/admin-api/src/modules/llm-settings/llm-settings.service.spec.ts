@@ -1,6 +1,16 @@
-import { ForbiddenException } from "@nestjs/common";
+import { ForbiddenException, UnprocessableEntityException } from "@nestjs/common";
 import { decryptLlmSecret, resetLlmSettingsSnapshot } from "@qhse/ai";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+const aiCalls = vi.hoisted(() => ({
+  embed: vi.fn(),
+  generateText: vi.fn(),
+}));
+
+vi.mock("ai", async () => {
+  const actual: object = await vi.importActual("ai");
+  return { ...actual, ...aiCalls };
+});
 
 import type { AuthService } from "../auth/auth.service.js";
 import { LlmSettingsService } from "./llm-settings.service.js";
@@ -36,6 +46,8 @@ describe("LlmSettingsService", () => {
     llmSetting.findUnique.mockResolvedValue(null);
     user.findUnique.mockResolvedValue(null);
     resetLlmSettingsSnapshot();
+    aiCalls.embed.mockResolvedValue({ embedding: Array(768).fill(0) });
+    aiCalls.generateText.mockResolvedValue({ text: "OK" });
   });
 
   afterEach(() => {
@@ -52,7 +64,7 @@ describe("LlmSettingsService", () => {
     expect(view.effective.regulatoryModel).toBe("gpt-5");
     expect(view.overrides).toEqual({});
     expect(view.apiKey).toMatchObject({ configured: true, source: "environment" });
-    expect(view.environmentKeys.regulatoryModel).toBe("OPENAI_REGULATORY_MODEL");
+    expect(view.environmentKeys.regulatoryModel).toBe("LLM_REGULATORY_MODEL");
     expect(view.updatedAt).toBeNull();
   });
 
@@ -85,6 +97,26 @@ describe("LlmSettingsService", () => {
       preview: "••••••••1234",
     });
     expect(JSON.stringify(view)).not.toContain("sk-proj-secret-1234");
+  });
+
+  it("encrypts and removes each provider credential independently", async () => {
+    llmSetting.upsert.mockImplementation(({ update }: { update: Record<string, unknown> }) =>
+      Promise.resolve(storedRow(update)),
+    );
+
+    await service.update(superAdmin, {
+      apiKeys: { anthropic: "sk-ant-secret-1234", google: "google-secret-5678" },
+    });
+    const written = llmSetting.upsert.mock.calls[0]![0].update as Record<string, string>;
+    expect(decryptLlmSecret(written["anthropicApiKeyCiphertext"]!)).toBe("sk-ant-secret-1234");
+    expect(decryptLlmSecret(written["googleApiKeyCiphertext"]!)).toBe("google-secret-5678");
+    expect(written).not.toHaveProperty("apiKeyCiphertext");
+
+    await service.update(superAdmin, { apiKeys: { anthropic: null } });
+    expect(llmSetting.upsert.mock.calls[1]![0].update).toMatchObject({
+      anthropicApiKeyCiphertext: null,
+      anthropicApiKeyPreview: null,
+    });
   });
 
   it("treats an empty API key as handing the credential back to the environment", async () => {
@@ -123,8 +155,83 @@ describe("LlmSettingsService", () => {
       service.update(contentManager, { regulatoryModel: "gpt-5" }),
     ).rejects.toBeInstanceOf(ForbiddenException);
     await expect(service.reset(contentManager)).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(
+      service.testProvider(contentManager, "openai", { capability: "language", model: "gpt-5" }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
     expect(llmSetting.upsert).not.toHaveBeenCalled();
     expect(llmSetting.deleteMany).not.toHaveBeenCalled();
+  });
+
+  it("rejects a capability mismatch before saving", async () => {
+    await expect(
+      service.update(superAdmin, {
+        profileProvider: "google",
+        profileModel: "gemini-embedding-001",
+      }),
+    ).rejects.toBeInstanceOf(UnprocessableEntityException);
+    expect(llmSetting.upsert).not.toHaveBeenCalled();
+  });
+
+  it("rejects an unpriced custom regulatory model before saving", async () => {
+    await expect(
+      service.update(superAdmin, {
+        regulatoryProvider: "anthropic",
+        regulatoryModel: "claude-private",
+        customModels: [
+          {
+            provider: "anthropic",
+            model: "claude-private",
+            label: "Private Claude",
+            capabilities: {
+              language: true,
+              embedding: false,
+              structuredOutput: true,
+              tools: true,
+              webSearch: true,
+              fileInput: false,
+            },
+            advancedControls: [],
+            rates: null,
+          },
+        ],
+      }),
+    ).rejects.toBeInstanceOf(UnprocessableEntityException);
+    expect(llmSetting.upsert).not.toHaveBeenCalled();
+  });
+
+  it("rejects a reasoning control that the selected model does not advertise", async () => {
+    await expect(
+      service.update(superAdmin, {
+        profileProvider: "google",
+        profileModel: "gemini-3.6-flash",
+        googleThinkingLevel: "high",
+      }),
+    ).rejects.toBeInstanceOf(UnprocessableEntityException);
+    expect(llmSetting.upsert).not.toHaveBeenCalled();
+  });
+
+  it("tests the selected provider without exposing provider errors", async () => {
+    vi.stubEnv("ANTHROPIC_API_KEY", "sk-ant-private");
+    const success = await service.testProvider(superAdmin, "anthropic", {
+      capability: "language",
+      model: "claude-haiku-4-5-20251001",
+    });
+    expect(success).toMatchObject({ ok: true, provider: "anthropic", error: null });
+
+    aiCalls.generateText.mockRejectedValueOnce(
+      new Error("401 invalid key sk-ant-private at internal-provider-host"),
+    );
+    const failure = await service.testProvider(superAdmin, "anthropic", {
+      capability: "language",
+      model: "claude-haiku-4-5-20251001",
+    });
+    expect(failure).toMatchObject({
+      ok: false,
+      provider: "anthropic",
+      error: "Credential or provider access was rejected",
+    });
+    expect(JSON.stringify(failure)).not.toContain("sk-ant-private");
+    expect(JSON.stringify(failure)).not.toContain("internal-provider-host");
   });
 
   it("drops every override on reset", async () => {

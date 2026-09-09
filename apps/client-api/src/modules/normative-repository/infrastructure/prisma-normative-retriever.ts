@@ -7,6 +7,7 @@ import type {
   NormativeSearchResult,
 } from "@qhse/contracts";
 import { llmSettings } from "@qhse/ai";
+import { embeddingProviderSchema } from "@qhse/config";
 import { createPrismaClient, Prisma, type DatabaseClient } from "@qhse/database";
 import {
   boundedExcerpt,
@@ -71,7 +72,11 @@ export class PrismaNormativeRetriever extends NormativeRetriever {
       });
       if (!profile) throw new ServiceUnavailableException("No active embedding profile");
       profileId = profile.id;
-      const embedding = await this.queryEmbeddings.embedQuery(profile.model, input.query);
+      const embedding = await this.queryEmbeddings.embedQuery(
+        embeddingProviderSchema.parse(profile.provider),
+        profile.model,
+        input.query,
+      );
       const vector = `[${embedding.join(",")}]`;
       const languageFilter = Prisma.join(
         input.languages.map((language) => Prisma.sql`${language}`),

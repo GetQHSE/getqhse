@@ -1,5 +1,5 @@
-import { llmSettings } from "@qhse/ai";
-import type { LlmReasoningEffort } from "@qhse/config";
+import { languageProviderOptions, llmSettings } from "@qhse/ai";
+import { findModelDefinition, type LanguageProvider, type LlmReasoningEffort } from "@qhse/config";
 
 // The Responses API scaffolding plus the structured-output JSON schema. The largest schema this
 // pipeline sends (classification) serializes to ~1.1KB / ~350 tokens, so this is several times
@@ -22,14 +22,6 @@ export type RegulatoryTokenUsage = {
   outputTokens: number;
 };
 
-const MODEL_RATES: Record<string, RegulatoryModelRates> = {
-  "gpt-5": { inputUsdPerMTok: 1.25, cachedInputUsdPerMTok: 0.125, outputUsdPerMTok: 10 },
-  "gpt-5-mini": { inputUsdPerMTok: 0.25, cachedInputUsdPerMTok: 0.025, outputUsdPerMTok: 2 },
-  "gpt-5-nano": { inputUsdPerMTok: 0.05, cachedInputUsdPerMTok: 0.005, outputUsdPerMTok: 0.4 },
-};
-
-const FALLBACK_RATES: RegulatoryModelRates = MODEL_RATES["gpt-5-mini"]!;
-
 export function positiveNumber(name: string, fallback: number): number {
   const parsed = Number(process.env[name] ?? fallback);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
@@ -43,8 +35,8 @@ export function regulatoryPrimaryModel(): string {
   return llmSettings().regulatoryModel;
 }
 
-export function regulatoryTriageModel(): string {
-  return llmSettings().regulatoryTriageModel;
+export function regulatoryPrimaryProvider(): LanguageProvider {
+  return llmSettings().regulatoryProvider;
 }
 
 // Verification is a containment check that only ever runs after validateRequirementDraft has
@@ -57,15 +49,32 @@ export function regulatoryVerificationModel(): string {
   return llmSettings().regulatoryVerificationModel;
 }
 
-// Rates are per-model because triage runs on a cheaper model than drafting: billing every stage
-// at the primary model's rate would charge triage ~5x what it costs and exhaust the run budget
-// against spend that never happened. The configured rates predate the second model and name the
-// primary model's rates, so they only override that model's entry.
-export function regulatoryModelRates(model: string): RegulatoryModelRates {
+export function regulatoryVerificationProvider(): LanguageProvider {
+  return llmSettings().regulatoryVerificationProvider;
+}
+
+// Rates are per-model because verification may use a cheaper model than drafting. The configured
+// rates predate the second model and name the primary model's rates, so they only override that
+// model's entry.
+function configuredProvider(model: string): LanguageProvider {
   const settings = llmSettings();
-  const listed = MODEL_RATES[model] ?? FALLBACK_RATES;
+  if (model === settings.regulatoryVerificationModel)
+    return settings.regulatoryVerificationProvider;
+  return settings.regulatoryProvider;
+}
+
+export function regulatoryModelRates(
+  model: string,
+  provider: LanguageProvider = configuredProvider(model),
+): RegulatoryModelRates {
+  const settings = llmSettings();
+  const definition = findModelDefinition(provider, model, settings.customModels);
+  if (!definition?.rates) {
+    throw new Error(`No regulatory price metadata for ${provider}:${model}`);
+  }
+  const listed = definition.rates;
   const base =
-    model === settings.regulatoryModel
+    provider === settings.regulatoryProvider && model === settings.regulatoryModel
       ? {
           inputUsdPerMTok: settings.regulatoryInputUsdPerMTok ?? listed.inputUsdPerMTok,
           cachedInputUsdPerMTok:
@@ -73,7 +82,7 @@ export function regulatoryModelRates(model: string): RegulatoryModelRates {
           outputUsdPerMTok: settings.regulatoryOutputUsdPerMTok ?? listed.outputUsdPerMTok,
         }
       : listed;
-  if (settings.regulatoryServiceTier !== "flex") return base;
+  if (provider !== "openai" || settings.regulatoryServiceTier !== "flex") return base;
   const multiplier = settings.regulatoryFlexRateMultiplier;
   return {
     inputUsdPerMTok: base.inputUsdPerMTok * multiplier,
@@ -82,8 +91,12 @@ export function regulatoryModelRates(model: string): RegulatoryModelRates {
   };
 }
 
-export function regulatoryCostMicroUsd(usage: RegulatoryTokenUsage, model: string): number {
-  const rates = regulatoryModelRates(model);
+export function regulatoryCostMicroUsd(
+  usage: RegulatoryTokenUsage,
+  model: string,
+  provider: LanguageProvider = configuredProvider(model),
+): number {
+  const rates = regulatoryModelRates(model, provider);
   const cachedInputTokens = Math.min(Math.max(usage.cachedInputTokens ?? 0, 0), usage.inputTokens);
   const freshInputTokens = usage.inputTokens - cachedInputTokens;
   return Math.ceil(
@@ -97,31 +110,12 @@ export function regulatoryCostMicroUsd(usage: RegulatoryTokenUsage, model: strin
 // to one cache prefix: the system prompt plus the run's profile snapshot is identical across
 // every candidate, so explicit keying turns best-effort implicit caching into reliable hits.
 export function regulatoryProviderOptions(input: {
+  provider?: LanguageProvider;
+  model?: string;
   reasoningEffort: LlmReasoningEffort;
   promptCacheKey: string;
-}): {
-  openai: {
-    store: boolean;
-    reasoningEffort: string;
-    serviceTier: RegulatoryServiceTier;
-    textVerbosity: string;
-    promptCacheKey: string;
-    promptCacheRetention: string;
-  };
-} {
-  const settings = llmSettings();
-  return {
-    openai: {
-      store: false,
-      reasoningEffort: input.reasoningEffort,
-      serviceTier: settings.regulatoryServiceTier,
-      // Output tokens cost 8x input tokens, and every schema field this pipeline asks for is
-      // short by contract (2-4 sentence rationale, 1-3 verbatim excerpts).
-      textVerbosity: settings.regulatoryTextVerbosity,
-      promptCacheKey: input.promptCacheKey,
-      promptCacheRetention: settings.regulatoryPromptCacheRetention,
-    },
-  };
+}): ReturnType<typeof languageProviderOptions> {
+  return languageProviderOptions(input.provider ?? regulatoryPrimaryProvider(), input);
 }
 
 export function conservativeInputTokens(prompt: { system: string; context: string }): number {

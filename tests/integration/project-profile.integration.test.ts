@@ -145,6 +145,7 @@ suite("project profile backend workflow", () => {
         ]);
         return {
           text: "Merci. Passons à la suite.",
+          provider: "openai" as const,
           model: "fake-profile-model",
           promptKey: "profile.chat",
           promptVersion: 1,

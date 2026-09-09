@@ -100,7 +100,11 @@ function analysisPhaseLabel(phase: string | null | undefined): string {
  * way to tell them apart from the run's single errorCode — offering retry
  * costs nothing when it's transient and doesn't make a real outage worse.
  */
-const administrativeErrorCodes = new Set(["NORMATIVE_RAG_DISABLED", "OPENAI_KEY_MISSING"]);
+const administrativeErrorCodes = new Set([
+  "NORMATIVE_RAG_DISABLED",
+  "OPENAI_KEY_MISSING",
+  "LLM_PROVIDER_MISSING",
+]);
 
 /** Translates a persisted `errorCode` into customer-facing French copy. */
 export function analysisErrorMessage(code: string | null | undefined): string {
@@ -115,9 +119,9 @@ export function analysisIsRetryable(code: string | null | undefined): boolean {
 
 type RegulatoryCandidate = NonNullable<RegulatoryWatch["currentAnalysis"]>["candidates"][number];
 
-/** The decision the review buttons would record for every candidate still awaiting one, following
- *  the exact rule those buttons enforce: a provision can only be approved once the analysis has
- *  extracted a usable requirement, and anything it failed to extract stays out of the baseline. */
+/** The decision the review buttons would record for every candidate still awaiting one. A
+ *  discovered law is retained as a law-level row; a platform provision still needs an extracted
+ *  requirement before bulk approval can include it. */
 export function pendingAiDecisions(
   candidates: readonly RegulatoryCandidate[],
 ): Array<{ candidateId: string; decision: "APPLICABLE" | "NOT_APPLICABLE" }> {
@@ -126,7 +130,7 @@ export function pendingAiDecisions(
     .map((candidate) => ({
       candidateId: candidate.id,
       decision:
-        candidate.requirement.status === "READY"
+        candidate.source.type === "DISCOVERED_LAW" || candidate.requirement.status === "READY"
           ? ("APPLICABLE" as const)
           : ("NOT_APPLICABLE" as const),
     }));
@@ -193,8 +197,9 @@ export function regulatoryViewData(watch: RegulatoryWatch) {
   const groupedDocuments = new Map<string, RegulatoryDocument>();
 
   for (const entry of entries) {
-    const key = entry.source.revisionId;
-    const provision = entry.source.provisionIdentifier ?? entry.source.provisionType;
+    const key = entry.source.revisionId ?? entry.id;
+    const provision =
+      entry.source.provisionIdentifier ?? entry.source.provisionType ?? "Texte complet";
     const existing = groupedDocuments.get(key);
     if (existing) {
       existing.requirements += 1;
@@ -232,10 +237,10 @@ export function regulatoryViewData(watch: RegulatoryWatch) {
       revision: entry.evaluation.revision,
       result: entry.evaluation.result,
       source: entry.source.referenceNumber ?? entry.source.documentTitle,
-      provision: entry.source.provisionIdentifier ?? entry.source.provisionType,
+      provision: entry.source.provisionIdentifier ?? entry.source.provisionType ?? "Texte complet",
       requirement: entry.requirement?.text ?? "Exigence à régénérer",
       citation: entry.source.citationLabel,
-      officialSourceText: entry.source.excerpt,
+      officialSourceText: entry.source.excerpt ?? "Source officielle à rattacher",
       status: mapEvaluationStatus(entry.evaluation.result),
       evidence: evidenceLabels.length ? evidenceLabels.join(" · ") : "Aucune preuve liée",
       action: action?.title ?? "Aucune action définie",
@@ -817,7 +822,9 @@ function ReviewState({
                             {candidate.source.citationLabel}
                           </p>
                           <p className="mt-2 max-h-36 overflow-y-auto whitespace-pre-wrap text-xs leading-5 text-slate-600">
-                            {candidate.source.excerpt}
+                            {candidate.source.type === "DISCOVERED_LAW"
+                              ? "Source officielle à rattacher"
+                              : candidate.source.excerpt}
                           </p>
                         </section>
                         <section
@@ -879,7 +886,10 @@ function ReviewState({
                             onDecision(
                               candidate.id,
                               "APPLICABLE",
-                              candidate.requirement.text ? undefined : candidate.source.excerpt,
+                              candidate.source.type === "DISCOVERED_LAW" ||
+                                candidate.requirement.text
+                                ? undefined
+                                : (candidate.source.excerpt ?? undefined),
                             )
                           }
                         >
@@ -1677,9 +1687,6 @@ export function DataPage({
     () => data.evaluations.find((item) => item.id === selectedEvaluationId) ?? null,
     [data.evaluations, selectedEvaluationId],
   );
-  const hasLegacyRequirements = Boolean(
-    watch.currentBaseline?.entries.some((entry) => entry.requirement === null),
-  );
   const analysisActive = Boolean(
     watch.currentAnalysis && activeAnalysisStatuses.has(watch.currentAnalysis.status),
   );
@@ -1730,32 +1737,14 @@ export function DataPage({
           </Button>
           <Button
             className="h-10 rounded-xl bg-slate-950 px-4 hover:bg-slate-800"
-            disabled={exporting || hasLegacyRequirements}
+            disabled={exporting}
             onClick={onExport}
-            title={
-              hasLegacyRequirements
-                ? "Relancez l’analyse et publiez la nouvelle veille avant l’export"
-                : undefined
-            }
           >
             {exporting ? <LoaderCircleIcon className="animate-spin" /> : <DownloadIcon />} Exporter
             en Excel
           </Button>
         </div>
       </header>
-
-      {hasLegacyRequirements && (
-        <div className="flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4">
-          <CircleAlertIcon className="mt-0.5 size-4 shrink-0 text-amber-700" />
-          <div>
-            <p className="text-sm font-semibold text-amber-950">Exigences à régénérer</p>
-            <p className="mt-1 text-xs leading-5 text-amber-800/80">
-              Cette baseline historique ne contient pas d’exigence rédigée et approuvée. Relancez
-              l’analyse puis publiez son successeur pour réactiver l’export Excel.
-            </p>
-          </div>
-        </div>
-      )}
 
       {analysisActive && (
         <div className="rounded-2xl border border-violet-200 bg-violet-50 p-4">

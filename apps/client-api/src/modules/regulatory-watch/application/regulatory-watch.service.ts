@@ -9,7 +9,8 @@ import {
   NotFoundException,
   ServiceUnavailableException,
 } from "@nestjs/common";
-import { llmSettings } from "@qhse/ai";
+import { isProviderConfigured, llmSettings } from "@qhse/ai";
+import { findModelDefinition } from "@qhse/config";
 import {
   lawSourceRequiredSchema,
   regulatoryEvidencePayloadIssue,
@@ -82,6 +83,9 @@ type LoadedWatch = Prisma.ProjectRegulatoryWatchGetPayload<{ include: typeof wat
 type RegulatoryCitation = NonNullable<
   RegulatoryWatch["currentAnalysis"]
 >["candidates"][number]["source"];
+type SourceProvision = NonNullable<
+  LoadedWatch["analyses"][number]["candidates"][number]["provision"]
+>;
 
 function canContribute(role: string): boolean {
   return ["owner", "admin", "member"].includes(role.toLowerCase());
@@ -126,13 +130,11 @@ export function evaluationCarryForward(
   };
 }
 
-function sourceFromProvision(
-  provision:
-    | LoadedWatch["analyses"][number]["candidates"][number]["provision"]
-    | NonNullable<LoadedWatch["currentBaseline"]>["entries"][number]["provision"],
-): RegulatoryCitation {
+function sourceFromProvision(provision: SourceProvision): RegulatoryCitation {
   const document = provision.version.document;
   return {
+    type: "PLATFORM_PROVISION",
+    url: null,
     sourceId: provision.id,
     documentId: document.id,
     revisionId: provision.version.id,
@@ -160,6 +162,60 @@ function sourceFromProvision(
       pageEnd: provision.pageEnd,
     }),
   };
+}
+
+function sourceFromDiscoveredLaw(input: {
+  sourceReference: string | null;
+  sourceTitle: string | null;
+  sourceUrl: string | null;
+  rationale: string;
+}): RegulatoryCitation {
+  const reference = input.sourceReference ?? input.sourceTitle ?? "Texte réglementaire";
+  const title = input.sourceTitle ?? input.sourceReference ?? "Texte réglementaire à confirmer";
+  return {
+    type: "DISCOVERED_LAW",
+    url: input.sourceUrl,
+    sourceId: null,
+    documentId: null,
+    revisionId: null,
+    documentTitle: title,
+    referenceNumber: input.sourceReference,
+    revisionLabel: null,
+    sourceEdition: null,
+    jurisdiction: "Maroc",
+    countryCode: "MA",
+    language: "fr",
+    documentFamily: /^iso\b/iu.test(reference) ? "standard" : "regulation",
+    provisionType: null,
+    provisionIdentifier: null,
+    headingPath: [],
+    pageStart: null,
+    pageEnd: null,
+    excerpt: input.rationale,
+    citationLabel: [reference, title]
+      .filter((value, index, values) => values.indexOf(value) === index)
+      .join(" — "),
+  };
+}
+
+function sourceFromEntry(entry: {
+  sourceType: "PLATFORM_PROVISION" | "DISCOVERED_LAW";
+  provision: SourceProvision | null;
+  sourceReference: string | null;
+  sourceTitle: string | null;
+  sourceUrl: string | null;
+  rationale?: string;
+  applicabilityRationale?: string;
+}): RegulatoryCitation {
+  if (entry.sourceType === "PLATFORM_PROVISION" && entry.provision) {
+    return sourceFromProvision(entry.provision);
+  }
+  return sourceFromDiscoveredLaw({
+    sourceReference: entry.sourceReference,
+    sourceTitle: entry.sourceTitle,
+    sourceUrl: entry.sourceUrl,
+    rationale: entry.rationale ?? entry.applicabilityRationale ?? "Applicabilité à confirmer.",
+  });
 }
 
 @Injectable()
@@ -250,7 +306,7 @@ export class RegulatoryWatchService {
             changeSummary: candidate.changeSummary,
             previousEntryId: candidate.previousEntryId,
             previousSource: candidate.previousEntry
-              ? sourceFromProvision(candidate.previousEntry.provision)
+              ? sourceFromEntry(candidate.previousEntry)
               : null,
             requiresReview: candidate.requiresReview,
             suggestion: candidate.suggestion,
@@ -269,7 +325,7 @@ export class RegulatoryWatchService {
               source: candidate.requirementSource,
               editedAt: dateTime(candidate.requirementEditedAt),
             },
-            source: sourceFromProvision(candidate.provision),
+            source: sourceFromEntry(candidate),
           })),
           diff: {
             added: visibleCandidates.filter((item) => item.changeType === "ADDED").length,
@@ -313,7 +369,7 @@ export class RegulatoryWatchService {
                       reviewedAt: entry.requirementReviewedAt.toISOString(),
                     }
                   : null,
-              source: sourceFromProvision(entry.provision),
+              source: sourceFromEntry(entry),
               evaluation: {
                 id: entry.evaluation.id,
                 revision: entry.evaluation.revision,
@@ -419,11 +475,27 @@ export class RegulatoryWatchService {
     input: StartRegulatoryAnalysis,
   ) {
     if (!canContribute(tenant.role)) throw new ForbiddenException("Regulatory access is required");
-    if (!llmSettings().ragEnabled || !llmSettings().apiKey) {
+    const settings = llmSettings();
+    if (
+      !settings.ragEnabled ||
+      !isProviderConfigured(settings.regulatoryProvider) ||
+      !isProviderConfigured(settings.regulatoryVerificationProvider)
+    ) {
       throw new ServiceUnavailableException({
         code: "REGULATORY_WORKER_UNAVAILABLE",
         message: "Regulatory analysis is not configured",
       });
+    }
+    for (const [provider, model] of [
+      [settings.regulatoryProvider, settings.regulatoryModel],
+      [settings.regulatoryVerificationProvider, settings.regulatoryVerificationModel],
+    ] as const) {
+      if (!findModelDefinition(provider, model, settings.customModels)?.rates) {
+        throw new ServiceUnavailableException({
+          code: "REGULATORY_MODEL_UNAVAILABLE",
+          message: `Regulatory pricing is not configured for ${provider}:${model}`,
+        });
+      }
     }
     await this.queue.assertWorkerAvailable("regulatory-analysis");
     const { project, watch } = await this.ensureWatch(tenant, projectIdOrSlug);
@@ -577,7 +649,11 @@ export class RegulatoryWatchService {
       input.decision === "APPLICABLE"
         ? (input.requirementText ?? candidate.requirementText ?? undefined)
         : undefined;
-    if (input.decision === "APPLICABLE" && !requirementText) {
+    if (
+      input.decision === "APPLICABLE" &&
+      candidate.sourceType === "PLATFORM_PROVISION" &&
+      !requirementText
+    ) {
       throw new BadRequestException("requirementText is required for an applicable provision");
     }
     const requirementWasEdited =
@@ -599,7 +675,7 @@ export class RegulatoryWatchService {
           decisionNote: input.note ?? null,
           reviewedById: tenant.userId,
           reviewedAt,
-          ...(input.decision === "APPLICABLE"
+          ...(input.decision === "APPLICABLE" && candidate.sourceType === "PLATFORM_PROVISION"
             ? {
                 requirementText: requirementText as string,
                 requirementStatus: "READY" as const,
@@ -611,7 +687,9 @@ export class RegulatoryWatchService {
                     }
                   : {}),
               }
-            : {}),
+            : input.decision === "APPLICABLE"
+              ? { requirementStatus: "NOT_REQUIRED" as const }
+              : {}),
         },
       });
     });
@@ -641,7 +719,7 @@ export class RegulatoryWatchService {
         requiresReview: true,
         run: { watchId: watch.id, status: { in: ["READY_FOR_REVIEW", "PARTIAL"] } },
       },
-      select: { id: true, requirementText: true },
+      select: { id: true, requirementText: true, sourceType: true },
     });
     if (candidates.length !== requested.size) {
       throw new NotFoundException("Regulatory candidate not found");
@@ -649,11 +727,17 @@ export class RegulatoryWatchService {
     const applicable = candidates.filter(
       (candidate) => requested.get(candidate.id) === "APPLICABLE",
     );
+    const applicablePlatform = applicable.filter(
+      (candidate) => candidate.sourceType === "PLATFORM_PROVISION",
+    );
+    const applicableDiscovered = applicable.filter(
+      (candidate) => candidate.sourceType === "DISCOVERED_LAW",
+    );
     const notApplicable = candidates.filter(
       (candidate) => requested.get(candidate.id) === "NOT_APPLICABLE",
     );
-    // Same rule as the single-candidate path: nothing becomes applicable without wording to audit.
-    const withoutRequirement = applicable.filter((candidate) => !candidate.requirementText);
+    // Same rule as the single-candidate path: an ingested provision needs wording to audit.
+    const withoutRequirement = applicablePlatform.filter((candidate) => !candidate.requirementText);
     if (withoutRequirement.length) {
       throw new BadRequestException({
         message: "requirementText is required for an applicable provision",
@@ -673,11 +757,21 @@ export class RegulatoryWatchService {
         data: { revision: { increment: 1 } },
       });
       if (claimed.count !== 1) throw new ConflictException("Regulatory watch changed");
-      if (applicable.length) {
+      if (applicablePlatform.length) {
         await tx.regulatoryApplicabilityCandidate.updateMany({
-          where: { id: { in: applicable.map((candidate) => candidate.id) } },
+          where: { id: { in: applicablePlatform.map((candidate) => candidate.id) } },
           // The extracted wording is approved as it stands, so provenance stays with the analysis.
-          data: { ...shared, decision: "APPLICABLE", requirementStatus: "READY" },
+          data: {
+            ...shared,
+            decision: "APPLICABLE",
+            requirementStatus: "READY",
+          },
+        });
+      }
+      if (applicableDiscovered.length) {
+        await tx.regulatoryApplicabilityCandidate.updateMany({
+          where: { id: { in: applicableDiscovered.map((candidate) => candidate.id) } },
+          data: { ...shared, decision: "APPLICABLE", requirementStatus: "NOT_REQUIRED" },
         });
       }
       if (notApplicable.length) {
@@ -788,9 +882,10 @@ export class RegulatoryWatchService {
     if (
       applicable.some(
         (candidate) =>
-          candidate.requirementStatus !== "READY" ||
-          !candidate.requirementText ||
-          !candidate.requirementSource,
+          candidate.sourceType === "PLATFORM_PROVISION" &&
+          (candidate.requirementStatus !== "READY" ||
+            !candidate.requirementText ||
+            !candidate.requirementSource),
       )
     ) {
       throw new BadRequestException("Every applicable provision must have an approved requirement");
@@ -798,6 +893,8 @@ export class RegulatoryWatchService {
     const invalidRetainedRemoval = applicable.find(
       (candidate) =>
         candidate.changeType === "REMOVAL_PROPOSED" &&
+        candidate.sourceType === "PLATFORM_PROVISION" &&
+        candidate.provision !== null &&
         (candidate.provision.version.document.currentVersionId !==
           candidate.provision.documentVersionId ||
           (candidate.provision.version.expirationDate !== null &&
@@ -831,7 +928,10 @@ export class RegulatoryWatchService {
         },
       });
       for (const [index, candidate] of applicable.entries()) {
-        if (!candidate.requirementText || !candidate.requirementSource) {
+        if (
+          candidate.sourceType === "PLATFORM_PROVISION" &&
+          (!candidate.requirementText || !candidate.requirementSource)
+        ) {
           throw new BadRequestException("Applicable requirement is missing");
         }
         const previousEvaluation = candidate.previousEntry?.evaluation ?? null;
@@ -840,6 +940,10 @@ export class RegulatoryWatchService {
           data: {
             baselineId: baseline.id,
             provisionId: candidate.provisionId,
+            sourceType: candidate.sourceType,
+            sourceReference: candidate.sourceReference,
+            sourceTitle: candidate.sourceTitle,
+            sourceUrl: candidate.sourceUrl,
             previousEntryId: candidate.previousEntryId,
             changeType: candidate.changeType,
             orderIndex: index,
@@ -849,14 +953,17 @@ export class RegulatoryWatchService {
             requirementSupportingExcerpts: candidate.requirementSupportingExcerpts,
             requirementReviewedById: candidate.reviewedById ?? tenant.userId,
             requirementReviewedAt,
-            citationLabel: stableCitationLabel({
-              documentTitle: candidate.provision.version.document.title,
-              referenceNumber: candidate.provision.version.document.referenceNumber,
-              revisionLabel: candidate.provision.version.versionLabel,
-              provisionIdentifier: candidate.provision.sourceIdentifier,
-              pageStart: candidate.provision.pageStart,
-              pageEnd: candidate.provision.pageEnd,
-            }),
+            citationLabel:
+              candidate.provision !== null
+                ? stableCitationLabel({
+                    documentTitle: candidate.provision.version.document.title,
+                    referenceNumber: candidate.provision.version.document.referenceNumber,
+                    revisionLabel: candidate.provision.version.versionLabel,
+                    provisionIdentifier: candidate.provision.sourceIdentifier,
+                    pageStart: candidate.provision.pageStart,
+                    pageEnd: candidate.provision.pageEnd,
+                  })
+                : [candidate.sourceReference, candidate.sourceTitle].filter(Boolean).join(" — "),
           },
         });
         const carryForward = evaluationCarryForward(candidate.changeType, previousEvaluation);
@@ -1183,23 +1290,19 @@ export class RegulatoryWatchService {
     const watch = await this.loadedWatch(tenant, projectIdOrSlug);
     if (!watch.currentBaseline) throw new BadRequestException("No published regulatory register");
     const blocked = watch.currentBaseline.entries.find(
-      (entry) => !entry.provision.version.exportAllowed,
+      (entry) => entry.provision && !entry.provision.version.exportAllowed,
     );
     if (blocked) throw new ForbiddenException("A normative source does not permit export");
-    const legacyEntry = watch.currentBaseline.entries.find((entry) => !entry.requirementText);
-    if (legacyEntry) {
-      throw new BadRequestException(
-        "Exigence à régénérer: relancez l’analyse et publiez la nouvelle veille avant l’export XLSX",
-      );
-    }
     const entries: RegulatoryExportEntry[] = watch.currentBaseline.entries.map((entry) => {
       if (!entry.evaluation) throw new Error("Published register entry is missing evaluation");
-      const document = entry.provision.version.document;
+      const document = entry.provision?.version.document;
       return {
-        documentLabel: [document.referenceNumber, document.title].filter(Boolean).join(" — "),
-        provisionIdentifier: entry.provision.sourceIdentifier ?? "Section",
-        sourceText: entry.provision.content,
-        requirement: entry.requirementText ?? "",
+        documentLabel: document
+          ? [document.referenceNumber, document.title].filter(Boolean).join(" — ")
+          : [entry.sourceReference, entry.sourceTitle].filter(Boolean).join(" — "),
+        provisionIdentifier: entry.provision?.sourceIdentifier ?? "Texte complet",
+        sourceText: entry.provision?.content ?? "Source officielle à rattacher",
+        requirement: entry.requirementText ?? entry.applicabilityRationale,
         result: entry.evaluation.result,
         aiRationale: entry.evaluation.aiRationale,
         aiRemediationPlan: entry.evaluation.aiRemediationPlan,

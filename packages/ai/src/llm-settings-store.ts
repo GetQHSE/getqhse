@@ -1,11 +1,12 @@
 import {
-  llmApiKeyEnvironmentKey,
+  llmApiKeyEnvironmentKeys,
   llmSettingsSchema,
   resolveLlmSettings,
   type LlmSettings,
   type LlmSettingsKey,
   type LlmSettingsOverrides,
 } from "@qhse/config";
+import type { AiProvider } from "@qhse/config";
 import type { DatabaseClient, LlmSetting } from "@qhse/database";
 
 import { decryptLlmSecret } from "./llm-secret.js";
@@ -19,7 +20,11 @@ export const LLM_SETTINGS_ROW_ID = "singleton";
 const DEFAULT_SYNC_INTERVAL_MS = 30_000;
 
 export type ResolvedLlmSettings = LlmSettings & {
+  apiKeys: Record<AiProvider, string | null>;
+  apiKeySources: Record<AiProvider, "database" | "environment" | "none">;
+  /** @deprecated OpenAI compatibility alias. */
   apiKey: string | null;
+  /** @deprecated OpenAI compatibility alias. */
   apiKeySource: "database" | "environment" | "none";
 };
 
@@ -29,12 +34,40 @@ function resolve(
   record: LlmSetting | null,
   environment: Record<string, string | undefined> = process.env,
 ): ResolvedLlmSettings {
-  const storedKey = record?.apiKeyCiphertext ? decryptLlmSecret(record.apiKeyCiphertext) : null;
-  const environmentKey = environment[llmApiKeyEnvironmentKey] || null;
+  const storedKeys: Record<AiProvider, string | null> = {
+    openai: record?.apiKeyCiphertext ? decryptLlmSecret(record.apiKeyCiphertext) : null,
+    anthropic: record?.anthropicApiKeyCiphertext
+      ? decryptLlmSecret(record.anthropicApiKeyCiphertext)
+      : null,
+    google: record?.googleApiKeyCiphertext ? decryptLlmSecret(record.googleApiKeyCiphertext) : null,
+  };
+  const environmentKeys: Record<AiProvider, string | null> = {
+    openai: environment[llmApiKeyEnvironmentKeys.openai] || null,
+    anthropic: environment[llmApiKeyEnvironmentKeys.anthropic] || null,
+    google: environment[llmApiKeyEnvironmentKeys.google] || null,
+  };
+  const apiKeys = Object.fromEntries(
+    Object.keys(storedKeys).map((provider) => [
+      provider,
+      storedKeys[provider as AiProvider] ?? environmentKeys[provider as AiProvider],
+    ]),
+  ) as Record<AiProvider, string | null>;
+  const apiKeySources = Object.fromEntries(
+    Object.keys(storedKeys).map((provider) => [
+      provider,
+      storedKeys[provider as AiProvider]
+        ? "database"
+        : environmentKeys[provider as AiProvider]
+          ? "environment"
+          : "none",
+    ]),
+  ) as Record<AiProvider, "database" | "environment" | "none">;
   return {
     ...resolveLlmSettings(llmSettingsOverridesFromRecord(record), environment),
-    apiKey: storedKey ?? environmentKey,
-    apiKeySource: storedKey ? "database" : environmentKey ? "environment" : "none",
+    apiKeys,
+    apiKeySources,
+    apiKey: apiKeys.openai,
+    apiKeySource: apiKeySources.openai,
   };
 }
 
@@ -50,7 +83,10 @@ export function llmSettingsOverridesFromRecord(
     const stored: unknown = (record as Record<string, unknown>)[key];
     if (stored === null || stored === undefined) continue;
     // Decimal columns arrive as Prisma Decimal instances rather than numbers.
-    const parsed = schema.safeParse(typeof stored === "object" ? Number(stored) : stored);
+    const direct = schema.safeParse(stored);
+    const parsed = direct.success
+      ? direct
+      : schema.safeParse(typeof stored === "object" ? Number(stored) : stored);
     if (parsed.success) overrides[key] = parsed.data;
   }
   return overrides;
@@ -67,6 +103,14 @@ let inFlight: Promise<ResolvedLlmSettings> | null = null;
 /** The synchronous accessor every call site uses. */
 export function llmSettings(): ResolvedLlmSettings {
   return snapshot ?? resolve(null);
+}
+
+export function llmApiKey(provider: AiProvider): string | null {
+  return llmSettings().apiKeys[provider];
+}
+
+export function isProviderConfigured(provider: AiProvider): boolean {
+  return Boolean(llmApiKey(provider));
 }
 
 export function configureLlmSettingsLoader(next: LlmSettingsLoader | null): void {

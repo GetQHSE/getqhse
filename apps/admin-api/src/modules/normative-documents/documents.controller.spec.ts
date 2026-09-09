@@ -57,7 +57,7 @@ describe("DocumentsController embedding profile routes", () => {
       reason: "EMBEDDING_PROFILE_NOT_ACTIVATED",
       message: "L’index normatif est prêt mais n’a pas encore été activé.",
       ragEnabled: true,
-      openAiConfigured: true,
+      providerConfigured: true,
       searchableChunks: 120,
       profiles: [{ id: "profile-1", status: "READY", missingChunks: 0, activatable: true }],
     };

@@ -304,6 +304,32 @@ describe("regulatory conformity evaluation pass", () => {
     );
   });
 
+  it("evaluates a discovered law without an attached provision or extracted requirement", async () => {
+    generated.mockResolvedValue(conformityOutput());
+    const baseline = baselineWith([{ id: "evaluation-1", aiStatus: "PENDING" }]);
+    baseline.entries[0] = {
+      ...baseline.entries[0]!,
+      provisionId: null,
+      requirementText: null,
+      applicabilityRationale:
+        "Applicable aux activités du projet et aux conditions de travail déclarées.",
+      sourceType: "DISCOVERED_LAW",
+      sourceReference: "Loi n° 65-99",
+      sourceTitle: "Code du travail",
+      sourceUrl: null,
+      provision: null,
+    } as never;
+    const { processor, job, statusFor } = harness(baseline);
+
+    await expect(processor.process(job as never)).resolves.toMatchObject({
+      evaluated: 1,
+      failed: 0,
+    });
+
+    expect(generated).toHaveBeenCalledTimes(1);
+    expect(statusFor("evaluation-1")).toContain("COMPLETED");
+  });
+
   it("leaves a requirement a human signed off on during the call alone", async () => {
     generated.mockResolvedValue(conformityOutput("NON_CONFORMING", "Compléter le registre"));
     const { processor, job, database, actionCreate } = harness(

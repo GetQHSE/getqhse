@@ -1,7 +1,8 @@
 import { Processor, WorkerHost } from "@nestjs/bullmq";
 import type { Job } from "bullmq";
-import { llmSettings, openAiProvider } from "@qhse/ai";
+import { embeddingModel, embeddingProviderOptions, llmSettings } from "@qhse/ai";
 import type { JobEnvelope } from "@qhse/contracts";
+import { embeddingProviderSchema } from "@qhse/config";
 import {
   createPrismaClient,
   embeddableRevisionFilter,
@@ -46,9 +47,9 @@ export class EmbeddingGenerationProcessor extends RepresentativeProcessor {
           orderBy: [{ status: "asc" }, { version: "desc" }],
         });
     if (!profile) throw new Error("No embedding profile is available");
-    if (profile.provider !== "openai" || profile.dimensions !== 768) {
-      throw new Error("The embedding profile must use OpenAI with 768 dimensions");
-    }
+    const provider = embeddingProviderSchema.parse(profile.provider);
+    if (profile.dimensions !== 768)
+      throw new Error("The embedding profile must use 768 dimensions");
 
     const chunks = await this.database.documentChunk.findMany({
       where: {
@@ -74,15 +75,11 @@ export class EmbeddingGenerationProcessor extends RepresentativeProcessor {
     for (let offset = 0; offset < pending.length; offset += batchSize) {
       const batch = pending.slice(offset, offset + batchSize);
       const result = await embedMany({
-        model: openAiProvider().embedding(profile.model),
+        model: embeddingModel({ provider, model: profile.model, purpose: "document" }),
         values: batch.map(({ searchText }) => searchText),
         maxParallelCalls: 2,
         maxRetries: 3,
-        providerOptions: {
-          openai: {
-            dimensions: 768,
-          },
-        },
+        providerOptions: embeddingProviderOptions(provider, "document"),
         telemetry: { isEnabled: false },
       });
       await this.database.$transaction(

@@ -1,37 +1,174 @@
+import { createAnthropic, type AnthropicProvider } from "@ai-sdk/anthropic";
+import { createGoogleGenerativeAI, type GoogleGenerativeAIProvider } from "@ai-sdk/google";
 import { createOpenAI, type OpenAIProvider } from "@ai-sdk/openai";
+import { findModelDefinition } from "@qhse/config";
+import type { AiProvider, EmbeddingProvider, LanguageProvider } from "@qhse/config";
+import type { EmbeddingModel, JSONValue, LanguageModel } from "ai";
 
-import { llmSettings } from "./llm-settings-store.js";
+type ProviderOptions = Record<string, Record<string, JSONValue | undefined>>;
 
-// The package-level `openai` provider reads OPENAI_API_KEY from the environment, which stops being
-// the whole answer once the key can also live in the settings row. Providers are cached per key so
-// swapping the key in the admin workspace builds one new client rather than one per model call.
-const providers = new Map<string, OpenAIProvider>();
+import { isProviderConfigured, llmApiKey, llmSettings } from "./llm-settings-store.js";
+
+type ProviderClients = {
+  openai: OpenAIProvider;
+  anthropic: AnthropicProvider;
+  google: GoogleGenerativeAIProvider;
+};
+
+const providers = new Map<string, ProviderClients[AiProvider]>();
 
 export class LlmNotConfiguredError extends Error {
-  constructor(message = "No OpenAI API key is configured") {
-    super(message);
+  constructor(readonly provider: AiProvider = "openai") {
+    super(`No ${provider} API key is configured`);
     this.name = "LlmNotConfiguredError";
   }
 }
 
-export function llmApiKey(): string | null {
-  return llmSettings().apiKey;
-}
+export { isProviderConfigured };
 
+/** @deprecated Prefer isProviderConfigured(provider). */
 export function isLlmConfigured(): boolean {
-  return Boolean(llmSettings().apiKey);
+  return isProviderConfigured("openai");
 }
 
-/** The provider bound to the currently resolved key. Throws rather than falling back to an
- * unkeyed client, so a missing key surfaces as a configuration error at the call site instead of
- * a 401 from the provider. */
+function providerClient<P extends AiProvider>(provider: P): ProviderClients[P] {
+  const apiKey = llmApiKey(provider);
+  if (!apiKey) throw new LlmNotConfiguredError(provider);
+  const cacheKey = `${provider}:${apiKey}`;
+  const cached = providers.get(cacheKey);
+  if (cached) return cached as ProviderClients[P];
+  const client = (
+    provider === "openai"
+      ? createOpenAI({ apiKey })
+      : provider === "anthropic"
+        ? createAnthropic({ apiKey })
+        : createGoogleGenerativeAI({ apiKey })
+  ) as ProviderClients[P];
+  for (const key of providers.keys()) {
+    if (key.startsWith(`${provider}:`)) providers.delete(key);
+  }
+  providers.set(cacheKey, client);
+  return client;
+}
+
+/** OpenAI-only capabilities such as transcription remain available through this compatibility API. */
 export function openAiProvider(): OpenAIProvider {
-  const apiKey = llmApiKey();
-  if (!apiKey) throw new LlmNotConfiguredError();
-  const cached = providers.get(apiKey);
-  if (cached) return cached;
-  const provider = createOpenAI({ apiKey });
-  providers.clear();
-  providers.set(apiKey, provider);
-  return provider;
+  return providerClient("openai");
+}
+
+export function languageModel(input: { provider: LanguageProvider; model: string }): LanguageModel {
+  const provider = providerClient(input.provider);
+  if (input.provider === "openai") return (provider as OpenAIProvider).responses(input.model);
+  return provider.languageModel(input.model);
+}
+
+export function embeddingModel(input: {
+  provider: EmbeddingProvider;
+  model: string;
+  purpose: "document" | "query";
+}): EmbeddingModel {
+  return providerClient(input.provider).embedding(input.model);
+}
+
+export function embeddingProviderOptions(
+  provider: EmbeddingProvider,
+  purpose: "document" | "query",
+): ProviderOptions {
+  return provider === "openai"
+    ? { openai: { dimensions: 768 } }
+    : {
+        google: {
+          outputDimensionality: 768,
+          taskType: purpose === "document" ? "RETRIEVAL_DOCUMENT" : "RETRIEVAL_QUERY",
+        },
+      };
+}
+
+export function languageProviderOptions(
+  provider: LanguageProvider,
+  input: { model?: string; reasoningEffort?: string; promptCacheKey?: string } = {},
+): ProviderOptions {
+  const settings = llmSettings();
+  const controls = input.model
+    ? new Set(findModelDefinition(provider, input.model, settings.customModels)?.advancedControls)
+    : null;
+  if (provider === "openai") {
+    return {
+      openai: {
+        store: false,
+        ...((controls?.has("reasoningEffort") ?? true)
+          ? { reasoningEffort: input.reasoningEffort ?? settings.regulatoryReasoningEffort }
+          : {}),
+        ...((controls?.has("serviceTier") ?? true)
+          ? { serviceTier: settings.regulatoryServiceTier }
+          : {}),
+        ...((controls?.has("verbosity") ?? true)
+          ? { textVerbosity: settings.regulatoryTextVerbosity }
+          : {}),
+        ...(input.promptCacheKey && (controls?.has("cacheRetention") ?? true)
+          ? {
+              promptCacheKey: input.promptCacheKey,
+              promptCacheRetention: settings.regulatoryPromptCacheRetention,
+            }
+          : {}),
+      },
+    };
+  }
+  if (provider === "anthropic") {
+    return {
+      anthropic: {
+        ...((controls?.has("anthropicEffort") ?? true) ? { effort: settings.anthropicEffort } : {}),
+        ...((controls?.has("anthropicSpeed") ?? true) ? { speed: settings.anthropicSpeed } : {}),
+        structuredOutputMode: "auto",
+      },
+    };
+  }
+  return {
+    google: {
+      ...(controls?.has("thinkingLevel")
+        ? {
+            thinkingConfig: {
+              thinkingLevel: settings.googleThinkingLevel,
+              includeThoughts: false,
+            },
+          }
+        : (controls?.has("thinkingBudget") ?? true) && settings.googleThinkingBudget !== null
+          ? {
+              thinkingConfig: {
+                thinkingBudget: settings.googleThinkingBudget,
+                includeThoughts: false,
+              },
+            }
+          : {}),
+    },
+  };
+}
+
+export function providerWebSearch(provider: LanguageProvider): { name: string; tool: unknown } {
+  const client = providerClient(provider);
+  if (provider === "openai") {
+    return {
+      name: "web_search",
+      tool: (client as OpenAIProvider).tools.webSearch({
+        externalWebAccess: true,
+        searchContextSize: "medium",
+        userLocation: { type: "approximate", country: "MA", timezone: "Africa/Casablanca" },
+      }),
+    };
+  }
+  if (provider === "anthropic") {
+    return {
+      name: "web_search",
+      tool: (client as AnthropicProvider).tools.webSearch_20250305({
+        maxUses: 5,
+        userLocation: { type: "approximate", country: "MA", timezone: "Africa/Casablanca" },
+      }),
+    };
+  }
+  return {
+    name: "google_search",
+    tool: (client as GoogleGenerativeAIProvider).tools.googleSearch({
+      searchTypes: { webSearch: {} },
+    }),
+  };
 }
