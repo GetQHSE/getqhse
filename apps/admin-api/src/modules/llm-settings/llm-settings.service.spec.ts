@@ -203,7 +203,7 @@ describe("LlmSettingsService", () => {
     await expect(
       service.update(superAdmin, {
         profileProvider: "google",
-        profileModel: "gemini-3.6-flash",
+        profileModel: "gemini-2.5-pro",
         googleThinkingLevel: "high",
       }),
     ).rejects.toBeInstanceOf(UnprocessableEntityException);
