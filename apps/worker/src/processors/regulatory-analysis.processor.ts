@@ -55,6 +55,60 @@ function discoveredLawIdentity(reference: string, title: string): string {
     .trim();
 }
 
+function safeProviderFailure(error: unknown): {
+  providerStatusCode: number | null;
+  providerErrorCode: string | null;
+  providerErrorType: string | null;
+} {
+  let current = error;
+  let providerStatusCode: number | null = null;
+  let providerErrorCode: string | null = null;
+  let providerErrorType: string | null = null;
+  for (let depth = 0; depth < 4 && current && typeof current === "object"; depth += 1) {
+    const candidate = current as {
+      cause?: unknown;
+      code?: unknown;
+      data?: unknown;
+      name?: unknown;
+      statusCode?: unknown;
+    };
+    if (providerStatusCode === null && typeof candidate.statusCode === "number") {
+      providerStatusCode = candidate.statusCode;
+    }
+    if (
+      providerErrorCode === null &&
+      typeof candidate.code === "string" &&
+      /^[a-z0-9_.-]{1,80}$/iu.test(candidate.code)
+    ) {
+      providerErrorCode = candidate.code;
+    }
+    const responseError =
+      candidate.data && typeof candidate.data === "object"
+        ? (candidate.data as { error?: unknown }).error
+        : null;
+    const responseCode =
+      responseError && typeof responseError === "object"
+        ? (responseError as { code?: unknown }).code
+        : null;
+    if (
+      providerErrorCode === null &&
+      typeof responseCode === "string" &&
+      /^[a-z0-9_.-]{1,80}$/iu.test(responseCode)
+    ) {
+      providerErrorCode = responseCode;
+    }
+    if (
+      providerErrorType === null &&
+      typeof candidate.name === "string" &&
+      /^[a-z0-9_.-]{1,80}$/iu.test(candidate.name)
+    ) {
+      providerErrorType = candidate.name;
+    }
+    current = candidate.cause;
+  }
+  return { providerStatusCode, providerErrorCode, providerErrorType };
+}
+
 export { regulatoryCostMicroUsd };
 
 type ChangeType = "ADDED" | "UNCHANGED" | "MODIFIED" | "REMOVAL_PROPOSED";
@@ -1315,6 +1369,18 @@ Cette étape découvre des textes à vérifier; elle ne crée aucune exigence et
         })),
       };
     } catch (error) {
+      this.logger.error(
+        {
+          event: "regulatory_discovery_model_call_failed",
+          runId: run.id,
+          provider,
+          model,
+          webSearchEnabled,
+          durationMs: Date.now() - started,
+          ...safeProviderFailure(error),
+        },
+        "applicable-law discovery model call failed",
+      );
       await this.settleModelCall(run.id, reservation, {
         status: "FAILED",
         latencyMs: Date.now() - started,
