@@ -43,6 +43,40 @@ import type {
 // responsibility.
 const WRITE_ROLES = new Set(["super_admin", "platform_admin"]);
 
+function providerStatusCode(error: unknown): number | null {
+  let current = error;
+  for (let depth = 0; depth < 4 && current && typeof current === "object"; depth += 1) {
+    const statusCode = (current as { statusCode?: unknown }).statusCode;
+    if (typeof statusCode === "number") return statusCode;
+    current = (current as { cause?: unknown }).cause;
+  }
+  return null;
+}
+
+/** Preserve enough of the failure class to make the health check actionable without returning
+ * the provider body, URL, headers, model prompt, or credential. */
+function safeProviderError(error: unknown): string {
+  const statusCode = providerStatusCode(error);
+  if (statusCode === 401 || statusCode === 403) {
+    return "Credential or provider access was rejected";
+  }
+  if (statusCode === 404) return "The selected model is unavailable to this provider account";
+  if (statusCode === 408 || statusCode === 429) {
+    return statusCode === 429
+      ? "Provider rate limit or quota was exceeded"
+      : "Provider request timed out";
+  }
+  if (statusCode !== null && statusCode >= 500) return "The provider is temporarily unavailable";
+  if (statusCode !== null && statusCode >= 400) return "The provider rejected the model request";
+
+  const message = error instanceof Error ? error.message : "";
+  if (/timeout|timed out|abort/iu.test(message)) return "Provider request timed out";
+  if (/key|credential|auth|401|403/iu.test(message)) {
+    return "Credential or provider access was rejected";
+  }
+  return "Provider request failed";
+}
+
 @Injectable()
 export class LlmSettingsService {
   constructor(
@@ -204,7 +238,9 @@ export class LlmSettingsService {
         await generateText({
           model: languageModel({ provider, model: input.model }),
           prompt: "Reply with OK.",
-          maxOutputTokens: 8,
+          // Reasoning tokens count against this ceiling. Eight tokens can be consumed before a
+          // reasoning model emits the requested visible text, producing a false-negative check.
+          maxOutputTokens: 128,
           maxRetries: 0,
           abortSignal: AbortSignal.timeout(15_000),
           telemetry: { isEnabled: false },
@@ -219,16 +255,13 @@ export class LlmSettingsService {
         error: null,
       };
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Provider request failed";
       return {
         ok: false,
         provider,
         capability: input.capability,
         model: input.model,
         latencyMs: Date.now() - startedAt,
-        error: /key|credential|auth|401|403/iu.test(message)
-          ? "Credential or provider access was rejected"
-          : "Provider request failed",
+        error: safeProviderError(error),
       };
     }
   }
