@@ -9,6 +9,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useAdminAuth } from "../../auth.js";
 import { adminApi } from "../../lib/admin-api.js";
 import { LlmSettingsTab } from "./llm-settings-tab.js";
+import { EmailSettingsTab } from "./email-settings-tab.js";
 
 type EmbeddingProfile = {
   id: string;
@@ -35,6 +36,8 @@ type IndexingReadiness = {
 export function SettingsPage() {
   const { user } = useAdminAuth();
   const canManage = user?.platformRole !== "support";
+  const canManageEmails =
+    user?.platformRole === "super_admin" || user?.platformRole === "platform_admin";
   const [readiness, setReadiness] = useState<IndexingReadiness | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -96,6 +99,7 @@ export function SettingsPage() {
         <TabsList variant="line">
           <TabsTrigger value="search-index">Search index</TabsTrigger>
           <TabsTrigger value="llm">LLM</TabsTrigger>
+          <TabsTrigger value="emails">Emails</TabsTrigger>
         </TabsList>
         <TabsContent value="search-index">
           <Card>
@@ -183,6 +187,9 @@ export function SettingsPage() {
         </TabsContent>
         <TabsContent value="llm">
           <LlmSettingsTab canManage={canManage} />
+        </TabsContent>
+        <TabsContent value="emails">
+          <EmailSettingsTab canManage={canManageEmails} />
         </TabsContent>
       </Tabs>
     </section>

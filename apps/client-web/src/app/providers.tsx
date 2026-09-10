@@ -2,9 +2,18 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { PropsWithChildren } from "react";
 import { I18nextProvider } from "react-i18next";
 
-import { AuthProvider } from "./auth.js";
+import { AuthProvider, useAuth } from "./auth.js";
 import { i18n } from "./i18n.js";
-import { PermissionProvider } from "./permissions.js";
+import { PermissionProvider, permissionsForRole } from "./permissions.js";
+
+function ActiveRolePermissions({ children }: PropsWithChildren) {
+  const { activeOrganization } = useAuth();
+  return (
+    <PermissionProvider permissions={permissionsForRole(activeOrganization?.role)}>
+      {children}
+    </PermissionProvider>
+  );
+}
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -18,11 +27,7 @@ export function AppProviders({ children }: PropsWithChildren) {
     <I18nextProvider i18n={i18n}>
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
-          <PermissionProvider
-            permissions={new Set(["site:read", "site:write", "audit:read", "audit:write"])}
-          >
-            {children}
-          </PermissionProvider>
+          <ActiveRolePermissions>{children}</ActiveRolePermissions>
         </AuthProvider>
       </QueryClientProvider>
     </I18nextProvider>

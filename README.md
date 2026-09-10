@@ -68,8 +68,6 @@ Integration and API tests use real PostgreSQL, Redis, and MinIO through Testcont
 | MinIO API           | 9000 | S3-compatible object storage        |
 | MinIO console       | 9001 | Local object-storage administration |
 | Docling             | 8000 | Document extraction HTTP boundary   |
-| Mailpit SMTP        | 1025 | Development email delivery          |
-| Mailpit UI          | 8025 | Development email inspection        |
 
 Test Compose publishes isolated services on 55432, 56379, 59000, and 59001.
 
@@ -90,7 +88,7 @@ See `docs/decisions` and `docs/security/tenant-isolation.md` for the complete ra
 ## Manual configuration
 
 - Generate strong Better Auth, PostgreSQL, and object-storage credentials.
-- Configure SMTP delivery and implement the email adapter before external use.
+- Configure the Brevo API key and transactional template IDs in Administration → Settings → Emails.
 - Choose a cloud provider and implement the Terraform module resources/backends.
 - Configure production CORS origins, HTTPS, secure cookies, DNS, observability, and secrets storage.
 - Add provider credentials only for opt-in evaluation or worker runs; standard tests never call paid
@@ -100,7 +98,7 @@ See `docs/decisions` and `docs/security/tenant-isolation.md` for the complete ra
 ## Intentionally deferred
 
 - Product-complete modules and UI flows beyond the representative sites slice.
-- Invitation UX and production email templates.
+- Brevo template authoring remains external to GetQHSE; only IDs and typed parameters are managed here.
 - Database-backed tenant tests for resources that do not yet have implementations.
 - Full object-storage upload/signing and file malware scanning.
 - Production report rendering and notification delivery.

@@ -2,6 +2,7 @@ import type { IncomingHttpHeaders } from "node:http";
 
 import type { DatabaseClient } from "@qhse/database";
 import { betterAuth } from "better-auth";
+import { APIError, createAuthMiddleware, getSessionFromCtx } from "better-auth/api";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import { fromNodeHeaders } from "better-auth/node";
 import { createAccessControl, organization } from "better-auth/plugins";
@@ -43,6 +44,49 @@ export type MembershipStatus = (typeof membershipStatuses)[number];
 export const organizationRoles = ["owner", "admin", "member"] as const;
 export type OrganizationRole = (typeof organizationRoles)[number];
 
+export type OrganizationMutation = "invite" | "change_role" | "suspend" | "remove";
+
+export function organizationMutationViolation(input: {
+  actorRole: OrganizationRole;
+  actorUserId: string;
+  mutation: OrganizationMutation;
+  requestedRole?: OrganizationRole;
+  targetRole?: OrganizationRole;
+  targetUserId?: string;
+  activeOwnerCount?: number;
+}): string | null {
+  if (input.actorRole === "member") return "Organization management is required";
+  if (
+    input.actorRole === "admin" &&
+    (input.requestedRole === "owner" || input.targetRole === "owner")
+  ) {
+    return "Administrators cannot manage owners";
+  }
+  if (
+    (input.mutation === "suspend" || input.mutation === "remove") &&
+    input.targetUserId === input.actorUserId
+  ) {
+    return `You cannot ${input.mutation} yourself`;
+  }
+  if (
+    input.targetRole === "owner" &&
+    input.requestedRole !== "owner" &&
+    (input.mutation === "change_role" ||
+      input.mutation === "suspend" ||
+      input.mutation === "remove") &&
+    (input.activeOwnerCount ?? 0) <= 1
+  ) {
+    const operation =
+      input.mutation === "change_role"
+        ? "demoted"
+        : input.mutation === "suspend"
+          ? "suspended"
+          : "removed";
+    return `The final active owner cannot be ${operation}`;
+  }
+  return null;
+}
+
 export const platformRoles = [
   "user",
   "super_admin",
@@ -64,6 +108,16 @@ export type QhseAuthOptions = {
   baseURL: string;
   trustedOrigins: string[];
   secureCookies?: boolean;
+  sendInvitationEmail?: (data: InvitationEmailInput) => Promise<void>;
+};
+
+export type InvitationEmailInput = {
+  id: string;
+  role: string;
+  email: string;
+  organization: { id: string; name: string };
+  invitation: { id: string; expiresAt: Date };
+  inviter: { user: { id: string; name: string; email: string } };
 };
 
 export function createQhseAuth({
@@ -71,6 +125,7 @@ export function createQhseAuth({
   baseURL,
   trustedOrigins,
   secureCookies = false,
+  sendInvitationEmail,
 }: QhseAuthOptions) {
   return betterAuth({
     appName: "QHSE Platform",
@@ -112,6 +167,98 @@ export function createQhseAuth({
       updateAge: 60 * 60 * 24,
       cookieCache: { enabled: true, maxAge: 60 * 5 },
     },
+    hooks: {
+      before: createAuthMiddleware(async (context) => {
+        if (!context.path.startsWith("/organization/")) return;
+        const session = await getSessionFromCtx(context);
+        if (!session) return;
+        const body = (context.body ?? {}) as Record<string, unknown>;
+        const query = (context.query ?? {}) as Record<string, unknown>;
+        const sessionRecord = session.session as unknown as Record<string, unknown>;
+        const sessionUser = session.user as unknown as { id: string };
+        const activeOrganizationId = sessionRecord["activeOrganizationId"];
+        const organizationId =
+          (typeof body["organizationId"] === "string" ? body["organizationId"] : undefined) ??
+          (typeof query["organizationId"] === "string" ? query["organizationId"] : undefined) ??
+          (typeof activeOrganizationId === "string" ? activeOrganizationId : undefined);
+        if (!organizationId) return;
+        const membership = await database.member.findUnique({
+          where: { organizationId_userId: { organizationId, userId: sessionUser.id } },
+          select: { id: true, role: true, status: true },
+        });
+        if (membership?.status === "suspended") {
+          throw APIError.from("FORBIDDEN", {
+            code: "ORGANIZATION_MEMBERSHIP_SUSPENDED",
+            message: "Organization membership is suspended",
+          });
+        }
+        if (!membership) return;
+
+        let mutation: OrganizationMutation | null = null;
+        let requestedRole: OrganizationRole | undefined;
+        let target: { role: string; userId: string; status: string } | null = null;
+        if (context.path === "/organization/invite-member") {
+          mutation = "invite";
+          const roles: unknown = body["role"];
+          const role: unknown = Array.isArray(roles) ? (roles as unknown[])[0] : roles;
+          if (typeof role === "string" && organizationRoles.includes(role as OrganizationRole)) {
+            requestedRole = role as OrganizationRole;
+          }
+        } else if (context.path === "/organization/update-member-role") {
+          mutation = "change_role";
+          const roles: unknown = body["role"];
+          const role: unknown = Array.isArray(roles) ? (roles as unknown[])[0] : roles;
+          if (typeof role === "string" && organizationRoles.includes(role as OrganizationRole)) {
+            requestedRole = role as OrganizationRole;
+          }
+          if (typeof body["memberId"] === "string") {
+            target = await database.member.findFirst({
+              where: { id: body["memberId"], organizationId },
+              select: { role: true, userId: true, status: true },
+            });
+          }
+        } else if (context.path === "/organization/remove-member") {
+          mutation = "remove";
+          const memberIdOrEmail = body["memberIdOrEmail"];
+          if (typeof memberIdOrEmail === "string") {
+            target = await database.member.findFirst({
+              where: {
+                organizationId,
+                ...(memberIdOrEmail.includes("@")
+                  ? { user: { email: memberIdOrEmail.toLowerCase() } }
+                  : { id: memberIdOrEmail }),
+              },
+              select: { role: true, userId: true, status: true },
+            });
+          }
+        }
+        if (mutation) {
+          const targetRole = target?.role as OrganizationRole | undefined;
+          const activeOwnerCount =
+            targetRole === "owner"
+              ? await database.member.count({
+                  where: { organizationId, role: "owner", status: "active" },
+                })
+              : undefined;
+          const violation = organizationMutationViolation({
+            actorRole: membership.role as OrganizationRole,
+            actorUserId: sessionUser.id,
+            mutation,
+            ...(requestedRole ? { requestedRole } : {}),
+            ...(target
+              ? { targetRole: target.role as OrganizationRole, targetUserId: target.userId }
+              : {}),
+            ...(activeOwnerCount !== undefined ? { activeOwnerCount } : {}),
+          });
+          if (violation) {
+            throw APIError.from("FORBIDDEN", {
+              code: "ORGANIZATION_MUTATION_FORBIDDEN",
+              message: violation,
+            });
+          }
+        }
+      }),
+    },
     databaseHooks: {
       session: {
         create: {
@@ -141,6 +288,82 @@ export function createQhseAuth({
         disableOrganizationDeletion: true,
         ac: organizationAccessControl,
         roles: organizationRoleDefinitions,
+        invitationExpiresIn: 60 * 60 * 48,
+        sendInvitationEmail,
+        organizationHooks: {
+          afterCreateInvitation: async ({ invitation, inviter, organization }) => {
+            await database.auditLogEntry.create({
+              data: {
+                organizationId: organization.id,
+                actorUserId: inviter.id,
+                action: "organization.invitation.created",
+                entityType: "Invitation",
+                entityId: invitation.id,
+                metadata: { email: invitation.email, role: invitation.role },
+              },
+            });
+          },
+          afterAcceptInvitation: async ({ invitation, member, user, organization }) => {
+            await database.$transaction([
+              database.emailDelivery.updateMany({
+                where: { invitationId: invitation.id, status: "PENDING" },
+                data: { status: "CANCELLED", lastError: "Invitation was accepted before delivery" },
+              }),
+              database.auditLogEntry.create({
+                data: {
+                  organizationId: organization.id,
+                  actorUserId: user.id,
+                  action: "organization.invitation.accepted",
+                  entityType: "Member",
+                  entityId: member.id,
+                  metadata: { invitationId: invitation.id, role: member.role },
+                },
+              }),
+            ]);
+          },
+          afterCancelInvitation: async ({ invitation, cancelledBy, organization }) => {
+            await database.$transaction([
+              database.emailDelivery.updateMany({
+                where: { invitationId: invitation.id, status: "PENDING" },
+                data: {
+                  status: "CANCELLED",
+                  lastError: "Invitation was cancelled before delivery",
+                },
+              }),
+              database.auditLogEntry.create({
+                data: {
+                  organizationId: organization.id,
+                  actorUserId: cancelledBy.id,
+                  action: "organization.invitation.cancelled",
+                  entityType: "Invitation",
+                  entityId: invitation.id,
+                },
+              }),
+            ]);
+          },
+          afterUpdateMemberRole: async ({ member, previousRole, user, organization }) => {
+            await database.auditLogEntry.create({
+              data: {
+                organizationId: organization.id,
+                action: "organization.member.role_changed",
+                entityType: "Member",
+                entityId: member.id,
+                metadata: { userId: user.id, previousRole, role: member.role },
+              },
+            });
+          },
+          afterRemoveMember: async ({ member, user, organization }) => {
+            await database.auditLogEntry.create({
+              data: {
+                organizationId: organization.id,
+                action: "organization.member.removed",
+                entityType: "Member",
+                entityId: member.id,
+                metadata: { userId: user.id, role: member.role },
+              },
+            });
+          },
+        },
         schema: {
           organization: {
             additionalFields: {
@@ -210,6 +433,8 @@ export type ActiveOrganization = {
   id: string;
   name: string;
   slug: string;
+  role: OrganizationRole;
+  status: MembershipStatus;
 };
 
 export class ServerAuthError extends Error {
@@ -299,12 +524,18 @@ export class ServerAuth {
       },
       orderBy: { createdAt: "asc" },
       select: {
+        role: true,
+        status: true,
         organization: {
           select: { id: true, name: true, slug: true },
         },
       },
     });
-    return memberships.map(({ organization }) => organization);
+    return memberships.map(({ organization, role, status }) => ({
+      ...organization,
+      role: role as OrganizationRole,
+      status: status as MembershipStatus,
+    }));
   }
 
   async requireProject(

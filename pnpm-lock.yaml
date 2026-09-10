@@ -122,6 +122,9 @@ importers:
       '@qhse/knowledge':
         specifier: workspace:*
         version: link:../../packages/knowledge
+      '@qhse/notifications':
+        specifier: workspace:*
+        version: link:../../packages/notifications
       '@qhse/observability':
         specifier: workspace:*
         version: link:../../packages/observability
@@ -298,6 +301,9 @@ importers:
       '@qhse/knowledge':
         specifier: workspace:*
         version: link:../../packages/knowledge
+      '@qhse/notifications':
+        specifier: workspace:*
+        version: link:../../packages/notifications
       '@qhse/observability':
         specifier: workspace:*
         version: link:../../packages/observability
@@ -501,6 +507,9 @@ importers:
       '@qhse/knowledge':
         specifier: workspace:*
         version: link:../../packages/knowledge
+      '@qhse/notifications':
+        specifier: workspace:*
+        version: link:../../packages/notifications
       '@qhse/observability':
         specifier: workspace:*
         version: link:../../packages/observability
@@ -728,6 +737,25 @@ importers:
   packages/eslint-config: {}
 
   packages/knowledge:
+    devDependencies:
+      '@types/node':
+        specifier: ^24.10.10
+        version: 24.13.3
+      typescript:
+        specifier: ^6.0.3
+        version: 6.0.3
+      vitest:
+        specifier: ^4.1.10
+        version: 4.1.10(@opentelemetry/api@1.9.1)(@types/node@24.13.3)(@vitest/coverage-v8@4.1.10)(jsdom@30.0.1(@noble/hashes@2.2.0))(msw@2.15.0(@types/node@24.13.3)(typescript@6.0.3))(vite@8.2.0(@types/node@24.13.3)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1)(yaml@2.9.0))
+
+  packages/notifications:
+    dependencies:
+      '@qhse/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@qhse/database':
+        specifier: workspace:*
+        version: link:../database
     devDependencies:
       '@types/node':
         specifier: ^24.10.10
@@ -983,6 +1011,9 @@ importers:
       '@qhse/database':
         specifier: workspace:*
         version: link:../../packages/database
+      '@qhse/notifications':
+        specifier: workspace:*
+        version: link:../../packages/notifications
       '@qhse/profile':
         specifier: workspace:*
         version: link:../../packages/profile

@@ -31,7 +31,8 @@ export function LoginPage() {
         setError(isSignUp ? "Inscription impossible" : "Identifiants invalides");
         return;
       }
-      await navigate(isSignUp ? "/onboarding/organization" : destinationFromState(location.state), {
+      const destination = destinationFromState(location.state);
+      await navigate(isSignUp && destination === "/" ? "/onboarding/organization" : destination, {
         replace: true,
       });
     } finally {
@@ -44,6 +45,7 @@ export function LoginPage() {
       error={error}
       isSubmitting={isSubmitting}
       mode={isSignUp ? "sign-up" : "login"}
+      alternateState={location.state as unknown}
       onSubmit={submit}
     />
   );

@@ -143,8 +143,3 @@ export class EvidenceAnalysisProcessor extends RepresentativeProcessor {
 export class ReportGenerationProcessor extends RepresentativeProcessor {
   protected async perform(): Promise<void> {}
 }
-
-@Processor(queueNames.notifications, { concurrency: 8 })
-export class NotificationProcessor extends RepresentativeProcessor {
-  protected async perform(): Promise<void> {}
-}

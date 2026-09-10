@@ -292,6 +292,24 @@ enum TranscriptionStatus {
   FAILED
 }
 
+enum EmailType {
+  ORGANIZATION_INVITATION
+  REGULATORY_CLARIFICATION_REQUIRED
+  REGULATORY_REVIEW_READY
+  REGULATORY_IMPACT
+  REGULATORY_ANALYSIS_FAILED
+  REGULATORY_ACTION_DUE_SOON
+  REGULATORY_ACTION_OVERDUE
+}
+
+enum EmailDeliveryStatus {
+  PENDING
+  PROCESSING
+  SENT
+  FAILED
+  CANCELLED
+}
+
 enum ReviewStatus {
   NOT_STARTED
   IN_REVIEW
@@ -360,6 +378,8 @@ model User {
   regulatoryRequirementsEdited        RegulatoryApplicabilityCandidate[] @relation("RegulatoryRequirementEditor")
   regulatoryBaselinesPublished        RegulatoryBaseline[]               @relation("RegulatoryBaselinePublisher")
   regulatoryRequirementsReviewed      RegulatoryRegisterEntry[]          @relation("RegulatoryRequirementReviewer")
+  emailSettingsUpdated                EmailSetting[]                     @relation("EmailSettingUpdater")
+  emailDeliveriesReceived             EmailDelivery[]                    @relation("EmailDeliveryRecipient")
   regulatoryEvaluationsCompleted      RegulatoryEvaluation[]             @relation("RegulatoryEvaluationReviewer")
   regulatoryEvidenceCreated           RegulatoryEvaluationEvidence[]     @relation("RegulatoryEvidenceCreator")
   regulatoryActionsAssigned           RegulatoryEvaluationAction[]       @relation("RegulatoryActionAssignee")
@@ -941,6 +961,7 @@ model Organization {
   retrievalLogs     RetrievalLog[]
   aiInvocations     AiInvocation[]
   regulatoryWatches ProjectRegulatoryWatch[]
+  emailDeliveries   EmailDelivery[]
 
   @@map("organizations")
 }
@@ -971,8 +992,9 @@ model Invitation {
   expiresAt      DateTime @map("expires_at")
   createdAt      DateTime @default(now()) @map("created_at")
 
-  inviter      User         @relation("InvitationInviter", fields: [inviterId], references: [id], onDelete: Cascade)
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  inviter         User            @relation("InvitationInviter", fields: [inviterId], references: [id], onDelete: Cascade)
+  organization    Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  emailDeliveries EmailDelivery[]
 
   @@index([email])
   @@index([organizationId])
@@ -1751,6 +1773,65 @@ model AuditLogEntry {
   @@index([organizationId, createdAt])
   @@index([organizationId, entityType, entityId])
   @@map("audit_log_entries")
+}
+
+/// Platform-wide Brevo configuration. Template HTML, subjects, and senders remain in Brevo.
+model EmailSetting {
+  id String @id @default("singleton")
+
+  brevoApiKeyCiphertext String? @map("brevo_api_key_ciphertext")
+  brevoApiKeyPreview    String? @map("brevo_api_key_preview")
+
+  organizationInvitationTemplateId          Int?  @map("organization_invitation_template_id")
+  regulatoryClarificationRequiredTemplateId Int?  @map("regulatory_clarification_required_template_id")
+  regulatoryReviewReadyTemplateId           Int?  @map("regulatory_review_ready_template_id")
+  regulatoryImpactTemplateId                Int?  @map("regulatory_impact_template_id")
+  regulatoryAnalysisFailedTemplateId        Int?  @map("regulatory_analysis_failed_template_id")
+  regulatoryActionDueSoonTemplateId         Int?  @map("regulatory_action_due_soon_template_id")
+  regulatoryActionOverdueTemplateId         Int?  @map("regulatory_action_overdue_template_id")
+  templateMetadata                          Json? @map("template_metadata")
+
+  updatedByUserId String?  @map("updated_by_user_id")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  updatedBy User? @relation("EmailSettingUpdater", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+
+  @@map("email_settings")
+}
+
+/// Persistent email outbox. The worker claims rows atomically before calling Brevo.
+model EmailDelivery {
+  id              String              @id @default(cuid())
+  organizationId  String              @map("organization_id")
+  invitationId    String?             @map("invitation_id")
+  recipientUserId String?             @map("recipient_user_id")
+  type            EmailType
+  eventKey        String              @map("event_key")
+  recipientEmail  String              @map("recipient_email")
+  recipientName   String?             @map("recipient_name")
+  entityType      String?             @map("entity_type")
+  entityId        String?             @map("entity_id")
+  templateId      Int                 @map("template_id")
+  parameters      Json
+  status          EmailDeliveryStatus @default(PENDING)
+  attempts        Int                 @default(0)
+  brevoMessageId  String?             @map("brevo_message_id")
+  nextAttemptAt   DateTime            @default(now()) @map("next_attempt_at")
+  lastError       String?             @map("last_error")
+  sentAt          DateTime?           @map("sent_at")
+  createdAt       DateTime            @default(now()) @map("created_at")
+  updatedAt       DateTime            @updatedAt @map("updated_at")
+
+  organization  Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  invitation    Invitation?  @relation(fields: [invitationId], references: [id], onDelete: SetNull)
+  recipientUser User?        @relation("EmailDeliveryRecipient", fields: [recipientUserId], references: [id], onDelete: SetNull)
+
+  @@unique([eventKey, type, recipientEmail])
+  @@index([status, nextAttemptAt])
+  @@index([organizationId, createdAt])
+  @@index([invitationId, createdAt])
+  @@map("email_deliveries")
 }
 
 /// Platform-wide LLM configuration, edited from the administration workspace. Exactly one row

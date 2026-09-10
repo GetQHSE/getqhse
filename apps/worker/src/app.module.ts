@@ -14,9 +14,12 @@ import {
 import {
   EmbeddingGenerationProcessor,
   EvidenceAnalysisProcessor,
-  NotificationProcessor,
   ReportGenerationProcessor,
 } from "./processors/representative.processors.js";
+import {
+  EmailDeliveryProcessor,
+  EmailOutboxReconciler,
+} from "./processors/email-delivery.processor.js";
 
 const redisUrl = new URL(process.env["REDIS_URL"] ?? "redis://localhost:6379");
 
@@ -43,7 +46,8 @@ const redisUrl = new URL(process.env["REDIS_URL"] ?? "redis://localhost:6379");
     EmbeddingGenerationProcessor,
     EvidenceAnalysisProcessor,
     ReportGenerationProcessor,
-    NotificationProcessor,
+    EmailDeliveryProcessor,
+    EmailOutboxReconciler,
     WorkerHealthServer,
   ],
 })

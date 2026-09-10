@@ -11,6 +11,9 @@ import {
   projectSchema,
   createFileUploadSchema,
   updateProjectProfileSchema,
+  invitationPreviewSchema,
+  organizationTeamSchema,
+  updateMembershipStatusSchema,
   type CreateFileUpload,
   type FileTranscription,
   type FileUploadResponse,
@@ -21,6 +24,9 @@ import {
   type ProjectProfileConversation,
   type ProjectProfileSnapshot,
   type UpdateProjectProfile,
+  type InvitationPreview,
+  type OrganizationTeam,
+  type UpdateMembershipStatus,
 } from "@qhse/contracts";
 import {
   apiRequest,
@@ -43,6 +49,21 @@ async function request<T>(
 }
 
 export const clientApi = {
+  invitationPreview: (id: string): Promise<InvitationPreview> =>
+    request(`/v1/organization-invitations/${encodeURIComponent(id)}/preview`, (value) =>
+      invitationPreviewSchema.parse(value),
+    ),
+  organizationTeam: (): Promise<OrganizationTeam> =>
+    request("/v1/organization-team", (value) => organizationTeamSchema.parse(value)),
+  updateMembershipStatus: (
+    memberId: string,
+    input: UpdateMembershipStatus,
+  ): Promise<OrganizationTeam> =>
+    request(
+      `/v1/organization-members/${encodeURIComponent(memberId)}/status`,
+      (value) => organizationTeamSchema.parse(value),
+      { method: "PATCH", body: JSON.stringify(updateMembershipStatusSchema.parse(input)) },
+    ),
   onboardingStatus: (): Promise<OnboardingStatus> =>
     request("/v1/onboarding/status", (value) => onboardingStatusSchema.parse(value)),
   projects: (): Promise<Project[]> =>

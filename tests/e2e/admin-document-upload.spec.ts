@@ -1,11 +1,11 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
 const adminBaseUrl = process.env["E2E_ADMIN_BASE_URL"] ?? "http://localhost:5174";
 const email = process.env["E2E_ADMIN_USER_EMAIL"] ?? process.env["BOOTSTRAP_SUPER_ADMIN_EMAIL"];
 const password =
   process.env["E2E_ADMIN_USER_PASSWORD"] ?? process.env["BOOTSTRAP_SUPER_ADMIN_PASSWORD"];
 
-async function completeUploadWizard(page: import("@playwright/test").Page, versionLabel = "1") {
+async function completeUploadWizard(page: Page, versionLabel = "1") {
   await page.getByRole("button", { name: "Continue" }).dispatchEvent("click");
   await expect(page.getByLabel("Title")).toBeVisible();
   await page.getByRole("button", { name: "Continue" }).dispatchEvent("click");

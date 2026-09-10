@@ -11,6 +11,10 @@ x-app-environment: &app-environment
   S3_SECRET_KEY: local-secret-key
   S3_FORCE_PATH_STYLE: "true"
   DOCLING_URL: http://docling:8000
+  APP_ORIGIN: http://localhost:5173
+  BETTER_AUTH_SECRET: local-only-secret-at-least-32-characters-long
+  BREVO_API_KEY: ${BREVO_API_KEY:-}
+  BREVO_API_BASE_URL: ${BREVO_API_BASE_URL:-https://api.brevo.com/v3}
   NORMATIVE_RAG_ENABLED: ${NORMATIVE_RAG_ENABLED:-false}
   OPENAI_API_KEY: ${OPENAI_API_KEY:-}
   ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
@@ -186,18 +190,6 @@ services:
       loki: { condition: service_healthy }
       tempo: { condition: service_healthy }
     networks: [observability]
-
-  mailpit:
-    image: axllent/mailpit:v1.30.6
-    ports:
-      - "1025:1025"
-      - "8025:8025"
-    networks: [app]
-    healthcheck:
-      test: ["CMD", "/mailpit", "readyz"]
-      interval: 10s
-      timeout: 3s
-      retries: 10
 
   docling:
     build:

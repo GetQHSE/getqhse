@@ -425,6 +425,7 @@ export const onboardingStatusSchema = z.object({
     "CREATE_ORGANIZATION",
     "SELECT_ORGANIZATION",
     "CREATE_PROJECT",
+    "WAIT_FOR_PROJECT",
     "OPEN_PROJECTS",
   ]),
 });
@@ -1075,6 +1076,137 @@ export const workQueueNames = {
   notifications: "notifications",
 } as const;
 export type WorkQueueName = (typeof workQueueNames)[keyof typeof workQueueNames];
+
+export const emailTypes = [
+  "ORGANIZATION_INVITATION",
+  "REGULATORY_CLARIFICATION_REQUIRED",
+  "REGULATORY_REVIEW_READY",
+  "REGULATORY_IMPACT",
+  "REGULATORY_ANALYSIS_FAILED",
+  "REGULATORY_ACTION_DUE_SOON",
+  "REGULATORY_ACTION_OVERDUE",
+] as const;
+export const emailTypeSchema = z.enum(emailTypes);
+export type EmailType = z.infer<typeof emailTypeSchema>;
+
+export const emailDeliveryStatusSchema = z.enum([
+  "PENDING",
+  "PROCESSING",
+  "SENT",
+  "FAILED",
+  "CANCELLED",
+]);
+export type EmailDeliveryStatus = z.infer<typeof emailDeliveryStatusSchema>;
+
+export const emailTemplateSettingSchema = z.object({
+  templateId: z.number().int().positive().nullable(),
+  requiredParameters: z.array(z.string()),
+  example: z.record(z.string(), z.union([z.string(), z.number()])),
+  metadata: z
+    .object({
+      name: z.string(),
+      subject: z.string(),
+      active: z.boolean(),
+      validatedAt: isoDateTimeSchema,
+    })
+    .nullable(),
+});
+export type EmailTemplateSetting = z.infer<typeof emailTemplateSettingSchema>;
+
+export const emailSettingsViewSchema = z.object({
+  provider: z.literal("brevo"),
+  credential: z.object({
+    configured: z.boolean(),
+    source: z.enum(["database", "environment", "none"]),
+    preview: z.string().nullable(),
+  }),
+  templates: z.record(emailTypeSchema, emailTemplateSettingSchema),
+  updatedAt: isoDateTimeSchema.nullable(),
+  updatedBy: z.object({ id: idSchema, name: z.string() }).nullable(),
+});
+export type EmailSettingsView = z.infer<typeof emailSettingsViewSchema>;
+
+export const updateEmailSettingsSchema = z
+  .object({
+    apiKey: z.string().trim().max(400).nullable().optional(),
+    templates: z.partialRecord(emailTypeSchema, z.number().int().positive().nullable()).optional(),
+  })
+  .refine((value) => value.apiKey !== undefined || value.templates !== undefined, {
+    message: "At least one email setting is required",
+  });
+export type UpdateEmailSettings = z.infer<typeof updateEmailSettingsSchema>;
+
+export const organizationRoleSchema = z.enum(["owner", "admin", "member"]);
+export type OrganizationRoleContract = z.infer<typeof organizationRoleSchema>;
+export const membershipStatusSchema = z.enum(["active", "suspended"]);
+export type MembershipStatusContract = z.infer<typeof membershipStatusSchema>;
+export const organizationMembershipMutationSchema = z.enum([
+  "invite",
+  "change_role",
+  "suspend",
+  "reactivate",
+  "remove",
+  "cancel_invitation",
+  "resend_invitation",
+]);
+export type OrganizationMembershipMutation = z.infer<typeof organizationMembershipMutationSchema>;
+export const activeMembershipSchema = z.object({
+  organizationId: idSchema,
+  role: organizationRoleSchema,
+  status: membershipStatusSchema,
+});
+export type ActiveMembership = z.infer<typeof activeMembershipSchema>;
+export const allowedOrganizationMutationsSchema = z.object({
+  mutations: z.array(organizationMembershipMutationSchema),
+  inviteRoles: z.array(organizationRoleSchema),
+  manageableRoles: z.array(organizationRoleSchema),
+});
+export type AllowedOrganizationMutations = z.infer<typeof allowedOrganizationMutationsSchema>;
+
+export const organizationMemberSummarySchema = z.object({
+  id: idSchema,
+  userId: idSchema,
+  name: z.string(),
+  email: z.email(),
+  role: organizationRoleSchema,
+  status: membershipStatusSchema,
+  createdAt: isoDateTimeSchema,
+});
+export type OrganizationMemberSummary = z.infer<typeof organizationMemberSummarySchema>;
+
+export const organizationInvitationSummarySchema = z.object({
+  id: idSchema,
+  email: z.email(),
+  role: organizationRoleSchema,
+  status: z.string(),
+  expiresAt: isoDateTimeSchema,
+  createdAt: isoDateTimeSchema,
+  deliveryStatus: emailDeliveryStatusSchema.nullable(),
+  deliveryError: z.string().nullable(),
+  lastSentAt: isoDateTimeSchema.nullable(),
+});
+export type OrganizationInvitationSummary = z.infer<typeof organizationInvitationSummarySchema>;
+
+export const organizationTeamSchema = z.object({
+  currentMember: organizationMemberSummarySchema,
+  members: z.array(organizationMemberSummarySchema),
+  invitations: z.array(organizationInvitationSummarySchema),
+});
+export type OrganizationTeam = z.infer<typeof organizationTeamSchema>;
+
+export const invitationPreviewSchema = z.object({
+  id: idSchema,
+  organizationName: z.string(),
+  inviterName: z.string(),
+  recipientEmailMasked: z.string(),
+  role: organizationRoleSchema,
+  status: z.enum(["pending", "accepted", "rejected", "canceled", "expired"]),
+  expiresAt: isoDateTimeSchema,
+});
+export type InvitationPreview = z.infer<typeof invitationPreviewSchema>;
+
+export const updateMembershipStatusSchema = z.object({ status: membershipStatusSchema });
+export type UpdateMembershipStatus = z.infer<typeof updateMembershipStatusSchema>;
 
 export const complianceResultSchema = z.object({
   score: z.number().min(0).max(100),

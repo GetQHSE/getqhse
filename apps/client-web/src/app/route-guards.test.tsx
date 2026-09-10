@@ -64,4 +64,51 @@ describe("authenticated route loading", () => {
     expect(screen.getByText("Conversation conservée")).toBeInTheDocument();
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
   });
+
+  it("shows members a waiting state instead of project onboarding", () => {
+    vi.mocked(useAuth).mockReturnValue({
+      user: { id: "member-1", email: "member@example.com" },
+      organizations: [
+        { id: "org-1", name: "Atlas", slug: "atlas", role: "member", status: "active" },
+      ],
+      activeOrganization: {
+        id: "org-1",
+        name: "Atlas",
+        slug: "atlas",
+        role: "member",
+        status: "active",
+      },
+      onboarding: {
+        authenticated: true,
+        organizationsCount: 1,
+        activeOrganization: {
+          id: "org-1",
+          name: "Atlas",
+          slug: "atlas",
+          icon: null,
+          countryCode: "MA",
+        },
+        activeOrganizationProjectCount: 0,
+        nextStep: "WAIT_FOR_PROJECT",
+      },
+      projects: [],
+      isPending: false,
+      selectOrganization: vi.fn(),
+      logout: vi.fn(),
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/"]}>
+        <OrganizationRoute>
+          <div>Unauthorized project form</div>
+        </OrganizationRoute>
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByText("Votre espace est en cours de préparation")).toBeInTheDocument();
+    expect(screen.queryByText("Unauthorized project form")).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Voir les membres de l’organisation" }),
+    ).toHaveAttribute("href", "/team");
+  });
 });
