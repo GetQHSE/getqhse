@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { AuthenticationPort } from "../../auth/application/auth.port.js";
 import { OnboardingService } from "./onboarding.service.js";
 
-function harness(projectCount: number) {
+function harness(projectCount: number, role = "owner") {
   const authentication = {
     getCurrentUser: vi.fn().mockResolvedValue({ id: "user_1", activeOrganizationId: "org_1" }),
     listActiveOrganizations: vi
@@ -13,6 +13,7 @@ function harness(projectCount: number) {
   const database = {
     member: {
       findFirst: vi.fn().mockResolvedValue({
+        role,
         organization: {
           id: "org_1",
           name: "Acme",
@@ -58,6 +59,16 @@ describe("OnboardingService", () => {
     await expect(service.getStatus({})).resolves.toMatchObject({
       activeOrganizationProjectCount: 2,
       nextStep: "OPEN_PROJECTS",
+    });
+  });
+
+  it("asks a member to wait when the active organization has no projects", async () => {
+    const { service } = harness(0, "member");
+
+    await expect(service.getStatus({})).resolves.toMatchObject({
+      authenticated: true,
+      activeOrganizationProjectCount: 0,
+      nextStep: "WAIT_FOR_PROJECT",
     });
   });
 });
