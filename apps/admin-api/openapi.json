@@ -501,6 +501,231 @@
         "tags": ["normative-search-testing"]
       }
     },
+    "/v1/organizations": {
+      "get": {
+        "operationId": "OrganizationsController_list",
+        "parameters": [
+          {
+            "name": "pageSize",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "countryCode",
+            "required": false,
+            "in": "query",
+            "schema": {}
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "enum": ["active", "suspended"],
+              "type": "string"
+            }
+          },
+          {
+            "name": "search",
+            "required": false,
+            "in": "query",
+            "schema": {}
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["organizations"]
+      }
+    },
+    "/v1/organizations/{organizationId}": {
+      "get": {
+        "operationId": "OrganizationsController_detail",
+        "parameters": [
+          {
+            "name": "organizationId",
+            "required": true,
+            "in": "path",
+            "schema": {}
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["organizations"]
+      }
+    },
+    "/v1/organizations/{organizationId}/members": {
+      "get": {
+        "operationId": "OrganizationsController_members",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["organizations"]
+      }
+    },
+    "/v1/organizations/{organizationId}/projects": {
+      "get": {
+        "operationId": "OrganizationsController_projects",
+        "parameters": [
+          {
+            "name": "pageSize",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "enum": [
+                "EMPTY",
+                "PROFILE_IN_PROGRESS",
+                "PROFILE_REVIEW",
+                "READY_FOR_ANALYSIS",
+                "ANALYSIS_IN_PROGRESS",
+                "REVIEW_REQUIRED",
+                "COMPLETED",
+                "ARCHIVED"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "search",
+            "required": false,
+            "in": "query",
+            "schema": {}
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["organizations"]
+      }
+    },
+    "/v1/organizations/{organizationId}/ai-usage": {
+      "get": {
+        "operationId": "OrganizationsController_aiUsage",
+        "parameters": [
+          {
+            "name": "period",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "enum": ["7d", "30d", "90d", "all"],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["organizations"]
+      }
+    },
+    "/v1/organizations/{organizationId}/projects/{projectId}": {
+      "get": {
+        "operationId": "OrganizationsController_projectDetail",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["organizations"]
+      }
+    },
+    "/v1/organizations/{organizationId}/projects/{projectId}/ai-usage": {
+      "get": {
+        "operationId": "OrganizationsController_projectAiUsage",
+        "parameters": [
+          {
+            "name": "period",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "enum": ["7d", "30d", "90d", "all"],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["organizations"]
+      }
+    },
     "/v1/platform-users": {
       "get": {
         "operationId": "PlatformUsersController_list",
@@ -709,6 +934,30 @@
                     "nullable": true,
                     "maxLength": 400
                   },
+                  "apiKeys": {
+                    "type": "object",
+                    "properties": {
+                      "openai": {
+                        "type": "string",
+                        "nullable": true,
+                        "maxLength": 400
+                      },
+                      "anthropic": {
+                        "type": "string",
+                        "nullable": true,
+                        "maxLength": 400
+                      },
+                      "google": {
+                        "type": "string",
+                        "nullable": true,
+                        "maxLength": 400
+                      }
+                    }
+                  },
+                  "profileProvider": {
+                    "type": "string",
+                    "nullable": true
+                  },
                   "ragEnabled": {
                     "type": "boolean",
                     "nullable": true
@@ -723,15 +972,27 @@
                     "nullable": true,
                     "maxLength": 120
                   },
+                  "embeddingProvider": {
+                    "type": "string",
+                    "nullable": true
+                  },
+                  "embeddingModel": {
+                    "type": "string",
+                    "nullable": true,
+                    "maxLength": 120
+                  },
+                  "regulatoryProvider": {
+                    "type": "string",
+                    "nullable": true
+                  },
                   "regulatoryModel": {
                     "type": "string",
                     "nullable": true,
                     "maxLength": 120
                   },
-                  "regulatoryTriageModel": {
+                  "regulatoryVerificationProvider": {
                     "type": "string",
-                    "nullable": true,
-                    "maxLength": 120
+                    "nullable": true
                   },
                   "regulatoryVerificationModel": {
                     "type": "string",
@@ -770,10 +1031,6 @@
                     "type": "integer",
                     "nullable": true
                   },
-                  "regulatoryTriageMaxOutputTokens": {
-                    "type": "integer",
-                    "nullable": true
-                  },
                   "regulatoryRunBudgetUsd": {
                     "type": "number",
                     "nullable": true
@@ -800,10 +1057,6 @@
                   },
                   "conservativeBytesPerToken": {
                     "type": "number",
-                    "nullable": true
-                  },
-                  "triageIncludeUnsure": {
-                    "type": "boolean",
                     "nullable": true
                   }
                 }
@@ -837,6 +1090,89 @@
           }
         ],
         "tags": ["llm-settings"]
+      }
+    },
+    "/v1/llm-settings/providers/{provider}/test": {
+      "post": {
+        "operationId": "LlmSettingsController_testProvider",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["llm-settings"]
+      }
+    },
+    "/v1/email-settings": {
+      "get": {
+        "operationId": "EmailSettingsController_read",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["email-settings"]
+      },
+      "put": {
+        "operationId": "EmailSettingsController_update",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["email-settings"]
+      }
+    },
+    "/v1/email-settings/templates/{emailType}/validate": {
+      "post": {
+        "operationId": "EmailSettingsController_validate",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["email-settings"]
+      }
+    },
+    "/v1/email-settings/templates/{emailType}/test": {
+      "post": {
+        "operationId": "EmailSettingsController_test",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["email-settings"]
       }
     },
     "/health/live": {

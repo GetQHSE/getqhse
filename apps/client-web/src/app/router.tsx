@@ -16,6 +16,7 @@ import { TestAiChatPage2 } from "../features/ai-chat/test-ai-chat-page-2.js";
 import { TestAiChatPage3 } from "../features/ai-chat/test-ai-chat-page-3.js";
 import { RegulatoryWatchTestPage } from "../features/regulatory-watch/regulatory-watch-test-page.js";
 import { RegulatoryWatchPage } from "../features/regulatory-watch/regulatory-watch-page.js";
+import { TeamPage } from "../features/organizations/team-page.js";
 
 function Placeholder({ title }: { title: string }) {
   return <h1 className="text-2xl font-semibold">{title}</h1>;
@@ -35,11 +36,7 @@ export const router = createBrowserRouter([
   },
   {
     path: "/accept-invitation/:invitationId",
-    element: (
-      <AuthenticatedRoute>
-        <AcceptInvitationPage />
-      </AuthenticatedRoute>
-    ),
+    element: <AcceptInvitationPage />,
   },
   {
     path: "/onboarding/project",
@@ -86,7 +83,7 @@ export const router = createBrowserRouter([
         path: "projects/:projectId/settings",
         element: <Placeholder title="Paramètres du projet" />,
       },
-      { path: "team", element: <Placeholder title="Équipe" /> },
+      { path: "team", element: <TeamPage /> },
       {
         path: "sites",
         element: (

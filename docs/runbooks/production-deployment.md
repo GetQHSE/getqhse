@@ -100,7 +100,7 @@ The Dokploy webhook must target this Compose application and its `main` branch. 
 - Permit inbound VPS traffic only for SSH, HTTP, and HTTPS; restrict SSH by key and source where possible.
 - Use exact CORS origins, HTTPS auth URLs, secure cookies, and unique production credentials.
 - Keep PostgreSQL, Redis, Docling, the worker, and object storage administration private.
-- Send application email through a production SMTP provider; do not deploy Mailpit.
+- Configure the Brevo API key and validate each active transactional template in Administration → Settings → Emails.
 - Store secrets in Dokploy/GitHub, never in repository files or Docker build arguments except public
   `VITE_*` values, which are intentionally embedded in browser bundles.
 

@@ -18,10 +18,13 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
+    "@ai-sdk/anthropic": "^4.0.49",
+    "@ai-sdk/google": "^4.0.64",
     "@ai-sdk/openai": "^4.0.36",
     "@qhse/config": "workspace:*",
     "@qhse/database": "workspace:*",
-    "@qhse/profile": "workspace:*"
+    "@qhse/profile": "workspace:*",
+    "ai": "^7.0.58"
   },
   "devDependencies": {
     "@types/node": "^24.10.10",

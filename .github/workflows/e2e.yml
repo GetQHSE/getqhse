@@ -33,7 +33,7 @@ jobs:
         run: |
           cp .env.example .env
           mkdir -p artifacts
-          docker compose up -d postgres redis minio minio-init mailpit
+          docker compose up -d postgres redis minio minio-init
           pnpm exec dotenv -e .env -- pnpm db:deploy
           pnpm exec dotenv -e .env -- pnpm db:seed
           nohup pnpm dev:apps > artifacts/apps.log 2>&1 &

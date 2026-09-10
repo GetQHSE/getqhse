@@ -8,6 +8,41 @@ import {
 } from "./llm-settings.js";
 
 describe("llmSettingsFromEnvironment", () => {
+  it("resolves generic provider/model settings ahead of legacy OpenAI model settings", () => {
+    const settings = llmSettingsFromEnvironment({
+      LLM_PROFILE_PROVIDER: "anthropic",
+      LLM_PROFILE_MODEL: "claude-sonnet-4-6",
+      OPENAI_PROFILE_MODEL: "gpt-5-mini",
+      LLM_EMBEDDING_PROVIDER: "google",
+      LLM_EMBEDDING_MODEL: "gemini-embedding-001",
+    });
+
+    expect(settings.profileProvider).toBe("anthropic");
+    expect(settings.profileModel).toBe("claude-sonnet-4-6");
+    expect(settings.embeddingProvider).toBe("google");
+    expect(settings.embeddingModel).toBe("gemini-embedding-001");
+  });
+
+  it("parses custom model catalog entries from JSON", () => {
+    const custom = {
+      provider: "google",
+      model: "gemini-custom",
+      label: "Custom Gemini",
+      advancedControls: [],
+      capabilities: {
+        language: true,
+        embedding: false,
+        structuredOutput: true,
+        tools: true,
+        webSearch: true,
+        fileInput: true,
+      },
+      rates: { inputUsdPerMTok: 1, cachedInputUsdPerMTok: 0, outputUsdPerMTok: 2 },
+    };
+    expect(
+      llmSettingsFromEnvironment({ LLM_CUSTOM_MODELS_JSON: JSON.stringify([custom]) }).customModels,
+    ).toEqual([custom]);
+  });
   it("falls back to the built-in defaults when nothing is set", () => {
     expect(llmSettingsFromEnvironment({})).toEqual(llmSettingsDefaults);
   });

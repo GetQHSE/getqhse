@@ -42,7 +42,7 @@ test.describe("authenticated customer journeys", () => {
     await expect(page.getByRole("heading", { name: "Éléments de preuve" })).toBeVisible();
   });
 
-  test.fixme("user records a finding");
-  test.fixme("user creates a corrective action");
-  test.fixme("user cannot access another organization's audit");
+  test.fixme("user records a finding", () => {});
+  test.fixme("user creates a corrective action", () => {});
+  test.fixme("user cannot access another organization's audit", () => {});
 });

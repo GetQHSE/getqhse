@@ -13,7 +13,8 @@ export type WorkerReadiness = {
   checks: { database: HealthCheck; redis: HealthCheck };
   regulatory: {
     enabled: boolean;
-    openAiConfigured: boolean;
+    providerConfigured: boolean;
+    provider: string;
     model: string;
   };
 };
@@ -50,7 +51,8 @@ export class WorkerHealthServer implements OnModuleDestroy {
       checks: { database, redis },
       regulatory: {
         enabled: llmSettings().ragEnabled,
-        openAiConfigured: Boolean(llmSettings().apiKey),
+        providerConfigured: Boolean(llmSettings().apiKeys[llmSettings().regulatoryProvider]),
+        provider: llmSettings().regulatoryProvider,
         model: llmSettings().regulatoryModel,
       },
     };

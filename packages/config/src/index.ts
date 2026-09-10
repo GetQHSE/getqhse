@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 export * from "./llm-settings.js";
+export * from "./llm-model-catalog.js";
 
 const booleanString = z
   .enum(["true", "false"])

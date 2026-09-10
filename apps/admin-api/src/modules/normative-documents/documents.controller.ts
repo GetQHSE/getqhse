@@ -12,6 +12,7 @@ import {
   UnprocessableEntityException,
 } from "@nestjs/common";
 import { ApiCookieAuth, ApiTags } from "@nestjs/swagger";
+import { embeddingProviderSchema } from "@qhse/config";
 import {
   classificationUpdateSchema,
   createDocumentSchema,
@@ -227,8 +228,22 @@ export class DocumentsController {
   }
 
   @Post("embedding-profiles")
-  createProfile(@Req() request: AdminRequest) {
-    return this.documents.createEmbeddingProfile(request.platformUser!);
+  createProfile(
+    @Req() request: AdminRequest,
+    @Body() body: { provider?: unknown; model?: unknown } | undefined,
+  ) {
+    if (!body?.provider && !body?.model) {
+      return this.documents.createEmbeddingProfile(request.platformUser!);
+    }
+    const provider = embeddingProviderSchema.safeParse(body?.provider);
+    const model = typeof body?.model === "string" ? body.model.trim() : "";
+    if (!provider.success || !model || model.length > 120) {
+      throw new UnprocessableEntityException("A supported provider and model are required");
+    }
+    return this.documents.createEmbeddingProfile(request.platformUser!, {
+      provider: provider.data,
+      model,
+    });
   }
 
   @Post("embedding-profiles/:profileId/activate")

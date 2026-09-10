@@ -26,6 +26,7 @@
     "@qhse/domain": "workspace:*",
     "@qhse/documents": "workspace:*",
     "@qhse/knowledge": "workspace:*",
+    "@qhse/notifications": "workspace:*",
     "@qhse/observability": "workspace:*",
     "ai": "^7.0.58",
     "bullmq": "^5.81.3",

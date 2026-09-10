@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { ServerAuth, type ServerAuthError } from "./index.js";
+import { organizationMutationViolation, ServerAuth, type ServerAuthError } from "./index.js";
 
 function createHarness(options?: {
   session?: object | null;
@@ -43,6 +43,8 @@ function createHarness(options?: {
         ),
       findMany: vi.fn().mockResolvedValue([
         {
+          role: "member",
+          status: "active",
           organization: {
             id: "org-1",
             name: "Active Organization",
@@ -104,6 +106,8 @@ describe("ServerAuth", () => {
         id: "org-1",
         name: "Active Organization",
         slug: "active-organization",
+        role: "member",
+        status: "active",
       },
     ]);
     expect(database.member.findMany).toHaveBeenCalledWith(
@@ -141,5 +145,63 @@ describe("ServerAuth", () => {
     await expect(serverAuth.requirePlatformAdmin({})).rejects.toMatchObject({
       statusCode: 403,
     });
+  });
+});
+
+describe("protected organization owner policy", () => {
+  it("allows owners to invite any standard role", () => {
+    expect(
+      organizationMutationViolation({
+        actorRole: "owner",
+        actorUserId: "owner-1",
+        mutation: "invite",
+        requestedRole: "owner",
+      }),
+    ).toBeNull();
+  });
+
+  it("prevents administrators from inviting or managing owners", () => {
+    expect(
+      organizationMutationViolation({
+        actorRole: "admin",
+        actorUserId: "admin-1",
+        mutation: "invite",
+        requestedRole: "owner",
+      }),
+    ).toBe("Administrators cannot manage owners");
+    expect(
+      organizationMutationViolation({
+        actorRole: "admin",
+        actorUserId: "admin-1",
+        mutation: "remove",
+        targetRole: "owner",
+        targetUserId: "owner-1",
+        activeOwnerCount: 2,
+      }),
+    ).toBe("Administrators cannot manage owners");
+  });
+
+  it("protects the final active owner and self-removal", () => {
+    expect(
+      organizationMutationViolation({
+        actorRole: "owner",
+        actorUserId: "owner-1",
+        mutation: "change_role",
+        requestedRole: "admin",
+        targetRole: "owner",
+        targetUserId: "owner-2",
+        activeOwnerCount: 1,
+      }),
+    ).toBe("The final active owner cannot be demoted");
+    expect(
+      organizationMutationViolation({
+        actorRole: "owner",
+        actorUserId: "owner-1",
+        mutation: "remove",
+        targetRole: "owner",
+        targetUserId: "owner-1",
+        activeOwnerCount: 2,
+      }),
+    ).toBe("You cannot remove yourself");
   });
 });

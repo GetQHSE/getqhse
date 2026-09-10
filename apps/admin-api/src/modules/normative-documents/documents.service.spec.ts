@@ -173,7 +173,7 @@ describe("DocumentsService upload retries", () => {
     });
   });
 
-  it("atomically switches publication and closes the prior effective interval", async () => {
+  it("publishes without an embedding index and atomically switches the current source", async () => {
     const now = new Date("2026-08-08T00:00:00.000Z");
     const updateVersion = vi.fn().mockResolvedValue({ id: "version-2", status: "PUBLISHED" });
     const transactionClient = {
@@ -197,6 +197,12 @@ describe("DocumentsService upload retries", () => {
           documentId: "document-1",
           status: "VALIDATED",
           effectiveDate: now,
+          storageAllowed: true,
+          extractionAllowed: true,
+          embeddingAllowed: true,
+          aiProcessingAllowed: true,
+          externalProviderAllowed: true,
+          excerptDisplayAllowed: true,
         }),
       },
       documentActivity: { create: vi.fn().mockResolvedValue({}) },
@@ -410,13 +416,13 @@ describe("DocumentsService embedding profile readiness", () => {
     });
   });
 
-  it("reports a missing OpenAI key", async () => {
+  it("reports a missing selected provider key", async () => {
     delete process.env["OPENAI_API_KEY"];
     const service = serviceWith(databaseWith([profile({ status: "ACTIVE" })]));
 
     await expect(service.embeddingProfileReadiness(user)).resolves.toMatchObject({
-      reason: "OPENAI_KEY_MISSING",
-      openAiConfigured: false,
+      reason: "LLM_PROVIDER_MISSING",
+      providerConfigured: false,
     });
   });
 

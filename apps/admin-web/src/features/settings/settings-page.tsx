@@ -9,6 +9,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useAdminAuth } from "../../auth.js";
 import { adminApi } from "../../lib/admin-api.js";
 import { LlmSettingsTab } from "./llm-settings-tab.js";
+import { EmailSettingsTab } from "./email-settings-tab.js";
 
 type EmbeddingProfile = {
   id: string;
@@ -27,7 +28,7 @@ type IndexingReadiness = {
   reason: string | null;
   message: string | null;
   ragEnabled: boolean;
-  openAiConfigured: boolean;
+  providerConfigured: boolean;
   searchableChunks: number;
   profiles: EmbeddingProfile[];
 };
@@ -35,6 +36,8 @@ type IndexingReadiness = {
 export function SettingsPage() {
   const { user } = useAdminAuth();
   const canManage = user?.platformRole !== "support";
+  const canManageEmails =
+    user?.platformRole === "super_admin" || user?.platformRole === "platform_admin";
   const [readiness, setReadiness] = useState<IndexingReadiness | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -96,6 +99,7 @@ export function SettingsPage() {
         <TabsList variant="line">
           <TabsTrigger value="search-index">Search index</TabsTrigger>
           <TabsTrigger value="llm">LLM</TabsTrigger>
+          <TabsTrigger value="emails">Emails</TabsTrigger>
         </TabsList>
         <TabsContent value="search-index">
           <Card>
@@ -113,6 +117,10 @@ export function SettingsPage() {
               ) : null}
             </CardHeader>
             <CardContent className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                This index supports document search. Regulatory analysis reads the approved law
+                catalog directly and does not require an embedding profile.
+              </p>
               {!readiness ? (
                 <Skeleton className="h-24 w-full" />
               ) : (
@@ -121,8 +129,10 @@ export function SettingsPage() {
                     <Badge variant={readiness.ragEnabled ? "secondary" : "destructive"}>
                       {readiness.ragEnabled ? "RAG enabled" : "RAG disabled"}
                     </Badge>
-                    <Badge variant={readiness.openAiConfigured ? "secondary" : "destructive"}>
-                      {readiness.openAiConfigured ? "OpenAI configured" : "OpenAI not configured"}
+                    <Badge variant={readiness.providerConfigured ? "secondary" : "destructive"}>
+                      {readiness.providerConfigured
+                        ? "Embedding provider configured"
+                        : "Embedding provider not configured"}
                     </Badge>
                     <Badge variant={readiness.searchable ? "default" : "outline"}>
                       {readiness.searchable
@@ -177,6 +187,9 @@ export function SettingsPage() {
         </TabsContent>
         <TabsContent value="llm">
           <LlmSettingsTab canManage={canManage} />
+        </TabsContent>
+        <TabsContent value="emails">
+          <EmailSettingsTab canManage={canManageEmails} />
         </TabsContent>
       </Tabs>
     </section>

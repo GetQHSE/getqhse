@@ -425,6 +425,7 @@ export const onboardingStatusSchema = z.object({
     "CREATE_ORGANIZATION",
     "SELECT_ORGANIZATION",
     "CREATE_PROJECT",
+    "WAIT_FOR_PROJECT",
     "OPEN_PROJECTS",
   ]),
 });
@@ -586,6 +587,7 @@ export const regulatoryRequirementStatusSchema = z.enum([
   "NOT_REQUIRED",
 ]);
 export const regulatoryRequirementSourceSchema = z.enum(["AI", "HUMAN", "CARRIED_FORWARD"]);
+export const regulatorySourceTypeSchema = z.enum(["PLATFORM_PROVISION", "DISCOVERED_LAW"]);
 export const regulatoryRunTriggerSchema = z.enum(["MANUAL", "DOCUMENT_REVISION"]);
 export const regulatoryApplicabilitySchema = z.enum(["APPLICABLE", "TO_CONFIRM", "NOT_APPLICABLE"]);
 export const assessmentResultSchema = z.enum([
@@ -727,26 +729,40 @@ export const updateRegulatoryActionSchema = createRegulatoryActionSchema.partial
 export type CreateRegulatoryAction = z.infer<typeof createRegulatoryActionSchema>;
 export type UpdateRegulatoryAction = z.infer<typeof updateRegulatoryActionSchema>;
 
-export const regulatoryCitationSchema = normativeSearchResultSchema.pick({
-  sourceId: true,
-  documentId: true,
-  revisionId: true,
-  documentTitle: true,
-  referenceNumber: true,
-  revisionLabel: true,
-  sourceEdition: true,
-  jurisdiction: true,
-  countryCode: true,
-  language: true,
-  documentFamily: true,
-  provisionType: true,
-  provisionIdentifier: true,
-  headingPath: true,
-  pageStart: true,
-  pageEnd: true,
-  excerpt: true,
-  citationLabel: true,
-});
+export const regulatoryCitationSchema = normativeSearchResultSchema
+  .pick({
+    sourceId: true,
+    documentId: true,
+    revisionId: true,
+    documentTitle: true,
+    referenceNumber: true,
+    revisionLabel: true,
+    sourceEdition: true,
+    jurisdiction: true,
+    countryCode: true,
+    language: true,
+    documentFamily: true,
+    provisionType: true,
+    provisionIdentifier: true,
+    headingPath: true,
+    pageStart: true,
+    pageEnd: true,
+    excerpt: true,
+    citationLabel: true,
+  })
+  .extend({
+    type: regulatorySourceTypeSchema,
+    url: z.string().url().nullable(),
+    sourceId: idSchema.nullable(),
+    documentId: idSchema.nullable(),
+    revisionId: idSchema.nullable(),
+    revisionLabel: z.string().nullable(),
+    sourceEdition: z.string().nullable(),
+    provisionType: z
+      .enum(["clause", "article", "definition", "annex", "table", "note", "section"])
+      .nullable(),
+    excerpt: z.string().max(1_201).nullable(),
+  });
 
 export const regulatoryCandidateSchema = z.object({
   id: idSchema,
@@ -782,8 +798,10 @@ export const regulatoryCandidateSchema = z.object({
 export const regulatoryAnalysisErrorCodeSchema = z.enum([
   /** `NORMATIVE_RAG_ENABLED` is not `true` in the worker environment. */
   "NORMATIVE_RAG_DISABLED",
-  /** `OPENAI_API_KEY` is missing in the worker environment. */
+  /** Legacy error retained so historical runs remain readable. */
   "OPENAI_KEY_MISSING",
+  /** The credential for the selected provider is unavailable. */
+  "LLM_PROVIDER_MISSING",
   /** No embedding profile exists at all: the corpus was never indexed. */
   "EMBEDDING_PROFILE_MISSING",
   /** A profile exists but is still indexing; nothing is searchable yet. */
@@ -814,6 +832,7 @@ export const regulatoryAnalysisErrorMessages: Record<RegulatoryAnalysisErrorCode
   NORMATIVE_RAG_DISABLED:
     "La recherche normative est désactivée sur cette plateforme. Contactez votre administrateur.",
   OPENAI_KEY_MISSING: "Le service d’analyse n’est pas configuré. Contactez votre administrateur.",
+  LLM_PROVIDER_MISSING: "Le service d’analyse n’est pas configuré. Contactez votre administrateur.",
   EMBEDDING_PROFILE_MISSING:
     "La base documentaire normative n’est pas encore indexée. Contactez votre administrateur.",
   EMBEDDING_PROFILE_BUILDING:
@@ -850,6 +869,13 @@ export class RegulatoryAnalysisError extends Error {
   }
 }
 
+export const lawSourceRequiredSchema = z.object({
+  reference: z.string().min(1).max(200),
+  title: z.string().min(1).max(300),
+  reason: z.string().min(1).max(600),
+  sourceUrl: z.string().url().max(2_048).nullish(),
+});
+
 export const regulatoryAnalysisRunSchema = z.object({
   id: idSchema,
   profileSnapshotId: idSchema,
@@ -876,6 +902,7 @@ export const regulatoryAnalysisRunSchema = z.object({
   clarifications: z.array(
     z.object({ key: z.string(), question: z.string(), answer: z.unknown().nullable() }),
   ),
+  sourceRequired: z.array(lawSourceRequiredSchema).optional(),
   candidates: z.array(regulatoryCandidateSchema),
   diff: z.object({
     added: z.number().int().nonnegative(),
@@ -1049,6 +1076,137 @@ export const workQueueNames = {
   notifications: "notifications",
 } as const;
 export type WorkQueueName = (typeof workQueueNames)[keyof typeof workQueueNames];
+
+export const emailTypes = [
+  "ORGANIZATION_INVITATION",
+  "REGULATORY_CLARIFICATION_REQUIRED",
+  "REGULATORY_REVIEW_READY",
+  "REGULATORY_IMPACT",
+  "REGULATORY_ANALYSIS_FAILED",
+  "REGULATORY_ACTION_DUE_SOON",
+  "REGULATORY_ACTION_OVERDUE",
+] as const;
+export const emailTypeSchema = z.enum(emailTypes);
+export type EmailType = z.infer<typeof emailTypeSchema>;
+
+export const emailDeliveryStatusSchema = z.enum([
+  "PENDING",
+  "PROCESSING",
+  "SENT",
+  "FAILED",
+  "CANCELLED",
+]);
+export type EmailDeliveryStatus = z.infer<typeof emailDeliveryStatusSchema>;
+
+export const emailTemplateSettingSchema = z.object({
+  templateId: z.number().int().positive().nullable(),
+  requiredParameters: z.array(z.string()),
+  example: z.record(z.string(), z.union([z.string(), z.number()])),
+  metadata: z
+    .object({
+      name: z.string(),
+      subject: z.string(),
+      active: z.boolean(),
+      validatedAt: isoDateTimeSchema,
+    })
+    .nullable(),
+});
+export type EmailTemplateSetting = z.infer<typeof emailTemplateSettingSchema>;
+
+export const emailSettingsViewSchema = z.object({
+  provider: z.literal("brevo"),
+  credential: z.object({
+    configured: z.boolean(),
+    source: z.enum(["database", "environment", "none"]),
+    preview: z.string().nullable(),
+  }),
+  templates: z.record(emailTypeSchema, emailTemplateSettingSchema),
+  updatedAt: isoDateTimeSchema.nullable(),
+  updatedBy: z.object({ id: idSchema, name: z.string() }).nullable(),
+});
+export type EmailSettingsView = z.infer<typeof emailSettingsViewSchema>;
+
+export const updateEmailSettingsSchema = z
+  .object({
+    apiKey: z.string().trim().max(400).nullable().optional(),
+    templates: z.partialRecord(emailTypeSchema, z.number().int().positive().nullable()).optional(),
+  })
+  .refine((value) => value.apiKey !== undefined || value.templates !== undefined, {
+    message: "At least one email setting is required",
+  });
+export type UpdateEmailSettings = z.infer<typeof updateEmailSettingsSchema>;
+
+export const organizationRoleSchema = z.enum(["owner", "admin", "member"]);
+export type OrganizationRoleContract = z.infer<typeof organizationRoleSchema>;
+export const membershipStatusSchema = z.enum(["active", "suspended"]);
+export type MembershipStatusContract = z.infer<typeof membershipStatusSchema>;
+export const organizationMembershipMutationSchema = z.enum([
+  "invite",
+  "change_role",
+  "suspend",
+  "reactivate",
+  "remove",
+  "cancel_invitation",
+  "resend_invitation",
+]);
+export type OrganizationMembershipMutation = z.infer<typeof organizationMembershipMutationSchema>;
+export const activeMembershipSchema = z.object({
+  organizationId: idSchema,
+  role: organizationRoleSchema,
+  status: membershipStatusSchema,
+});
+export type ActiveMembership = z.infer<typeof activeMembershipSchema>;
+export const allowedOrganizationMutationsSchema = z.object({
+  mutations: z.array(organizationMembershipMutationSchema),
+  inviteRoles: z.array(organizationRoleSchema),
+  manageableRoles: z.array(organizationRoleSchema),
+});
+export type AllowedOrganizationMutations = z.infer<typeof allowedOrganizationMutationsSchema>;
+
+export const organizationMemberSummarySchema = z.object({
+  id: idSchema,
+  userId: idSchema,
+  name: z.string(),
+  email: z.email(),
+  role: organizationRoleSchema,
+  status: membershipStatusSchema,
+  createdAt: isoDateTimeSchema,
+});
+export type OrganizationMemberSummary = z.infer<typeof organizationMemberSummarySchema>;
+
+export const organizationInvitationSummarySchema = z.object({
+  id: idSchema,
+  email: z.email(),
+  role: organizationRoleSchema,
+  status: z.string(),
+  expiresAt: isoDateTimeSchema,
+  createdAt: isoDateTimeSchema,
+  deliveryStatus: emailDeliveryStatusSchema.nullable(),
+  deliveryError: z.string().nullable(),
+  lastSentAt: isoDateTimeSchema.nullable(),
+});
+export type OrganizationInvitationSummary = z.infer<typeof organizationInvitationSummarySchema>;
+
+export const organizationTeamSchema = z.object({
+  currentMember: organizationMemberSummarySchema,
+  members: z.array(organizationMemberSummarySchema),
+  invitations: z.array(organizationInvitationSummarySchema),
+});
+export type OrganizationTeam = z.infer<typeof organizationTeamSchema>;
+
+export const invitationPreviewSchema = z.object({
+  id: idSchema,
+  organizationName: z.string(),
+  inviterName: z.string(),
+  recipientEmailMasked: z.string(),
+  role: organizationRoleSchema,
+  status: z.enum(["pending", "accepted", "rejected", "canceled", "expired"]),
+  expiresAt: isoDateTimeSchema,
+});
+export type InvitationPreview = z.infer<typeof invitationPreviewSchema>;
+
+export const updateMembershipStatusSchema = z.object({ status: membershipStatusSchema });
+export type UpdateMembershipStatus = z.infer<typeof updateMembershipStatusSchema>;
 
 export const complianceResultSchema = z.object({
   score: z.number().min(0).max(100),

@@ -95,6 +95,70 @@
         "tags": ["AuthContext"]
       }
     },
+    "/v1/organization-invitations/{invitationId}/preview": {
+      "get": {
+        "operationId": "InvitationPreviewController_preview",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": ["organization-invitations"]
+      }
+    },
+    "/v1/organization-team": {
+      "get": {
+        "operationId": "OrganizationTeamController_team",
+        "parameters": [
+          {
+            "name": "x-organization-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["organization-members"]
+      }
+    },
+    "/v1/organization-members/{memberId}/status": {
+      "patch": {
+        "operationId": "OrganizationTeamController_updateStatus",
+        "parameters": [
+          {
+            "name": "x-organization-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["organization-members"]
+      }
+    },
     "/v1/onboarding/status": {
       "get": {
         "operationId": "OnboardingController_status",
@@ -695,6 +759,56 @@
         ],
         "responses": {
           "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["regulatory-watch"]
+      }
+    },
+    "/v1/projects/{projectIdOrSlug}/regulatory-watch/evidence/{evidenceId}": {
+      "patch": {
+        "operationId": "RegulatoryWatchController_updateEvidence",
+        "parameters": [
+          {
+            "name": "x-organization-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["regulatory-watch"]
+      },
+      "delete": {
+        "operationId": "RegulatoryWatchController_deleteEvidence",
+        "parameters": [
+          {
+            "name": "x-organization-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
             "description": ""
           }
         },

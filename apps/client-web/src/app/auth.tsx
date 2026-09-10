@@ -40,6 +40,8 @@ export type ClientOrganization = {
   id: string;
   name: string;
   slug: string;
+  role: "owner" | "admin" | "member";
+  status: "active" | "suspended";
 };
 
 type AuthContextValue = {
@@ -86,6 +88,12 @@ export function AuthProvider({ children }: PropsWithChildren) {
           id: activeOrganizationQuery.data.id,
           name: activeOrganizationQuery.data.name,
           slug: activeOrganizationQuery.data.slug,
+          role: organizations.find(
+            (organization) => organization.id === activeOrganizationQuery.data?.id,
+          )!.role,
+          status: organizations.find(
+            (organization) => organization.id === activeOrganizationQuery.data?.id,
+          )!.status,
         }
       : null;
 

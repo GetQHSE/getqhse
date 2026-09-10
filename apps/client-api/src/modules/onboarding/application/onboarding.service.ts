@@ -58,6 +58,7 @@ export class OnboardingService {
         organization: { status: "active" },
       },
       select: {
+        role: true,
         organization: {
           select: { id: true, name: true, slug: true, icon: true, countryCode: true },
         },
@@ -84,7 +85,12 @@ export class OnboardingService {
         countryCode: membership.organization.countryCode as "MA" | "FR" | "DZ" | "TN" | "SN" | "CI",
       },
       activeOrganizationProjectCount: projectCount,
-      nextStep: projectCount === 0 ? "CREATE_PROJECT" : "OPEN_PROJECTS",
+      nextStep:
+        projectCount === 0
+          ? membership.role === "owner" || membership.role === "admin"
+            ? "CREATE_PROJECT"
+            : "WAIT_FOR_PROJECT"
+          : "OPEN_PROJECTS",
     };
   }
 }

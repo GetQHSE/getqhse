@@ -17,6 +17,7 @@ import {
 import { BrandLogo } from "@qhse/ui/components/brand-logo";
 import {
   FilesIcon,
+  Building2Icon,
   LayoutDashboardIcon,
   SearchIcon,
   SettingsIcon,
@@ -40,6 +41,11 @@ const data = {
       title: "Search testing",
       url: "/search-testing",
       icon: <SearchIcon />,
+    },
+    {
+      title: "Organizations",
+      url: "/organizations",
+      icon: <Building2Icon />,
     },
     {
       title: "Operators",

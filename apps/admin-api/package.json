@@ -34,6 +34,7 @@
     "@qhse/documents": "workspace:*",
     "@qhse/domain": "workspace:*",
     "@qhse/knowledge": "workspace:*",
+    "@qhse/notifications": "workspace:*",
     "@qhse/observability": "workspace:*",
     "ai": "^7.0.58",
     "better-auth": "^1.6.25",

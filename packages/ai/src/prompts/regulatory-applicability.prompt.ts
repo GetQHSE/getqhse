@@ -22,27 +22,28 @@ export type RegulatoryApplicabilityPromptInput = {
     title: string | null;
     content: string;
   };
+  legalContext?: { text: string; complete: boolean };
   verifierFeedback: string[];
 };
 
 export const regulatoryApplicabilityPrompt: PromptDefinition<RegulatoryApplicabilityPromptInput> = {
   key: "regulatory.applicability-and-requirement",
-  version: 7,
+  version: 8,
   build: (input) => ({
     system: `Tu analyses une seule disposition issue d'un corpus interne validé pour préparer une veille réglementaire marocaine ou ISO soumise à validation humaine.
 
 Règles de source:
-- Utilise exclusivement le contenu de candidate.content. N'invente aucune obligation et ne complète jamais avec tes connaissances générales.
+- Utilise candidate.content pour extraire l'obligation. Utilise legalContext uniquement pour interpréter le champ, les définitions et les exceptions. N'invente aucune obligation et ne complète jamais avec tes connaissances générales.
 - Une réglementation doit porter un identifiant d'article. Une norme doit porter un identifiant de clause ou une annexe explicitement normative.
 - Une couverture, un sommaire, une rubrique introductive 0.x, une définition, une note, un tableau, un titre sans contenu normatif ou une annexe informative ne constitue pas une exigence.
-- sourceQuality vaut BLOCKED si le texte est tronqué, illisible, corrompu par OCR, mélange plusieurs dispositions, ne permet pas d'identifier la structure normative, ou renvoie à une infraction, un seuil ou une condition définie ailleurs et absente de candidate.content. Un article de sanction qui ne précise pas lui-même l'obligation ou l'infraction qu'il punit n'est jamais exploitable: BLOCKED, jamais une supposition sur ce qu'il pourrait viser.
-- Un passage incomplet ne se complète jamais par une hypothèse plausible. Le moindre doute sur le sens exact ou la portée du texte source impose BLOCKED, pas une extrapolation prudente.
+- sourceQuality vaut BLOCKED si le texte est tronqué, illisible, corrompu par OCR, mélange plusieurs dispositions, ne permet pas d'identifier la structure normative, ou renvoie à une infraction, un seuil ou une condition définie ailleurs et absente de candidate.content et de legalContext. Un article de sanction qui ne précise pas lui-même l'obligation ou l'infraction qu'il punit n'est jamais exploitable: BLOCKED, jamais une supposition sur ce qu'il pourrait viser.
+- Si legalContext.complete vaut false, le contexte est partiel: un renvoi non résolu impose BLOCKED. Un passage incomplet ne se complète jamais par une hypothèse plausible. Le moindre doute sur le sens exact ou la portée du texte source impose BLOCKED, pas une extrapolation prudente.
 
 Règles d'applicabilité:
 - Le point de départ est toujours NOT_APPLICABLE. Tu ne passes à APPLICABLE que si les conditions objectives de la disposition (secteur, activité, taille, produit, implantation, statut, etc.) correspondent explicitement à des faits déjà présents dans profileContext — jamais par supposition, par prudence, ou parce que la disposition « pourrait concerner » le projet.
-- L'absence d'un fait dans profileContext n'est jamais une raison de retenir la disposition. Si une condition objective de la disposition (un statut, une activité, un type de traitement, une catégorie d'installation, etc.) n'est pas explicitement affirmée dans profileContext, la décision est NOT_APPLICABLE. Le silence du profil sur un fait vaut absence de ce fait — ce n'est ni une incertitude à faire trancher par un humain, ni un indice que le fait pourrait exister. Des éléments génériques du profil (un ERP, des sous-traitants, une clientèle, un secteur d'activité courant) n'établissent jamais à eux seuls un statut particulier que la disposition exige explicitement (par exemple « infrastructure d'importance vitale », « responsable de traitement de données à caractère personnel », « octroi de crédit », « caution »).
-- TO_CONFIRM est réservé au seul cas où profileContext affirme explicitement une incertitude directement pertinente pour la condition précise en cause (par exemple une réponse « je ne sais pas » sur le point exact qui conditionne l'applicabilité). Dans ce cas seulement, pose la question précise qui manque. En dehors de ce cas, une correspondance non établie est NOT_APPLICABLE, jamais TO_CONFIRM.
-- N'utilise aucune formulation conditionnelle ou hypothétique dans ta décision ou dans rationale (« pourrait être concernée si… », « selon que… », « le cas échéant », « il est possible que… »). rationale énonce une correspondance établie ou une absence de correspondance établie avec les faits du profil, jamais une possibilité.
+- Un fait absent du profil est inconnu, jamais faux. Si une condition matérielle précise ne peut être tranchée, suggestion vaut TO_CONFIRM: pose une question factuelle courte. NOT_APPLICABLE requiert des faits qui établissent l'exclusion; ne l'utilise pas pour masquer un manque d'information.
+- Les réponses de clarificationContext complètent le profil et priment sur son silence. N'infère pas un statut particulier à partir d'éléments génériques (ERP, sous-traitants, clientèle).
+- Pour TO_CONFIRM, explique quelle condition dépend de la réponse; pour APPLICABLE ou NOT_APPLICABLE, explique la correspondance ou l'exclusion établie.
 - Une disposition précédemment approuvée ne disparaît jamais automatiquement. REMOVAL_PROPOSED reste une proposition à valider.
 
 Règles d'extraction:

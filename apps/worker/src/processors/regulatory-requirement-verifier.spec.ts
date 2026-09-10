@@ -61,6 +61,7 @@ describe("independent regulatory requirement verification", () => {
         findUnique: vi.fn().mockResolvedValue({ status: "RUNNING" }),
         update: vi.fn().mockResolvedValue({}),
       },
+      documentProvision: { findMany: vi.fn().mockResolvedValue([]) },
       regulatoryApplicabilityCandidate: {
         findMany: vi.fn().mockResolvedValue([]),
         upsert: vi.fn().mockResolvedValue({}),
@@ -154,8 +155,30 @@ describe("independent regulatory requirement verification", () => {
     });
 
     const { database } = createDatabaseStub();
+    database.documentProvision.findMany.mockResolvedValue([
+      {
+        id: "article-24",
+        documentVersionId: "v1",
+        language: "fr",
+        sourceIdentifier: "Article 24",
+        headingPath: [],
+        content: articleContent,
+      },
+      {
+        id: "scope",
+        documentVersionId: "v1",
+        language: "fr",
+        sourceIdentifier: "Article 1",
+        headingPath: [],
+        content: "Champ : les employeurs.",
+      },
+    ]);
     const { results } = await classifyArticle24(database);
 
+    const prompt = JSON.parse(generated.mock.calls[0]![0].prompt);
+    expect(prompt.legalContext).toMatchObject({ complete: true });
+    expect(prompt.legalContext.text).toContain("Champ : les employeurs.");
+    expect(prompt.candidate.content).toBe(articleContent);
     expect(generated).toHaveBeenCalledTimes(1);
     expect(database.regulatoryModelCall.create).toHaveBeenCalledTimes(1);
     expect(results.results[0]).toMatchObject({
@@ -225,6 +248,7 @@ describe("independent regulatory requirement verification", () => {
         findUnique: vi.fn().mockResolvedValue({ status: "RUNNING" }),
         update: vi.fn().mockResolvedValue({}),
       },
+      documentProvision: { findMany: vi.fn().mockResolvedValue([]) },
       regulatoryApplicabilityCandidate: {
         findMany: vi.fn().mockResolvedValue([]),
         upsert: vi.fn().mockResolvedValue({}),
@@ -483,6 +507,7 @@ describe("independent regulatory requirement verification", () => {
         findUnique: vi.fn().mockResolvedValue({ status: "RUNNING" }),
         update: vi.fn().mockResolvedValue({}),
       },
+      documentProvision: { findMany: vi.fn().mockResolvedValue([]) },
       regulatoryApplicabilityCandidate: {
         findMany: vi.fn().mockResolvedValue([
           {

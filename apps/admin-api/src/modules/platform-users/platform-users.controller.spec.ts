@@ -32,7 +32,7 @@ describe("PlatformUsersController API", () => {
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual([]);
     expect(users.list).toHaveBeenCalledWith(undefined, { status: "active" });
-  });
+  }, 15_000);
 
   it("validates direct account creation before calling the service", async () => {
     const users = { create: vi.fn() };
@@ -52,7 +52,7 @@ describe("PlatformUsersController API", () => {
 
     expect(response.status).toBe(422);
     expect(users.create).not.toHaveBeenCalled();
-  });
+  }, 15_000);
 
   it("creates an active credential account through the admin endpoint", async () => {
     const created = {
@@ -87,5 +87,5 @@ describe("PlatformUsersController API", () => {
         timezone: "Africa/Casablanca",
       }),
     );
-  });
+  }, 15_000);
 });

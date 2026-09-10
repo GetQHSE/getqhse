@@ -14,15 +14,24 @@ import {
 const record = (overrides: Partial<LlmSetting> | Record<string, unknown> = {}): LlmSetting => ({
   id: "singleton",
   ragEnabled: null,
+  profileProvider: null,
   profileModel: null,
   transcriptionModel: null,
+  embeddingProvider: null,
+  embeddingModel: null,
+  regulatoryProvider: null,
   regulatoryModel: null,
   regulatoryTriageModel: null,
+  regulatoryVerificationProvider: null,
   regulatoryVerificationModel: null,
   regulatoryServiceTier: null,
   regulatoryTextVerbosity: null,
   regulatoryPromptCacheRetention: null,
   regulatoryReasoningEffort: null,
+  anthropicEffort: null,
+  anthropicSpeed: null,
+  googleThinkingLevel: null,
+  googleThinkingBudget: null,
   regulatoryTimeoutMs: null,
   regulatoryDraftMaxOutputTokens: null,
   regulatoryVerificationMaxOutputTokens: null,
@@ -35,8 +44,13 @@ const record = (overrides: Partial<LlmSetting> | Record<string, unknown> = {}): 
   regulatoryFlexRateMultiplier: null,
   conservativeBytesPerToken: null,
   triageIncludeUnsure: null,
+  customModels: null,
   apiKeyCiphertext: null,
   apiKeyPreview: null,
+  anthropicApiKeyCiphertext: null,
+  anthropicApiKeyPreview: null,
+  googleApiKeyCiphertext: null,
+  googleApiKeyPreview: null,
   updatedByUserId: null,
   createdAt: new Date(),
   updatedAt: new Date(),
@@ -85,6 +99,27 @@ describe("the resolved snapshot", () => {
     expect(llmSettings().regulatoryModel).toBe("gpt-5");
     expect(llmSettings().apiKey).toBe("sk-from-env");
     expect(llmSettings().apiKeySource).toBe("environment");
+  });
+
+  it("resolves independent provider credentials", async () => {
+    vi.stubEnv("OPENAI_API_KEY", "sk-from-env");
+    vi.stubEnv("ANTHROPIC_API_KEY", "anthropic-from-env");
+    configureLlmSettingsLoader(async () =>
+      record({ googleApiKeyCiphertext: encryptLlmSecret("google-from-database") }),
+    );
+
+    await refreshLlmSettings();
+
+    expect(llmSettings().apiKeys).toMatchObject({
+      openai: "sk-from-env",
+      anthropic: "anthropic-from-env",
+      google: "google-from-database",
+    });
+    expect(llmSettings().apiKeySources).toMatchObject({
+      openai: "environment",
+      anthropic: "environment",
+      google: "database",
+    });
   });
 
   it("prefers the stored row once it has been loaded", async () => {

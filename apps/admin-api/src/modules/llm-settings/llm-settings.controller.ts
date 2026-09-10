@@ -4,6 +4,8 @@ import {
   Delete,
   Get,
   Inject,
+  Param,
+  Post,
   Put,
   Req,
   UnprocessableEntityException,
@@ -16,9 +18,12 @@ import {
   llmReasoningEfforts,
   llmServiceTiers,
   llmTextVerbosities,
+  providerHealthCheckSchema,
   updateLlmSettingsSchema,
   type LlmSettingsView,
+  type ProviderHealthCheckResult,
 } from "./llm-settings.contracts.js";
+import { languageProviderSchema } from "@qhse/config";
 import { LlmSettingsService } from "./llm-settings.service.js";
 
 @ApiTags("llm-settings")
@@ -35,6 +40,20 @@ export class LlmSettingsController {
     return this.settings.read();
   }
 
+  @Post("providers/:provider/test")
+  testProvider(
+    @Req() request: AdminRequest,
+    @Param("provider") providerValue: string,
+    @Body() body: unknown,
+  ): Promise<ProviderHealthCheckResult> {
+    const provider = languageProviderSchema.safeParse(providerValue);
+    const input = providerHealthCheckSchema.safeParse(body);
+    if (!provider.success || !input.success) {
+      throw new UnprocessableEntityException({ message: "Request validation failed" });
+    }
+    return this.settings.testProvider(request.platformUser!, provider.data, input.data);
+  }
+
   @Put()
   @ApiBody({
     schema: {
@@ -45,11 +64,23 @@ export class LlmSettingsController {
         "an omitted field is left as-is. `apiKey` is write-only and never read back.",
       properties: {
         apiKey: { type: "string", nullable: true, maxLength: 400 },
+        apiKeys: {
+          type: "object",
+          properties: {
+            openai: { type: "string", nullable: true, maxLength: 400 },
+            anthropic: { type: "string", nullable: true, maxLength: 400 },
+            google: { type: "string", nullable: true, maxLength: 400 },
+          },
+        },
+        profileProvider: { type: "string", nullable: true },
         ragEnabled: { type: "boolean", nullable: true },
         profileModel: { type: "string", nullable: true, maxLength: 120 },
         transcriptionModel: { type: "string", nullable: true, maxLength: 120 },
+        embeddingProvider: { type: "string", nullable: true },
+        embeddingModel: { type: "string", nullable: true, maxLength: 120 },
+        regulatoryProvider: { type: "string", nullable: true },
         regulatoryModel: { type: "string", nullable: true, maxLength: 120 },
-        regulatoryTriageModel: { type: "string", nullable: true, maxLength: 120 },
+        regulatoryVerificationProvider: { type: "string", nullable: true },
         regulatoryVerificationModel: { type: "string", nullable: true, maxLength: 120 },
         regulatoryServiceTier: { type: "string", nullable: true, enum: [...llmServiceTiers] },
         regulatoryTextVerbosity: { type: "string", nullable: true, enum: [...llmTextVerbosities] },
@@ -66,7 +97,6 @@ export class LlmSettingsController {
         regulatoryTimeoutMs: { type: "integer", nullable: true },
         regulatoryDraftMaxOutputTokens: { type: "integer", nullable: true },
         regulatoryVerificationMaxOutputTokens: { type: "integer", nullable: true },
-        regulatoryTriageMaxOutputTokens: { type: "integer", nullable: true },
         regulatoryRunBudgetUsd: { type: "number", nullable: true },
         regulatoryEvaluationBudgetUsd: { type: "number", nullable: true },
         regulatoryInputUsdPerMTok: { type: "number", nullable: true },
@@ -74,7 +104,6 @@ export class LlmSettingsController {
         regulatoryOutputUsdPerMTok: { type: "number", nullable: true },
         regulatoryFlexRateMultiplier: { type: "number", nullable: true },
         conservativeBytesPerToken: { type: "number", nullable: true },
-        triageIncludeUnsure: { type: "boolean", nullable: true },
       },
     },
   })

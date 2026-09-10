@@ -137,7 +137,7 @@ type IndexingReadiness = {
   reason: string | null;
   message: string | null;
   ragEnabled: boolean;
-  openAiConfigured: boolean;
+  providerConfigured: boolean;
   searchableChunks: number;
   profiles: EmbeddingProfile[];
 };
@@ -675,7 +675,9 @@ export function DocumentDetailPage() {
                       <Badge variant={item.isValidated ? "default" : "secondary"}>
                         {item.isValidated
                           ? "Approved"
-                          : `${Math.round((item.confidenceScore ?? 0) * 100)}% suggestion`}
+                          : item.confidenceScore === null
+                            ? "AI suggestion"
+                            : `${Math.round(item.confidenceScore * 100)}% suggestion`}
                       </Badge>
                       {!item.isValidated && canMutate ? (
                         <Button
@@ -765,8 +767,10 @@ export function DocumentDetailPage() {
                 <Badge variant={readiness?.ragEnabled ? "secondary" : "destructive"}>
                   {readiness?.ragEnabled ? "RAG enabled" : "RAG disabled"}
                 </Badge>
-                <Badge variant={readiness?.openAiConfigured ? "secondary" : "destructive"}>
-                  {readiness?.openAiConfigured ? "OpenAI configured" : "OpenAI not configured"}
+                <Badge variant={readiness?.providerConfigured ? "secondary" : "destructive"}>
+                  {readiness?.providerConfigured
+                    ? "Embedding provider configured"
+                    : "Embedding provider not configured"}
                 </Badge>
                 <Badge variant={readiness?.searchable ? "default" : "outline"}>
                   {readiness?.searchable

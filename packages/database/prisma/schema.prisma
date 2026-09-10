@@ -225,6 +225,11 @@ enum RegulatoryRequirementSource {
   CARRIED_FORWARD
 }
 
+enum RegulatorySourceType {
+  PLATFORM_PROVISION
+  DISCOVERED_LAW
+}
+
 enum RegulatoryRunTrigger {
   MANUAL
   DOCUMENT_REVISION
@@ -285,6 +290,24 @@ enum TranscriptionStatus {
   PENDING
   COMPLETED
   FAILED
+}
+
+enum EmailType {
+  ORGANIZATION_INVITATION
+  REGULATORY_CLARIFICATION_REQUIRED
+  REGULATORY_REVIEW_READY
+  REGULATORY_IMPACT
+  REGULATORY_ANALYSIS_FAILED
+  REGULATORY_ACTION_DUE_SOON
+  REGULATORY_ACTION_OVERDUE
+}
+
+enum EmailDeliveryStatus {
+  PENDING
+  PROCESSING
+  SENT
+  FAILED
+  CANCELLED
 }
 
 enum ReviewStatus {
@@ -355,6 +378,8 @@ model User {
   regulatoryRequirementsEdited        RegulatoryApplicabilityCandidate[] @relation("RegulatoryRequirementEditor")
   regulatoryBaselinesPublished        RegulatoryBaseline[]               @relation("RegulatoryBaselinePublisher")
   regulatoryRequirementsReviewed      RegulatoryRegisterEntry[]          @relation("RegulatoryRequirementReviewer")
+  emailSettingsUpdated                EmailSetting[]                     @relation("EmailSettingUpdater")
+  emailDeliveriesReceived             EmailDelivery[]                    @relation("EmailDeliveryRecipient")
   regulatoryEvaluationsCompleted      RegulatoryEvaluation[]             @relation("RegulatoryEvaluationReviewer")
   regulatoryEvidenceCreated           RegulatoryEvaluationEvidence[]     @relation("RegulatoryEvidenceCreator")
   regulatoryActionsAssigned           RegulatoryEvaluationAction[]       @relation("RegulatoryActionAssignee")
@@ -936,6 +961,7 @@ model Organization {
   retrievalLogs     RetrievalLog[]
   aiInvocations     AiInvocation[]
   regulatoryWatches ProjectRegulatoryWatch[]
+  emailDeliveries   EmailDelivery[]
 
   @@map("organizations")
 }
@@ -966,8 +992,9 @@ model Invitation {
   expiresAt      DateTime @map("expires_at")
   createdAt      DateTime @default(now()) @map("created_at")
 
-  inviter      User         @relation("InvitationInviter", fields: [inviterId], references: [id], onDelete: Cascade)
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  inviter         User            @relation("InvitationInviter", fields: [inviterId], references: [id], onDelete: Cascade)
+  organization    Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  emailDeliveries EmailDelivery[]
 
   @@index([email])
   @@index([organizationId])
@@ -1168,6 +1195,7 @@ model RegulatoryAnalysisRun {
   progressPercent          Int                      @default(0) @map("progress_percent")
   clarificationRevision    Int                      @default(0) @map("clarification_revision")
   model                    String?
+  provider                 String?
   promptKey                String?                  @map("prompt_key")
   promptVersion            Int?                     @map("prompt_version")
   inputTokens              Int                      @default(0) @map("input_tokens")
@@ -1179,6 +1207,7 @@ model RegulatoryAnalysisRun {
   reservedMicroUsd         Int                      @default(0) @map("reserved_micro_usd")
   completedProvisions      Int                      @default(0) @map("completed_provisions")
   totalProvisions          Int                      @default(0) @map("total_provisions")
+  missingLaws              Json                     @default("[]") @map("missing_laws")
   errorCode                String?                  @map("error_code")
   errorMessage             String?                  @map("error_message")
   startedAt                DateTime?                @map("started_at")
@@ -1221,7 +1250,11 @@ model RegulatoryScopeFact {
 model RegulatoryApplicabilityCandidate {
   id                            String                       @id @default(cuid())
   runId                         String                       @map("run_id")
-  provisionId                   String                       @map("provision_id")
+  provisionId                   String?                      @map("provision_id")
+  sourceType                    RegulatorySourceType         @default(PLATFORM_PROVISION) @map("source_type")
+  sourceReference               String?                      @map("source_reference")
+  sourceTitle                   String?                      @map("source_title")
+  sourceUrl                     String?                      @map("source_url")
   previousEntryId               String?                      @map("previous_entry_id")
   changeType                    RegulatoryChangeType         @default(ADDED) @map("change_type")
   changeSummary                 String?                      @map("change_summary")
@@ -1248,7 +1281,7 @@ model RegulatoryApplicabilityCandidate {
   updatedAt                     DateTime                     @updatedAt @map("updated_at")
 
   run                 RegulatoryAnalysisRun    @relation(fields: [runId], references: [id], onDelete: Cascade)
-  provision           DocumentProvision        @relation(fields: [provisionId], references: [id], onDelete: Restrict)
+  provision           DocumentProvision?       @relation(fields: [provisionId], references: [id], onDelete: Restrict)
   previousEntry       RegulatoryRegisterEntry? @relation("RegulatoryCandidatePreviousEntry", fields: [previousEntryId], references: [id], onDelete: Restrict)
   reviewedBy          User?                    @relation("RegulatoryCandidateReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
   requirementEditedBy User?                    @relation("RegulatoryRequirementEditor", fields: [requirementEditedById], references: [id], onDelete: SetNull)
@@ -1261,11 +1294,12 @@ model RegulatoryApplicabilityCandidate {
 model RegulatoryModelCall {
   id                    String                    @id @default(cuid())
   runId                 String                    @map("run_id")
-  provisionId           String                    @map("provision_id")
+  provisionId           String?                   @map("provision_id")
   clarificationRevision Int                       @default(0) @map("clarification_revision")
   stage                 String
   attempt               Int
   model                 String
+  provider              String                    @default("openai")
   status                RegulatoryModelCallStatus @default(RUNNING)
   reservedMicroUsd      Int                       @map("reserved_micro_usd")
   costMicroUsd          Int?                      @map("cost_micro_usd")
@@ -1279,7 +1313,7 @@ model RegulatoryModelCall {
   completedAt           DateTime?                 @map("completed_at")
 
   run       RegulatoryAnalysisRun @relation(fields: [runId], references: [id], onDelete: Cascade)
-  provision DocumentProvision     @relation(fields: [provisionId], references: [id], onDelete: Restrict)
+  provision DocumentProvision?    @relation(fields: [provisionId], references: [id], onDelete: Restrict)
 
   @@index([runId, createdAt])
   @@map("regulatory_model_calls")
@@ -1315,7 +1349,11 @@ model RegulatoryBaseline {
 model RegulatoryRegisterEntry {
   id                            String                       @id @default(cuid())
   baselineId                    String                       @map("baseline_id")
-  provisionId                   String                       @map("provision_id")
+  provisionId                   String?                      @map("provision_id")
+  sourceType                    RegulatorySourceType         @default(PLATFORM_PROVISION) @map("source_type")
+  sourceReference               String?                      @map("source_reference")
+  sourceTitle                   String?                      @map("source_title")
+  sourceUrl                     String?                      @map("source_url")
   previousEntryId               String?                      @map("previous_entry_id")
   changeType                    RegulatoryChangeType         @default(ADDED) @map("change_type")
   orderIndex                    Int                          @map("order_index")
@@ -1329,7 +1367,7 @@ model RegulatoryRegisterEntry {
   createdAt                     DateTime                     @default(now()) @map("created_at")
 
   baseline              RegulatoryBaseline                 @relation(fields: [baselineId], references: [id], onDelete: Cascade)
-  provision             DocumentProvision                  @relation(fields: [provisionId], references: [id], onDelete: Restrict)
+  provision             DocumentProvision?                 @relation(fields: [provisionId], references: [id], onDelete: Restrict)
   previousEntry         RegulatoryRegisterEntry?           @relation("RegulatoryEntryLineage", fields: [previousEntryId], references: [id], onDelete: Restrict)
   successorEntries      RegulatoryRegisterEntry[]          @relation("RegulatoryEntryLineage")
   successorCandidates   RegulatoryApplicabilityCandidate[] @relation("RegulatoryCandidatePreviousEntry")
@@ -1365,6 +1403,7 @@ model RegulatoryEvaluation {
   aiResponsible           String?                      @map("ai_responsible")
   aiEffectivenessCriteria String?                      @map("ai_effectiveness_criteria")
   aiModel                 String?                      @map("ai_model")
+  aiProvider              String?                      @map("ai_provider")
   aiPromptKey             String?                      @map("ai_prompt_key")
   aiPromptVersion         Int?                         @map("ai_prompt_version")
   aiEvaluatedAt           DateTime?                    @map("ai_evaluated_at")
@@ -1485,6 +1524,7 @@ model ProjectProfileMessage {
   replyToMessageId String?            @map("reply_to_message_id")
   parts            Json?
   model            String?
+  provider         String?
   promptKey        String?            @map("prompt_key")
   promptVersion    Int?               @map("prompt_version")
   inputTokens      Int?               @map("input_tokens")
@@ -1525,6 +1565,7 @@ model AiInvocation {
   promptKey          String             @map("prompt_key")
   promptVersion      Int                @map("prompt_version")
   model              String
+  provider           String             @default("openai")
   inputSchemaVersion Int?               @map("input_schema_version")
   inputHash          String             @map("input_hash")
   outputHash         String?            @map("output_hash")
@@ -1734,6 +1775,65 @@ model AuditLogEntry {
   @@map("audit_log_entries")
 }
 
+/// Platform-wide Brevo configuration. Template HTML, subjects, and senders remain in Brevo.
+model EmailSetting {
+  id String @id @default("singleton")
+
+  brevoApiKeyCiphertext String? @map("brevo_api_key_ciphertext")
+  brevoApiKeyPreview    String? @map("brevo_api_key_preview")
+
+  organizationInvitationTemplateId          Int?  @map("organization_invitation_template_id")
+  regulatoryClarificationRequiredTemplateId Int?  @map("regulatory_clarification_required_template_id")
+  regulatoryReviewReadyTemplateId           Int?  @map("regulatory_review_ready_template_id")
+  regulatoryImpactTemplateId                Int?  @map("regulatory_impact_template_id")
+  regulatoryAnalysisFailedTemplateId        Int?  @map("regulatory_analysis_failed_template_id")
+  regulatoryActionDueSoonTemplateId         Int?  @map("regulatory_action_due_soon_template_id")
+  regulatoryActionOverdueTemplateId         Int?  @map("regulatory_action_overdue_template_id")
+  templateMetadata                          Json? @map("template_metadata")
+
+  updatedByUserId String?  @map("updated_by_user_id")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  updatedBy User? @relation("EmailSettingUpdater", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+
+  @@map("email_settings")
+}
+
+/// Persistent email outbox. The worker claims rows atomically before calling Brevo.
+model EmailDelivery {
+  id              String              @id @default(cuid())
+  organizationId  String              @map("organization_id")
+  invitationId    String?             @map("invitation_id")
+  recipientUserId String?             @map("recipient_user_id")
+  type            EmailType
+  eventKey        String              @map("event_key")
+  recipientEmail  String              @map("recipient_email")
+  recipientName   String?             @map("recipient_name")
+  entityType      String?             @map("entity_type")
+  entityId        String?             @map("entity_id")
+  templateId      Int                 @map("template_id")
+  parameters      Json
+  status          EmailDeliveryStatus @default(PENDING)
+  attempts        Int                 @default(0)
+  brevoMessageId  String?             @map("brevo_message_id")
+  nextAttemptAt   DateTime            @default(now()) @map("next_attempt_at")
+  lastError       String?             @map("last_error")
+  sentAt          DateTime?           @map("sent_at")
+  createdAt       DateTime            @default(now()) @map("created_at")
+  updatedAt       DateTime            @updatedAt @map("updated_at")
+
+  organization  Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  invitation    Invitation?  @relation(fields: [invitationId], references: [id], onDelete: SetNull)
+  recipientUser User?        @relation("EmailDeliveryRecipient", fields: [recipientUserId], references: [id], onDelete: SetNull)
+
+  @@unique([eventKey, type, recipientEmail])
+  @@index([status, nextAttemptAt])
+  @@index([organizationId, createdAt])
+  @@index([invitationId, createdAt])
+  @@map("email_deliveries")
+}
+
 /// Platform-wide LLM configuration, edited from the administration workspace. Exactly one row
 /// exists (id "singleton"). Every column is nullable and means "not overridden": the resolved
 /// value then comes from the process environment, and failing that from the built-in default,
@@ -1742,15 +1842,24 @@ model LlmSetting {
   id String @id @default("singleton")
 
   ragEnabled                            Boolean? @map("rag_enabled")
+  profileProvider                       String?  @map("profile_provider")
   profileModel                          String?  @map("profile_model")
   transcriptionModel                    String?  @map("transcription_model")
+  embeddingProvider                     String?  @map("embedding_provider")
+  embeddingModel                        String?  @map("embedding_model")
+  regulatoryProvider                    String?  @map("regulatory_provider")
   regulatoryModel                       String?  @map("regulatory_model")
   regulatoryTriageModel                 String?  @map("regulatory_triage_model")
+  regulatoryVerificationProvider        String?  @map("regulatory_verification_provider")
   regulatoryVerificationModel           String?  @map("regulatory_verification_model")
   regulatoryServiceTier                 String?  @map("regulatory_service_tier")
   regulatoryTextVerbosity               String?  @map("regulatory_text_verbosity")
   regulatoryPromptCacheRetention        String?  @map("regulatory_prompt_cache_retention")
   regulatoryReasoningEffort             String?  @map("regulatory_reasoning_effort")
+  anthropicEffort                       String?  @map("anthropic_effort")
+  anthropicSpeed                        String?  @map("anthropic_speed")
+  googleThinkingLevel                   String?  @map("google_thinking_level")
+  googleThinkingBudget                  Int?     @map("google_thinking_budget")
   regulatoryTimeoutMs                   Int?     @map("regulatory_timeout_ms")
   regulatoryDraftMaxOutputTokens        Int?     @map("regulatory_draft_max_output_tokens")
   regulatoryVerificationMaxOutputTokens Int?     @map("regulatory_verification_max_output_tokens")
@@ -1763,11 +1872,16 @@ model LlmSetting {
   regulatoryFlexRateMultiplier          Decimal? @map("regulatory_flex_rate_multiplier") @db.Decimal(6, 4)
   conservativeBytesPerToken             Decimal? @map("conservative_bytes_per_token") @db.Decimal(6, 3)
   triageIncludeUnsure                   Boolean? @map("triage_include_unsure")
+  customModels                          Json?    @map("custom_models")
 
   /// AES-256-GCM ciphertext of the provider API key, keyed off BETTER_AUTH_SECRET. Never leaves
   /// the API in readable form — the admin workspace only ever sees a masked preview.
-  apiKeyCiphertext String? @map("api_key_ciphertext")
-  apiKeyPreview    String? @map("api_key_preview")
+  apiKeyCiphertext          String? @map("api_key_ciphertext")
+  apiKeyPreview             String? @map("api_key_preview")
+  anthropicApiKeyCiphertext String? @map("anthropic_api_key_ciphertext")
+  anthropicApiKeyPreview    String? @map("anthropic_api_key_preview")
+  googleApiKeyCiphertext    String? @map("google_api_key_ciphertext")
+  googleApiKeyPreview       String? @map("google_api_key_preview")
 
   updatedByUserId String?  @map("updated_by_user_id")
   createdAt       DateTime @default(now()) @map("created_at")

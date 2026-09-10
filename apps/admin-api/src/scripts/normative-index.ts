@@ -58,7 +58,7 @@ async function report(database: DatabaseClient) {
   );
   return {
     ragEnabled: llmSettings().ragEnabled,
-    openAiConfigured: Boolean(llmSettings().apiKey),
+    providerConfigured: Boolean(llmSettings().apiKeys[llmSettings().embeddingProvider]),
     publishedDocuments,
     searchableRevisions,
     embeddableRevisions,
@@ -75,11 +75,12 @@ async function index(database: DatabaseClient, queue: Queue) {
   if (!profile) {
     const latest = await database.embeddingProfile.aggregate({ _max: { version: true } });
     const profileVersion = (latest._max.version ?? 0) + 1;
+    const settings = llmSettings();
     profile = await database.embeddingProfile.create({
       data: {
-        key: `openai:text-embedding-3-small:768:v${profileVersion}`,
-        provider: "openai",
-        model: "text-embedding-3-small",
+        key: `${settings.embeddingProvider}:${settings.embeddingModel}:768:v${profileVersion}`,
+        provider: settings.embeddingProvider,
+        model: settings.embeddingModel,
         dimensions: 768,
         version: profileVersion,
         status: "BUILDING",

@@ -223,7 +223,9 @@ describe("accuracy-first regulatory review gates", () => {
       regulatoryApplicabilityCandidate: { update: candidateUpdate },
     };
     (service as unknown as { database: object }).database = {
-      regulatoryApplicabilityCandidate: { findFirst: vi.fn().mockResolvedValue(candidate) },
+      regulatoryApplicabilityCandidate: {
+        findFirst: vi.fn().mockResolvedValue({ sourceType: "PLATFORM_PROVISION", ...candidate }),
+      },
       $transaction: vi.fn(async (callback: (tx: typeof transactionClient) => unknown) =>
         callback(transactionClient),
       ),
@@ -282,6 +284,28 @@ describe("accuracy-first regulatory review gates", () => {
         decision: "APPLICABLE",
       }),
     ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it("allows approving a discovered law without fabricating a requirement", async () => {
+    const { service, candidateUpdate } = serviceWithLoadedWatch({
+      id: "candidate-discovered",
+      sourceType: "DISCOVERED_LAW",
+      requirementStatus: "NOT_REQUIRED",
+      requirementText: null,
+    });
+    await service.decideCandidate(tenant, "project-1", "candidate-discovered", {
+      watchRevision: 3,
+      decision: "APPLICABLE",
+    });
+    expect(candidateUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          decision: "APPLICABLE",
+          requirementStatus: "NOT_REQUIRED",
+        }),
+      }),
+    );
+    expect(candidateUpdate.mock.calls[0]?.[0]?.data).not.toHaveProperty("requirementText");
   });
 
   it("records edited AI wording as human-approved provenance", async () => {
@@ -416,23 +440,33 @@ describe("accuracy-first regulatory review gates", () => {
     );
   });
 
-  it("refuses XLSX export for a legacy baseline without approved requirement text", async () => {
+  it("exports a discovered law without source or approved requirement text", async () => {
     process.env["DATABASE_URL"] ??= "postgresql://postgres:postgres@localhost:5432/qhse_test";
     const service = new RegulatoryWatchService({} as never);
     (service as unknown as { loadedWatch(): Promise<unknown> }).loadedWatch = async () => ({
       currentBaseline: {
         entries: [
           {
+            sourceType: "DISCOVERED_LAW",
+            sourceReference: "Loi n° 65-99",
+            sourceTitle: "Code du travail",
+            applicabilityRationale: "Applicable aux activités et salariés déclarés.",
             requirementText: null,
-            provision: { version: { exportAllowed: true } },
+            provision: null,
+            evaluation: {
+              result: "NOT_ASSESSED",
+              aiRationale: null,
+              aiRemediationPlan: null,
+              evidence: [],
+              comment: null,
+              actions: [],
+            },
           },
         ],
       },
     });
 
-    await expect(service.exportWorkbook(tenant, "project-1")).rejects.toThrow(
-      "Exigence à régénérer",
-    );
+    await expect(service.exportWorkbook(tenant, "project-1")).resolves.toBeInstanceOf(Buffer);
   });
 });
 
@@ -453,7 +487,14 @@ describe("bulk regulatory review decisions", () => {
       regulatoryApplicabilityCandidate: { updateMany: candidateUpdateMany },
     };
     (service as unknown as { database: object }).database = {
-      regulatoryApplicabilityCandidate: { findMany: vi.fn().mockResolvedValue(candidates) },
+      regulatoryApplicabilityCandidate: {
+        findMany: vi.fn().mockResolvedValue(
+          candidates.map((candidate) => ({
+            sourceType: "PLATFORM_PROVISION",
+            ...candidate,
+          })),
+        ),
+      },
       $transaction: vi.fn(async (callback: (tx: typeof transactionClient) => unknown) =>
         callback(transactionClient),
       ),
@@ -521,6 +562,31 @@ describe("bulk regulatory review decisions", () => {
       }),
     ).rejects.toBeInstanceOf(BadRequestException);
     expect(claim).not.toHaveBeenCalled();
+  });
+
+  it("retains a discovered law in bulk review without requiring provision wording", async () => {
+    const { service, candidateUpdateMany } = serviceWithCandidates([
+      {
+        id: "candidate-discovered",
+        sourceType: "DISCOVERED_LAW",
+        requirementText: null,
+      },
+    ]);
+
+    await service.decideCandidates(tenant, "project-1", {
+      watchRevision: 3,
+      decisions: [{ candidateId: "candidate-discovered", decision: "APPLICABLE" }],
+    });
+
+    expect(candidateUpdateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: { in: ["candidate-discovered"] } },
+        data: expect.objectContaining({
+          decision: "APPLICABLE",
+          requirementStatus: "NOT_REQUIRED",
+        }),
+      }),
+    );
   });
 
   it("refuses a batch that names a candidate outside the reviewable run", async () => {

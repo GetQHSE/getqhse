@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+
 import { Processor, WorkerHost } from "@nestjs/bullmq";
 import { GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { llmSettings } from "@qhse/ai";
@@ -7,8 +9,6 @@ import {
   assertRevisionRight,
   assessStructureQuality,
   chunkNormativeProvisions,
-  detectNormativeProvisions,
-  detectNormativeProvisionsFromBlocks,
   normalizeExtractedText,
   STRUCTURE_REVIEW_THRESHOLD,
   type ExtractedBlock,
@@ -19,6 +19,8 @@ import {
 } from "@qhse/knowledge";
 import { createLogger, currentTraceId } from "@qhse/observability";
 import type { Job } from "bullmq";
+
+import { classifyLaw, detectLawMetadata, structureLaw } from "./law-ingestion.js";
 
 type PipelinePayload = { documentId: string; versionId: string; jobIds: string[] };
 
@@ -173,11 +175,6 @@ export function chunkText(text: string, maxCharacters = 2_000) {
   }
   if (current) chunks.push(current);
   return chunks;
-}
-
-function containsPhrase(text: string, phrase: string) {
-  const escaped = phrase.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  return new RegExp(`(^|\\W)${escaped}(?=$|\\W)`, "i").test(text);
 }
 
 @Processor("document-processing", { concurrency: 2 })
@@ -458,15 +455,43 @@ export class DocumentProcessingProcessor extends WorkerHost {
           quality: 0.5,
         };
       }
-      case "metadata_detection":
+      case "metadata_detection": {
+        assertRevisionRight(revisionRights(version), "ai-process");
+        assertRevisionRight(revisionRights(version), "external-process");
+        const suggestions = await detectLawMetadata(
+          await this.getText(version.normalizedTextLocation),
+        );
+        const existing = await this.database.documentMetadataSuggestion.findMany({
+          where: { documentVersionId: versionId },
+          select: { fieldName: true, decision: true },
+        });
+        const reviewed = new Set(
+          existing.filter((item) => item.decision !== "pending").map((item) => item.fieldName),
+        );
+        await this.database.$transaction([
+          this.database.documentMetadataSuggestion.deleteMany({
+            where: { documentVersionId: versionId, decision: "pending" },
+          }),
+          this.database.documentMetadataSuggestion.createMany({
+            data: suggestions
+              .filter(
+                (item) =>
+                  !reviewed.has(item.fieldName) && version.document[item.fieldName] !== item.value,
+              )
+              .map((item) => ({
+                documentVersionId: versionId,
+                fieldName: item.fieldName,
+                suggestedValue: item.value,
+                sourceText: item.sourceText,
+                confidenceScore: 0.5,
+              })),
+          }),
+        ]);
         return {
-          metadata: {
-            provider: "rules",
-            revisionLabel: "platform_derived",
-            reviewRequired: false,
-          },
-          quality: 1,
+          metadata: { provider: "llm-source-metadata", reviewRequired: true },
+          quality: 0.7,
         };
+      }
       case "language_detection":
         return {
           metadata: { language: version.document.language, provider: "document_metadata" },
@@ -475,17 +500,69 @@ export class DocumentProcessingProcessor extends WorkerHost {
       case "structure_detection": {
         const text = await this.getText(version.normalizedTextLocation);
         const language = normativeLanguage(version.document.language);
-        const sections = detectSections(text);
-        // Labeled blocks carry the layout facts that flattened page text has already lost:
-        // page furniture, table boundaries, and which headings group provisions rather than
-        // open one. Versions extracted before blocks were stored fall back to page text.
-        const blocks = await this.getExtractedBlocks(version.documentId, version.id);
-        const provisions = blocks.length
-          ? detectNormativeProvisionsFromBlocks(blocks, language)
-          : detectNormativeProvisions(
-              await this.getExtractedPages(version.documentId, version.id, text),
-              language,
-            );
+        assertRevisionRight(revisionRights(version), "ai-process");
+        assertRevisionRight(revisionRights(version), "external-process");
+        const extractedBlocks = await this.getExtractedBlocks(version.documentId, version.id);
+        const sourceBlocks = extractedBlocks.length
+          ? extractedBlocks
+          : (await this.getExtractedPages(version.documentId, version.id, text)).map((page) => ({
+              blockType: "text",
+              text: page.text,
+              pageNumber: page.pageNumber,
+            }));
+        // Lines allow article boundaries inside a flat-text page or a merged layout block.
+        const blocks = sourceBlocks.flatMap((block) =>
+          block.text
+            .split("\n")
+            .filter((line) => line.trim())
+            .map((line) => ({ ...block, text: line })),
+        );
+        const provisions = await structureLaw(blocks, language);
+        const sections: Array<{
+          id: string;
+          parentSectionId: string | null;
+          title: string;
+          content: string;
+          orderIndex: number;
+        }> = [
+          {
+            id: randomUUID(),
+            parentSectionId: null,
+            title: version.document.title,
+            content: version.document.title,
+            orderIndex: 0,
+          },
+        ];
+        const sectionIds = new Map<string, string>([["[]", sections[0]!.id]]);
+        for (const provision of provisions) {
+          for (let depth = 0; depth < provision.headingPath.length; depth += 1) {
+            const path = JSON.stringify(provision.headingPath.slice(0, depth + 1));
+            if (sectionIds.has(path)) continue;
+            const id = randomUUID();
+            const parentPath = JSON.stringify(provision.headingPath.slice(0, depth));
+            sections.push({
+              id,
+              parentSectionId: sectionIds.get(parentPath) ?? null,
+              title: provision.headingPath[depth]!,
+              content: provision.headingPath[depth]!,
+              orderIndex: sections.length,
+            });
+            sectionIds.set(path, id);
+          }
+        }
+        // Keep the existing admin structure preview useful: each section shows its own source text.
+        const sectionContent = new Map<string, string[]>();
+        for (const provision of provisions) {
+          const sectionId =
+            sectionIds.get(JSON.stringify(provision.headingPath)) ?? sections[0]!.id;
+          sectionContent.set(sectionId, [
+            ...(sectionContent.get(sectionId) ?? []),
+            provision.content,
+          ]);
+        }
+        for (const section of sections) {
+          section.content = sectionContent.get(section.id)?.join("\n\n") ?? section.title;
+        }
         // The way segmentation goes wrong is quiet: it still yields provisions and chunks, just
         // the wrong ones, and nothing downstream notices until a reviewer reads them or a
         // citation lands on the wrong article. Scoring the structure is what makes that visible.
@@ -508,18 +585,22 @@ export class DocumentProcessingProcessor extends WorkerHost {
           this.database.documentSection.deleteMany({ where: { documentVersionId: versionId } }),
           this.database.documentSection.createMany({
             data: sections.map((section) => ({
+              id: section.id,
+              parentSectionId: section.parentSectionId,
               documentVersionId: versionId,
-              sectionType: section.title ? "heading" : "body",
+              sectionType: "heading",
               title: section.title,
               normalizedTitle: section.title?.toLowerCase() ?? null,
               content: section.content,
               orderIndex: section.orderIndex,
-              sourceLocation: { method: "text_structure" },
+              sourceLocation: { method: "llm-source-ranges" },
             })),
           }),
           this.database.documentProvision.createMany({
             data: provisions.map((provision) => ({
               documentVersionId: versionId,
+              documentSectionId:
+                sectionIds.get(JSON.stringify(provision.headingPath)) ?? sections[0]!.id,
               provisionType: provision.type.toUpperCase() as
                 "CLAUSE" | "ARTICLE" | "DEFINITION" | "ANNEX" | "TABLE" | "NOTE" | "SECTION",
               sourceIdentifier: provision.sourceIdentifier,
@@ -534,14 +615,14 @@ export class DocumentProcessingProcessor extends WorkerHost {
               sourceLocation: {
                 pageStart: provision.pageStart,
                 pageEnd: provision.pageEnd,
-                method: "normative-structure-v1",
+                method: "llm-source-ranges",
               },
             })),
           }),
         ]);
         return {
           metadata: {
-            provider: "normative-structure-v1",
+            provider: "llm-source-ranges",
             sections: String(sections.length),
             provisions: String(provisions.length),
             identified: String(structure.signals.identified),
@@ -560,13 +641,9 @@ export class DocumentProcessingProcessor extends WorkerHost {
           where: { isActive: true, taxonomy: { isActive: true } },
           include: { taxonomy: true },
         });
-        const matches = terms.filter(({ key, label }) =>
-          [key.replaceAll("_", " "), label].some((value) => containsPhrase(text, value)),
-        );
-        const fallback = terms.find(
-          ({ taxonomy, key }) => taxonomy.key === "applicability" && key === "general",
-        );
-        const selected = matches.length ? matches.slice(0, 20) : fallback ? [fallback] : [];
+        assertRevisionRight(revisionRights(version), "ai-process");
+        assertRevisionRight(revisionRights(version), "external-process");
+        const selected = await classifyLaw(text, terms);
         await this.database.$transaction([
           this.database.documentTaxonomyTerm.deleteMany({
             where: { documentId: version.documentId, source: "automatic" },
@@ -577,13 +654,13 @@ export class DocumentProcessingProcessor extends WorkerHost {
                 documentId: version.documentId,
                 taxonomyTermId: term.id,
                 source: "automatic",
-                confidenceScore: matches.length ? 0.8 : 0.5,
+                confidenceScore: null,
               },
             }),
           ),
         ]);
         return {
-          metadata: { provider: "keyword_rules", terms: String(selected.length) },
+          metadata: { provider: "llm-taxonomy", terms: String(selected.length) },
           quality: 0.7,
         };
       }

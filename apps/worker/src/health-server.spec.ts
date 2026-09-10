@@ -66,7 +66,12 @@ describe("worker health server", () => {
       expect(await ready.json()).toMatchObject({
         status: "ok",
         checks: { database: "ok", redis: "ok" },
-        regulatory: { enabled: true, openAiConfigured: true, model: "gpt-5-mini" },
+        regulatory: {
+          enabled: true,
+          providerConfigured: true,
+          provider: "openai",
+          model: "gpt-5-mini",
+        },
       });
     } finally {
       await health.onModuleDestroy();

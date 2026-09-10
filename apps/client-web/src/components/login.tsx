@@ -20,10 +20,11 @@ type LoginProps = {
   mode: "login" | "sign-up";
   isSubmitting?: boolean;
   error?: string | undefined;
+  alternateState?: unknown;
   onSubmit: (values: LoginFormValues) => void | Promise<void>;
 };
 
-export function Login({ mode, isSubmitting = false, error, onSubmit }: LoginProps) {
+export function Login({ mode, isSubmitting = false, error, alternateState, onSubmit }: LoginProps) {
   const isSignUp = mode === "sign-up";
   const form = useForm<LoginFormValues>({
     defaultValues: { email: "", name: "", password: "" },
@@ -173,6 +174,7 @@ export function Login({ mode, isSubmitting = false, error, onSubmit }: LoginProp
             <Link
               className="font-semibold text-violet-700 hover:text-violet-800"
               to={isSignUp ? "/login" : "/sign-up"}
+              state={alternateState}
             >
               {isSignUp ? "Se connecter" : "Créer un compte"}
             </Link>

@@ -7,6 +7,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { createQhseAuth, ServerAuth } from "@qhse/auth";
 import { createPrismaClient, ensureBootstrapSuperAdmin, type DatabaseClient } from "@qhse/database";
+import { createEmailDelivery, organizationInvitationParameters } from "@qhse/notifications";
 
 const enabled = process.env["TESTCONTAINERS_ENABLED"] === "true";
 const suite = describe.skipIf(!enabled);
@@ -48,6 +49,32 @@ suite("Better Auth with PostgreSQL and Prisma", () => {
       database,
       baseURL: "http://localhost:3000",
       trustedOrigins: ["http://localhost:5173"],
+      sendInvitationEmail: async (invitation) => {
+        const recipient = await database.user.findUnique({
+          where: { email: invitation.email },
+          select: { id: true, name: true },
+        });
+        await createEmailDelivery(database, {
+          organizationId: invitation.organization.id,
+          invitationId: invitation.id,
+          ...(recipient ? { recipientUserId: recipient.id, recipientName: recipient.name } : {}),
+          type: "ORGANIZATION_INVITATION",
+          eventKey: `${invitation.id}:${invitation.invitation.expiresAt.toISOString()}`,
+          recipientEmail: invitation.email,
+          entityType: "Invitation",
+          entityId: invitation.id,
+          parameters: organizationInvitationParameters({
+            recipientEmail: invitation.email,
+            inviterName: invitation.inviter.user.name,
+            inviterEmail: invitation.inviter.user.email,
+            organizationName: invitation.organization.name,
+            role: invitation.role,
+            appOrigin: "http://localhost:5173",
+            invitationId: invitation.id,
+            expiresAt: invitation.invitation.expiresAt,
+          }),
+        });
+      },
     });
   });
 
@@ -232,5 +259,183 @@ suite("Better Auth with PostgreSQL and Prisma", () => {
     ).rejects.toMatchObject({
       statusCode: 401,
     });
+  });
+
+  it("runs the invitation, resend, acceptance, role, suspension, and removal lifecycle", async () => {
+    await database.emailSetting.upsert({
+      where: { id: "singleton" },
+      create: { id: "singleton", organizationInvitationTemplateId: 42 },
+      update: { organizationInvitationTemplateId: 42 },
+    });
+    const password = "correct-horse-battery-staple";
+    const passwordHash = await hashPassword(password);
+    const [owner, recipient, wrongUser] = await Promise.all(
+      [
+        ["Lifecycle Owner", "lifecycle-owner@example.test"],
+        ["Lifecycle Recipient", "lifecycle-recipient@example.test"],
+        ["Wrong Recipient", "wrong-recipient@example.test"],
+      ].map(async ([name, email]) => {
+        const user = await database.user.create({ data: { name: name!, email: email! } });
+        await database.account.create({
+          data: {
+            accountId: user.id,
+            providerId: "credential",
+            userId: user.id,
+            password: passwordHash,
+          },
+        });
+        return user;
+      }),
+    );
+    const organization = await database.organization.create({
+      data: { name: "Lifecycle Organization", slug: "lifecycle-organization" },
+    });
+    await database.member.create({
+      data: { organizationId: organization.id, userId: owner!.id, role: "owner" },
+    });
+
+    const ownerSignIn = await authRequest("/sign-in/email", { email: owner!.email, password });
+    const ownerCookie = mergeCookies(ownerSignIn);
+    const invitationResponse = await authRequest(
+      "/organization/invite-member",
+      { organizationId: organization.id, email: recipient!.email, role: "member" },
+      ownerCookie,
+    );
+    expect(invitationResponse.status).toBe(200);
+    const invitation = (await invitationResponse.json()) as { id: string; expiresAt: string };
+    await expect(
+      database.emailDelivery.findMany({ where: { invitationId: invitation.id } }),
+    ).resolves.toHaveLength(1);
+
+    const resend = await authRequest(
+      "/organization/invite-member",
+      { organizationId: organization.id, email: recipient!.email, role: "member", resend: true },
+      ownerCookie,
+    );
+    expect(resend.status).toBe(200);
+    await expect(resend.json()).resolves.toMatchObject({ id: invitation.id });
+    await expect(
+      database.emailDelivery.findMany({ where: { invitationId: invitation.id } }),
+    ).resolves.toHaveLength(2);
+
+    const wrongSignIn = await authRequest("/sign-in/email", { email: wrongUser!.email, password });
+    expect(
+      (
+        await authRequest(
+          "/organization/accept-invitation",
+          { invitationId: invitation.id },
+          mergeCookies(wrongSignIn),
+        )
+      ).status,
+    ).toBe(403);
+
+    const recipientSignIn = await authRequest("/sign-in/email", {
+      email: recipient!.email,
+      password,
+    });
+    const recipientCookie = mergeCookies(recipientSignIn);
+    const acceptance = await authRequest(
+      "/organization/accept-invitation",
+      { invitationId: invitation.id },
+      recipientCookie,
+    );
+    expect(acceptance.status).toBe(200);
+    expect(
+      (
+        await authRequest(
+          "/organization/accept-invitation",
+          { invitationId: invitation.id },
+          recipientCookie,
+        )
+      ).status,
+    ).not.toBe(200);
+
+    const membership = await database.member.findUniqueOrThrow({
+      where: {
+        organizationId_userId: { organizationId: organization.id, userId: recipient!.id },
+      },
+    });
+    expect(
+      (
+        await authRequest(
+          "/organization/update-member-role",
+          { organizationId: organization.id, memberId: membership.id, role: "admin" },
+          ownerCookie,
+        )
+      ).status,
+    ).toBe(200);
+
+    await database.member.update({ where: { id: membership.id }, data: { status: "suspended" } });
+    expect(
+      (
+        await authRequest(
+          "/organization/set-active",
+          { organizationId: organization.id },
+          recipientCookie,
+        )
+      ).status,
+    ).toBe(403);
+    await database.member.update({ where: { id: membership.id }, data: { status: "active" } });
+    expect(
+      (
+        await authRequest(
+          "/organization/remove-member",
+          { organizationId: organization.id, memberIdOrEmail: membership.id },
+          ownerCookie,
+        )
+      ).status,
+    ).toBe(200);
+    await expect(database.member.findUnique({ where: { id: membership.id } })).resolves.toBeNull();
+
+    const cancellableResponse = await authRequest(
+      "/organization/invite-member",
+      { organizationId: organization.id, email: recipient!.email, role: "member" },
+      ownerCookie,
+    );
+    const cancellable = (await cancellableResponse.json()) as { id: string };
+    expect(
+      (
+        await authRequest(
+          "/organization/cancel-invitation",
+          { invitationId: cancellable.id },
+          ownerCookie,
+        )
+      ).status,
+    ).toBe(200);
+    await expect(
+      database.emailDelivery.findFirst({
+        where: { invitationId: cancellable.id },
+        orderBy: { createdAt: "desc" },
+      }),
+    ).resolves.toMatchObject({ status: "CANCELLED" });
+    expect(
+      (
+        await authRequest(
+          "/organization/accept-invitation",
+          { invitationId: cancellable.id },
+          recipientCookie,
+        )
+      ).status,
+    ).not.toBe(200);
+
+    const expired = await database.invitation.create({
+      data: {
+        email: recipient!.email,
+        inviterId: owner!.id,
+        organizationId: organization.id,
+        role: "member",
+        status: "pending",
+        expiresAt: new Date(Date.now() - 60_000),
+      },
+    });
+    expect(
+      (
+        await authRequest(
+          "/organization/accept-invitation",
+          { invitationId: expired.id },
+          recipientCookie,
+        )
+      ).status,
+    ).not.toBe(200);
   });
 });

@@ -3,7 +3,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { regulatoryCostMicroUsd as computeCallCost } from "./regulatory-model-cost.js";
 import {
-  buildRegulatoryQueries,
   canCarryForwardRequirement,
   computeProfileChanges,
   dedupeRegulatoryProvisions,
@@ -12,17 +11,13 @@ import {
   matchProvisionRevision,
   regulatoryClassificationProgress,
   regulatoryCostMicroUsd,
-  batchForTriage,
   isMissingProvisionForeignKeyError,
   isRateLimitError,
-  normalizeTriageDecisions,
   parseRateLimitRetryDelayMs,
   regulatoryModelLimits,
   RegulatoryAnalysisProcessor,
   jitteredDelay,
-  selectTriageSurvivors,
   settlementChargeMicroUsd,
-  splitReservedCost,
   validateRequirementDraft,
 } from "./regulatory-analysis.processor.js";
 import {
@@ -32,7 +27,6 @@ import {
   regulatoryVerificationModel,
   regulatoryProviderOptions,
   regulatoryServiceTier,
-  regulatoryTriageModel,
 } from "./regulatory-model-cost.js";
 import { regulatoryProvisionGoldenFixtures } from "./fixtures/regulatory-provisions.golden.js";
 
@@ -263,15 +257,7 @@ describe("regulatory analysis query planning", () => {
     ).toBe(1_125_000);
   });
 
-  it("prices the triage model off its own rates, not the drafting model's", () => {
-    process.env["OPENAI_REGULATORY_SERVICE_TIER"] = "default";
-    expect(regulatoryTriageModel()).toBe("gpt-5-nano");
-    expect(
-      regulatoryCostMicroUsd({ inputTokens: 1_000_000, outputTokens: 1_000_000 }, "gpt-5-nano"),
-    ).toBe(450_000);
-  });
-
-  it("lets the per-mtok overrides retune the primary model without touching triage", () => {
+  it("lets the per-mtok overrides retune the primary model without touching other models", () => {
     process.env["OPENAI_REGULATORY_SERVICE_TIER"] = "default";
     process.env["OPENAI_REGULATORY_INPUT_USD_PER_MTOK"] = "1";
     expect(regulatoryModelRates("gpt-5-mini").inputUsdPerMTok).toBe(1);
@@ -304,23 +290,6 @@ describe("regulatory analysis query planning", () => {
     expect(regulatoryClassificationProgress(5, 10)).toBe(71);
     expect(regulatoryClassificationProgress(10, 10)).toBe(92);
     expect(regulatoryClassificationProgress(12, 10)).toBe(92);
-  });
-
-  it("builds bounded searches from the regulatory profile snapshot", () => {
-    const queries = buildRegulatoryQueries({
-      fields: {
-        "organization.primarySector": "Métallurgie",
-        "organization.offerings": ["Armoires métalliques", "Soudage"],
-        "operations.keyProcesses": ["Découpe", "Peinture"],
-        "scope.operatingCountries": ["MA"],
-        "regulatory.knownRequirements": ["ISO 9001"],
-      },
-    });
-    expect(queries.length).toBeGreaterThan(6);
-    expect(queries.length).toBeLessThanOrEqual(12);
-    expect(queries[0]).toContain("Métallurgie");
-    expect(queries.some((query) => query.includes("ISO 9001"))).toBe(true);
-    expect(queries.every((query) => query.length < 20_000)).toBe(true);
   });
 
   it("computes only material profile changes", () => {
@@ -367,25 +336,7 @@ describe("regulatory analysis query planning", () => {
   });
 });
 
-describe("regulatory triage", () => {
-  it("splits the retrieved candidates into groups of at most batchSize", () => {
-    const candidates = [
-      { provisionId: "a" },
-      { provisionId: "b" },
-      { provisionId: "c" },
-      { provisionId: "d" },
-      { provisionId: "e" },
-    ];
-
-    expect(batchForTriage(candidates, 2)).toEqual([
-      [{ provisionId: "a" }, { provisionId: "b" }],
-      [{ provisionId: "c" }, { provisionId: "d" }],
-      [{ provisionId: "e" }],
-    ]);
-    expect(batchForTriage(candidates, 10)).toEqual([candidates]);
-    expect(batchForTriage([], 10)).toEqual([]);
-  });
-
+describe("regulatory model retry behavior", () => {
   it("recognizes an OpenAI TPM rate limit error and parses its suggested retry delay", () => {
     const rateLimitError = new Error(
       "Rate limit reached for gpt-5-mini in organization org-x on tokens per min (TPM): " +
@@ -401,7 +352,7 @@ describe("regulatory triage", () => {
   });
 
   it("spreads retries over a random window without ever waiting less than the base delay", () => {
-    // Concurrent lanes (classification, triage batches, retrieval queries) that all hit a 429 or
+    // Concurrent classification and retrieval lanes that all hit a 429 or
     // budget contention at the same instant would otherwise retry at an identical fixed delay and
     // collide again on the next attempt. Jitter only ever adds to the base delay — it must never
     // shorten a provider-specified backoff, or the retry would be rate-limited again for sure.
@@ -428,50 +379,6 @@ describe("regulatory triage", () => {
     expect(isMissingProvisionForeignKeyError({ code: "P2002" })).toBe(false);
     expect(isMissingProvisionForeignKeyError(new Error("boom"))).toBe(false);
     expect(isMissingProvisionForeignKeyError(null)).toBe(false);
-  });
-
-  it("splits a shared batch cost across its members, exactly and without remainder loss", () => {
-    expect(splitReservedCost(100, 4)).toEqual([25, 25, 25, 25]);
-    expect(splitReservedCost(10, 3)).toEqual([4, 3, 3]);
-    const shares = splitReservedCost(101, 7);
-    expect(shares).toHaveLength(7);
-    expect(shares.reduce((total, share) => total + share, 0)).toBe(101);
-    expect(splitReservedCost(50, 1)).toEqual([50]);
-  });
-
-  it("ignores decisions outside the batch and drops duplicates, keeping the first", () => {
-    const batch = [{ provisionId: "a" }, { provisionId: "b" }];
-    const rawDecisions = [
-      { provisionId: "a", likelyApplicable: "YES" as const },
-      { provisionId: "hallucinated-id", likelyApplicable: "NO" as const },
-      { provisionId: "a", likelyApplicable: "NO" as const },
-    ];
-
-    expect(normalizeTriageDecisions(batch, rawDecisions)).toEqual([
-      { provisionId: "a", likelyApplicable: "YES" },
-    ]);
-  });
-
-  it("keeps undecided and YES candidates, drops NO, gates UNSURE behind includeUnsure", () => {
-    const candidates = [
-      { provisionId: "no-decision-made" },
-      { provisionId: "said-no" },
-      { provisionId: "said-yes" },
-      { provisionId: "said-unsure" },
-    ];
-    const decisions = [
-      { provisionId: "said-no", likelyApplicable: "NO" as const },
-      { provisionId: "said-yes", likelyApplicable: "YES" as const },
-      { provisionId: "said-unsure", likelyApplicable: "UNSURE" as const },
-    ];
-
-    expect(
-      selectTriageSurvivors(candidates, decisions, true).map((candidate) => candidate.provisionId),
-    ).toEqual(["no-decision-made", "said-yes", "said-unsure"]);
-
-    expect(
-      selectTriageSurvivors(candidates, decisions, false).map((candidate) => candidate.provisionId),
-    ).toEqual(["no-decision-made", "said-yes"]);
   });
 });
 
@@ -683,108 +590,6 @@ describe("accuracy-first provision quality gates", () => {
     expect(canCarryForwardRequirement(candidate, [])).toBe(true);
     expect(canCarryForwardRequirement({ ...candidate, changeType: "MODIFIED" }, [])).toBe(false);
     expect(canCarryForwardRequirement(candidate, [{ key: "scope" }])).toBe(false);
-  });
-});
-
-describe("regulatory analysis embedding profile diagnosis", () => {
-  const previousDatabaseUrl = process.env["DATABASE_URL"];
-  const previousRagFlag = process.env["NORMATIVE_RAG_ENABLED"];
-  const previousApiKey = process.env["OPENAI_API_KEY"];
-
-  beforeEach(() => {
-    process.env["DATABASE_URL"] ??= "postgresql://postgres:postgres@localhost:5432/qhse_test";
-    process.env["NORMATIVE_RAG_ENABLED"] = "true";
-    process.env["OPENAI_API_KEY"] = "sk-test";
-  });
-
-  afterEach(() => {
-    restore("DATABASE_URL", previousDatabaseUrl);
-    restore("NORMATIVE_RAG_ENABLED", previousRagFlag);
-    restore("OPENAI_API_KEY", previousApiKey);
-  });
-
-  function restore(key: string, value: string | undefined) {
-    if (value === undefined) delete process.env[key];
-    else process.env[key] = value;
-  }
-
-  /**
-   * Builds a processor whose Prisma client is replaced, then exposes the
-   * private resolver the analysis phase depends on.
-   */
-  function resolverWith(database: object) {
-    const processor = new RegulatoryAnalysisProcessor();
-    (processor as unknown as { database: object }).database = database;
-    return () =>
-      (
-        processor as unknown as { resolveActiveEmbeddingProfile(): Promise<{ id: string }> }
-      ).resolveActiveEmbeddingProfile();
-  }
-
-  function databaseWith(profiles: Array<Record<string, unknown>>, unindexedChunk: object | null) {
-    return {
-      embeddingProfile: {
-        findFirst: vi.fn(async ({ where }: { where: { status: unknown } }) => {
-          const wanted =
-            typeof where.status === "string"
-              ? [where.status]
-              : ((where.status as { in: string[] }).in ?? []);
-          const matches = profiles.filter((profile) =>
-            wanted.includes(profile["status"] as string),
-          );
-          return (
-            [...matches].sort((a, b) => Number(b["version"] ?? 0) - Number(a["version"] ?? 0))[0] ??
-            null
-          );
-        }),
-      },
-      documentChunk: { findFirst: vi.fn().mockResolvedValue(unindexedChunk) },
-    };
-  }
-
-  it("returns the active profile when it covers every searchable revision", async () => {
-    const active = { id: "profile-3", key: "openai:v3", status: "ACTIVE", version: 3 };
-    await expect(resolverWith(databaseWith([active], null))()).resolves.toMatchObject({
-      id: "profile-3",
-    });
-  });
-
-  it("reports a missing profile when the corpus was never indexed", async () => {
-    await expect(resolverWith(databaseWith([], null))()).rejects.toThrowError(
-      expect.objectContaining({ code: "EMBEDDING_PROFILE_MISSING" }),
-    );
-  });
-
-  it("distinguishes an in-progress build from a profile awaiting activation", async () => {
-    const building = { id: "profile-1", key: "openai:v1", status: "BUILDING", version: 1 };
-    await expect(resolverWith(databaseWith([building], null))()).rejects.toThrowError(
-      expect.objectContaining({ code: "EMBEDDING_PROFILE_BUILDING" }),
-    );
-
-    const ready = { id: "profile-2", key: "openai:v2", status: "READY", version: 2 };
-    await expect(resolverWith(databaseWith([ready], null))()).rejects.toThrowError(
-      expect.objectContaining({ code: "EMBEDDING_PROFILE_NOT_ACTIVATED" }),
-    );
-  });
-
-  it("reports a stale profile when newly published content is unindexed", async () => {
-    // The profile is ACTIVE, so search "works" — but the retriever silently
-    // drops every revision with an unindexed chunk, which reads as an empty
-    // corpus rather than a rollout gap unless we name it.
-    const active = { id: "profile-3", key: "openai:v3", status: "ACTIVE", version: 3 };
-    await expect(resolverWith(databaseWith([active], { id: "chunk-9" }))()).rejects.toThrowError(
-      expect.objectContaining({ code: "EMBEDDING_PROFILE_STALE" }),
-    );
-  });
-
-  it("prefers the newest pending profile when several exist", async () => {
-    const profiles = [
-      { id: "profile-1", key: "openai:v1", status: "READY", version: 1 },
-      { id: "profile-2", key: "openai:v2", status: "BUILDING", version: 2 },
-    ];
-    await expect(resolverWith(databaseWith(profiles, null))()).rejects.toThrowError(
-      expect.objectContaining({ code: "EMBEDDING_PROFILE_BUILDING" }),
-    );
   });
 });
 

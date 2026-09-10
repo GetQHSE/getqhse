@@ -142,6 +142,8 @@ const activeWatch = {
           reviewedAt: "2026-08-10T12:00:00.000Z",
         },
         source: {
+          type: "PLATFORM_PROVISION",
+          url: null,
           sourceId: "provision-1",
           documentId: "document-1",
           revisionId: "revision-1",
@@ -286,6 +288,36 @@ describe("RegulatoryWatchPage", () => {
       expect(clientApi.startRegulatoryAnalysis).toHaveBeenCalledWith("atlas-industrie", {
         languages: ["fr", "ar"],
       }),
+    );
+  });
+
+  it("shows source-needed leads separately when the stored corpus has no matching requirements", async () => {
+    vi.mocked(clientApi.regulatoryWatch).mockResolvedValue({
+      ...notStartedWatch,
+      status: "REVIEW_REQUIRED",
+      currentAnalysis: {
+        ...analysis,
+        status: "READY_FOR_REVIEW",
+        candidates: [],
+        sourceRequired: [
+          {
+            reference: "Référence à vérifier",
+            title: "Texte potentiel",
+            reason: "Vérifier le champ.",
+            sourceUrl: "https://adala.justice.gov.ma/source",
+          },
+        ],
+      },
+    } as never);
+    renderPage();
+    expect(
+      await screen.findByRole("complementary", { name: "Sources à obtenir" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/leur contenu n’est pas dans/)).toBeInTheDocument();
+    expect(screen.getByText(/Référence à vérifier — Texte potentiel/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Consulter la source web repérée" })).toHaveAttribute(
+      "href",
+      "https://adala.justice.gov.ma/source",
     );
   });
 
@@ -548,7 +580,7 @@ describe("RegulatoryWatchPage", () => {
     expect(screen.getAllByText("ISO 9001:2015").length).toBeGreaterThan(0);
   });
 
-  it("labels legacy requirements for regeneration and disables XLSX export", () => {
+  it("keeps XLSX export available when published laws have no extracted requirement", () => {
     const legacyWatch = {
       ...activeWatch,
       currentBaseline: {
@@ -573,8 +605,8 @@ describe("RegulatoryWatchPage", () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByText("Exigences à régénérer")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Exporter en Excel/ })).toBeDisabled();
+    expect(screen.queryByText("Exigences à régénérer")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Exporter en Excel/ })).toBeEnabled();
   });
 
   it("keeps the published baseline visible while grouped changes await review", async () => {
