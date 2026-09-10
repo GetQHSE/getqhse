@@ -107,7 +107,7 @@ describe("MVP applicable-law discovery", () => {
         },
         { updateProgress: vi.fn() },
       );
-    return { db, events, run };
+    return { db, events, processor, run };
   }
 
   function respond(laws = [storedProposal, lead], events?: string[]) {
@@ -235,9 +235,26 @@ describe("MVP applicable-law discovery", () => {
   });
 
   it("fails visibly on model failure instead of treating it as no applicable law", async () => {
-    const { run } = harness();
-    generated.mockRejectedValue(new Error("provider down"));
+    const { processor, run } = harness();
+    const error = vi.fn();
+    (processor as unknown as { logger: { error: typeof error } }).logger = { error };
+    generated.mockRejectedValue(
+      Object.assign(new Error("response body containing private project data"), {
+        statusCode: 403,
+        data: { error: { code: "web_search_not_allowed" } },
+      }),
+    );
+
     await expect(run()).rejects.toMatchObject({ code: "REGULATORY_MODEL_UNAVAILABLE" });
+    expect(error).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: "regulatory_discovery_model_call_failed",
+        providerStatusCode: 403,
+        providerErrorCode: "web_search_not_allowed",
+      }),
+      "applicable-law discovery model call failed",
+    );
+    expect(JSON.stringify(error.mock.calls)).not.toContain("private project data");
   });
 
   it("persists a source-less discovery as a first-class candidate", async () => {
