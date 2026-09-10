@@ -217,6 +217,9 @@ describe("LlmSettingsService", () => {
       model: "claude-haiku-4-5-20251001",
     });
     expect(success).toMatchObject({ ok: true, provider: "anthropic", error: null });
+    expect(aiCalls.generateText).toHaveBeenCalledWith(
+      expect.objectContaining({ maxOutputTokens: 128 }),
+    );
 
     aiCalls.generateText.mockRejectedValueOnce(
       new Error("401 invalid key sk-ant-private at internal-provider-host"),
@@ -233,6 +236,32 @@ describe("LlmSettingsService", () => {
     expect(JSON.stringify(failure)).not.toContain("sk-ant-private");
     expect(JSON.stringify(failure)).not.toContain("internal-provider-host");
   });
+
+  it.each([
+    [404, "The selected model is unavailable to this provider account"],
+    [429, "Provider rate limit or quota was exceeded"],
+    [400, "The provider rejected the model request"],
+    [500, "The provider is temporarily unavailable"],
+  ])(
+    "reports HTTP %i failures without exposing the provider response",
+    async (statusCode, message) => {
+      vi.stubEnv("OPENAI_API_KEY", "sk-openai-private");
+      const providerError = Object.assign(
+        new Error("upstream response contains sk-private and internal-provider-host"),
+        { statusCode },
+      );
+      aiCalls.generateText.mockRejectedValueOnce(providerError);
+
+      const failure = await service.testProvider(superAdmin, "openai", {
+        capability: "language",
+        model: "gpt-5.6-luna",
+      });
+
+      expect(failure.error).toBe(message);
+      expect(JSON.stringify(failure)).not.toContain("sk-private");
+      expect(JSON.stringify(failure)).not.toContain("internal-provider-host");
+    },
+  );
 
   it("drops every override on reset", async () => {
     vi.stubEnv("OPENAI_REGULATORY_MODEL", "gpt-5");
