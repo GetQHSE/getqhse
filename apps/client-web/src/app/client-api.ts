@@ -117,6 +117,11 @@ export const clientApi = {
     runId: string,
     input: Parameters<QhseApiClient["answerRegulatoryClarifications"]>[2],
   ) => qhseApi.answerRegulatoryClarifications(idOrSlug, runId, input),
+  reviewRegulatoryAnalysis: (
+    idOrSlug: string,
+    runId: string,
+    input: Parameters<QhseApiClient["reviewRegulatoryAnalysis"]>[2],
+  ) => qhseApi.reviewRegulatoryAnalysis(idOrSlug, runId, input),
   decideRegulatoryCandidate: (
     idOrSlug: string,
     candidateId: string,

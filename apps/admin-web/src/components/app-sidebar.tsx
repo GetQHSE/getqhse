@@ -18,6 +18,7 @@ import { BrandLogo } from "@qhse/ui/components/brand-logo";
 import {
   FilesIcon,
   Building2Icon,
+  BrainCircuitIcon,
   LayoutDashboardIcon,
   SearchIcon,
   SettingsIcon,
@@ -46,6 +47,15 @@ const data = {
       title: "Organizations",
       url: "/organizations",
       icon: <Building2Icon />,
+    },
+    {
+      title: "Knowledge",
+      url: "/knowledge",
+      icon: <BrainCircuitIcon />,
+      items: [
+        { title: "AI Discovery", url: "/knowledge/discovery" },
+        { title: "AI Evaluation", url: "/knowledge/evaluation" },
+      ],
     },
     {
       title: "Operators",

@@ -602,6 +602,7 @@ export const regulatoryAiEvaluationStatusSchema = z.enum([
   "COMPLETED",
   "FAILED",
 ]);
+export const regulatoryAnalysisReviewOutcomeSchema = z.enum(["SUBMITTED", "SKIPPED"]);
 /** A PENDING or RUNNING AI assessment untouched for this long belongs to a pass that died.
  *  Both the API (when deciding what a re-run may reset) and the web client (when deciding
  *  whether a pass is still live) read it, so they can never disagree about what "in progress"
@@ -627,6 +628,153 @@ export const answerRegulatoryClarificationsSchema = z.object({
   answers: z.array(regulatoryClarificationAnswerSchema).min(1).max(5),
 });
 export type AnswerRegulatoryClarifications = z.infer<typeof answerRegulatoryClarificationsSchema>;
+
+export const reviewRegulatoryAnalysisSchema = z.discriminatedUnion("outcome", [
+  z
+    .object({
+      outcome: z.literal("SUBMITTED"),
+      rating: z.number().int().min(0).max(5),
+      comment: z.string().trim().max(4_000).nullable().optional(),
+    })
+    .strict(),
+  z.object({ outcome: z.literal("SKIPPED") }).strict(),
+]);
+export type ReviewRegulatoryAnalysis = z.infer<typeof reviewRegulatoryAnalysisSchema>;
+
+export const aiKnowledgeFeatures = ["DISCOVERY", "CONFORMITY_EVALUATION"] as const;
+export const aiKnowledgeFeatureSchema = z.enum(aiKnowledgeFeatures);
+export type AiKnowledgeFeature = z.infer<typeof aiKnowledgeFeatureSchema>;
+export const aiKnowledgeStatuses = ["DRAFT", "ACTIVE"] as const;
+export const aiKnowledgeStatusSchema = z.enum(aiKnowledgeStatuses);
+export type AiKnowledgeStatus = z.infer<typeof aiKnowledgeStatusSchema>;
+export const aiKnowledgeSources = ["CUSTOMER_REVIEW", "HUMAN_CONFIRMATION", "ADMIN"] as const;
+export const aiKnowledgeSourceSchema = z.enum(aiKnowledgeSources);
+export type AiKnowledgeSource = z.infer<typeof aiKnowledgeSourceSchema>;
+export const aiKnowledgeEmbeddingStatuses = [
+  "PENDING",
+  "PROCESSING",
+  "COMPLETED",
+  "FAILED",
+] as const;
+export const aiKnowledgeEmbeddingStatusSchema = z.enum(aiKnowledgeEmbeddingStatuses);
+export type AiKnowledgeEmbeddingStatus = z.infer<typeof aiKnowledgeEmbeddingStatusSchema>;
+export const aiKnowledgeEvaluationSignals = ["CORRECTION", "COMMENT"] as const;
+export const aiKnowledgeEvaluationSignalSchema = z.enum(aiKnowledgeEvaluationSignals);
+export type AiKnowledgeEvaluationSignal = z.infer<typeof aiKnowledgeEvaluationSignalSchema>;
+
+const promptSafeText = (minimum: number, maximum: number) =>
+  z
+    .string()
+    .trim()
+    .min(minimum)
+    .max(maximum)
+    .superRefine((value, context) => {
+      if (/https?:\/\/|www\./iu.test(value)) {
+        context.addIssue({ code: "custom", message: "URLs are not allowed in knowledge content" });
+      }
+      if (/\b[^\s@]+@[^\s@]+\.[^\s@]+\b/u.test(value)) {
+        context.addIssue({
+          code: "custom",
+          message: "Email addresses are not allowed in knowledge content",
+        });
+      }
+    });
+
+export const aiKnowledgeLawSchema = z
+  .object({
+    reference: promptSafeText(1, 200).nullable(),
+    title: promptSafeText(2, 300),
+    reason: promptSafeText(10, 1_000),
+  })
+  .strict();
+
+export const aiDiscoveryKnowledgePayloadSchema = z
+  .object({
+    includedLaws: z.array(aiKnowledgeLawSchema).max(50),
+    excludedLaws: z.array(aiKnowledgeLawSchema).max(50),
+  })
+  .strict();
+export type AiDiscoveryKnowledgePayload = z.infer<typeof aiDiscoveryKnowledgePayloadSchema>;
+
+export const aiEvaluationKnowledgePayloadSchema = z
+  .object({
+    lawReference: promptSafeText(1, 200).nullable(),
+    lawTitle: promptSafeText(2, 300),
+    requirementSummary: promptSafeText(10, 2_000),
+    rationale: promptSafeText(10, 2_000),
+    remediationGuidance: promptSafeText(10, 2_000).nullable(),
+  })
+  .strict();
+export type AiEvaluationKnowledgePayload = z.infer<typeof aiEvaluationKnowledgePayloadSchema>;
+
+const aiKnowledgeBaseShape = {
+  title: promptSafeText(2, 200),
+  scenarioSummary: promptSafeText(10, 2_000),
+  guidance: promptSafeText(10, 2_000).nullable().default(null),
+  jurisdiction: z.string().trim().toUpperCase().length(2),
+  language: z.enum(["fr", "ar"]),
+  tags: z.array(promptSafeText(1, 60)).max(20).default([]),
+};
+
+export const createAiDiscoveryKnowledgeExampleSchema = z
+  .object({
+    feature: z.literal("DISCOVERY"),
+    ...aiKnowledgeBaseShape,
+    rating: z.number().int().min(0).max(5).nullable().default(null),
+    payload: aiDiscoveryKnowledgePayloadSchema,
+  })
+  .strict();
+export const createAiEvaluationKnowledgeExampleSchema = z
+  .object({
+    feature: z.literal("CONFORMITY_EVALUATION"),
+    ...aiKnowledgeBaseShape,
+    expectedResult: assessmentResultSchema.exclude(["NOT_ASSESSED"]),
+    evaluationSignal: aiKnowledgeEvaluationSignalSchema,
+    payload: aiEvaluationKnowledgePayloadSchema,
+  })
+  .strict();
+export const createAiKnowledgeExampleSchema = z.discriminatedUnion("feature", [
+  createAiDiscoveryKnowledgeExampleSchema,
+  createAiEvaluationKnowledgeExampleSchema,
+]);
+export type CreateAiKnowledgeExample = z.infer<typeof createAiKnowledgeExampleSchema>;
+
+export const updateAiKnowledgeExampleSchema = z
+  .object({
+    title: aiKnowledgeBaseShape.title.optional(),
+    scenarioSummary: aiKnowledgeBaseShape.scenarioSummary.optional(),
+    guidance: aiKnowledgeBaseShape.guidance.optional(),
+    jurisdiction: aiKnowledgeBaseShape.jurisdiction.optional(),
+    language: aiKnowledgeBaseShape.language.optional(),
+    tags: aiKnowledgeBaseShape.tags.optional(),
+    rating: z.number().int().min(0).max(5).nullable().optional(),
+    expectedResult: assessmentResultSchema.exclude(["NOT_ASSESSED"]).optional(),
+    evaluationSignal: aiKnowledgeEvaluationSignalSchema.optional(),
+    payload: z
+      .union([aiDiscoveryKnowledgePayloadSchema, aiEvaluationKnowledgePayloadSchema])
+      .optional(),
+  })
+  .strict();
+export type UpdateAiKnowledgeExample = z.infer<typeof updateAiKnowledgeExampleSchema>;
+
+export const listAiKnowledgeExamplesSchema = z
+  .object({
+    feature: aiKnowledgeFeatureSchema,
+    search: z.string().trim().max(200).optional(),
+    status: aiKnowledgeStatusSchema.optional(),
+    source: aiKnowledgeSourceSchema.optional(),
+    jurisdiction: z.string().trim().toUpperCase().length(2).optional(),
+    language: z.enum(["fr", "ar"]).optional(),
+    tag: z.string().trim().max(60).optional(),
+    embeddingStatus: aiKnowledgeEmbeddingStatusSchema.optional(),
+    rating: z.coerce.number().int().min(0).max(5).optional(),
+    expectedResult: assessmentResultSchema.exclude(["NOT_ASSESSED"]).optional(),
+    evaluationSignal: aiKnowledgeEvaluationSignalSchema.optional(),
+    page: z.coerce.number().int().positive().max(10_000).default(1),
+    pageSize: z.coerce.number().int().min(10).max(100).default(25),
+  })
+  .strict();
+export type ListAiKnowledgeExamples = z.infer<typeof listAiKnowledgeExamplesSchema>;
 
 export const decideRegulatoryCandidateSchema = z.object({
   watchRevision: z.number().int().positive(),
@@ -903,6 +1051,14 @@ export const regulatoryAnalysisRunSchema = z.object({
     z.object({ key: z.string(), question: z.string(), answer: z.unknown().nullable() }),
   ),
   sourceRequired: z.array(lawSourceRequiredSchema).optional(),
+  review: z
+    .object({
+      outcome: regulatoryAnalysisReviewOutcomeSchema,
+      rating: z.number().int().min(0).max(5).nullable(),
+      comment: z.string().nullable(),
+      createdAt: isoDateTimeSchema,
+    })
+    .nullable(),
   candidates: z.array(regulatoryCandidateSchema),
   diff: z.object({
     added: z.number().int().nonnegative(),
@@ -1068,6 +1224,7 @@ export type JobEnvelope = z.infer<typeof jobEnvelopeSchema>;
 export const workQueueNames = {
   documentIngestion: "document-ingestion",
   embeddingGeneration: "embedding-generation",
+  knowledgeEmbedding: "knowledge-embedding",
   regulatoryAnalysis: "regulatory-analysis",
   regulatoryImpact: "regulatory-impact",
   regulatoryEvaluation: "regulatory-evaluation",

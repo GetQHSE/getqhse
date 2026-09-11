@@ -13,6 +13,7 @@ import { Output, generateText } from "ai";
 import type { Job } from "bullmq";
 import { z } from "zod";
 
+import { searchForPrompt } from "../knowledge-library.js";
 import { queueNames } from "../queues.js";
 import {
   conservativeInputTokens,
@@ -334,6 +335,16 @@ export class RegulatoryEvaluationProcessor extends WorkerHost {
         entry.sourceTitle ??
         "Texte complet";
       const sourceText = entry.provision?.content ?? entry.applicabilityRationale;
+      const knowledgeExamples = await searchForPrompt(this.database, {
+        feature: "CONFORMITY_EVALUATION",
+        queryText: JSON.stringify({
+          profileContext: baseline.profileSnapshot.data,
+          requirement: { document: documentLabel, text: requirementText },
+        }),
+        jurisdiction: "MA",
+        language: "fr",
+        limit: 5,
+      });
       await job.updateProgress({
         phase: "evaluating_conformity",
         progress: pending.length ? Math.floor((index / pending.length) * 95) : 95,
@@ -362,6 +373,7 @@ export class RegulatoryEvaluationProcessor extends WorkerHost {
           note,
           url,
         })),
+        knowledgeExamples,
         currentDate: new Date().toISOString().slice(0, 10),
       };
       const prompt = regulatoryConformityPrompt.build(promptInput);

@@ -1,11 +1,32 @@
 import { describe, expect, it } from "vitest";
 
+import { findModelDefinition } from "./llm-model-catalog.js";
 import {
   llmSettingsDefaults,
   llmSettingsFromEnvironment,
   llmSettingsOverrideSchema,
   resolveLlmSettings,
 } from "./llm-settings.js";
+
+describe("tested model catalog", () => {
+  it("provides complete regulatory metadata for GPT-5.6 Luna", () => {
+    expect(findModelDefinition("openai", "gpt-5.6-luna")).toMatchObject({
+      capabilities: {
+        language: true,
+        structuredOutput: true,
+        tools: true,
+        webSearch: true,
+      },
+      advancedControls: ["reasoningEffort", "serviceTier", "verbosity", "cacheRetention"],
+      rates: {
+        inputUsdPerMTok: 0.2,
+        cachedInputUsdPerMTok: 0.02,
+        outputUsdPerMTok: 1.2,
+      },
+      tested: true,
+    });
+  });
+});
 
 describe("llmSettingsFromEnvironment", () => {
   it("resolves generic provider/model settings ahead of legacy OpenAI model settings", () => {

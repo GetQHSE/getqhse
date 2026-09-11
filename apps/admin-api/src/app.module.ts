@@ -8,6 +8,7 @@ import { PlatformAdminGuard } from "./modules/auth/platform-admin.guard.js";
 import { HealthModule } from "./modules/health/health.module.js";
 import { EmailSettingsModule } from "./modules/email-settings/email-settings.module.js";
 import { LlmSettingsModule } from "./modules/llm-settings/llm-settings.module.js";
+import { KnowledgeLibraryModule } from "./modules/knowledge-library/knowledge-library.module.js";
 import { NormativeDocumentsModule } from "./modules/normative-documents/normative-documents.module.js";
 import { NormativeEntitlementsModule } from "./modules/normative-entitlements/normative-entitlements.module.js";
 import { NormativeLicensingModule } from "./modules/normative-licensing/normative-licensing.module.js";
@@ -42,6 +43,7 @@ import { PlatformUsersModule } from "./modules/platform-users/platform-users.mod
     OrganizationsModule,
     PlatformUsersModule,
     LlmSettingsModule,
+    KnowledgeLibraryModule,
     EmailSettingsModule,
     HealthModule,
   ],

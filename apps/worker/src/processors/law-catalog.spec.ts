@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
+import { z } from "zod";
 
-import { lawContext, materializeLawStructure, resolveApplicableLaws } from "./law-catalog.js";
+import {
+  applicableLawDiscoverySchema,
+  lawContext,
+  materializeLawStructure,
+  resolveApplicableLaws,
+} from "./law-catalog.js";
 
 const blocks = [
   { blockType: "heading", pageNumber: 1, text: "Chapitre I" },
@@ -25,6 +31,12 @@ const nodes = [
 ];
 
 describe("source-backed law ingestion", () => {
+  it("generates an OpenAI-compatible discovery schema", () => {
+    expect(JSON.stringify(z.toJSONSchema(applicableLawDiscoverySchema))).not.toContain(
+      '"format":"uri"',
+    );
+  });
+
   it("copies exact source text and page bounds instead of accepting generated wording", () => {
     const result = materializeLawStructure(blocks, { nodes }, "fr");
     expect(result[1]).toMatchObject({

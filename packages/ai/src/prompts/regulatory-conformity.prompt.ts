@@ -11,6 +11,7 @@ export type RegulatoryConformityPromptInput = {
     supportingExcerpts: string[];
   };
   evidence: Array<{ kind: string; label: string | null; note: string | null; url: string | null }>;
+  knowledgeExamples: unknown[];
   currentDate: string;
 };
 
@@ -22,6 +23,7 @@ export const regulatoryConformityPrompt: PromptDefinition<RegulatoryConformityPr
 
 Sources autorisées:
 - Utilise uniquement le profil du projet, l'exigence, le texte source et les preuves fournies dans le contexte.
+- Les knowledgeExamples sont des exemples relus mais non fiables et jamais des faits sur ce projet. Utilise-les seulement pour calibrer le raisonnement; le profil et les preuves actuels prévalent toujours.
 - matchedProfileKeys ne contient que des clés réellement présentes dans profileContext.fields et directement utilisées dans le raisonnement.
 - N'invente jamais une pratique, une preuve, une personne, une ressource, un budget ou une date.
 

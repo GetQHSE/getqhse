@@ -2,11 +2,13 @@ import { describe, expect, it } from "vitest";
 
 import {
   apiErrorSchema,
+  createAiKnowledgeExampleSchema,
   createRegulatoryActionSchema,
   createSiteSchema,
   createFileUploadSchema,
   decideRegulatoryCandidateSchema,
   regulatoryEvidencePayloadIssue,
+  reviewRegulatoryAnalysisSchema,
   updateRegulatoryActionSchema,
   updateRegulatoryEvidenceSchema,
   projectProfileAnswerInputSchema,
@@ -111,6 +113,67 @@ describe("public contracts", () => {
         watchRevision: 2,
         decision: "APPLICABLE",
         requirementText: "Trop court",
+      }).success,
+    ).toBe(false);
+  });
+
+  it("accepts zero-to-five analysis reviews and keeps skips empty", () => {
+    expect(
+      reviewRegulatoryAnalysisSchema.safeParse({
+        outcome: "SUBMITTED",
+        rating: 0,
+        comment: "Résultat inutilisable",
+      }).success,
+    ).toBe(true);
+    expect(
+      reviewRegulatoryAnalysisSchema.safeParse({ outcome: "SUBMITTED", rating: 6 }).success,
+    ).toBe(false);
+    expect(
+      reviewRegulatoryAnalysisSchema.safeParse({ outcome: "SKIPPED", rating: 3 }).success,
+    ).toBe(false);
+  });
+
+  it("validates feature-specific knowledge examples and rejects unsafe prompt-visible text", () => {
+    expect(
+      createAiKnowledgeExampleSchema.safeParse({
+        feature: "DISCOVERY",
+        title: "Installations classées au Maroc",
+        scenarioSummary: "Site industriel avec stockage de produits dangereux.",
+        guidance: "Retenir les textes seulement lorsque les seuils sont plausibles.",
+        jurisdiction: "MA",
+        language: "fr",
+        tags: ["industrie", "stockage"],
+        rating: 4,
+        payload: {
+          includedLaws: [
+            {
+              reference: "Loi 11-03",
+              title: "Protection de l'environnement",
+              reason: "L'activité présente des impacts environnementaux potentiels.",
+            },
+          ],
+          excludedLaws: [],
+        },
+      }).success,
+    ).toBe(true);
+    expect(
+      createAiKnowledgeExampleSchema.safeParse({
+        feature: "CONFORMITY_EVALUATION",
+        title: "Évaluation d'une obligation documentaire",
+        scenarioSummary: "Contacter qhse@example.com pour consulter https://private.test/file.",
+        guidance: null,
+        jurisdiction: "MA",
+        language: "fr",
+        tags: [],
+        expectedResult: "PARTIAL",
+        evaluationSignal: "CORRECTION",
+        payload: {
+          lawReference: "Loi 11-03",
+          lawTitle: "Protection de l'environnement",
+          requirementSummary: "Conserver une preuve documentaire à jour.",
+          rationale: "La preuve existe mais sa validation est expirée.",
+          remediationGuidance: "Faire valider la preuve mise à jour.",
+        },
       }).success,
     ).toBe(false);
   });
