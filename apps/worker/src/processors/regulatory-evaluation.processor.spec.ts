@@ -179,6 +179,8 @@ function harness(baseline: ReturnType<typeof baselineWith>) {
     $executeRaw: vi.fn().mockResolvedValue(0),
     $queryRaw: vi.fn().mockResolvedValue([]),
     regulatoryBaseline: { findFirst: vi.fn().mockResolvedValue(baseline) },
+    embeddingProfile: { findFirst: vi.fn().mockResolvedValue(null) },
+    aiKnowledgeExample: { findMany: vi.fn().mockResolvedValue([]) },
     regulatoryEvaluation: { updateMany: evaluationUpdateMany },
     regulatoryEvaluationAction: { count: vi.fn().mockResolvedValue(0), create: actionCreate },
     regulatoryModelCall: {
@@ -300,6 +302,43 @@ describe("regulatory conformity evaluation pass", () => {
           title: "Compléter le registre de métrologie",
           status: "OPEN",
         }),
+      }),
+    );
+  });
+
+  it("adds only approved conformity knowledge to the model context", async () => {
+    generated.mockResolvedValue(conformityOutput());
+    const { processor, job, database } = harness(
+      baselineWith([{ id: "evaluation-1", aiStatus: "PENDING" }]),
+    );
+    database.aiKnowledgeExample.findMany.mockResolvedValue([
+      {
+        id: "knowledge-1",
+        feature: "CONFORMITY_EVALUATION",
+        title: "Preuve expirée",
+        scenarioSummary: "Une preuve existe mais sa validation est expirée.",
+        guidance: "Une preuve expirée ne démontre pas une conformité complète.",
+        jurisdiction: "MA",
+        language: "fr",
+        tags: ["preuve"],
+        rating: null,
+        expectedResult: "PARTIAL",
+        evaluationSignal: "CORRECTION",
+        payload: {
+          lawReference: "Loi 11-03",
+          lawTitle: "Protection de l'environnement",
+          requirementSummary: "Conserver une preuve documentaire à jour.",
+          rationale: "La validation de la preuve est expirée.",
+          remediationGuidance: "Renouveler la validation.",
+        },
+      },
+    ]);
+
+    await processor.process(job as never);
+
+    expect(generated).toHaveBeenCalledWith(
+      expect.objectContaining({
+        prompt: expect.stringContaining("Une preuve expirée ne démontre pas"),
       }),
     );
   });

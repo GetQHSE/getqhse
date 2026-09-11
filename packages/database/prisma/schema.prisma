@@ -273,6 +273,39 @@ enum RegulatoryAiEvaluationStatus {
   FAILED
 }
 
+enum RegulatoryAnalysisReviewOutcome {
+  SUBMITTED
+  SKIPPED
+}
+
+enum AiKnowledgeFeature {
+  DISCOVERY
+  CONFORMITY_EVALUATION
+}
+
+enum AiKnowledgeStatus {
+  DRAFT
+  ACTIVE
+}
+
+enum AiKnowledgeSource {
+  CUSTOMER_REVIEW
+  HUMAN_CONFIRMATION
+  ADMIN
+}
+
+enum AiKnowledgeEmbeddingStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum AiKnowledgeEvaluationSignal {
+  CORRECTION
+  COMMENT
+}
+
 enum FileUploadStatus {
   PENDING
   READY
@@ -376,6 +409,7 @@ model User {
   regulatoryAnalysesCreated           RegulatoryAnalysisRun[]            @relation("RegulatoryAnalysisCreator")
   regulatoryCandidatesReviewed        RegulatoryApplicabilityCandidate[] @relation("RegulatoryCandidateReviewer")
   regulatoryRequirementsEdited        RegulatoryApplicabilityCandidate[] @relation("RegulatoryRequirementEditor")
+  regulatoryAnalysisReviews           RegulatoryAnalysisReview[]         @relation("RegulatoryAnalysisReviewer")
   regulatoryBaselinesPublished        RegulatoryBaseline[]               @relation("RegulatoryBaselinePublisher")
   regulatoryRequirementsReviewed      RegulatoryRegisterEntry[]          @relation("RegulatoryRequirementReviewer")
   emailSettingsUpdated                EmailSetting[]                     @relation("EmailSettingUpdater")
@@ -385,6 +419,9 @@ model User {
   regulatoryActionsAssigned           RegulatoryEvaluationAction[]       @relation("RegulatoryActionAssignee")
   regulatorySyncEventsCreated         RegulatorySyncEvent[]              @relation("RegulatorySyncEventActor")
   llmSettingsUpdated                  LlmSetting[]                       @relation("LlmSettingUpdatedBy")
+  aiKnowledgeCreated                  AiKnowledgeExample[]               @relation("AiKnowledgeCreatedBy")
+  aiKnowledgeUpdated                  AiKnowledgeExample[]               @relation("AiKnowledgeUpdatedBy")
+  aiKnowledgeActivity                 AiKnowledgeActivity[]              @relation("AiKnowledgeActivityActor")
 
   @@map("users")
 }
@@ -692,8 +729,9 @@ model EmbeddingProfile {
   createdAt   DateTime               @default(now()) @map("created_at")
   updatedAt   DateTime               @updatedAt @map("updated_at")
 
-  embeddings    DocumentEmbedding[]
-  retrievalLogs RetrievalLog[]
+  embeddings          DocumentEmbedding[]
+  knowledgeEmbeddings AiKnowledgeEmbedding[]
+  retrievalLogs       RetrievalLog[]
 
   @@unique([provider, model, dimensions, version])
   @@index([status])
@@ -946,22 +984,24 @@ model Organization {
   timezone    String   @default("Africa/Casablanca")
   createdAt   DateTime @default(now()) @map("created_at")
 
-  members           Member[]
-  invitations       Invitation[]
-  sites             Site[]
-  projects          Project[]
-  auditCampaigns    AuditCampaign[]
-  audits            Audit[]
-  evidence          Evidence[]
-  findings          Finding[]
-  correctiveActions CorrectiveAction[]
-  files             FileObject[]
-  backgroundJobs    BackgroundJob[]
-  auditLogEntries   AuditLogEntry[]
-  retrievalLogs     RetrievalLog[]
-  aiInvocations     AiInvocation[]
-  regulatoryWatches ProjectRegulatoryWatch[]
-  emailDeliveries   EmailDelivery[]
+  members                   Member[]
+  invitations               Invitation[]
+  sites                     Site[]
+  projects                  Project[]
+  auditCampaigns            AuditCampaign[]
+  audits                    Audit[]
+  evidence                  Evidence[]
+  findings                  Finding[]
+  correctiveActions         CorrectiveAction[]
+  files                     FileObject[]
+  backgroundJobs            BackgroundJob[]
+  auditLogEntries           AuditLogEntry[]
+  retrievalLogs             RetrievalLog[]
+  aiInvocations             AiInvocation[]
+  regulatoryWatches         ProjectRegulatoryWatch[]
+  regulatoryAnalysisReviews RegulatoryAnalysisReview[]
+  emailDeliveries           EmailDelivery[]
+  knowledgeExamples         AiKnowledgeExample[]
 
   @@map("organizations")
 }
@@ -1037,12 +1077,13 @@ model Project {
   updatedAt      DateTime          @updatedAt @map("updated_at")
   archivedAt     DateTime?         @map("archived_at")
 
-  organization    Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  createdBy       User                    @relation("ProjectCreator", fields: [createdById], references: [id], onDelete: Restrict)
-  activities      ProjectActivity[]
-  profile         ProjectProfile?
-  aiInvocations   AiInvocation[]
-  regulatoryWatch ProjectRegulatoryWatch?
+  organization      Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy         User                    @relation("ProjectCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  activities        ProjectActivity[]
+  profile           ProjectProfile?
+  aiInvocations     AiInvocation[]
+  regulatoryWatch   ProjectRegulatoryWatch?
+  knowledgeExamples AiKnowledgeExample[]
 
   @@unique([organizationId, slug])
   @@index([organizationId])
@@ -1225,11 +1266,33 @@ model RegulatoryAnalysisRun {
   candidates             RegulatoryApplicabilityCandidate[]
   modelCalls             RegulatoryModelCall[]
   baseline               RegulatoryBaseline?
+  review                 RegulatoryAnalysisReview?
 
   @@unique([watchId, triggerKey])
   @@index([watchId, createdAt])
   @@index([status, createdAt])
   @@map("regulatory_analysis_runs")
+}
+
+model RegulatoryAnalysisReview {
+  id             String                          @id @default(cuid())
+  runId          String                          @unique @map("run_id")
+  organizationId String                          @map("organization_id")
+  reviewedById   String                          @map("reviewed_by_id")
+  outcome        RegulatoryAnalysisReviewOutcome
+  rating         Int?
+  comment        String?
+  createdAt      DateTime                        @default(now()) @map("created_at")
+  updatedAt      DateTime                        @updatedAt @map("updated_at")
+
+  run              RegulatoryAnalysisRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  organization     Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  reviewedBy       User                  @relation("RegulatoryAnalysisReviewer", fields: [reviewedById], references: [id], onDelete: Restrict)
+  knowledgeExample AiKnowledgeExample?
+
+  @@index([organizationId, outcome, createdAt])
+  @@index([outcome, createdAt])
+  @@map("regulatory_analysis_reviews")
 }
 
 model RegulatoryScopeFact {
@@ -1417,10 +1480,85 @@ model RegulatoryEvaluation {
   evaluatedBy          User?                          @relation("RegulatoryEvaluationReviewer", fields: [evaluatedById], references: [id], onDelete: SetNull)
   evidence             RegulatoryEvaluationEvidence[]
   actions              RegulatoryEvaluationAction[]
+  knowledgeExample     AiKnowledgeExample?
 
   @@index([result, updatedAt])
   @@index([aiStatus, updatedAt])
   @@map("regulatory_evaluations")
+}
+
+model AiKnowledgeExample {
+  id                           String                       @id @default(cuid())
+  feature                      AiKnowledgeFeature
+  status                       AiKnowledgeStatus            @default(DRAFT)
+  source                       AiKnowledgeSource            @default(ADMIN)
+  title                        String
+  scenarioSummary              String                       @map("scenario_summary")
+  guidance                     String?
+  jurisdiction                 String                       @default("MA")
+  language                     String                       @default("fr")
+  tags                         String[]                     @default([])
+  payload                      Json
+  rating                       Int?
+  expectedResult               AssessmentResult?            @map("expected_result")
+  evaluationSignal             AiKnowledgeEvaluationSignal? @map("evaluation_signal")
+  sourceOrganizationId         String?                      @map("source_organization_id")
+  sourceProjectId              String?                      @map("source_project_id")
+  sourceAnalysisReviewId       String?                      @unique @map("source_analysis_review_id")
+  sourceRegulatoryEvaluationId String?                      @unique @map("source_regulatory_evaluation_id")
+  embeddingStatus              AiKnowledgeEmbeddingStatus   @default(PENDING) @map("embedding_status")
+  embeddingError               String?                      @map("embedding_error")
+  createdByUserId              String?                      @map("created_by_user_id")
+  updatedByUserId              String?                      @map("updated_by_user_id")
+  createdAt                    DateTime                     @default(now()) @map("created_at")
+  updatedAt                    DateTime                     @updatedAt @map("updated_at")
+
+  sourceOrganization         Organization?             @relation(fields: [sourceOrganizationId], references: [id], onDelete: SetNull)
+  sourceProject              Project?                  @relation(fields: [sourceProjectId], references: [id], onDelete: SetNull)
+  sourceAnalysisReview       RegulatoryAnalysisReview? @relation(fields: [sourceAnalysisReviewId], references: [id], onDelete: SetNull)
+  sourceRegulatoryEvaluation RegulatoryEvaluation?     @relation(fields: [sourceRegulatoryEvaluationId], references: [id], onDelete: SetNull)
+  createdBy                  User?                     @relation("AiKnowledgeCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  updatedBy                  User?                     @relation("AiKnowledgeUpdatedBy", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+  embeddings                 AiKnowledgeEmbedding[]
+
+  @@index([feature, status, updatedAt])
+  @@index([feature, embeddingStatus])
+  @@index([sourceOrganizationId, sourceProjectId])
+  @@index([jurisdiction, language])
+  @@map("ai_knowledge_examples")
+}
+
+model AiKnowledgeEmbedding {
+  id                 String                     @id @default(cuid())
+  knowledgeExampleId String                     @map("knowledge_example_id")
+  embeddingProfileId String                     @map("embedding_profile_id")
+  inputHash          String                     @map("input_hash")
+  embedding          Unsupported("vector(768)")
+  generatedAt        DateTime                   @default(now()) @map("generated_at")
+  createdAt          DateTime                   @default(now()) @map("created_at")
+  updatedAt          DateTime                   @updatedAt @map("updated_at")
+
+  example AiKnowledgeExample @relation(fields: [knowledgeExampleId], references: [id], onDelete: Cascade)
+  profile EmbeddingProfile   @relation(fields: [embeddingProfileId], references: [id], onDelete: Cascade)
+
+  @@unique([knowledgeExampleId, embeddingProfileId])
+  @@index([embeddingProfileId])
+  @@map("ai_knowledge_embeddings")
+}
+
+model AiKnowledgeActivity {
+  id          String             @id @default(cuid())
+  exampleId   String?            @map("example_id")
+  feature     AiKnowledgeFeature
+  action      String
+  actorUserId String?            @map("actor_user_id")
+  createdAt   DateTime           @default(now()) @map("created_at")
+
+  actor User? @relation("AiKnowledgeActivityActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([exampleId, createdAt])
+  @@index([feature, createdAt])
+  @@map("ai_knowledge_activity")
 }
 
 model RegulatoryEvaluationEvidence {

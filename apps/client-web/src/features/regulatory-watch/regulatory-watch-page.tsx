@@ -42,6 +42,7 @@ import {
   SearchCheckIcon,
   ShieldCheckIcon,
   SparklesIcon,
+  StarIcon,
   TargetIcon,
   Trash2Icon,
   XIcon,
@@ -656,6 +657,143 @@ export function SourceRequired({ watch }: { watch: RegulatoryWatch }) {
         ))}
       </ul>
     </aside>
+  );
+}
+
+function AnalysisReviewState({
+  watch,
+  pending,
+  error,
+  onSubmit,
+  onSkip,
+}: {
+  watch: RegulatoryWatch;
+  pending: boolean;
+  error: string | undefined;
+  onSubmit: (rating: number, comment: string | null) => void;
+  onSkip: () => void;
+}) {
+  const [rating, setRating] = useState<number | null>(null);
+  const [comment, setComment] = useState("");
+  const discoveries = useMemo(() => {
+    const grouped = new Map<string, { reference: string; title: string; reason: string }>();
+    for (const candidate of watch.currentAnalysis?.candidates ?? []) {
+      const reference = candidate.source.referenceNumber ?? candidate.source.documentTitle;
+      const key = `${reference}:${candidate.source.documentTitle}`;
+      if (!grouped.has(key)) {
+        grouped.set(key, {
+          reference,
+          title: candidate.source.documentTitle,
+          reason: candidate.rationale,
+        });
+      }
+    }
+    return [...grouped.values()];
+  }, [watch.currentAnalysis?.candidates]);
+
+  return (
+    <StateShell tone="light">
+      <SourceRequired watch={watch} />
+      <div className="mx-auto max-w-3xl py-8">
+        <Badge className="border-violet-200 bg-violet-50 text-violet-700" variant="outline">
+          <SparklesIcon /> Analyse terminée
+        </Badge>
+        <h1 className="mt-4 text-3xl font-semibold tracking-tight">
+          Voici ce que l’IA a découvert
+        </h1>
+        <p className="mt-3 text-sm leading-6 text-slate-500">
+          Votre avis enrichira les exemples utilisés lors des prochaines recherches de textes. Vous
+          pourrez ensuite valider chaque changement avant publication.
+        </p>
+
+        <div className="mt-7 max-h-72 space-y-3 overflow-y-auto rounded-2xl border border-slate-200 bg-slate-50 p-3">
+          {discoveries.map((discovery) => (
+            <article
+              className="rounded-xl border border-slate-200 bg-white p-4"
+              key={`${discovery.reference}:${discovery.title}`}
+            >
+              <p className="text-xs font-semibold text-violet-700">{discovery.reference}</p>
+              {discovery.title !== discovery.reference && (
+                <p className="mt-1 text-sm font-medium text-slate-900">{discovery.title}</p>
+              )}
+              <p className="mt-2 line-clamp-3 text-xs leading-5 text-slate-600">
+                {discovery.reason}
+              </p>
+            </article>
+          ))}
+          {!discoveries.length && (
+            <p className="p-5 text-center text-sm text-slate-500">
+              Aucun texte n’a été identifié dans cette analyse.
+            </p>
+          )}
+        </div>
+
+        <fieldset className="mt-7">
+          <legend className="text-sm font-semibold text-slate-900">
+            Quelle est la qualité de cette découverte ?
+          </legend>
+          <div
+            className="mt-3 flex flex-wrap gap-2"
+            role="radiogroup"
+            aria-label="Note de l’analyse"
+          >
+            {[0, 1, 2, 3, 4, 5].map((value) => (
+              <button
+                aria-checked={rating === value}
+                aria-label={`${value} étoile${value === 1 ? "" : "s"}`}
+                className={cn(
+                  "flex h-11 min-w-14 items-center justify-center gap-1 rounded-xl border px-3 text-sm font-semibold transition-colors",
+                  rating === value
+                    ? "border-violet-600 bg-violet-600 text-white"
+                    : "border-slate-200 bg-white text-slate-600 hover:border-violet-300",
+                )}
+                disabled={pending}
+                key={value}
+                onClick={() => setRating(value)}
+                role="radio"
+                type="button"
+              >
+                {value}{" "}
+                <StarIcon className="size-3.5" fill={rating === value ? "currentColor" : "none"} />
+              </button>
+            ))}
+          </div>
+          <p className="mt-2 text-xs text-slate-400">
+            0 = inutilisable · 3 = partiellement juste · 5 = très précis
+          </p>
+        </fieldset>
+
+        <label className="mt-6 block text-sm font-semibold text-slate-900">
+          Qu’est-ce qui est juste, manquant ou incorrect ?{" "}
+          <span className="font-normal text-slate-400">(facultatif)</span>
+          <Textarea
+            className="mt-2 min-h-28 rounded-xl border-slate-200 bg-white"
+            maxLength={4000}
+            onChange={(event) => setComment(event.target.value)}
+            placeholder="Ex. : il manque la loi sur les établissements classés…"
+            value={comment}
+          />
+        </label>
+        {error && (
+          <p className="mt-4 text-sm text-rose-700" role="alert">
+            {error}
+          </p>
+        )}
+        <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-5">
+          <Button disabled={pending} onClick={onSkip} variant="ghost">
+            Passer cette étape
+          </Button>
+          <Button
+            className="h-11 rounded-xl bg-violet-600 px-5 hover:bg-violet-500"
+            disabled={rating === null || pending}
+            onClick={() => rating !== null && onSubmit(rating, trimmedOrNull(comment))}
+          >
+            {pending ? <LoaderCircleIcon className="animate-spin" /> : <ArrowRightIcon />}
+            Envoyer mon avis et continuer
+          </Button>
+        </div>
+      </div>
+    </StateShell>
   );
 }
 
@@ -1990,6 +2128,22 @@ export function RegulatoryWatchPage() {
         error instanceof Error ? error.message : "Les réponses n’ont pas pu être enregistrées.",
       ),
   });
+  const analysisReviewMutation = useMutation({
+    mutationFn: (
+      input:
+        { outcome: "SUBMITTED"; rating: number; comment: string | null } | { outcome: "SKIPPED" },
+    ) => {
+      const analysis = watchQuery.data?.currentAnalysis;
+      if (!analysis) throw new Error("Analyse introuvable");
+      return clientApi.reviewRegulatoryAnalysis(projectId, analysis.id, input);
+    },
+    onMutate: () => setActionError(undefined),
+    onSuccess: (watch) => queryClient.setQueryData(["regulatory-watch", projectId], watch),
+    onError: (error) =>
+      setActionError(
+        error instanceof Error ? error.message : "Votre avis n’a pas pu être enregistré.",
+      ),
+  });
   const decisionMutation = useMutation({
     mutationFn: ({
       candidateId,
@@ -2129,6 +2283,9 @@ export function RegulatoryWatchPage() {
 
   const hasBaseline = Boolean(watch.currentBaseline);
   const analysisStatus = watch.currentAnalysis?.status;
+  const analysisAwaitingReview =
+    ["READY_FOR_REVIEW", "PARTIAL"].includes(analysisStatus ?? "") &&
+    watch.currentAnalysis?.review == null;
   if (!hasBaseline && watch.status === "NOT_STARTED")
     return (
       <ReadyState
@@ -2147,6 +2304,18 @@ export function RegulatoryWatchPage() {
         pending={clarificationMutation.isPending}
         error={actionError}
         onSubmit={(answers) => clarificationMutation.mutate(answers)}
+      />
+    );
+  if (analysisAwaitingReview)
+    return (
+      <AnalysisReviewState
+        watch={watch}
+        pending={analysisReviewMutation.isPending}
+        error={actionError}
+        onSubmit={(rating, comment) =>
+          analysisReviewMutation.mutate({ outcome: "SUBMITTED", rating, comment })
+        }
+        onSkip={() => analysisReviewMutation.mutate({ outcome: "SKIPPED" })}
       />
     );
   if (!hasBaseline && ["READY_FOR_REVIEW", "PARTIAL"].includes(analysisStatus ?? ""))

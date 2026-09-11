@@ -24,6 +24,7 @@ import type {
   DecideRegulatoryCandidates,
   PublishRegulatoryBaseline,
   RegulatoryWatch,
+  ReviewRegulatoryAnalysis,
   StartRegulatoryAnalysis,
   UpdateRegulatoryAction,
   UpdateRegulatoryEvaluation,
@@ -44,6 +45,7 @@ const watchInclude = {
     orderBy: { createdAt: "desc" as const },
     take: 1,
     include: {
+      review: true,
       scopeFacts: { orderBy: { createdAt: "asc" as const } },
       candidates: {
         orderBy: [{ changeType: "asc" as const }, { createdAt: "asc" as const }],
@@ -101,6 +103,14 @@ function dateOnly(value: Date): string {
 
 function dateTime(value: Date | null): string | null {
   return value?.toISOString() ?? null;
+}
+
+function safeKnowledgeText(value: string | null | undefined, fallback: string, maximum: number) {
+  const sanitized = (value ?? "")
+    .replace(/https?:\/\/\S+|www\.\S+/giu, "[redacted]")
+    .replace(/\b[^\s@]+@[^\s@]+\.[^\s@]+\b/giu, "[redacted]")
+    .trim();
+  return (sanitized || fallback).slice(0, maximum);
 }
 
 export function evaluationCarryForward(
@@ -272,6 +282,14 @@ export class RegulatoryWatchService {
       ? {
           id: analysis.id,
           sourceRequired: lawSourceRequiredSchema.array().parse(analysis.missingLaws ?? []),
+          review: analysis.review
+            ? {
+                outcome: analysis.review.outcome,
+                rating: analysis.review.rating,
+                comment: analysis.review.comment,
+                createdAt: analysis.review.createdAt.toISOString(),
+              }
+            : null,
           profileSnapshotId: analysis.profileSnapshotId,
           baseBaselineId: analysis.baseBaselineId,
           triggerType: analysis.triggerType,
@@ -629,6 +647,72 @@ export class RegulatoryWatchService {
     });
   }
 
+  async reviewAnalysis(
+    tenant: TenantContext,
+    projectIdOrSlug: string,
+    runId: string,
+    input: ReviewRegulatoryAnalysis,
+  ): Promise<RegulatoryWatch> {
+    if (!canContribute(tenant.role)) throw new ForbiddenException("Regulatory access is required");
+    const watch = await this.loadedWatch(tenant, projectIdOrSlug);
+    const run = await this.database.regulatoryAnalysisRun.findFirst({
+      where: {
+        id: runId,
+        watchId: watch.id,
+        status: { in: ["READY_FOR_REVIEW", "PARTIAL"] },
+      },
+      select: { id: true },
+    });
+    if (!run) throw new NotFoundException("Reviewable regulatory analysis not found");
+
+    const review = await this.database.regulatoryAnalysisReview.upsert({
+      where: { runId: run.id },
+      create: {
+        runId: run.id,
+        organizationId: tenant.organizationId,
+        reviewedById: tenant.userId,
+        outcome: input.outcome,
+        rating: input.outcome === "SUBMITTED" ? input.rating : null,
+        comment: input.outcome === "SUBMITTED" ? (input.comment ?? null) : null,
+      },
+      update: {
+        reviewedById: tenant.userId,
+        outcome: input.outcome,
+        rating: input.outcome === "SUBMITTED" ? input.rating : null,
+        comment: input.outcome === "SUBMITTED" ? (input.comment ?? null) : null,
+      },
+    });
+    if (input.outcome === "SUBMITTED") {
+      await this.database.aiKnowledgeExample.upsert({
+        where: { sourceAnalysisReviewId: review.id },
+        create: {
+          feature: "DISCOVERY",
+          status: "DRAFT",
+          source: "CUSTOMER_REVIEW",
+          title: "Retour sur la découverte réglementaire",
+          scenarioSummary:
+            "Analyse réglementaire relue par un utilisateur; contexte à compléter par un administrateur.",
+          guidance: null,
+          jurisdiction: "MA",
+          language: "fr",
+          tags: [],
+          payload: { includedLaws: [], excludedLaws: [] },
+          rating: input.rating,
+          sourceOrganizationId: tenant.organizationId,
+          sourceProjectId: watch.projectId,
+          sourceAnalysisReviewId: review.id,
+          embeddingStatus: "PENDING",
+        },
+        update: { rating: input.rating, status: "DRAFT", embeddingStatus: "PENDING" },
+      });
+    } else {
+      await this.database.aiKnowledgeExample.deleteMany({
+        where: { sourceAnalysisReviewId: review.id, status: "DRAFT" },
+      });
+    }
+    return this.get(tenant, projectIdOrSlug);
+  }
+
   async decideCandidate(
     tenant: TenantContext,
     projectIdOrSlug: string,
@@ -858,6 +942,7 @@ export class RegulatoryWatchService {
         status: { in: ["READY_FOR_REVIEW", "PARTIAL"] },
       },
       include: {
+        review: true,
         candidates: {
           include: {
             provision: { include: { version: { include: { document: true } } } },
@@ -871,6 +956,9 @@ export class RegulatoryWatchService {
       },
     });
     if (!run) throw new NotFoundException("Reviewable regulatory analysis not found");
+    if (!run.review) {
+      throw new BadRequestException("The analysis review must be submitted or skipped first");
+    }
     if (
       run.candidates.some((candidate) => candidate.requiresReview && candidate.decision === null)
     ) {
@@ -1035,6 +1123,42 @@ export class RegulatoryWatchService {
       });
       return baseline.id;
     });
+    if (run.review?.outcome === "SUBMITTED") {
+      const includedLaws = run.candidates
+        .filter((candidate) => candidate.decision === "APPLICABLE")
+        .map((candidate) => ({
+          reference: candidate.sourceReference
+            ? safeKnowledgeText(candidate.sourceReference, "Référence réglementaire", 200)
+            : null,
+          title: safeKnowledgeText(
+            candidate.sourceTitle ?? candidate.sourceReference,
+            "Texte réglementaire retenu",
+            300,
+          ),
+          reason: "Le texte a été retenu après validation humaine de cette analyse.",
+        }));
+      const excludedLaws = run.candidates
+        .filter((candidate) => candidate.decision === "NOT_APPLICABLE")
+        .map((candidate) => ({
+          reference: candidate.sourceReference
+            ? safeKnowledgeText(candidate.sourceReference, "Référence réglementaire", 200)
+            : null,
+          title: safeKnowledgeText(
+            candidate.sourceTitle ?? candidate.sourceReference,
+            "Texte réglementaire écarté",
+            300,
+          ),
+          reason: "Le texte a été écarté après validation humaine de cette analyse.",
+        }));
+      await this.database.aiKnowledgeExample.updateMany({
+        where: { sourceAnalysisReviewId: run.review.id, status: "DRAFT" },
+        data: {
+          payload: { includedLaws, excludedLaws },
+          embeddingStatus: "PENDING",
+          embeddingError: null,
+        },
+      });
+    }
     try {
       await this.queue.assertWorkerAvailable("regulatory-evaluation");
       await this.queue.enqueue("regulatory-evaluation", "evaluate-regulatory-baseline", {
@@ -1068,6 +1192,13 @@ export class RegulatoryWatchService {
         id: evaluationId,
         entry: { baselineId: watch.currentBaselineId ?? "missing" },
       },
+      include: {
+        entry: {
+          include: {
+            baseline: { select: { watch: { select: { projectId: true } } } },
+          },
+        },
+      },
     });
     if (!evaluation) throw new NotFoundException("Regulatory evaluation not found");
     return evaluation;
@@ -1095,7 +1226,7 @@ export class RegulatoryWatchService {
   ): Promise<RegulatoryWatch> {
     if (!canContribute(tenant.role))
       throw new ForbiddenException("Regulatory contribution is required");
-    await this.currentEvaluation(tenant, projectIdOrSlug, evaluationId);
+    const evaluation = await this.currentEvaluation(tenant, projectIdOrSlug, evaluationId);
     const claimed = await this.database.regulatoryEvaluation.updateMany({
       where: { id: evaluationId, revision: input.revision },
       data: {
@@ -1108,6 +1239,60 @@ export class RegulatoryWatchService {
       },
     });
     if (claimed.count !== 1) throw new ConflictException("Regulatory evaluation changed");
+    const comment = input.comment?.trim() ?? null;
+    const corrected =
+      input.result !== "NOT_ASSESSED" &&
+      evaluation.aiSuggestedResult !== null &&
+      evaluation.aiSuggestedResult !== input.result;
+    if (input.result !== "NOT_ASSESSED" && (corrected || comment)) {
+      const reference = safeKnowledgeText(
+        evaluation.entry.sourceReference,
+        "Référence réglementaire",
+        200,
+      );
+      const title = safeKnowledgeText(evaluation.entry.sourceTitle, "Texte réglementaire", 300);
+      await this.database.aiKnowledgeExample.upsert({
+        where: { sourceRegulatoryEvaluationId: evaluation.id },
+        create: {
+          feature: "CONFORMITY_EVALUATION",
+          status: "DRAFT",
+          source: "HUMAN_CONFIRMATION",
+          title: `Correction de conformité — ${title}`.slice(0, 200),
+          scenarioSummary:
+            "Évaluation de conformité corrigée ou commentée par un utilisateur; contexte à compléter par un administrateur.",
+          guidance: null,
+          jurisdiction: "MA",
+          language: "fr",
+          tags: [],
+          expectedResult: input.result,
+          evaluationSignal: corrected ? "CORRECTION" : "COMMENT",
+          payload: {
+            lawReference: reference,
+            lawTitle: title,
+            requirementSummary: safeKnowledgeText(
+              evaluation.entry.requirementText ?? evaluation.entry.applicabilityRationale,
+              "Exigence réglementaire à examiner dans son contexte.",
+              2_000,
+            ),
+            rationale: corrected
+              ? "La décision humaine diffère de la recommandation initiale de l’IA."
+              : "La décision humaine contient un commentaire explicatif à examiner.",
+            remediationGuidance: null,
+          },
+          sourceOrganizationId: tenant.organizationId,
+          sourceProjectId: evaluation.entry.baseline.watch.projectId,
+          sourceRegulatoryEvaluationId: evaluation.id,
+          embeddingStatus: "PENDING",
+        },
+        update: {
+          status: "DRAFT",
+          expectedResult: input.result,
+          evaluationSignal: corrected ? "CORRECTION" : "COMMENT",
+          embeddingStatus: "PENDING",
+          embeddingError: null,
+        },
+      });
+    }
     return this.get(tenant, projectIdOrSlug);
   }
 

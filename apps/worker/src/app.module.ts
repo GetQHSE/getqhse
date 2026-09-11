@@ -8,6 +8,10 @@ import { DocumentProcessingProcessor } from "./processors/document-processing.pr
 import { RegulatoryAnalysisProcessor } from "./processors/regulatory-analysis.processor.js";
 import { RegulatoryEvaluationProcessor } from "./processors/regulatory-evaluation.processor.js";
 import {
+  KnowledgeEmbeddingProcessor,
+  KnowledgeEmbeddingReconciler,
+} from "./processors/knowledge-embedding.processor.js";
+import {
   RegulatoryImpactDispatcher,
   RegulatoryImpactProcessor,
 } from "./processors/regulatory-impact.processor.js";
@@ -41,6 +45,8 @@ const redisUrl = new URL(process.env["REDIS_URL"] ?? "redis://localhost:6379");
     DocumentProcessingProcessor,
     RegulatoryAnalysisProcessor,
     RegulatoryEvaluationProcessor,
+    KnowledgeEmbeddingProcessor,
+    KnowledgeEmbeddingReconciler,
     RegulatoryImpactProcessor,
     RegulatoryImpactDispatcher,
     EmbeddingGenerationProcessor,

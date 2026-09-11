@@ -13,6 +13,7 @@ vi.mock("../../app/client-api.js", () => ({
     regulatoryWatch: vi.fn(),
     startRegulatoryAnalysis: vi.fn(),
     answerRegulatoryClarifications: vi.fn(),
+    reviewRegulatoryAnalysis: vi.fn(),
     decideRegulatoryCandidate: vi.fn(),
     decideRegulatoryCandidates: vi.fn(),
     publishRegulatoryBaseline: vi.fn(),
@@ -109,11 +110,19 @@ const analysis = {
   },
   clarificationRevision: 0,
   clarifications: [],
+  review: null,
   candidates: [],
   diff: { added: 0, unchanged: 0, modified: 0, removalProposed: 0, requiresReview: 0 },
   error: null,
   createdAt: "2026-08-10T10:00:00.000Z",
   completedAt: null,
+};
+
+const submittedAnalysisReview = {
+  outcome: "SUBMITTED",
+  rating: 4,
+  comment: "Découverte utile",
+  createdAt: "2026-08-10T12:00:00.000Z",
 };
 
 const activeWatch = {
@@ -246,6 +255,20 @@ beforeEach(() => {
     queue: "regulatory-evaluation",
     correlationId: "correlation-2",
   });
+  vi.mocked(clientApi.reviewRegulatoryAnalysis).mockResolvedValue({
+    ...notStartedWatch,
+    status: "REVIEW_REQUIRED",
+    currentAnalysis: {
+      ...analysis,
+      status: "READY_FOR_REVIEW",
+      review: {
+        outcome: "SUBMITTED",
+        rating: 4,
+        comment: "Résultat utile",
+        createdAt: "2026-08-10T12:00:00.000Z",
+      },
+    },
+  } as never);
   vi.mocked(clientApi.updateRegulatoryEvaluation).mockResolvedValue(activeWatch as never);
   vi.mocked(clientApi.addRegulatoryAction).mockResolvedValue(activeWatch as never);
   vi.mocked(clientApi.updateRegulatoryAction).mockResolvedValue(activeWatch as never);
@@ -318,6 +341,49 @@ describe("RegulatoryWatchPage", () => {
     expect(screen.getByRole("link", { name: "Consulter la source web repérée" })).toHaveAttribute(
       "href",
       "https://adala.justice.gov.ma/source",
+    );
+  });
+
+  it("collects a zero-to-five analysis review before showing candidate validation", async () => {
+    vi.mocked(clientApi.regulatoryWatch).mockResolvedValue({
+      ...notStartedWatch,
+      status: "REVIEW_REQUIRED",
+      currentAnalysis: {
+        ...analysis,
+        status: "READY_FOR_REVIEW",
+        review: null,
+        candidates: [
+          {
+            id: "candidate-1",
+            source: {
+              referenceNumber: "Loi 12-03",
+              documentTitle: "Études d’impact sur l’environnement",
+            },
+            rationale: "Le projet comporte une activité industrielle.",
+          },
+        ],
+      },
+    } as never);
+    const user = userEvent.setup();
+    renderPage();
+
+    expect(
+      await screen.findByRole("heading", { name: "Voici ce que l’IA a découvert" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Loi 12-03")).toBeInTheDocument();
+    await user.click(screen.getByRole("radio", { name: "0 étoiles" }));
+    await user.type(
+      screen.getByRole("textbox", { name: /Qu’est-ce qui est juste/ }),
+      "Il manque plusieurs textes applicables.",
+    );
+    await user.click(screen.getByRole("button", { name: "Envoyer mon avis et continuer" }));
+
+    await waitFor(() =>
+      expect(clientApi.reviewRegulatoryAnalysis).toHaveBeenCalledWith("atlas-industrie", "run-1", {
+        outcome: "SUBMITTED",
+        rating: 0,
+        comment: "Il manque plusieurs textes applicables.",
+      }),
     );
   });
 
@@ -617,6 +683,7 @@ describe("RegulatoryWatchPage", () => {
         ...analysis,
         baseBaselineId: "baseline-1",
         status: "READY_FOR_REVIEW",
+        review: submittedAnalysisReview,
         phase: "review",
         progressPercent: 100,
         diff: { added: 1, unchanged: 1, modified: 0, removalProposed: 0, requiresReview: 1 },
@@ -738,6 +805,7 @@ describe("RegulatoryWatchPage", () => {
       currentAnalysis: {
         ...analysis,
         status: "READY_FOR_REVIEW",
+        review: submittedAnalysisReview,
         phase: "review",
         progressPercent: 100,
         diff: { added: 3, unchanged: 0, modified: 0, removalProposed: 0, requiresReview: 3 },
@@ -789,6 +857,7 @@ describe("RegulatoryWatchPage", () => {
       currentAnalysis: {
         ...analysis,
         status: "READY_FOR_REVIEW",
+        review: submittedAnalysisReview,
         phase: "review",
         progressPercent: 100,
         diff: { added: 1, unchanged: 0, modified: 0, removalProposed: 0, requiresReview: 1 },
@@ -855,6 +924,7 @@ describe("RegulatoryWatchPage", () => {
       currentAnalysis: {
         ...analysis,
         status: "READY_FOR_REVIEW",
+        review: submittedAnalysisReview,
         phase: "review",
         progressPercent: 100,
         diff: { added: 1, unchanged: 0, modified: 0, removalProposed: 0, requiresReview: 1 },
@@ -902,6 +972,7 @@ describe("RegulatoryWatchPage", () => {
       currentAnalysis: {
         ...analysis,
         status: "PARTIAL",
+        review: submittedAnalysisReview,
         phase: "budget-limit",
         progressPercent: 71,
         coverage: { completed: 1, total: 2 },
@@ -965,6 +1036,7 @@ describe("RegulatoryWatchPage", () => {
       currentAnalysis: {
         ...analysis,
         status: "PARTIAL",
+        review: submittedAnalysisReview,
         phase: "budget-limit",
         progressPercent: 71,
         coverage: { completed: 1, total: 2 },

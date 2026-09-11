@@ -53,6 +53,7 @@ describe("OpenAPI and Zod contracts", () => {
         },
         clarificationRevision: 0,
         clarifications: [],
+        review: null,
         candidates: [],
         diff: { added: 1, unchanged: 12, modified: 2, removalProposed: 1, requiresReview: 4 },
         error: null,

@@ -141,23 +141,19 @@ The worker first asks the configured regulatory model to understand the complete
 without seeing the platform catalog. A single bounded web-enabled call verifies current references
 and titles against preferably official Moroccan and ISO sources, then proposes potentially
 applicable laws. Queries use generic sector, activity and risk terms and exclude organization
-names, contacts, identifiers and confidential values. The worker reads approved current source
-records from PostgreSQL, resolves the proposed references and titles, and loads all eligible
-articles from matched laws. There is no embedding-profile prerequisite, query expansion, excerpt
-triage, or 150-provision retrieval cutoff in this path.
+names, contacts, identifiers and confidential values. Each proposed text becomes one law-level
+candidate; the worker does not query the document catalog or expand a stored law into its articles
+or clauses. There is no embedding-profile prerequisite, corpus retrieval, query expansion, excerpt
+triage, or provision cutoff in this path.
 
 Discovery calls use a 4,000-token output ceiling and the existing model-call ledger (with no
-provision attached yet). An empty corpus may still yield source-required suggestions, which are
-stored on the analysis and displayed separately from requirements. A proposed URL is retained only
-when the search tool cited it. Ambiguous catalog matches also require a source rather than guessing
-which stored document the model meant. Failed discovery fails visibly rather than producing an
-apparently complete empty assessment.
+provision attached). The result does not depend on corpus contents. A proposed URL is retained only
+when the search tool cited it. Failed discovery fails visibly rather than producing an apparently
+complete empty assessment. New laws enter human review before publication.
 
-Each article is analyzed with the whole law when it fits within 24,000 context characters.
-Long laws use complete nearby and same-section provisions, explicitly marked as partial context.
-Requirements and supporting excerpts still have to originate in the candidate article itself.
-Missing material profile facts yield clarification questions; they are not automatic exclusions.
-The existing verification, progress, checkpointing and human-review workflow remains in place.
+Stored normative documents retain the complete official text and provision structure for source
+traceability and later exact-text obligation extraction. They are not searched to determine which
+laws apply to a project.
 
 Publishing an approved baseline automatically queues a second, separate conformity pass. That pass
 compares each newly assessable requirement with the baseline's immutable project-profile snapshot and
@@ -205,27 +201,20 @@ and permitted by every required rights flag.
 
 ### Following a running analysis
 
-The customer page polls every two seconds. Law discovery and source resolution advance from 10–45%,
-provision-by-provision classification advances from 50–92%, and finalization is reported at 95%.
-Exactly 50% means source resolution finished and the worker is at
-the first classification candidate; it is not itself evidence of a deadlock. During a model
-call the phase identifies whether the worker is selecting laws, drafting, independently verifying,
-or retrying an exigence. A percentage that changes confirms completed work; the worker log heartbeat
-confirms a long-running model request is still alive. Each completed article candidate is persisted
-immediately. A restart resumes article checkpoints; law discovery is repeated.
+The customer page polls every two seconds. Law discovery advances from 10–45%, followed by
+law-candidate persistence and finalization. During the discovery call, the model-call ledger and
+worker heartbeat confirm that the request is alive. A restart repeats the idempotent law discovery.
 
 Follow the structured worker log locally:
 
 ```bash
-docker compose logs -f worker | rg 'regulatory_(analysis|retrieval|provision|model|finalization)'
+docker compose logs -f worker | rg 'regulatory_(analysis|retrieval|model|finalization)'
 ```
 
 Useful events are `regulatory_retrieval_started`, `regulatory_retrieval_finished`,
-`regulatory_provision_started`, `regulatory_model_call_started`, the 30-second
-`regulatory_model_call_heartbeat`, `regulatory_model_call_finished`, and
-`regulatory_provision_finished`. Records contain run/job IDs, provision identifiers, candidate
-position and total, attempt, duration, token usage, and error details. They deliberately never
-contain profile prompts, source provisions, excerpts, or drafted requirements.
+`regulatory_model_call_started`, the 30-second `regulatory_model_call_heartbeat`, and
+`regulatory_model_call_finished`. Records contain run/job IDs, attempt, duration, token usage, and
+safe error details. They deliberately never contain profile prompts or source text.
 
 If the percentage is unchanged and there is no heartbeat, first confirm the infrastructure and
 worker are running:

@@ -23,6 +23,74 @@ describe("RegulatoryWatchService authorization", () => {
   });
 });
 
+describe("regulatory analysis reviews", () => {
+  const tenant = { organizationId: "org-1", userId: "reviewer-1", role: "member" };
+
+  it("records a submitted review inside the current tenant", async () => {
+    const upsert = vi.fn().mockResolvedValue({ id: "review-1" });
+    const knowledgeUpsert = vi.fn().mockResolvedValue({});
+    const service = new RegulatoryWatchService({} as never);
+    (service as unknown as { loadedWatch(): Promise<unknown> }).loadedWatch = async () => ({
+      id: "watch-1",
+      projectId: "project-1",
+    });
+    (service as unknown as { get(): Promise<unknown> }).get = async () => ({ id: "watch-1" });
+    (service as unknown as { database: object }).database = {
+      regulatoryAnalysisRun: { findFirst: vi.fn().mockResolvedValue({ id: "run-1" }) },
+      regulatoryAnalysisReview: { upsert },
+      aiKnowledgeExample: { upsert: knowledgeUpsert, deleteMany: vi.fn() },
+    };
+
+    await service.reviewAnalysis(tenant, "project-1", "run-1", {
+      outcome: "SUBMITTED",
+      rating: 0,
+      comment: "Des textes importants manquent.",
+    });
+
+    expect(upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { runId: "run-1" },
+        create: expect.objectContaining({
+          organizationId: "org-1",
+          reviewedById: "reviewer-1",
+          rating: 0,
+        }),
+      }),
+    );
+    expect(knowledgeUpsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({
+          feature: "DISCOVERY",
+          status: "DRAFT",
+          sourceAnalysisReviewId: "review-1",
+        }),
+      }),
+    );
+  });
+
+  it("stores a skip without a rating or comment", async () => {
+    const upsert = vi.fn().mockResolvedValue({ id: "review-1" });
+    const service = new RegulatoryWatchService({} as never);
+    (service as unknown as { loadedWatch(): Promise<unknown> }).loadedWatch = async () => ({
+      id: "watch-1",
+    });
+    (service as unknown as { get(): Promise<unknown> }).get = async () => ({ id: "watch-1" });
+    (service as unknown as { database: object }).database = {
+      regulatoryAnalysisRun: { findFirst: vi.fn().mockResolvedValue({ id: "run-1" }) },
+      regulatoryAnalysisReview: { upsert },
+      aiKnowledgeExample: { upsert: vi.fn(), deleteMany: vi.fn() },
+    };
+
+    await service.reviewAnalysis(tenant, "project-1", "run-1", { outcome: "SKIPPED" });
+
+    expect(upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({ outcome: "SKIPPED", rating: null, comment: null }),
+      }),
+    );
+  });
+});
+
 describe("regulatory baseline carry-forward", () => {
   const previous = {
     id: "evaluation-1",
@@ -165,13 +233,25 @@ describe("AI-assisted conformity evaluation", () => {
   it("records the human decision without recreating the action the pass already made", async () => {
     const actionCreate = vi.fn().mockResolvedValue({});
     const evaluationUpdateMany = vi.fn().mockResolvedValue({ count: 1 });
+    const knowledgeUpsert = vi.fn().mockResolvedValue({});
     const service = new RegulatoryWatchService({} as never);
     (service as unknown as { currentEvaluation(): Promise<unknown> }).currentEvaluation =
-      async () => ({ id: "evaluation-1" });
+      async () => ({
+        id: "evaluation-1",
+        aiSuggestedResult: "CONFORMING",
+        entry: {
+          sourceReference: "Loi 11-03",
+          sourceTitle: "Protection de l'environnement",
+          requirementText: "Conserver une preuve documentaire validée et à jour.",
+          applicabilityRationale: "La loi est applicable.",
+          baseline: { watch: { projectId: "project-1" } },
+        },
+      });
     (service as unknown as { get(): Promise<unknown> }).get = async () => ({ id: "watch-1" });
     (service as unknown as { database: object }).database = {
       regulatoryEvaluation: { updateMany: evaluationUpdateMany },
       regulatoryEvaluationAction: { count: vi.fn().mockResolvedValue(1), create: actionCreate },
+      aiKnowledgeExample: { upsert: knowledgeUpsert },
     };
 
     await service.updateEvaluation(tenant, "project-1", "evaluation-1", {
@@ -190,6 +270,15 @@ describe("AI-assisted conformity evaluation", () => {
       }),
     );
     expect(actionCreate).not.toHaveBeenCalled();
+    expect(knowledgeUpsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({
+          source: "HUMAN_CONFIRMATION",
+          evaluationSignal: "CORRECTION",
+          sourceRegulatoryEvaluationId: "evaluation-1",
+        }),
+      }),
+    );
   });
 });
 
@@ -343,6 +432,7 @@ describe("accuracy-first regulatory review gates", () => {
       regulatoryAnalysisRun: {
         findFirst: vi.fn().mockResolvedValue({
           id: "run-1",
+          review: { id: "review-1" },
           candidates: [
             { requirementStatus: "SOURCE_REVIEW_REQUIRED", requiresReview: true, decision: null },
           ],

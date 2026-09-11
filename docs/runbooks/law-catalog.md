@@ -35,17 +35,13 @@ The existing LLM enable switch and API key are still required. An embedding prof
   profile-grounded reasons. Search queries must use generic sector, activity and risk terms rather
   than organization names, contacts, identifiers or confidential values. A URL is kept only when
   it appears in the search tool's cited sources.
-- Read the approved, visible catalog afterward, with allowed source rights and the existing
-  jurisdiction, language and effective-date filters. Deterministically resolve model references
-  and titles against stored sources; do not let the model choose internal database IDs.
-- Load articles directly from PostgreSQL. For short laws, supply all provisions as context.
-  For larger laws, use complete nearby/same-section provisions and opening scope, capped at
-  24,000 characters. Mark partial context explicitly; unresolved references block extraction.
-- Keep exact requirement wording and citations tied to the selected article. Existing drafting,
-  verification and human review remain. Unknown material profile facts prompt clarification.
-- Save absent or ambiguous matches on the run and display them in a separate “Source requise”
-  panel, with the cited web URL when available. They never become source provisions or
-  requirements automatically.
+- Persist each proposed text as one law-level candidate. Do not query the platform document catalog
+  to choose candidates and do not expand a matching normative document into article- or
+  clause-level applicability rows.
+- Keep ingested normative documents as authoritative full-text sources. Their provision structure
+  supports source traceability and later exact-text extraction; it does not define applicability.
+- Keep the cited web URL when available and require human review before a newly discovered law is
+  published to the regulatory register.
 
 The catalog model's choices still need evaluation with real profiles. These regression tests
 prove source containment, plumbing and failure behavior, not legal accuracy or completeness.
@@ -53,8 +49,8 @@ prove source containment, plumbing and failure behavior, not legal accuracy or c
 ## Local rollout
 
 Apply the normal database migrations (`pnpm db:deploy`) and rebuild/restart the worker and APIs.
-The additive migration stores `missing_laws` on analysis runs and permits discovery ledger rows
-without an attached provision. Existing published documents remain available. Reprocess an
+The additive migration stores `missing_laws` on analysis runs and permits law-level rows without an
+attached provision. Existing published documents remain available as source material. Reprocess an
 existing source only when its metadata or segmentation needs replacing, then review it again.
 
 Checks: worker `law-*.spec.ts`, regulatory requirement-verifier tests, publication tests in the

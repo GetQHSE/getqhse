@@ -1109,6 +1109,119 @@
         "tags": ["llm-settings"]
       }
     },
+    "/v1/knowledge/examples": {
+      "get": {
+        "operationId": "KnowledgeLibraryController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["knowledge"]
+      },
+      "post": {
+        "operationId": "KnowledgeLibraryController_create",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["knowledge"]
+      }
+    },
+    "/v1/knowledge/examples/{id}": {
+      "get": {
+        "operationId": "KnowledgeLibraryController_detail",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["knowledge"]
+      },
+      "patch": {
+        "operationId": "KnowledgeLibraryController_update",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["knowledge"]
+      },
+      "delete": {
+        "operationId": "KnowledgeLibraryController_delete",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["knowledge"]
+      }
+    },
+    "/v1/knowledge/examples/{id}/approve": {
+      "post": {
+        "operationId": "KnowledgeLibraryController_approve",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["knowledge"]
+      }
+    },
+    "/v1/knowledge/examples/{id}/retry-embedding": {
+      "post": {
+        "operationId": "KnowledgeLibraryController_retryEmbedding",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["knowledge"]
+      }
+    },
     "/v1/email-settings": {
       "get": {
         "operationId": "EmailSettingsController_read",

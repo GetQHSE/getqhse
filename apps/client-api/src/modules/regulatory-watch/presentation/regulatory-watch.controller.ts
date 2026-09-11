@@ -8,6 +8,7 @@ import {
   Param,
   Patch,
   Post,
+  Put,
   Req,
   Res,
   UseGuards,
@@ -20,6 +21,7 @@ import {
   decideRegulatoryCandidateSchema,
   decideRegulatoryCandidatesSchema,
   publishRegulatoryBaselineSchema,
+  reviewRegulatoryAnalysisSchema,
   startRegulatoryAnalysisSchema,
   updateRegulatoryActionSchema,
   updateRegulatoryEvaluationSchema,
@@ -85,6 +87,21 @@ export class RegulatoryWatchController {
       projectIdOrSlug,
       runId,
       parse(answerRegulatoryClarificationsSchema, body),
+    );
+  }
+
+  @Put("analysis-runs/:runId/review")
+  reviewAnalysis(
+    @Req() request: QhseRequest,
+    @Param("projectIdOrSlug") projectIdOrSlug: string,
+    @Param("runId") runId: string,
+    @Body() body: unknown,
+  ) {
+    return this.regulatory.reviewAnalysis(
+      request.tenant!,
+      projectIdOrSlug,
+      runId,
+      parse(reviewRegulatoryAnalysisSchema, body),
     );
   }
 

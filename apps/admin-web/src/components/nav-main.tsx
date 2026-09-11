@@ -40,7 +40,11 @@ export function NavMain({
       </SidebarGroupLabel>
       <SidebarMenu className="mt-2 gap-1">
         {items.map((item) => (
-          <Collapsible key={item.title} defaultOpen={item.isActive} render={<SidebarMenuItem />}>
+          <Collapsible
+            key={item.title}
+            defaultOpen={item.isActive || location.pathname.startsWith(item.url)}
+            render={<SidebarMenuItem />}
+          >
             <SidebarMenuButton
               tooltip={item.title}
               isActive={

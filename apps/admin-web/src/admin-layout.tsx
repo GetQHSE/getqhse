@@ -13,11 +13,13 @@ export function AdminLayout() {
 
   const section = location.pathname.startsWith("/documents")
     ? "Documents"
-    : location.pathname.startsWith("/operators")
-      ? "Platform operators"
-      : location.pathname.startsWith("/search-testing")
-        ? "Search testing"
-        : "Overview";
+    : location.pathname.startsWith("/knowledge")
+      ? "Knowledge"
+      : location.pathname.startsWith("/operators")
+        ? "Platform operators"
+        : location.pathname.startsWith("/search-testing")
+          ? "Search testing"
+          : "Overview";
 
   return (
     <SidebarProvider

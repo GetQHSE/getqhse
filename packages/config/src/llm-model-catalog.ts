@@ -81,6 +81,17 @@ const embedding = {
 export const testedModelCatalog: readonly TestedModelDefinition[] = [
   {
     provider: "openai",
+    model: "gpt-5.6-luna",
+    label: "GPT-5.6 Luna",
+    capabilities: language,
+    advancedControls: ["reasoningEffort", "serviceTier", "verbosity", "cacheRetention"],
+    rates: { inputUsdPerMTok: 0.2, cachedInputUsdPerMTok: 0.02, outputUsdPerMTok: 1.2 },
+    tested: true,
+    pricingSource: "https://developers.openai.com/api/docs/models/gpt-5.6-luna",
+    pricingVerifiedAt: "2026-09-10",
+  },
+  {
+    provider: "openai",
     model: "gpt-5",
     label: "GPT-5",
     capabilities: language,

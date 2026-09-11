@@ -22,7 +22,7 @@ vi.mock("@ai-sdk/openai", () => ({
 
 import { RegulatoryAnalysisProcessor } from "./regulatory-analysis.processor.js";
 
-// Discovery understands the project first; only then does source resolution consult PostgreSQL.
+// Applicability discovery is law-level and does not expand platform documents into provisions.
 describe("MVP applicable-law discovery", () => {
   beforeEach(() => {
     vi.stubEnv("OPENAI_API_KEY", "sk-test");
@@ -33,25 +33,6 @@ describe("MVP applicable-law discovery", () => {
     vi.clearAllMocks();
   });
 
-  const catalog = [
-    { documentId: "law-1", title: "Loi test", referenceNumber: "Loi 1", tags: ["Travail"] },
-  ];
-  const article = {
-    provisionId: "article-1",
-    documentId: "law-1",
-    documentVersionId: "v1",
-    documentTitle: "Loi test",
-    referenceNumber: "Loi 1",
-    documentFamily: "regulation",
-    provisionType: "article",
-    identifier: "Article 1",
-    title: null,
-    headingPath: [],
-    language: "fr",
-    content: "L’employeur doit protéger les salariés contre les risques professionnels.",
-    contentHash: "hash",
-    score: 1,
-  };
   const lead = {
     reference: "Loi 09-08",
     title: "Protection des données personnelles",
@@ -65,20 +46,16 @@ describe("MVP applicable-law discovery", () => {
     sourceUrl: null,
   };
 
-  function harness(entries = catalog) {
+  function harness() {
     const events: string[] = [];
     const db = {
-      $queryRaw: vi
-        .fn()
-        .mockImplementationOnce(async () => {
-          events.push("database");
-          return entries;
-        })
-        .mockResolvedValueOnce([article]),
+      $queryRaw: vi.fn(),
       regulatoryAnalysisRun: {
         findUnique: vi.fn().mockResolvedValue({ status: "RUNNING" }),
         update: vi.fn().mockResolvedValue({}),
       },
+      embeddingProfile: { findFirst: vi.fn().mockResolvedValue(null) },
+      aiKnowledgeExample: { findMany: vi.fn().mockResolvedValue([]) },
       regulatoryModelCall: {
         create: vi.fn().mockResolvedValue({ id: "call-1" }),
         findUnique: vi.fn().mockResolvedValue({ status: "RUNNING" }),
@@ -123,11 +100,14 @@ describe("MVP applicable-law discovery", () => {
     });
   }
 
-  it("asks the model from the full profile before reading the law catalog", async () => {
+  it("asks the model from the full profile without reading the law catalog", async () => {
     const { db, events, run } = harness();
     respond([storedProposal, lead], events);
-    await expect(run()).resolves.toEqual({ provisions: [article], discoveredLaws: [lead] });
-    expect(events).toEqual(["model", "database"]);
+    await expect(run()).resolves.toEqual({
+      provisions: [],
+      discoveredLaws: [storedProposal, lead],
+    });
+    expect(events).toEqual(["model"]);
     expect(generated).toHaveBeenCalledWith(
       expect.objectContaining({
         prompt: expect.stringContaining("employeeCount"),
@@ -145,9 +125,56 @@ describe("MVP applicable-law discovery", () => {
       where: { id: "run" },
       data: { missingLaws: [] },
     });
-    const sql = db.$queryRaw.mock.calls[0]![0] as { sql: string };
-    expect(sql.sql).toContain('"validated_at" IS NOT NULL');
-    expect(sql.sql).not.toContain("embedding");
+    expect(db.$queryRaw).not.toHaveBeenCalled();
+  });
+
+  it("adds approved discovery knowledge without exposing provenance", async () => {
+    const { db, run } = harness();
+    db.aiKnowledgeExample.findMany.mockResolvedValue([
+      {
+        id: "knowledge-1",
+        feature: "DISCOVERY",
+        title: "Gestion des déchets industriels",
+        scenarioSummary: "Site industriel produisant des déchets.",
+        guidance: "La loi sur les déchets manquait.",
+        jurisdiction: "MA",
+        language: "fr",
+        tags: ["déchets"],
+        rating: 1,
+        expectedResult: null,
+        evaluationSignal: null,
+        payload: {
+          includedLaws: [
+            {
+              reference: "Loi 28-00",
+              title: "Gestion des déchets",
+              reason: "Le site produit des déchets industriels.",
+            },
+          ],
+          excludedLaws: [],
+        },
+      },
+    ]);
+    generated.mockResolvedValue({
+      output: { laws: [] },
+      totalUsage: { inputTokens: 100, outputTokens: 50 },
+      sources: [],
+    });
+
+    await run();
+
+    expect(db.aiKnowledgeExample.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ feature: "DISCOVERY", status: "ACTIVE" }),
+        take: 5,
+      }),
+    );
+    expect(generated).toHaveBeenCalledWith(
+      expect.objectContaining({
+        prompt: expect.stringContaining("La loi sur les déchets manquait."),
+      }),
+    );
+    expect(generated.mock.calls.at(-1)?.[0].prompt).not.toContain("secret-organization");
   });
 
   it("can disable web search for local free-tier testing", async () => {
@@ -155,7 +182,10 @@ describe("MVP applicable-law discovery", () => {
     const { run } = harness();
     respond();
 
-    await expect(run()).resolves.toEqual({ provisions: [article], discoveredLaws: [lead] });
+    await expect(run()).resolves.toEqual({
+      provisions: [],
+      discoveredLaws: [storedProposal, lead],
+    });
 
     expect(generated).toHaveBeenCalledWith(
       expect.not.objectContaining({
@@ -165,16 +195,8 @@ describe("MVP applicable-law discovery", () => {
     );
   });
 
-  it("loads text only for laws whose references resolve to an approved database source", async () => {
+  it("does not expand a model-generated law into stored document provisions", async () => {
     const { db, run } = harness();
-    respond();
-    await expect(run()).resolves.toEqual({ provisions: [article], discoveredLaws: [lead] });
-    const sourceSql = db.$queryRaw.mock.calls[1]![0] as { values: unknown[] };
-    expect(sourceSql.values).toContain("law-1");
-  });
-
-  it("retains every proposed law as source-required when the corpus is empty", async () => {
-    const { db, run } = harness([]);
     respond();
     await expect(run()).resolves.toEqual({
       provisions: [],
@@ -184,11 +206,11 @@ describe("MVP applicable-law discovery", () => {
       where: { id: "run" },
       data: { missingLaws: [] },
     });
-    expect(db.$queryRaw).toHaveBeenCalledTimes(1);
+    expect(db.$queryRaw).not.toHaveBeenCalled();
   });
 
   it("keeps only source URLs returned by the web-search tool", async () => {
-    const { db, run } = harness([]);
+    const { db, run } = harness();
     generated.mockResolvedValue({
       output: {
         laws: [
@@ -217,6 +239,7 @@ describe("MVP applicable-law discovery", () => {
       where: { id: "run" },
       data: { missingLaws: [] },
     });
+    expect(db.$queryRaw).not.toHaveBeenCalled();
   });
 
   it("allows the model to return no potentially applicable law", async () => {
@@ -231,7 +254,7 @@ describe("MVP applicable-law discovery", () => {
       where: { id: "run" },
       data: { missingLaws: [] },
     });
-    expect(db.$queryRaw).toHaveBeenCalledTimes(1);
+    expect(db.$queryRaw).not.toHaveBeenCalled();
   });
 
   it("fails visibly on model failure instead of treating it as no applicable law", async () => {
@@ -255,6 +278,38 @@ describe("MVP applicable-law discovery", () => {
       "applicable-law discovery model call failed",
     );
     expect(JSON.stringify(error.mock.calls)).not.toContain("private project data");
+  });
+
+  it("unwraps retry failures to log the safe provider error code", async () => {
+    const { processor, run } = harness();
+    const error = vi.fn();
+    (processor as unknown as { logger: { error: typeof error } }).logger = { error };
+    generated.mockRejectedValue({
+      name: "AI_RetryError",
+      lastError: {
+        name: "AI_APICallError",
+        statusCode: 429,
+        data: {
+          error: {
+            code: "billing_not_active",
+            message: "provider detail that must not be logged",
+          },
+        },
+      },
+    });
+
+    await expect(run()).rejects.toMatchObject({ code: "REGULATORY_MODEL_UNAVAILABLE" });
+    expect(error).toHaveBeenCalledWith(
+      expect.objectContaining({
+        providerStatusCode: 429,
+        providerErrorCode: "billing_not_active",
+        providerErrorType: "AI_RetryError",
+      }),
+      "applicable-law discovery model call failed",
+    );
+    expect(JSON.stringify(error.mock.calls)).not.toContain(
+      "provider detail that must not be logged",
+    );
   });
 
   it("persists a source-less discovery as a first-class candidate", async () => {
