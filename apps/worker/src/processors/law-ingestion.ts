@@ -47,14 +47,19 @@ Omet les champs non identifiables ou ambigus. Une suggestion par champ.`,
     telemetry: { isEnabled: false },
   });
   const { suggestions } = schema.parse(result.output);
-  if (
-    new Set(suggestions.map((item) => item.fieldName)).size !== suggestions.length ||
-    suggestions.some(
-      (item) => !source.includes(item.sourceText) || !item.sourceText.includes(item.value),
-    )
-  )
-    throw new Error("Law metadata is not grounded in the supplied source");
-  return suggestions;
+  const fieldCounts = new Map<string, number>();
+  for (const item of suggestions)
+    fieldCounts.set(item.fieldName, (fieldCounts.get(item.fieldName) ?? 0) + 1);
+
+  // Metadata suggestions are optional. A malformed suggestion must never be stored, but it also
+  // must not prevent the document from reaching human review. Duplicate fields are ambiguous, so
+  // omit every suggestion for that field rather than arbitrarily choosing one.
+  return suggestions.filter(
+    (item) =>
+      fieldCounts.get(item.fieldName) === 1 &&
+      source.includes(item.sourceText) &&
+      item.sourceText.includes(item.value),
+  );
 }
 
 export async function structureLaw(blocks: ExtractedBlock[], language: NormativeLanguage) {

@@ -56,15 +56,46 @@ describe("LLM-assisted law upload", () => {
     await expect(classifyLaw("Protection des salariés", terms)).rejects.toThrow(/unknown/);
   });
 
-  it("requires metadata values and excerpts to appear in the source", async () => {
+  it("keeps grounded metadata and drops invalid suggestions without failing the upload", async () => {
     generated.mockResolvedValue({
       output: {
         suggestions: [
-          { fieldName: "referenceNumber", value: "Loi 1", sourceText: "Loi 1 sur la sécurité" },
+          { fieldName: "title", value: "Sécurité", sourceText: "Loi 1 sur la Sécurité" },
+          {
+            fieldName: "referenceNumber",
+            value: "Loi 1",
+            sourceText: "Loi 1  sur la Sécurité",
+          },
         ],
       },
     });
-    await expect(detectLawMetadata("Loi 1 sur la sécurité")).resolves.toHaveLength(1);
-    await expect(detectLawMetadata("Un autre texte")).rejects.toThrow(/not grounded/);
+    await expect(detectLawMetadata("Loi 1 sur la Sécurité")).resolves.toEqual([
+      { fieldName: "title", value: "Sécurité", sourceText: "Loi 1 sur la Sécurité" },
+    ]);
+  });
+
+  it("drops ambiguous duplicate fields while preserving other grounded metadata", async () => {
+    generated.mockResolvedValue({
+      output: {
+        suggestions: [
+          { fieldName: "title", value: "Loi 1", sourceText: "Loi 1 sur la Sécurité" },
+          { fieldName: "title", value: "Sécurité", sourceText: "Loi 1 sur la Sécurité" },
+          {
+            fieldName: "issuingAuthority",
+            value: "Ministère",
+            sourceText: "Ministère de la Justice",
+          },
+        ],
+      },
+    });
+    await expect(
+      detectLawMetadata("Loi 1 sur la Sécurité\nMinistère de la Justice"),
+    ).resolves.toEqual([
+      {
+        fieldName: "issuingAuthority",
+        value: "Ministère",
+        sourceText: "Ministère de la Justice",
+      },
+    ]);
   });
 });
