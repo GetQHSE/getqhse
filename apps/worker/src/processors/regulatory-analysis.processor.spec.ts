@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { regulatoryCostMicroUsd as computeCallCost } from "./regulatory-model-cost.js";
 import {
+  autoApplicableDecision,
   canCarryForwardRequirement,
   computeProfileChanges,
   dedupeRegulatoryProvisions,
@@ -14,6 +15,7 @@ import {
   isMissingProvisionForeignKeyError,
   isRateLimitError,
   parseRateLimitRetryDelayMs,
+  regulatoryAutoApplicable,
   regulatoryModelLimits,
   RegulatoryAnalysisProcessor,
   jitteredDelay,
@@ -647,5 +649,51 @@ describe("regulatory analysis failure recording", () => {
     expect(runUpdate).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ errorCode: "ANALYSIS_FAILED" }) }),
     );
+  });
+});
+
+describe("applicability auto-decision", () => {
+  const ORIGINAL = process.env["REGULATORY_AUTO_APPLICABLE"];
+
+  afterEach(() => {
+    if (ORIGINAL === undefined) delete process.env["REGULATORY_AUTO_APPLICABLE"];
+    else process.env["REGULATORY_AUTO_APPLICABLE"] = ORIGINAL;
+  });
+
+  it("keeps human review on unless the flag is explicitly true", () => {
+    delete process.env["REGULATORY_AUTO_APPLICABLE"];
+    expect(regulatoryAutoApplicable()).toBe(false);
+    process.env["REGULATORY_AUTO_APPLICABLE"] = "false";
+    expect(regulatoryAutoApplicable()).toBe(false);
+    process.env["REGULATORY_AUTO_APPLICABLE"] = "1";
+    expect(regulatoryAutoApplicable()).toBe(false);
+    process.env["REGULATORY_AUTO_APPLICABLE"] = "true";
+    expect(regulatoryAutoApplicable()).toBe(true);
+  });
+
+  it("leaves a candidate undecided when review is on", () => {
+    expect(
+      autoApplicableDecision({ unchanged: false, systemExcluded: false, autoApplicable: false }),
+    ).toEqual({ decision: null, decisionSource: null });
+  });
+
+  it("records an explicit SYSTEM decision rather than an absent one", () => {
+    expect(
+      autoApplicableDecision({ unchanged: false, systemExcluded: false, autoApplicable: true }),
+    ).toEqual({ decision: "APPLICABLE", decisionSource: "SYSTEM" });
+  });
+
+  it("never widens the register with a law the analysis ruled out", () => {
+    expect(
+      autoApplicableDecision({ unchanged: false, systemExcluded: true, autoApplicable: true }),
+    ).toEqual({ decision: "NOT_APPLICABLE", decisionSource: "SYSTEM" });
+  });
+
+  it("carries an unchanged provision forward identically either way", () => {
+    for (const autoApplicable of [false, true]) {
+      expect(
+        autoApplicableDecision({ unchanged: true, systemExcluded: false, autoApplicable }),
+      ).toEqual({ decision: "APPLICABLE", decisionSource: "SYSTEM" });
+    }
   });
 });

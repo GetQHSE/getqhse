@@ -182,6 +182,29 @@ function regulatoryTokensPerMinute(): number {
   return positiveNumber("REGULATORY_TOKENS_PER_MINUTE", REGULATORY_TOKENS_PER_MINUTE_FALLBACK);
 }
 
+// Applicability review can be turned off for a deployment that does not want a person deciding
+// law by law. The decision is then still RECORDED, as an explicit SYSTEM decision rather than an
+// absent one: consumers such as the PIP module distinguish "decided by the system" from "not yet
+// decided", and an absent decision must never read as applicable. Set
+// REGULATORY_AUTO_APPLICABLE=true to enable it; review stays on by default.
+export function regulatoryAutoApplicable(): boolean {
+  return process.env["REGULATORY_AUTO_APPLICABLE"] === "true";
+}
+
+// A candidate the model itself judged non-applicable with no requirement is already excluded
+// without anyone clicking, so auto-applicability leaves that path alone: it removes the review
+// step, it does not widen the register with laws the analysis positively ruled out.
+export function autoApplicableDecision(input: {
+  unchanged: boolean;
+  systemExcluded: boolean;
+  autoApplicable: boolean;
+}): { decision: "APPLICABLE" | "NOT_APPLICABLE" | null; decisionSource: "SYSTEM" | null } {
+  if (input.unchanged) return { decision: "APPLICABLE", decisionSource: "SYSTEM" };
+  if (input.systemExcluded) return { decision: "NOT_APPLICABLE", decisionSource: "SYSTEM" };
+  if (input.autoApplicable) return { decision: "APPLICABLE", decisionSource: "SYSTEM" };
+  return { decision: null, decisionSource: null };
+}
+
 // Concurrent classification and retrieval lanes can all hit a 429 in
 // the same instant. Retrying at an identical fixed delay just collides them again on the next
 // attempt; spreading the next attempt over a random window means most of them succeed without a
@@ -1063,14 +1086,19 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
       return;
     }
 
-    const reviewCount =
-      discoveredLawCandidates.filter((candidate) => candidate.requiresReview).length +
-      finalCandidates.filter(
-        (candidate) =>
-          candidate.requirementStatus === "SOURCE_REVIEW_REQUIRED" ||
-          (candidate.changeType !== "UNCHANGED" &&
-            !(candidate.changeType === "ADDED" && candidate.suggestion === "NOT_APPLICABLE")),
-      ).length;
+    // A requirement that failed source review still needs a person: publishing refuses an
+    // applicable provision without an approved requirement, so auto-applicability cannot clear it.
+    const reviewCount = regulatoryAutoApplicable()
+      ? finalCandidates.filter(
+          (candidate) => candidate.requirementStatus === "SOURCE_REVIEW_REQUIRED",
+        ).length
+      : discoveredLawCandidates.filter((candidate) => candidate.requiresReview).length +
+        finalCandidates.filter(
+          (candidate) =>
+            candidate.requirementStatus === "SOURCE_REVIEW_REQUIRED" ||
+            (candidate.changeType !== "UNCHANGED" &&
+              !(candidate.changeType === "ADDED" && candidate.suggestion === "NOT_APPLICABLE")),
+        ).length;
     if (run.baseBaselineId && reviewCount === 0) {
       const now = new Date();
       await this.database.$transaction([
@@ -1965,11 +1993,12 @@ Cette étape découvre des textes à vérifier; elle ne crée aucune exigence et
       candidate.changeType === "ADDED" &&
       candidate.suggestion === "NOT_APPLICABLE" &&
       candidate.requirementStatus === "NOT_REQUIRED";
+    const autoApplicable = regulatoryAutoApplicable();
     const values = {
       previousEntryId: candidate.previousEntryId,
       changeType: candidate.changeType,
       changeSummary: candidate.changeSummary,
-      requiresReview: !unchanged && !systemExcluded,
+      requiresReview: !unchanged && !systemExcluded && !autoApplicable,
       suggestion: candidate.suggestion,
       rationale: candidate.rationale,
       matchedProfileKeys: candidate.matchedProfileKeys,
@@ -1980,12 +2009,7 @@ Cette étape découvre des textes à vérifier; elle ne crée aucune exigence et
       requirementSupportingExcerpts: candidate.requirementSupportingExcerpts,
       requirementIssues: candidate.requirementIssues,
       requirementSource: candidate.requirementSource,
-      decision: unchanged
-        ? ("APPLICABLE" as const)
-        : systemExcluded
-          ? ("NOT_APPLICABLE" as const)
-          : null,
-      decisionSource: unchanged || systemExcluded ? ("SYSTEM" as const) : null,
+      ...autoApplicableDecision({ unchanged, systemExcluded, autoApplicable }),
       decisionNote: null,
       reviewedById: null,
       reviewedAt: null,
@@ -2010,6 +2034,7 @@ Cette étape découvre des textes à vérifier; elle ne crée aucune exigence et
     clarificationRevision: number,
     candidates: DiscoveredLawCandidate[],
   ): Promise<void> {
+    const autoApplicable = regulatoryAutoApplicable();
     if (candidates.length) {
       await this.database.regulatoryApplicabilityCandidate.createMany({
         data: candidates.map((candidate) => ({
@@ -2025,14 +2050,14 @@ Cette étape découvre des textes à vérifier; elle ne crée aucune exigence et
             candidate.changeType === "ADDED"
               ? "Nouveau texte potentiellement applicable identifié sans disposition source."
               : null,
-          requiresReview: candidate.requiresReview,
+          requiresReview: candidate.requiresReview && !autoApplicable,
           suggestion: candidate.decision ?? "TO_CONFIRM",
           rationale: candidate.reason,
           matchedProfileKeys: [],
           confidence: candidate.decision ? 1 : 0.5,
           clarificationQuestion: null,
-          decision: candidate.decision,
-          decisionSource: candidate.decision ? ("SYSTEM" as const) : null,
+          decision: candidate.decision ?? (autoApplicable ? ("APPLICABLE" as const) : null),
+          decisionSource: candidate.decision || autoApplicable ? ("SYSTEM" as const) : null,
           decisionNote: null,
           requirementText: null,
           requirementStatus: "NOT_REQUIRED" as const,

@@ -50,6 +50,7 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
+import { AUTO_APPLICABLE } from "../../app/feature-flags.js";
 import { clientApi } from "../../app/client-api.js";
 import {
   DetailSheet,
@@ -854,17 +855,21 @@ function ReviewState({
         <div className="mt-4 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <h1 className="text-3xl font-semibold tracking-tight">
-              Validez uniquement les changements
+              {AUTO_APPLICABLE ? "Vérifiez la proposition" : "Validez uniquement les changements"}
             </h1>
             <p className="mt-2 text-sm leading-6 text-slate-500">
-              Les dispositions inchangées sont conservées automatiquement. Chaque ajout,
-              modification ou retrait reste soumis à votre validation.
+              {AUTO_APPLICABLE
+                ? "Les textes identifiés sont retenus comme applicables par le système. Une exigence dont la source reste à vérifier est signalée ci-dessous et doit être traitée avant publication."
+                : "Les dispositions inchangées sont conservées automatiquement. Chaque ajout, modification ou retrait reste soumis à votre validation."}
             </p>
           </div>
           <div className="flex shrink-0 flex-col gap-2 sm:items-end">
-            <span className="text-xs font-semibold text-slate-500">
-              {remaining} décision{remaining === 1 ? "" : "s"} restante{remaining === 1 ? "" : "s"}
-            </span>
+            {!AUTO_APPLICABLE && (
+              <span className="text-xs font-semibold text-slate-500">
+                {remaining} décision{remaining === 1 ? "" : "s"} restante
+                {remaining === 1 ? "" : "s"}
+              </span>
+            )}
             {remaining > 0 && (
               <>
                 <Button
