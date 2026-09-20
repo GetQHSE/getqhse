@@ -102,3 +102,12 @@ export function calculateCorrectiveActionDeadline(severity: FindingSeverity, ope
   result.setUTCDate(result.getUTCDate() + deadlineDays[severity]);
   return result;
 }
+
+/**
+ * SMQ module rules are namespaced, never flattened: each module owns its own
+ * review vocabulary (PIP "pending" is "À valider", R&O "pending" is
+ * "À examiner"), so a flat barrel would silently mislabel one of them.
+ */
+export * as smqContext from "./smq/context/index.js";
+export * as smqPip from "./smq/pip/index.js";
+export * as smqRo from "./smq/ro/index.js";
