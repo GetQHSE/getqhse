@@ -14,8 +14,11 @@ import type {
   UpsertContextInternalInput,
 } from "@qhse/contracts";
 import { createPrismaClient, Prisma, type DatabaseClient } from "@qhse/database";
+
 import type { TenantContext } from "../../../common/request-context.js";
 import { WorkQueueService } from "../../jobs/work-queue.service.js";
+import { buildContextDocument, contextDocumentFileName } from "./context-document.js";
+import { buildContextRegisterWorkbook } from "./context-exporter.js";
 
 /** Matches smqContext.DEFAULT_ANALYSIS_METHOD ("swot"), spelled in the
  * Prisma enum's casing. Kept local rather than derived so a project without
@@ -484,6 +487,100 @@ export class ContextsService {
       include: { evidence: true, corrections: { orderBy: { createdAt: "asc" } } },
     });
     return toIssueContract(fresh);
+  }
+
+  /* --------------------------------- export --------------------------------- */
+
+  async exportRegisterWorkbook(
+    tenant: TenantContext,
+    projectIdOrSlug: string,
+  ): Promise<{ buffer: Buffer; fileName: string }> {
+    const project = await this.database.project.findFirst({
+      where: {
+        organizationId: tenant.organizationId,
+        archivedAt: null,
+        OR: [{ id: projectIdOrSlug }, { slug: projectIdOrSlug }],
+      },
+      include: { organization: true },
+    });
+    if (!project) throw new NotFoundException("Project not found");
+
+    const settings = await this.database.projectContextSettings.findUnique({
+      where: { projectId: project.id },
+    });
+    const method = settings?.analysisMethod ?? DEFAULT_ANALYSIS_METHOD;
+    const methodExplicit = settings != null;
+
+    const completedRuns = await this.database.contextAnalysisRun.findMany({
+      where: { projectId: project.id, status: "COMPLETED" },
+      orderBy: { completedAt: "desc" },
+    });
+    const latestRun = completedRuns[0] ?? null;
+
+    const issues = latestRun
+      ? await this.database.contextIssue.findMany({
+          where: { runId: latestRun.id },
+          include: { evidence: true, corrections: { orderBy: { createdAt: "asc" } } },
+          orderBy: { createdAt: "asc" },
+        })
+      : [];
+
+    const externalRun = await this.database.contextExternalResearchRun.findFirst({
+      where: { projectId: project.id, status: "COMPLETED" },
+      orderBy: { completedAt: "desc" },
+    });
+    const factors = externalRun
+      ? await this.database.contextExternalFactor.findMany({
+          where: { runId: externalRun.id },
+          include: { sources: true },
+        })
+      : [];
+
+    const document = buildContextDocument({
+      organizationName: project.organization.name,
+      projectName: project.name,
+      isoStandard: project.standardCode,
+      method,
+      methodExplicit,
+      analysisDate: latestRun?.completedAt?.toISOString() ?? null,
+      factors: factors.map((factor) => ({
+        id: factor.id,
+        runId: factor.runId,
+        categoryKey: factor.categoryKey,
+        categoryLabel: factor.categoryLabel,
+        title: factor.title,
+        description: factor.description,
+        relevanceToCompany: factor.relevanceToCompany,
+        influenceOnObjectives: factor.influenceOnObjectives,
+        influenceOnQuality: factor.influenceOnQuality,
+        influenceOnCustomerSatisfaction: factor.influenceOnCustomerSatisfaction,
+        geographicScope: factor.geographicScope,
+        orientation: factor.orientation,
+        evidenceStrength: factor.evidenceStrength,
+        confidence: factor.confidence ? Number(factor.confidence) : null,
+        sourceOrigin: factor.sourceOrigin,
+        regulatoryEntryId: factor.regulatoryEntryId,
+        canonicalKey: factor.canonicalKey,
+        comparisonStatus: factor.comparisonStatus,
+        model: factor.model,
+        generatedAt: factor.generatedAt.toISOString(),
+        sources: factor.sources.map((source) => ({
+          id: source.id,
+          url: source.url,
+          title: source.title,
+          publisher: source.publisher,
+          sourceDate: source.sourceDate?.toISOString() ?? null,
+          groundingOrigin: source.groundingOrigin,
+          excerpt: source.excerpt,
+          authorityTier: source.authorityTier,
+        })),
+      })),
+      issues: issues.map(toIssueContract),
+    });
+
+    const workbook = buildContextRegisterWorkbook(document);
+    const output = await workbook.xlsx.writeBuffer();
+    return { buffer: Buffer.from(output), fileName: contextDocumentFileName(document, "xlsx") };
   }
 }
 

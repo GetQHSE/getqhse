@@ -7,9 +7,11 @@ import {
   Param,
   Post,
   Req,
+  Res,
   UseGuards,
 } from "@nestjs/common";
-import { ApiCookieAuth, ApiHeader, ApiOkResponse, ApiTags } from "@nestjs/swagger";
+import { ApiCookieAuth, ApiHeader, ApiOkResponse, ApiProduces, ApiTags } from "@nestjs/swagger";
+import type { Response } from "express";
 import {
   addContextIssueEvidenceSchema,
   applyContextIssueOverrideSchema,
@@ -135,5 +137,24 @@ export class ContextsController {
   ) {
     const input = parse(addContextIssueEvidenceSchema, body);
     return this.contexts.addIssueEvidence(request.tenant!, projectIdOrSlug, issueId, input);
+  }
+
+  @Get("export.xlsx")
+  @ApiProduces("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+  async export(
+    @Req() request: QhseRequest,
+    @Res() response: Response,
+    @Param("projectIdOrSlug") projectIdOrSlug: string,
+  ) {
+    const { buffer, fileName } = await this.contexts.exportRegisterWorkbook(
+      request.tenant!,
+      projectIdOrSlug,
+    );
+    response.setHeader(
+      "content-type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    );
+    response.setHeader("content-disposition", `attachment; filename="${fileName}"`);
+    response.status(200).send(buffer);
   }
 }
