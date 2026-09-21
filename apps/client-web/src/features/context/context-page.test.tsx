@@ -14,6 +14,7 @@ vi.mock("../../app/client-api.js", () => ({
     setContextMethod: vi.fn(),
     contextInternalInputs: vi.fn(),
     upsertContextInternalInput: vi.fn(),
+    assistContextAnswer: vi.fn(),
     contextExternalRuns: vi.fn(),
     triggerContextExternalResearch: vi.fn(),
     contextAnalysisRuns: vi.fn(),
@@ -143,6 +144,83 @@ describe("ContextPage — method already chosen", () => {
 
     await waitFor(() => expect(screen.getByText("Culture et valeurs")).toBeInTheDocument());
     expect(screen.getByText(/Déclaré par vous : GetQhse ne génère rien ici/i)).toBeInTheDocument();
+  });
+
+  it("asks a follow-up instead of saving when the assistant judges the answer insufficient", async () => {
+    vi.mocked(clientApi.contextSettings).mockResolvedValue({
+      projectId: "project-1",
+      analysisMethod: "SWOT",
+      explicit: true,
+    });
+    vi.mocked(clientApi.contextInternalInputs).mockResolvedValue([]);
+    vi.mocked(clientApi.assistContextAnswer).mockResolvedValue({
+      valid: false,
+      quality: "unknown",
+      reason: "réponse insuffisante",
+      followUpQuestion: "Pouvez-vous donner un exemple concret ?",
+      structuredAnswer: null,
+    });
+
+    renderPage();
+    await waitFor(() => expect(screen.getByText("Culture et valeurs")).toBeInTheDocument());
+
+    const [firstAnswerButton] = screen.getAllByRole("button", { name: /répondre/i });
+    await userEvent.click(firstAnswerButton!);
+    const textbox = screen.getAllByPlaceholderText(/répondez avec vos propres mots/i)[0]!;
+    await userEvent.type(textbox, "Je ne sais pas trop.");
+    await userEvent.click(screen.getAllByRole("button", { name: /^envoyer$/i })[0]!);
+
+    await waitFor(() =>
+      expect(screen.getByText("Pouvez-vous donner un exemple concret ?")).toBeInTheDocument(),
+    );
+    expect(clientApi.upsertContextInternalInput).not.toHaveBeenCalled();
+  });
+
+  it("saves the structured answer and closes the chat once the assistant judges it sufficient", async () => {
+    vi.mocked(clientApi.contextSettings).mockResolvedValue({
+      projectId: "project-1",
+      analysisMethod: "SWOT",
+      explicit: true,
+    });
+    vi.mocked(clientApi.contextInternalInputs).mockResolvedValue([]);
+    vi.mocked(clientApi.assistContextAnswer).mockResolvedValue({
+      valid: true,
+      quality: "sufficient",
+      reason: "réponse suffisante",
+      followUpQuestion: null,
+      structuredAnswer: "Climat social stable, faible turnover.",
+    });
+    vi.mocked(clientApi.upsertContextInternalInput).mockResolvedValue({
+      id: "input-1",
+      projectId: "project-1",
+      sectionKey: "culture_valeurs",
+      questionKey: "cv_climat_social",
+      questionLabel: "Comment décririez-vous le climat social au sein de votre organisation ?",
+      answerText: "Climat social stable, faible turnover.",
+      status: "answered",
+      createdAt: "2026-09-21T00:00:00.000Z",
+      updatedAt: "2026-09-21T00:00:00.000Z",
+    });
+
+    renderPage();
+    await waitFor(() => expect(screen.getByText("Culture et valeurs")).toBeInTheDocument());
+
+    const [firstAnswerButton] = screen.getAllByRole("button", { name: /répondre/i });
+    await userEvent.click(firstAnswerButton!);
+    const textbox = screen.getAllByPlaceholderText(/répondez avec vos propres mots/i)[0]!;
+    await userEvent.type(textbox, "Climat correct, peu de turnover.");
+    await userEvent.click(screen.getAllByRole("button", { name: /^envoyer$/i })[0]!);
+
+    await waitFor(() =>
+      expect(clientApi.upsertContextInternalInput).toHaveBeenCalledWith(
+        "project-1",
+        expect.objectContaining({
+          questionKey: "cv_climat_social",
+          answerText: "Climat social stable, faible turnover.",
+          status: "answered",
+        }),
+      ),
+    );
   });
 
   it("moves to step 4 and shows the register once issues exist", async () => {

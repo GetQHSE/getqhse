@@ -15,6 +15,7 @@ import type { Response } from "express";
 import {
   addContextIssueEvidenceSchema,
   applyContextIssueOverrideSchema,
+  contextAnswerAssistRequestSchema,
   createManualContextIssueSchema,
   setContextAnalysisMethodSchema,
   upsertContextInternalInputSchema,
@@ -74,6 +75,16 @@ export class ContextsController {
   ) {
     const input = parse(upsertContextInternalInputSchema, body);
     return this.contexts.upsertInternalInput(request.tenant!, projectIdOrSlug, input);
+  }
+
+  @Post("internal-inputs/assist")
+  assistInternalInputAnswer(
+    @Req() request: QhseRequest,
+    @Param("projectIdOrSlug") projectIdOrSlug: string,
+    @Body() body: unknown,
+  ) {
+    const input = parse(contextAnswerAssistRequestSchema, body);
+    return this.contexts.assistInternalInputAnswer(request.tenant!, projectIdOrSlug, input);
   }
 
   @Get("external-runs")

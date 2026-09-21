@@ -9,8 +9,8 @@ function withDatabase(service: ContextsService, database: object) {
   (service as unknown as { database: object }).database = database;
 }
 
-function newService() {
-  return new ContextsService({ enqueue: vi.fn() } as never, {} as never);
+function newService(answerAssist: object = { assess: vi.fn() }) {
+  return new ContextsService({ enqueue: vi.fn() } as never, answerAssist as never, {} as never);
 }
 
 describe("ContextsService.applyIssueOverride", () => {
@@ -278,5 +278,88 @@ describe("ContextsService settings", () => {
     const settings = await service.getSettings(tenant, "project-1");
 
     expect(settings).toEqual({ projectId: "project-1", analysisMethod: "PESTEL", explicit: true });
+  });
+});
+
+describe("ContextsService.assistInternalInputAnswer", () => {
+  it("passes the already-saved answer and history to the model port, never inventing a fact itself", async () => {
+    const assess = vi.fn().mockResolvedValue({
+      valid: true,
+      quality: "sufficient",
+      reason: "réponse suffisante",
+      followUpQuestion: null,
+      structuredAnswer: "Climat social stable, faible turnover.",
+    });
+    const service = newService({ assess });
+    withDatabase(service, {
+      project: { findFirst: vi.fn().mockResolvedValue({ id: "project-1" }) },
+      contextInternalInput: {
+        findUnique: vi.fn().mockResolvedValue({ answerText: "Précédemment : climat correct." }),
+      },
+    });
+
+    const result = await service.assistInternalInputAnswer(tenant, "project-1", {
+      sectionKey: "culture_valeurs",
+      questionKey: "cv_climat_social",
+      questionLabel: "Comment décririez-vous le climat social ?",
+      history: [{ role: "assistant", text: "Pouvez-vous préciser le taux de rotation ?" }],
+      message: "Le turnover est faible, autour de 5% par an.",
+    });
+
+    expect(assess).toHaveBeenCalledWith(
+      expect.objectContaining({
+        savedAnswer: "Précédemment : climat correct.",
+        history: [{ role: "assistant", text: "Pouvez-vous préciser le taux de rotation ?" }],
+        message: "Le turnover est faible, autour de 5% par an.",
+      }),
+    );
+    expect(result.valid).toBe(true);
+    expect(result.structuredAnswer).toBe("Climat social stable, faible turnover.");
+  });
+
+  it("passes savedAnswer as null for a question with nothing saved yet", async () => {
+    const assess = vi.fn().mockResolvedValue({
+      valid: false,
+      quality: "unknown",
+      reason: "réponse insuffisante",
+      followUpQuestion: "Pouvez-vous donner un exemple concret ?",
+      structuredAnswer: null,
+    });
+    const service = newService({ assess });
+    withDatabase(service, {
+      project: { findFirst: vi.fn().mockResolvedValue({ id: "project-1" }) },
+      contextInternalInput: { findUnique: vi.fn().mockResolvedValue(null) },
+    });
+
+    const result = await service.assistInternalInputAnswer(tenant, "project-1", {
+      sectionKey: "culture_valeurs",
+      questionKey: "cv_climat_social",
+      questionLabel: "Comment décririez-vous le climat social ?",
+      history: [],
+      message: "Je ne sais pas trop.",
+    });
+
+    expect(assess).toHaveBeenCalledWith(expect.objectContaining({ savedAnswer: null }));
+    expect(result.valid).toBe(false);
+    expect(result.followUpQuestion).toBe("Pouvez-vous donner un exemple concret ?");
+  });
+
+  it("turns a model failure into a clean, actionable error instead of a fabricated verdict", async () => {
+    const assess = vi.fn().mockRejectedValue(new Error("provider unavailable"));
+    const service = newService({ assess });
+    withDatabase(service, {
+      project: { findFirst: vi.fn().mockResolvedValue({ id: "project-1" }) },
+      contextInternalInput: { findUnique: vi.fn().mockResolvedValue(null) },
+    });
+
+    await expect(
+      service.assistInternalInputAnswer(tenant, "project-1", {
+        sectionKey: "culture_valeurs",
+        questionKey: "cv_climat_social",
+        questionLabel: "Comment décririez-vous le climat social ?",
+        history: [],
+        message: "Bonne ambiance générale.",
+      }),
+    ).rejects.toThrow(/n'a pas pu analyser/);
   });
 });

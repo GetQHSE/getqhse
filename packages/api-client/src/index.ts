@@ -2,6 +2,8 @@ import {
   addContextIssueEvidenceSchema,
   apiErrorSchema,
   applyContextIssueOverrideSchema,
+  contextAnswerAssistRequestSchema,
+  contextAnswerAssistResponseSchema,
   contextAnalysisRunSummarySchema,
   contextExternalRunSummarySchema,
   contextInternalInputSchema,
@@ -70,6 +72,8 @@ import {
   type RegulatoryWatch,
   type AddContextIssueEvidence,
   type ApplyContextIssueOverride,
+  type ContextAnswerAssistRequest,
+  type ContextAnswerAssistResponse,
   type ContextAnalysisRunSummary,
   type ContextExternalRunSummary,
   type ContextInternalInput,
@@ -540,6 +544,17 @@ export class QhseApiClient {
       `/v1/projects/${encodeURIComponent(projectIdOrSlug)}/context/issues/${encodeURIComponent(issueId)}/evidence`,
       contextIssueSchema,
       { method: "POST", body: JSON.stringify(addContextIssueEvidenceSchema.parse(input)) },
+    );
+  }
+
+  assistContextAnswer(
+    projectIdOrSlug: string,
+    input: ContextAnswerAssistRequest,
+  ): Promise<ContextAnswerAssistResponse> {
+    return this.#request(
+      `/v1/projects/${encodeURIComponent(projectIdOrSlug)}/context/internal-inputs/assist`,
+      contextAnswerAssistResponseSchema,
+      { method: "POST", body: JSON.stringify(contextAnswerAssistRequestSchema.parse(input)) },
     );
   }
 

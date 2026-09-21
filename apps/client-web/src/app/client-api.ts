@@ -195,6 +195,10 @@ export const clientApi = {
     input: Parameters<QhseApiClient["addContextIssueEvidence"]>[2],
   ) => qhseApi.addContextIssueEvidence(idOrSlug, issueId, input),
   exportContextRegister: (idOrSlug: string) => qhseApi.exportContextRegister(idOrSlug),
+  assistContextAnswer: (
+    idOrSlug: string,
+    input: Parameters<QhseApiClient["assistContextAnswer"]>[1],
+  ) => qhseApi.assistContextAnswer(idOrSlug, input),
   createFileUpload: (input: CreateFileUpload): Promise<FileUploadResponse> =>
     request("/v1/files/uploads", (value) => fileUploadResponseSchema.parse(value), {
       method: "POST",

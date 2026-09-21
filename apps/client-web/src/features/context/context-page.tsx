@@ -239,18 +239,6 @@ function InternalContextStep({ projectId }: { projectId: string }) {
     queryKey: ["context-internal-inputs", projectId],
     queryFn: () => clientApi.contextInternalInputs(projectId),
   });
-  const [drafts, setDrafts] = useState<Record<string, string>>({});
-
-  const save = useMutation({
-    mutationFn: (input: {
-      sectionKey: string;
-      questionKey: string;
-      questionLabel: string;
-      answerText: string;
-    }) => clientApi.upsertContextInternalInput(projectId, { ...input, status: "answered" }),
-    onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: ["context-internal-inputs", projectId] }),
-  });
 
   if (inputsQuery.isLoading) return <LoadingBlock label="Chargement du contexte interne…" />;
   if (inputsQuery.isError)
@@ -264,64 +252,212 @@ function InternalContextStep({ projectId }: { projectId: string }) {
   return (
     <div className="space-y-8">
       <p className="text-sm text-slate-500">
-        Déclaré par vous : GetQhse ne génère rien ici. {answeredCount} réponse
-        {answeredCount === 1 ? "" : "s"} enregistrée{answeredCount === 1 ? "" : "s"}.
+        Déclaré par vous : GetQhse ne génère rien ici. L'assistant ne fait que vérifier si votre
+        réponse est complète et reformuler ce que vous avez écrit — jamais l'inverse.{" "}
+        {answeredCount} réponse{answeredCount === 1 ? "" : "s"} enregistrée
+        {answeredCount === 1 ? "" : "s"}.
       </p>
       {INTERNAL_CONTEXT_SECTIONS.map((section) => (
         <section key={section.key}>
           <h2 className="text-base font-semibold text-slate-950">{section.title}</h2>
           <p className="mt-1 text-sm text-slate-500">{section.helper}</p>
           <div className="mt-4 space-y-4">
-            {section.questions.map((question) => {
-              const existing = byKey.get(question.questionKey);
-              const value = drafts[question.questionKey] ?? existing?.answerText ?? "";
-              return (
-                <div key={question.questionKey} className="rounded-xl border border-slate-200 p-4">
-                  <label
-                    htmlFor={question.questionKey}
-                    className="text-sm font-medium text-slate-800"
-                  >
-                    {question.label}
-                  </label>
-                  <Textarea
-                    id={question.questionKey}
-                    className="mt-2"
-                    rows={3}
-                    value={value}
-                    onChange={(event) =>
-                      setDrafts((prev) => ({ ...prev, [question.questionKey]: event.target.value }))
-                    }
-                  />
-                  <div className="mt-2 flex items-center justify-between">
-                    {existing?.answerText.trim() && existing.status === "answered" ? (
-                      <span className="inline-flex items-center gap-1 text-xs text-emerald-700">
-                        <CheckIcon className="size-3" aria-hidden="true" /> Enregistré
-                      </span>
-                    ) : (
-                      <span />
-                    )}
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={!value.trim() || save.isPending}
-                      onClick={() =>
-                        save.mutate({
-                          sectionKey: question.sectionKey,
-                          questionKey: question.questionKey,
-                          questionLabel: question.label,
-                          answerText: value,
-                        })
-                      }
-                    >
-                      Enregistrer
-                    </Button>
-                  </div>
-                </div>
-              );
-            })}
+            {section.questions.map((question) => (
+              <QuestionChatCard
+                key={question.questionKey}
+                projectId={projectId}
+                question={question}
+                existing={byKey.get(question.questionKey)}
+                onSaved={() => {
+                  void queryClient.invalidateQueries({
+                    queryKey: ["context-internal-inputs", projectId],
+                  });
+                }}
+              />
+            ))}
           </div>
         </section>
       ))}
+    </div>
+  );
+}
+
+type AssistTurn = { role: "user" | "assistant"; text: string };
+
+/**
+ * One question, one lightweight assisted-answer chat. Nothing here is
+ * persisted until the assistant judges the answer sufficient (or the
+ * professional saves it as-is): the exchange is ephemeral, held only in this
+ * component's state — the same "declared, not generated" boundary as the
+ * plain form, just easier to complete.
+ */
+function QuestionChatCard({
+  projectId,
+  question,
+  existing,
+  onSaved,
+}: {
+  projectId: string;
+  question: { sectionKey: string; questionKey: string; label: string };
+  existing?: { answerText: string; status: string } | undefined;
+  onSaved: () => void;
+}) {
+  const isSaved = Boolean(existing?.answerText.trim() && existing.status === "answered");
+  const [open, setOpen] = useState(false);
+  const [turns, setTurns] = useState<AssistTurn[]>([]);
+  const [draft, setDraft] = useState("");
+
+  const save = useMutation({
+    mutationFn: (answerText: string) =>
+      clientApi.upsertContextInternalInput(projectId, {
+        sectionKey: question.sectionKey,
+        questionKey: question.questionKey,
+        questionLabel: question.label,
+        answerText,
+        status: "answered",
+      }),
+    onSuccess: () => {
+      onSaved();
+      setOpen(false);
+      setTurns([]);
+      setDraft("");
+    },
+  });
+
+  const assist = useMutation({
+    mutationFn: (message: string) =>
+      clientApi.assistContextAnswer(projectId, {
+        sectionKey: question.sectionKey,
+        questionKey: question.questionKey,
+        questionLabel: question.label,
+        history: turns,
+        message,
+      }),
+  });
+
+  const send = () => {
+    const message = draft.trim();
+    if (!message) return;
+    setTurns((prev) => [...prev, { role: "user", text: message }]);
+    setDraft("");
+    assist.mutate(message, {
+      onSuccess: (response) => {
+        if (response.valid && response.structuredAnswer) {
+          setTurns((prev) => [...prev, { role: "assistant", text: response.structuredAnswer! }]);
+          save.mutate(response.structuredAnswer);
+          return;
+        }
+        setTurns((prev) => [
+          ...prev,
+          { role: "assistant", text: response.followUpQuestion ?? response.reason },
+        ]);
+      },
+    });
+  };
+
+  if (!open) {
+    return (
+      <div className="rounded-xl border border-slate-200 p-4">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-sm font-medium text-slate-800">{question.label}</p>
+            {isSaved && <p className="mt-1 text-sm text-slate-600">{existing!.answerText}</p>}
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            {isSaved && (
+              <span className="inline-flex items-center gap-1 text-xs text-emerald-700">
+                <CheckIcon className="size-3" aria-hidden="true" /> Enregistré
+              </span>
+            )}
+            <Button size="sm" variant="outline" onClick={() => setOpen(true)}>
+              <SparklesIcon className="size-3.5" aria-hidden="true" />
+              {isSaved ? "Modifier" : "Répondre"}
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-xl border border-slate-200 p-4">
+      <p className="text-sm font-medium text-slate-800">{question.label}</p>
+      <div className="mt-3 space-y-2">
+        {isSaved && turns.length === 0 && (
+          <ChatBubble role="assistant" text={`Réponse actuelle : « ${existing!.answerText} »`} />
+        )}
+        {turns.map((turn, index) => (
+          <ChatBubble key={index} role={turn.role} text={turn.text} />
+        ))}
+        {assist.isPending && (
+          <div className="flex items-center gap-2 text-xs text-slate-400">
+            <LoaderCircleIcon className="size-3.5 animate-spin" aria-hidden="true" />
+            L'assistant relit votre réponse…
+          </div>
+        )}
+      </div>
+      <div className="mt-3 flex gap-2">
+        <Textarea
+          rows={2}
+          placeholder="Répondez avec vos propres mots…"
+          value={draft}
+          onChange={(event) => setDraft(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" && !event.shiftKey) {
+              event.preventDefault();
+              send();
+            }
+          }}
+        />
+      </div>
+      <div className="mt-2 flex items-center justify-between">
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={save.isPending}
+          onClick={() => {
+            setOpen(false);
+            setTurns([]);
+            setDraft("");
+          }}
+        >
+          Annuler
+        </Button>
+        <div className="flex gap-2">
+          {draft.trim() === "" && turns.some((turn) => turn.role === "user") && (
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={save.isPending}
+              onClick={() => {
+                const lastUser = [...turns].reverse().find((turn) => turn.role === "user");
+                if (lastUser) save.mutate(lastUser.text);
+              }}
+            >
+              Enregistrer tel quel
+            </Button>
+          )}
+          <Button size="sm" disabled={!draft.trim() || assist.isPending} onClick={send}>
+            Envoyer
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ChatBubble({ role, text }: { role: "user" | "assistant"; text: string }) {
+  const isAssistant = role === "assistant";
+  return (
+    <div className={cn("flex", isAssistant ? "justify-start" : "justify-end")}>
+      <div
+        className={cn(
+          "max-w-[85%] rounded-xl px-3 py-2 text-sm",
+          isAssistant ? "bg-slate-100 text-slate-700" : "bg-slate-900 text-white",
+        )}
+      >
+        {text}
+      </div>
     </div>
   );
 }

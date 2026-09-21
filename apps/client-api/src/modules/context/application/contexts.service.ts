@@ -6,6 +6,8 @@ import type {
   ApplyContextIssueOverride,
   ContextAnalysisMethod,
   ContextAnalysisRunSummary,
+  ContextAnswerAssistRequest,
+  ContextAnswerAssistResponse,
   ContextExternalRunSummary,
   ContextInternalInput,
   ContextIssue,
@@ -17,6 +19,7 @@ import { createPrismaClient, Prisma, type DatabaseClient } from "@qhse/database"
 
 import type { TenantContext } from "../../../common/request-context.js";
 import { WorkQueueService } from "../../jobs/work-queue.service.js";
+import { ContextAnswerAssistModelPort } from "./context-answer-assist-model.port.js";
 import { buildContextDocument, contextDocumentFileName } from "./context-document.js";
 import { buildContextRegisterWorkbook } from "./context-exporter.js";
 
@@ -41,6 +44,8 @@ export class ContextsService {
 
   constructor(
     @Inject(WorkQueueService) private readonly queue: WorkQueueService,
+    @Inject(ContextAnswerAssistModelPort)
+    private readonly answerAssist: ContextAnswerAssistModelPort,
     database?: DatabaseClient,
   ) {
     this.database = database ?? createPrismaClient();
@@ -149,6 +154,41 @@ export class ContextsService {
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),
     };
+  }
+
+  /**
+   * Step 1 answer assistance, direct port of the foundation's profiling
+   * answer-validation engine narrowed to one already-declared internal-
+   * context question. Judges only whether the message is enough to answer
+   * THIS question — never decides the answer, never invents a company fact,
+   * never determines applicability. The exchange is not persisted: only the
+   * caller, once `valid` comes back true, saves `structuredAnswer` through
+   * upsertInternalInput. A model failure surfaces as a clean 503 rather than
+   * a fabricated verdict.
+   */
+  async assistInternalInputAnswer(
+    tenant: TenantContext,
+    projectIdOrSlug: string,
+    input: ContextAnswerAssistRequest,
+  ): Promise<ContextAnswerAssistResponse> {
+    const project = await this.loadProject(tenant, projectIdOrSlug);
+    const existing = await this.database.contextInternalInput.findUnique({
+      where: { projectId_questionKey: { projectId: project.id, questionKey: input.questionKey } },
+    });
+
+    try {
+      return await this.answerAssist.assess({
+        sectionTitle: input.sectionKey,
+        questionLabel: input.questionLabel,
+        savedAnswer: existing?.answerText.trim() || null,
+        history: input.history,
+        message: input.message,
+      });
+    } catch {
+      throw new BadRequestException(
+        "L'assistant n'a pas pu analyser la réponse. Réessayez, ou enregistrez votre réponse telle quelle.",
+      );
+    }
   }
 
   /* -------------------------------- step 2 -------------------------------- */

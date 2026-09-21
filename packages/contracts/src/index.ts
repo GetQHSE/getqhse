@@ -1659,6 +1659,40 @@ export const addContextIssueEvidenceSchema = z.object({
 });
 export type AddContextIssueEvidence = z.infer<typeof addContextIssueEvidenceSchema>;
 
+/** One turn of the step-1 answer-assistance loop. Ephemeral: held in the
+ * browser only, never persisted — only the final structuredAnswer, once
+ * valid, is saved through upsertContextInternalInput. */
+export const contextAnswerAssistTurnSchema = z.object({
+  role: z.enum(["user", "assistant"]),
+  text: z.string().min(1).max(2_000),
+});
+export type ContextAnswerAssistTurn = z.infer<typeof contextAnswerAssistTurnSchema>;
+
+export const contextAnswerAssistRequestSchema = z.object({
+  sectionKey: z.string().min(1).max(80),
+  questionKey: z.string().min(1).max(120),
+  questionLabel: z.string().min(1).max(400),
+  history: z.array(contextAnswerAssistTurnSchema).max(20).default([]),
+  message: z.string().min(1).max(2_000),
+});
+export type ContextAnswerAssistRequest = z.infer<typeof contextAnswerAssistRequestSchema>;
+
+export const contextAnswerAssistQualitySchema = z.enum([
+  "sufficient",
+  "partial",
+  "irrelevant",
+  "unknown",
+]);
+
+export const contextAnswerAssistResponseSchema = z.object({
+  valid: z.boolean(),
+  quality: contextAnswerAssistQualitySchema,
+  reason: z.string(),
+  followUpQuestion: z.string().nullable(),
+  structuredAnswer: z.string().nullable(),
+});
+export type ContextAnswerAssistResponse = z.infer<typeof contextAnswerAssistResponseSchema>;
+
 export const contextJobSchema = z.object({
   runId: idSchema,
   status: contextRunStatusSchema,
