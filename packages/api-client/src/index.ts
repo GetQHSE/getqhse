@@ -1,5 +1,16 @@
 import {
+  addContextIssueEvidenceSchema,
   apiErrorSchema,
+  applyContextIssueOverrideSchema,
+  contextAnalysisRunSummarySchema,
+  contextExternalRunSummarySchema,
+  contextInternalInputSchema,
+  contextIssueSchema,
+  contextJobSchema,
+  createManualContextIssueSchema,
+  projectContextSettingsSchema,
+  setContextAnalysisMethodSchema,
+  upsertContextInternalInputSchema,
   createFileUploadSchema,
   createSiteSchema,
   completeProjectProfileSchema,
@@ -57,13 +68,24 @@ import {
   type RegulatoryEvaluationJob,
   type ReviewRegulatoryAnalysis,
   type RegulatoryWatch,
+  type AddContextIssueEvidence,
+  type ApplyContextIssueOverride,
+  type ContextAnalysisRunSummary,
+  type ContextExternalRunSummary,
+  type ContextInternalInput,
+  type ContextIssue,
+  type ContextJob,
+  type CreateManualContextIssue,
+  type ProjectContextSettings,
+  type SetContextAnalysisMethod,
   type StartRegulatoryAnalysis,
+  type UpsertContextInternalInput,
   type UpdateRegulatoryAction,
   type UpdateRegulatoryEvaluation,
   type UpdateRegulatoryEvidence,
 } from "@qhse/contracts";
 import axios, { isAxiosError, type AxiosInstance, type AxiosRequestConfig } from "axios";
-import type { z } from "zod";
+import { z } from "zod";
 
 export class ApiClientError extends Error {
   constructor(
@@ -406,6 +428,124 @@ export class QhseApiClient {
   async exportRegulatoryWatch(projectIdOrSlug: string): Promise<ArrayBuffer> {
     const response = await this.#axios.get<ArrayBuffer>(
       `/v1/projects/${encodeURIComponent(projectIdOrSlug)}/regulatory-watch/export.xlsx`,
+      { responseType: "arraybuffer" },
+    );
+    return response.data;
+  }
+
+  /* --------------------------- SMQ Contexte (§4.1) --------------------------- */
+
+  getContextSettings(projectIdOrSlug: string): Promise<ProjectContextSettings> {
+    return this.#request(
+      `/v1/projects/${encodeURIComponent(projectIdOrSlug)}/context/settings`,
+      projectContextSettingsSchema,
+    );
+  }
+
+  setContextMethod(
+    projectIdOrSlug: string,
+    input: SetContextAnalysisMethod,
+  ): Promise<ProjectContextSettings> {
+    return this.#request(
+      `/v1/projects/${encodeURIComponent(projectIdOrSlug)}/context/settings/method`,
+      projectContextSettingsSchema,
+      { method: "POST", body: JSON.stringify(setContextAnalysisMethodSchema.parse(input)) },
+    );
+  }
+
+  listContextInternalInputs(projectIdOrSlug: string): Promise<ContextInternalInput[]> {
+    return this.#request(
+      `/v1/projects/${encodeURIComponent(projectIdOrSlug)}/context/internal-inputs`,
+      z.array(contextInternalInputSchema),
+    );
+  }
+
+  upsertContextInternalInput(
+    projectIdOrSlug: string,
+    input: UpsertContextInternalInput,
+  ): Promise<ContextInternalInput> {
+    return this.#request(
+      `/v1/projects/${encodeURIComponent(projectIdOrSlug)}/context/internal-inputs`,
+      contextInternalInputSchema,
+      { method: "POST", body: JSON.stringify(upsertContextInternalInputSchema.parse(input)) },
+    );
+  }
+
+  listContextExternalRuns(projectIdOrSlug: string): Promise<ContextExternalRunSummary[]> {
+    return this.#request(
+      `/v1/projects/${encodeURIComponent(projectIdOrSlug)}/context/external-runs`,
+      z.array(contextExternalRunSummarySchema),
+    );
+  }
+
+  triggerContextExternalResearch(projectIdOrSlug: string): Promise<ContextJob> {
+    return this.#request(
+      `/v1/projects/${encodeURIComponent(projectIdOrSlug)}/context/external-runs`,
+      contextJobSchema,
+      { method: "POST" },
+    );
+  }
+
+  listContextAnalysisRuns(projectIdOrSlug: string): Promise<ContextAnalysisRunSummary[]> {
+    return this.#request(
+      `/v1/projects/${encodeURIComponent(projectIdOrSlug)}/context/runs`,
+      z.array(contextAnalysisRunSummarySchema),
+    );
+  }
+
+  triggerContextSynthesis(projectIdOrSlug: string): Promise<ContextJob> {
+    return this.#request(
+      `/v1/projects/${encodeURIComponent(projectIdOrSlug)}/context/runs`,
+      contextJobSchema,
+      { method: "POST" },
+    );
+  }
+
+  listContextIssues(projectIdOrSlug: string): Promise<ContextIssue[]> {
+    return this.#request(
+      `/v1/projects/${encodeURIComponent(projectIdOrSlug)}/context/issues`,
+      z.array(contextIssueSchema),
+    );
+  }
+
+  createManualContextIssue(
+    projectIdOrSlug: string,
+    input: CreateManualContextIssue,
+  ): Promise<ContextIssue> {
+    return this.#request(
+      `/v1/projects/${encodeURIComponent(projectIdOrSlug)}/context/issues`,
+      contextIssueSchema,
+      { method: "POST", body: JSON.stringify(createManualContextIssueSchema.parse(input)) },
+    );
+  }
+
+  applyContextIssueOverride(
+    projectIdOrSlug: string,
+    issueId: string,
+    input: ApplyContextIssueOverride,
+  ): Promise<ContextIssue> {
+    return this.#request(
+      `/v1/projects/${encodeURIComponent(projectIdOrSlug)}/context/issues/${encodeURIComponent(issueId)}/override`,
+      contextIssueSchema,
+      { method: "POST", body: JSON.stringify(applyContextIssueOverrideSchema.parse(input)) },
+    );
+  }
+
+  addContextIssueEvidence(
+    projectIdOrSlug: string,
+    issueId: string,
+    input: AddContextIssueEvidence,
+  ): Promise<ContextIssue> {
+    return this.#request(
+      `/v1/projects/${encodeURIComponent(projectIdOrSlug)}/context/issues/${encodeURIComponent(issueId)}/evidence`,
+      contextIssueSchema,
+      { method: "POST", body: JSON.stringify(addContextIssueEvidenceSchema.parse(input)) },
+    );
+  }
+
+  async exportContextRegister(projectIdOrSlug: string): Promise<ArrayBuffer> {
+    const response = await this.#axios.get<ArrayBuffer>(
+      `/v1/projects/${encodeURIComponent(projectIdOrSlug)}/context/export.xlsx`,
       { responseType: "arraybuffer" },
     );
     return response.data;

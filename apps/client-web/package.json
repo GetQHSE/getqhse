@@ -24,6 +24,7 @@
     "@qhse/api-client": "workspace:*",
     "@qhse/config": "workspace:*",
     "@qhse/contracts": "workspace:*",
+    "@qhse/domain": "workspace:*",
     "@qhse/profile": "workspace:*",
     "@qhse/ui": "workspace:*",
     "@tanstack/react-query": "^5.101.4",

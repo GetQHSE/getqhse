@@ -164,6 +164,37 @@ export const clientApi = {
   deleteRegulatoryEvidence: (idOrSlug: string, evidenceId: string) =>
     qhseApi.deleteRegulatoryEvidence(idOrSlug, evidenceId),
   exportRegulatoryWatch: (idOrSlug: string) => qhseApi.exportRegulatoryWatch(idOrSlug),
+
+  // SMQ Contexte (§4.1)
+  contextSettings: (idOrSlug: string) => qhseApi.getContextSettings(idOrSlug),
+  setContextMethod: (idOrSlug: string, input: Parameters<QhseApiClient["setContextMethod"]>[1]) =>
+    qhseApi.setContextMethod(idOrSlug, input),
+  contextInternalInputs: (idOrSlug: string) => qhseApi.listContextInternalInputs(idOrSlug),
+  upsertContextInternalInput: (
+    idOrSlug: string,
+    input: Parameters<QhseApiClient["upsertContextInternalInput"]>[1],
+  ) => qhseApi.upsertContextInternalInput(idOrSlug, input),
+  contextExternalRuns: (idOrSlug: string) => qhseApi.listContextExternalRuns(idOrSlug),
+  triggerContextExternalResearch: (idOrSlug: string) =>
+    qhseApi.triggerContextExternalResearch(idOrSlug),
+  contextAnalysisRuns: (idOrSlug: string) => qhseApi.listContextAnalysisRuns(idOrSlug),
+  triggerContextSynthesis: (idOrSlug: string) => qhseApi.triggerContextSynthesis(idOrSlug),
+  contextIssues: (idOrSlug: string) => qhseApi.listContextIssues(idOrSlug),
+  createManualContextIssue: (
+    idOrSlug: string,
+    input: Parameters<QhseApiClient["createManualContextIssue"]>[1],
+  ) => qhseApi.createManualContextIssue(idOrSlug, input),
+  applyContextIssueOverride: (
+    idOrSlug: string,
+    issueId: string,
+    input: Parameters<QhseApiClient["applyContextIssueOverride"]>[2],
+  ) => qhseApi.applyContextIssueOverride(idOrSlug, issueId, input),
+  addContextIssueEvidence: (
+    idOrSlug: string,
+    issueId: string,
+    input: Parameters<QhseApiClient["addContextIssueEvidence"]>[2],
+  ) => qhseApi.addContextIssueEvidence(idOrSlug, issueId, input),
+  exportContextRegister: (idOrSlug: string) => qhseApi.exportContextRegister(idOrSlug),
   createFileUpload: (input: CreateFileUpload): Promise<FileUploadResponse> =>
     request("/v1/files/uploads", (value) => fileUploadResponseSchema.parse(value), {
       method: "POST",

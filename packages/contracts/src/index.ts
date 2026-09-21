@@ -1658,3 +1658,12 @@ export const addContextIssueEvidenceSchema = z.object({
   metadata: z.record(z.string(), z.unknown()).default({}),
 });
 export type AddContextIssueEvidence = z.infer<typeof addContextIssueEvidenceSchema>;
+
+export const contextJobSchema = z.object({
+  runId: idSchema,
+  status: contextRunStatusSchema,
+  jobId: z.string().min(1),
+  queue: z.enum(["context-external-research", "context-analysis"]),
+  correlationId: z.string().min(1),
+});
+export type ContextJob = z.infer<typeof contextJobSchema>;

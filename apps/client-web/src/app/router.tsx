@@ -14,6 +14,7 @@ import { SitesPage } from "../features/sites/sites-page.js";
 import { TestAiChatPage } from "../features/ai-chat/test-ai-chat-page.js";
 import { TestAiChatPage2 } from "../features/ai-chat/test-ai-chat-page-2.js";
 import { TestAiChatPage3 } from "../features/ai-chat/test-ai-chat-page-3.js";
+import { ContextPage } from "../features/context/context-page.js";
 import { RegulatoryWatchTestPage } from "../features/regulatory-watch/regulatory-watch-test-page.js";
 import { RegulatoryWatchPage } from "../features/regulatory-watch/regulatory-watch-page.js";
 import { TeamPage } from "../features/organizations/team-page.js";
@@ -75,6 +76,7 @@ export const router = createBrowserRouter([
       { path: "projects", element: <ProjectsPage /> },
       { path: "projects/:projectId/chat", element: <ProjectChatPage /> },
       { path: "projects/:projectId/profile", element: <ProjectProfilePage /> },
+      { path: "projects/:projectId/context", element: <ContextPage /> },
       {
         path: "projects/:projectId/regulatory-watch",
         element: <RegulatoryWatchPage />,
