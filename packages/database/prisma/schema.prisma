@@ -422,6 +422,15 @@ model User {
   aiKnowledgeCreated                  AiKnowledgeExample[]               @relation("AiKnowledgeCreatedBy")
   aiKnowledgeUpdated                  AiKnowledgeExample[]               @relation("AiKnowledgeUpdatedBy")
   aiKnowledgeActivity                 AiKnowledgeActivity[]              @relation("AiKnowledgeActivityActor")
+  contextSettingsUpdated              ProjectContextSettings[]           @relation("ContextSettingsUpdater")
+  contextInternalInputsCreated        ContextInternalInput[]             @relation("ContextInternalInputCreator")
+  contextInternalInputsUpdated        ContextInternalInput[]             @relation("ContextInternalInputUpdater")
+  contextExternalRunsTriggered        ContextExternalResearchRun[]       @relation("ContextExternalRunTrigger")
+  contextAnalysisRunsTriggered        ContextAnalysisRun[]               @relation("ContextAnalysisRunTrigger")
+  contextIssuesReviewed               ContextIssue[]                     @relation("ContextIssueReviewer")
+  contextIssuesCreated                ContextIssue[]                     @relation("ContextIssueCreator")
+  contextIssueEvidenceCreated         ContextIssueEvidence[]             @relation("ContextIssueEvidenceCreator")
+  contextIssueCorrectionsAuthored     ContextIssueCorrection[]           @relation("ContextIssueCorrectionAuthor")
 
   @@map("users")
 }
@@ -1077,13 +1086,19 @@ model Project {
   updatedAt      DateTime          @updatedAt @map("updated_at")
   archivedAt     DateTime?         @map("archived_at")
 
-  organization      Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  createdBy         User                    @relation("ProjectCreator", fields: [createdById], references: [id], onDelete: Restrict)
-  activities        ProjectActivity[]
-  profile           ProjectProfile?
-  aiInvocations     AiInvocation[]
-  regulatoryWatch   ProjectRegulatoryWatch?
-  knowledgeExamples AiKnowledgeExample[]
+  organization           Organization                 @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy              User                         @relation("ProjectCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  activities             ProjectActivity[]
+  profile                ProjectProfile?
+  aiInvocations          AiInvocation[]
+  regulatoryWatch        ProjectRegulatoryWatch?
+  knowledgeExamples      AiKnowledgeExample[]
+  contextSettings        ProjectContextSettings?
+  contextInternalInputs  ContextInternalInput[]
+  contextExternalRuns    ContextExternalResearchRun[]
+  contextExternalFactors ContextExternalFactor[]
+  contextAnalysisRuns    ContextAnalysisRun[]
+  contextIssues          ContextIssue[]
 
   @@unique([organizationId, slug])
   @@index([organizationId])
@@ -1429,13 +1444,14 @@ model RegulatoryRegisterEntry {
   requirementReviewedAt         DateTime?                    @map("requirement_reviewed_at")
   createdAt                     DateTime                     @default(now()) @map("created_at")
 
-  baseline              RegulatoryBaseline                 @relation(fields: [baselineId], references: [id], onDelete: Cascade)
-  provision             DocumentProvision?                 @relation(fields: [provisionId], references: [id], onDelete: Restrict)
-  previousEntry         RegulatoryRegisterEntry?           @relation("RegulatoryEntryLineage", fields: [previousEntryId], references: [id], onDelete: Restrict)
-  successorEntries      RegulatoryRegisterEntry[]          @relation("RegulatoryEntryLineage")
-  successorCandidates   RegulatoryApplicabilityCandidate[] @relation("RegulatoryCandidatePreviousEntry")
-  evaluation            RegulatoryEvaluation?
-  requirementReviewedBy User?                              @relation("RegulatoryRequirementReviewer", fields: [requirementReviewedById], references: [id], onDelete: SetNull)
+  baseline               RegulatoryBaseline                 @relation(fields: [baselineId], references: [id], onDelete: Cascade)
+  provision              DocumentProvision?                 @relation(fields: [provisionId], references: [id], onDelete: Restrict)
+  previousEntry          RegulatoryRegisterEntry?           @relation("RegulatoryEntryLineage", fields: [previousEntryId], references: [id], onDelete: Restrict)
+  successorEntries       RegulatoryRegisterEntry[]          @relation("RegulatoryEntryLineage")
+  successorCandidates    RegulatoryApplicabilityCandidate[] @relation("RegulatoryCandidatePreviousEntry")
+  evaluation             RegulatoryEvaluation?
+  requirementReviewedBy  User?                              @relation("RegulatoryRequirementReviewer", fields: [requirementReviewedById], references: [id], onDelete: SetNull)
+  contextExternalFactors ContextExternalFactor[]
 
   @@unique([baselineId, provisionId])
   @@unique([baselineId, orderIndex])
@@ -2028,4 +2044,319 @@ model LlmSetting {
   updatedBy User? @relation("LlmSettingUpdatedBy", fields: [updatedByUserId], references: [id], onDelete: SetNull)
 
   @@map("llm_settings")
+}
+
+// ---------------------------------------------------------------------------
+// SMQ — Analyse des enjeux (ISO 9001 §4.1)
+//
+// Step 1 (contexte interne) is declared by the human, never generated. Step 2
+// (analyse externe) produces immutable per-run external factors grounded in
+// real sources; in PESTEL the "légal" dimension is never re-searched here, it
+// reuses RegulatoryRegisterEntry. Step 3 (synthèse) reasons only on material
+// already persisted — no web search. Step 4 (validation) is a human decision
+// recorded through ContextIssueCorrection, append-only; the ai_* columns on
+// ContextIssue are never rewritten. See packages/domain smqContext for the
+// deterministic rules (canonical identity, SWOT/PESTEL) this module runs on.
+// ---------------------------------------------------------------------------
+
+enum ContextAnalysisMethod {
+  SWOT
+  PESTEL
+}
+
+enum ContextRunStatus {
+  DRAFT
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+enum ContextIssueOrigin {
+  INTERNAL
+  EXTERNAL
+}
+
+enum ContextIssueReviewStatus {
+  PENDING
+  VALIDATED
+  MODIFIED
+  NOT_RETAINED
+}
+
+enum ContextIssueSourceKind {
+  AI
+  MANUAL
+}
+
+enum ContextEvidenceOrigin {
+  SYSTEM
+  USER
+}
+
+/// Project-level, persisted choice of analysis method. Only affects future
+/// runs: a run keeps the method it was executed with (ContextAnalysisRun /
+/// ContextExternalResearchRun each stamp their own methodologyVersion), so an
+/// existing run stays readable exactly as produced after this changes.
+model ProjectContextSettings {
+  projectId      String                @id @map("project_id")
+  analysisMethod ContextAnalysisMethod @default(SWOT) @map("analysis_method")
+  updatedById    String?               @map("updated_by_id")
+  createdAt      DateTime              @default(now()) @map("created_at")
+  updatedAt      DateTime              @updatedAt @map("updated_at")
+
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  updatedBy User?   @relation("ContextSettingsUpdater", fields: [updatedById], references: [id], onDelete: SetNull)
+
+  @@map("project_context_settings")
+}
+
+/// Step 1 (contexte interne): one answer per questionnaire question, declared
+/// by the human. Never AI-generated, never overwritten by a run.
+model ContextInternalInput {
+  id                 String   @id @default(cuid())
+  projectId          String   @map("project_id")
+  sectionKey         String   @map("section_key")
+  questionKey        String   @map("question_key")
+  questionLabel      String   @map("question_label")
+  answerText         String   @default("") @map("answer_text")
+  methodologyVersion String   @default("v1") @map("methodology_version")
+  status             String   @default("draft")
+  metadata           Json     @default("{}")
+  createdById        String   @map("created_by_id")
+  updatedById        String?  @map("updated_by_id")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdBy User    @relation("ContextInternalInputCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy User?   @relation("ContextInternalInputUpdater", fields: [updatedById], references: [id], onDelete: SetNull)
+
+  @@unique([projectId, questionKey])
+  @@map("context_internal_inputs")
+}
+
+/// Step 2 (analyse externe) run. No decision is made here beyond retrieval:
+/// produces ContextExternalFactor rows grounded in ContextExternalFactorSource.
+model ContextExternalResearchRun {
+  id                 String           @id @default(cuid())
+  projectId          String           @map("project_id")
+  status             ContextRunStatus @default(DRAFT)
+  methodologyVersion String           @default("v1") @map("methodology_version")
+  contextSnapshot    Json             @default("{}") @map("context_snapshot")
+  contextFingerprint String?          @map("context_fingerprint")
+  scope              Json             @default("{}")
+  regulatoryRunId    String?          @map("regulatory_run_id")
+  model              String?
+  searchQueries      Json             @default("[]") @map("search_queries")
+  summary            Json             @default("{}")
+  errorMessage       String?          @map("error_message")
+  triggeredById      String           @map("triggered_by_id")
+  createdAt          DateTime         @default(now()) @map("created_at")
+  startedAt          DateTime?        @map("started_at")
+  completedAt        DateTime?        @map("completed_at")
+
+  project     Project                 @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  triggeredBy User                    @relation("ContextExternalRunTrigger", fields: [triggeredById], references: [id], onDelete: Restrict)
+  factors     ContextExternalFactor[]
+
+  @@index([projectId, createdAt])
+  @@map("context_external_research_runs")
+}
+
+/// One external factor proposed by a Step 2 run. Immutable once persisted —
+/// a later run creates a new row and links back through previousFactorId,
+/// it never edits this one.
+model ContextExternalFactor {
+  id                              String   @id @default(cuid())
+  runId                           String   @map("run_id")
+  projectId                       String   @map("project_id")
+  categoryKey                     String   @map("category_key")
+  categoryLabel                   String   @map("category_label")
+  title                           String
+  description                     String?
+  relevanceToCompany              String?  @map("relevance_to_company")
+  influenceOnObjectives           String?  @map("influence_on_objectives")
+  influenceOnQuality              String?  @map("influence_on_quality")
+  influenceOnCustomerSatisfaction String?  @map("influence_on_customer_satisfaction")
+  geographicScope                 String?  @map("geographic_scope")
+  orientation                     String?
+  evidenceStrength                String?  @map("evidence_strength")
+  confidence                      Decimal? @db.Decimal(5, 4)
+  sourceOrigin                    String   @default("web_research") @map("source_origin")
+  regulatoryEntryId               String?  @map("regulatory_entry_id")
+  canonicalKey                    String   @map("canonical_key")
+  factorFingerprint               String   @map("factor_fingerprint")
+  comparisonStatus                String?  @map("comparison_status")
+  previousFactorId                String?  @map("previous_factor_id")
+  model                           String?
+  generatedAt                     DateTime @default(now()) @map("generated_at")
+  metadata                        Json     @default("{}")
+  createdAt                       DateTime @default(now()) @map("created_at")
+
+  run             ContextExternalResearchRun    @relation(fields: [runId], references: [id], onDelete: Cascade)
+  project         Project                       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  regulatoryEntry RegulatoryRegisterEntry?      @relation(fields: [regulatoryEntryId], references: [id], onDelete: SetNull)
+  previousFactor  ContextExternalFactor?        @relation("ContextFactorLineage", fields: [previousFactorId], references: [id], onDelete: Restrict)
+  successors      ContextExternalFactor[]       @relation("ContextFactorLineage")
+  sources         ContextExternalFactorSource[]
+
+  @@unique([runId, factorFingerprint])
+  @@index([projectId, canonicalKey])
+  @@map("context_external_factors")
+}
+
+/// Grounded evidence for one external factor. Never fabricated: a factor with
+/// no real source is not persisted as verified.
+model ContextExternalFactorSource {
+  id              String    @id @default(cuid())
+  factorId        String    @map("factor_id")
+  url             String?
+  title           String?
+  publisher       String?
+  sourceDate      DateTime? @map("source_date") @db.Date
+  groundingOrigin String    @default("search_grounding") @map("grounding_origin")
+  excerpt         String?
+  authorityTier   String?   @map("authority_tier")
+  metadata        Json      @default("{}")
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  factor ContextExternalFactor @relation(fields: [factorId], references: [id], onDelete: Cascade)
+
+  @@map("context_external_factor_sources")
+}
+
+/// Step 3 (synthèse des enjeux) run. No web search happens here: it reasons
+/// only on the validated profile, declared internal context, persisted
+/// external factors and existing regulatory results.
+model ContextAnalysisRun {
+  id                 String           @id @default(cuid())
+  projectId          String           @map("project_id")
+  status             ContextRunStatus @default(DRAFT)
+  methodologyVersion String           @default("v1") @map("methodology_version")
+  contextSnapshot    Json             @default("{}") @map("context_snapshot")
+  contextFingerprint String?          @map("context_fingerprint")
+  inputs             Json             @default("{}")
+  summary            Json             @default("{}")
+  errorMessage       String?          @map("error_message")
+  triggeredById      String           @map("triggered_by_id")
+  createdAt          DateTime         @default(now()) @map("created_at")
+  startedAt          DateTime?        @map("started_at")
+  completedAt        DateTime?        @map("completed_at")
+
+  project     Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  triggeredBy User           @relation("ContextAnalysisRunTrigger", fields: [triggeredById], references: [id], onDelete: Restrict)
+  issues      ContextIssue[]
+
+  @@index([projectId, createdAt])
+  @@map("context_analysis_runs")
+}
+
+/// One "enjeu" (issue). The ai_* columns are the immutable AI conclusion; the
+/// plain columns are effective values, null while the AI conclusion still
+/// stands. A human correction is applied only through the application layer
+/// equivalent of apply_context_issue_override, which also appends a
+/// ContextIssueCorrection row — this model is never patched directly outside
+/// that path. canonicalKey is independent of wording AND of category, so a
+/// recategorization never creates a duplicate issue.
+model ContextIssue {
+  id               String  @id @default(cuid())
+  runId            String  @map("run_id")
+  projectId        String  @map("project_id")
+  previousIssueId  String? @map("previous_issue_id")
+  issueFingerprint String  @map("issue_fingerprint")
+  canonicalKey     String  @map("canonical_key")
+  comparisonStatus String? @map("comparison_status")
+
+  aiOrigin                     ContextIssueOrigin @map("ai_origin")
+  aiCategoryKey                String?            @map("ai_category_key")
+  aiCategoryLabel              String?            @map("ai_category_label")
+  aiTitle                      String             @map("ai_title")
+  aiDescription                String?            @map("ai_description")
+  aiReasoning                  String?            @map("ai_reasoning")
+  aiNature                     String?            @map("ai_nature")
+  aiImpactQuality              String?            @map("ai_impact_quality")
+  aiImpactCustomerSatisfaction String?            @map("ai_impact_customer_satisfaction")
+  aiImpactOverall              String?            @map("ai_impact_overall")
+  aiScores                     Json               @default("{}") @map("ai_scores")
+  aiConfidence                 Decimal?           @map("ai_confidence") @db.Decimal(5, 4)
+  aiRecommendedPriority        Boolean            @default(false) @map("ai_recommended_priority")
+  aiModel                      String?            @map("ai_model")
+  aiGeneratedAt                DateTime           @default(now()) @map("ai_generated_at")
+
+  origin                     ContextIssueOrigin?
+  categoryKey                String?             @map("category_key")
+  categoryLabel              String?             @map("category_label")
+  title                      String?
+  description                String?
+  nature                     String?
+  impactQuality              String?             @map("impact_quality")
+  impactCustomerSatisfaction String?             @map("impact_customer_satisfaction")
+  impactOverall              String?             @map("impact_overall")
+  scores                     Json?
+  userSelectedPriority       Boolean?            @map("user_selected_priority")
+
+  humanOverride     Boolean                  @default(false) @map("human_override")
+  humanReviewedById String?                  @map("human_reviewed_by_id")
+  humanReviewedAt   DateTime?                @map("human_reviewed_at")
+  reviewStatus      ContextIssueReviewStatus @default(PENDING) @map("review_status")
+
+  sourceKind  ContextIssueSourceKind @default(AI) @map("source_kind")
+  createdById String?                @map("created_by_id")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  run             ContextAnalysisRun       @relation(fields: [runId], references: [id], onDelete: Cascade)
+  project         Project                  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  previousIssue   ContextIssue?            @relation("ContextIssueLineage", fields: [previousIssueId], references: [id], onDelete: Restrict)
+  successors      ContextIssue[]           @relation("ContextIssueLineage")
+  humanReviewedBy User?                    @relation("ContextIssueReviewer", fields: [humanReviewedById], references: [id], onDelete: SetNull)
+  createdBy       User?                    @relation("ContextIssueCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  evidence        ContextIssueEvidence[]
+  corrections     ContextIssueCorrection[]
+
+  @@unique([runId, issueFingerprint])
+  @@index([projectId, canonicalKey])
+  @@map("context_issues")
+}
+
+/// Evidence attached to an issue: system-linked (profile, internal context,
+/// external factor, veille) or user-added. Append-only.
+model ContextIssueEvidence {
+  id             String                @id @default(cuid())
+  issueId        String                @map("issue_id")
+  sourceType     String                @map("source_type")
+  originKind     ContextEvidenceOrigin @map("origin_kind")
+  sourceRefTable String?               @map("source_ref_table")
+  sourceRefId    String?               @map("source_ref_id")
+  sourceUrl      String?               @map("source_url")
+  excerpt        String?
+  metadata       Json                  @default("{}")
+  createdById    String?               @map("created_by_id")
+  createdAt      DateTime              @default(now()) @map("created_at")
+
+  issue     ContextIssue @relation(fields: [issueId], references: [id], onDelete: Cascade)
+  createdBy User?        @relation("ContextIssueEvidenceCreator", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@map("context_issue_evidence")
+}
+
+/// Raw, append-only correction trail. previousValue/newValue are the raw
+/// field values; groupCorrections (packages/domain smqContext) turns bursts
+/// of these into one readable audit event and derives the human-facing label
+/// — never persisted redundantly here.
+model ContextIssueCorrection {
+  id               String   @id @default(cuid())
+  issueId          String   @map("issue_id")
+  fieldName        String   @map("field_name")
+  previousValue    Json?    @map("previous_value")
+  newValue         Json?    @map("new_value")
+  correctionReason String?  @map("correction_reason")
+  correctedById    String   @map("corrected_by_id")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  issue       ContextIssue @relation(fields: [issueId], references: [id], onDelete: Cascade)
+  correctedBy User         @relation("ContextIssueCorrectionAuthor", fields: [correctedById], references: [id], onDelete: Restrict)
+
+  @@map("context_issue_corrections")
 }
