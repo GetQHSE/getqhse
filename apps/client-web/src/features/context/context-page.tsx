@@ -27,7 +27,7 @@ import type {
   ContextIssue,
   CreateManualContextIssue,
 } from "@qhse/contracts";
-import { smqContext } from "@qhse/domain";
+import { ANALYSIS_METHOD_OPTIONS, analysisMethodLabel } from "@qhse/domain/smq/context/method";
 import { Badge } from "@qhse/ui/components/badge";
 import { Button } from "@qhse/ui/components/button";
 import { Textarea } from "@qhse/ui/components/textarea";
@@ -35,8 +35,6 @@ import { cn } from "@qhse/ui/lib/utils";
 
 import { clientApi } from "../../app/client-api.js";
 import { INTERNAL_CONTEXT_SECTIONS } from "./internal-context-questions.js";
-
-const { ANALYSIS_METHOD_OPTIONS, analysisMethodLabel } = smqContext;
 
 const STEPS = ["Contexte interne", "Analyse externe", "Synthèse des enjeux", "Validation"] as const;
 

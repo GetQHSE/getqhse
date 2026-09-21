@@ -16,6 +16,7 @@ import {
 } from "@qhse/ui/components/sidebar";
 import { BrandLogo } from "@qhse/ui/components/brand-logo";
 import {
+  CompassIcon,
   LayoutDashboardIcon,
   FolderKanbanIcon,
   MessageSquareTextIcon,
@@ -39,6 +40,11 @@ function projectNav(slug: string): MainNavItem[] {
   return [
     { title: "Chat", url: `${baseUrl}/chat`, icon: <MessageSquareTextIcon /> },
     { title: "Profil", url: `${baseUrl}/profile`, icon: <UserRoundIcon /> },
+    {
+      title: "Analyse des enjeux",
+      url: `${baseUrl}/context`,
+      icon: <CompassIcon />,
+    },
     {
       title: "Veille réglementaire",
       url: `${baseUrl}/regulatory-watch`,

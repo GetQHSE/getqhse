@@ -7,6 +7,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./smq/context/method": {
+      "types": "./dist/smq/context/method.d.ts",
+      "default": "./dist/smq/context/method.js"
     }
   },
   "scripts": {
