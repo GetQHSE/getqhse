@@ -1228,6 +1228,8 @@ export const workQueueNames = {
   regulatoryAnalysis: "regulatory-analysis",
   regulatoryImpact: "regulatory-impact",
   regulatoryEvaluation: "regulatory-evaluation",
+  contextExternalResearch: "context-external-research",
+  contextAnalysis: "context-analysis",
   evidenceAnalysis: "evidence-analysis",
   reportGeneration: "report-generation",
   notifications: "notifications",
@@ -1374,3 +1376,285 @@ export const complianceResultSchema = z.object({
   humanReviewRequired: z.boolean(),
 });
 export type ComplianceResult = z.infer<typeof complianceResultSchema>;
+
+// ---------------------------------------------------------------------------
+// SMQ — Analyse des enjeux (ISO 9001 §4.1)
+// ---------------------------------------------------------------------------
+
+export const contextAnalysisMethodSchema = z.enum(["SWOT", "PESTEL"]);
+export type ContextAnalysisMethod = z.infer<typeof contextAnalysisMethodSchema>;
+
+export const contextRunStatusSchema = z.enum(["DRAFT", "RUNNING", "COMPLETED", "FAILED"]);
+export type ContextRunStatus = z.infer<typeof contextRunStatusSchema>;
+
+export const contextIssueOriginSchema = z.enum(["INTERNAL", "EXTERNAL"]);
+export type ContextIssueOrigin = z.infer<typeof contextIssueOriginSchema>;
+
+export const contextIssueReviewStatusSchema = z.enum([
+  "PENDING",
+  "VALIDATED",
+  "MODIFIED",
+  "NOT_RETAINED",
+]);
+export type ContextIssueReviewStatus = z.infer<typeof contextIssueReviewStatusSchema>;
+
+export const contextIssueSourceKindSchema = z.enum(["AI", "MANUAL"]);
+export type ContextIssueSourceKind = z.infer<typeof contextIssueSourceKindSchema>;
+
+export const contextIssueNatureSchema = z.enum(["force", "faiblesse", "opportunite", "menace"]);
+export type ContextIssueNature = z.infer<typeof contextIssueNatureSchema>;
+
+export const projectContextSettingsSchema = z.object({
+  projectId: idSchema,
+  analysisMethod: contextAnalysisMethodSchema,
+  explicit: z.boolean(),
+});
+export type ProjectContextSettings = z.infer<typeof projectContextSettingsSchema>;
+
+export const setContextAnalysisMethodSchema = z.object({
+  method: contextAnalysisMethodSchema,
+});
+export type SetContextAnalysisMethod = z.infer<typeof setContextAnalysisMethodSchema>;
+
+/* ------------------------------- Step 1 ------------------------------- */
+
+export const contextInternalInputSchema = z.object({
+  id: idSchema,
+  projectId: idSchema,
+  sectionKey: z.string().min(1).max(80),
+  questionKey: z.string().min(1).max(120),
+  questionLabel: z.string().min(1).max(400),
+  answerText: z.string().max(8_000),
+  status: z.string(),
+  createdAt: isoDateTimeSchema,
+  updatedAt: isoDateTimeSchema,
+});
+export type ContextInternalInput = z.infer<typeof contextInternalInputSchema>;
+
+export const upsertContextInternalInputSchema = z.object({
+  sectionKey: z.string().min(1).max(80),
+  questionKey: z.string().min(1).max(120),
+  questionLabel: z.string().min(1).max(400),
+  answerText: z.string().max(8_000),
+  status: z.enum(["draft", "answered"]).default("draft"),
+});
+export type UpsertContextInternalInput = z.infer<typeof upsertContextInternalInputSchema>;
+
+/* ------------------------------- Step 2 ------------------------------- */
+
+export const contextExternalFactorSourceSchema = z.object({
+  id: idSchema,
+  url: z.string().nullable(),
+  title: z.string().nullable(),
+  publisher: z.string().nullable(),
+  sourceDate: z.string().nullable(),
+  groundingOrigin: z.string(),
+  excerpt: z.string().nullable(),
+  authorityTier: z.string().nullable(),
+});
+export type ContextExternalFactorSource = z.infer<typeof contextExternalFactorSourceSchema>;
+
+export const contextExternalFactorSchema = z.object({
+  id: idSchema,
+  runId: idSchema,
+  categoryKey: z.string(),
+  categoryLabel: z.string(),
+  title: z.string(),
+  description: z.string().nullable(),
+  relevanceToCompany: z.string().nullable(),
+  influenceOnObjectives: z.string().nullable(),
+  influenceOnQuality: z.string().nullable(),
+  influenceOnCustomerSatisfaction: z.string().nullable(),
+  geographicScope: z.string().nullable(),
+  orientation: z.string().nullable(),
+  evidenceStrength: z.string().nullable(),
+  confidence: z.number().min(0).max(1).nullable(),
+  sourceOrigin: z.string(),
+  regulatoryEntryId: idSchema.nullable(),
+  canonicalKey: z.string(),
+  comparisonStatus: z.string().nullable(),
+  model: z.string().nullable(),
+  generatedAt: isoDateTimeSchema,
+  sources: z.array(contextExternalFactorSourceSchema),
+});
+export type ContextExternalFactor = z.infer<typeof contextExternalFactorSchema>;
+
+export const contextExternalRunSummarySchema = z.object({
+  id: idSchema,
+  status: contextRunStatusSchema,
+  createdAt: isoDateTimeSchema,
+  startedAt: isoDateTimeSchema.nullable(),
+  completedAt: isoDateTimeSchema.nullable(),
+  errorMessage: z.string().nullable(),
+  model: z.string().nullable(),
+  factorsCount: z.number().int().nonnegative(),
+  sourcesCount: z.number().int().nonnegative(),
+  searchQueries: z.array(z.string()),
+  regulatoryRunId: idSchema.nullable(),
+  analysisMethod: contextAnalysisMethodSchema.nullable(),
+});
+export type ContextExternalRunSummary = z.infer<typeof contextExternalRunSummarySchema>;
+
+export const contextExternalRunResultSchema = z.object({
+  runId: idSchema,
+  status: z.enum(["completed", "failed"]),
+  message: z.string().nullable(),
+  factorsCreated: z.number().int().nonnegative(),
+  sourcesCreated: z.number().int().nonnegative(),
+  categoriesCovered: z.array(z.string()),
+  reusedRegulatoryEntries: z.number().int().nonnegative(),
+});
+export type ContextExternalRunResult = z.infer<typeof contextExternalRunResultSchema>;
+
+/* ------------------------------ Step 3/4 ------------------------------- */
+
+export const contextIssueEvidenceSchema = z.object({
+  id: idSchema,
+  sourceType: z.string(),
+  originKind: z.enum(["SYSTEM", "USER"]),
+  sourceUrl: z.string().nullable(),
+  excerpt: z.string().nullable(),
+  createdAt: isoDateTimeSchema,
+});
+export type ContextIssueEvidence = z.infer<typeof contextIssueEvidenceSchema>;
+
+export const contextIssueCorrectionSchema = z.object({
+  id: idSchema,
+  fieldName: z.string(),
+  previousValue: z.unknown(),
+  newValue: z.unknown(),
+  correctionReason: z.string().nullable(),
+  createdAt: isoDateTimeSchema,
+});
+export type ContextIssueCorrection = z.infer<typeof contextIssueCorrectionSchema>;
+
+export const contextIssueScoresSchema = z.object({
+  influenceObjectives: z.number().min(0).max(5).optional(),
+  influenceQuality: z.number().min(0).max(5).optional(),
+  influenceCustomer: z.number().min(0).max(5).optional(),
+  overall: z.number().min(0).max(5).optional(),
+});
+export type ContextIssueScores = z.infer<typeof contextIssueScoresSchema>;
+
+export const contextIssueSchema = z.object({
+  id: idSchema,
+  runId: idSchema,
+  canonicalKey: z.string(),
+  comparisonStatus: z.string().nullable(),
+
+  aiOrigin: contextIssueOriginSchema,
+  aiCategoryKey: z.string().nullable(),
+  aiCategoryLabel: z.string().nullable(),
+  aiTitle: z.string(),
+  aiDescription: z.string().nullable(),
+  aiReasoning: z.string().nullable(),
+  aiNature: z.string().nullable(),
+  aiImpactQuality: z.string().nullable(),
+  aiImpactCustomerSatisfaction: z.string().nullable(),
+  aiImpactOverall: z.string().nullable(),
+  aiScores: contextIssueScoresSchema,
+  aiConfidence: z.number().min(0).max(1).nullable(),
+  aiRecommendedPriority: z.boolean(),
+  aiModel: z.string().nullable(),
+  aiGeneratedAt: isoDateTimeSchema,
+
+  origin: contextIssueOriginSchema,
+  categoryKey: z.string().nullable(),
+  categoryLabel: z.string().nullable(),
+  title: z.string(),
+  description: z.string().nullable(),
+  nature: z.string().nullable(),
+  impactQuality: z.string().nullable(),
+  impactCustomerSatisfaction: z.string().nullable(),
+  impactOverall: z.string().nullable(),
+  scores: contextIssueScoresSchema,
+  selectedPriority: z.boolean(),
+
+  reviewStatus: contextIssueReviewStatusSchema,
+  humanOverride: z.boolean(),
+  humanReviewedAt: isoDateTimeSchema.nullable(),
+  updatedAt: isoDateTimeSchema,
+
+  sourceKind: contextIssueSourceKindSchema,
+  createdAt: isoDateTimeSchema,
+
+  evidence: z.array(contextIssueEvidenceSchema),
+  corrections: z.array(contextIssueCorrectionSchema),
+});
+export type ContextIssue = z.infer<typeof contextIssueSchema>;
+
+export const contextAnalysisRunSummarySchema = z.object({
+  id: idSchema,
+  status: contextRunStatusSchema,
+  createdAt: isoDateTimeSchema,
+  startedAt: isoDateTimeSchema.nullable(),
+  completedAt: isoDateTimeSchema.nullable(),
+  errorMessage: z.string().nullable(),
+  issuesCount: z.number().int().nonnegative(),
+  internalCount: z.number().int().nonnegative(),
+  externalCount: z.number().int().nonnegative(),
+  model: z.string().nullable(),
+  methodologyVersion: z.string().nullable(),
+  analysisMethod: contextAnalysisMethodSchema.nullable(),
+});
+export type ContextAnalysisRunSummary = z.infer<typeof contextAnalysisRunSummarySchema>;
+
+export const contextSynthesisRunResultSchema = z.object({
+  runId: idSchema,
+  status: z.enum(["completed", "failed"]),
+  message: z.string().nullable(),
+  issuesCreated: z.number().int().nonnegative(),
+  internalCount: z.number().int().nonnegative(),
+  externalCount: z.number().int().nonnegative(),
+  evidenceCreated: z.number().int().nonnegative(),
+});
+export type ContextSynthesisRunResult = z.infer<typeof contextSynthesisRunResultSchema>;
+
+/** Mirrors apply_context_issue_override: every field optional, only supplied
+ * fields that materially differ from the current effective value produce a
+ * ContextIssueCorrection row. */
+export const applyContextIssueOverrideSchema = z.object({
+  origin: contextIssueOriginSchema.optional(),
+  categoryKey: z.string().min(1).max(80).optional(),
+  categoryLabel: z.string().min(1).max(160).optional(),
+  title: z.string().min(1).max(240).optional(),
+  description: z.string().min(1).max(4_000).optional(),
+  nature: contextIssueNatureSchema.optional(),
+  impactQuality: z.string().min(1).max(2_000).optional(),
+  impactCustomerSatisfaction: z.string().min(1).max(2_000).optional(),
+  impactOverall: z.string().min(1).max(2_000).optional(),
+  scores: contextIssueScoresSchema.optional(),
+  selectedPriority: z.boolean().optional(),
+  reviewStatus: contextIssueReviewStatusSchema.optional(),
+  correctionReason: z.string().max(2_000).optional(),
+});
+export type ApplyContextIssueOverride = z.infer<typeof applyContextIssueOverrideSchema>;
+
+/** Mirrors create_manual_context_issue: internal issues must be
+ * force/faiblesse, external issues must be opportunite/menace. */
+export const createManualContextIssueSchema = z
+  .object({
+    origin: contextIssueOriginSchema,
+    nature: contextIssueNatureSchema,
+    title: z.string().min(1).max(240),
+    description: z.string().min(1).max(4_000),
+    categoryKey: z.string().min(1).max(80).default("ajout_manuel"),
+    categoryLabel: z.string().min(1).max(160).default("Ajout manuel"),
+    reason: z.string().max(2_000).optional(),
+  })
+  .refine(
+    (input) =>
+      input.origin === "INTERNAL"
+        ? input.nature === "force" || input.nature === "faiblesse"
+        : input.nature === "opportunite" || input.nature === "menace",
+    {
+      message: "internal issues must be force or faiblesse; external must be opportunite or menace",
+    },
+  );
+export type CreateManualContextIssue = z.infer<typeof createManualContextIssueSchema>;
+
+export const addContextIssueEvidenceSchema = z.object({
+  excerpt: z.string().max(2_000).optional(),
+  metadata: z.record(z.string(), z.unknown()).default({}),
+});
+export type AddContextIssueEvidence = z.infer<typeof addContextIssueEvidenceSchema>;
