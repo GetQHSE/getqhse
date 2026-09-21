@@ -41,14 +41,14 @@ function projectNav(slug: string): MainNavItem[] {
     { title: "Chat", url: `${baseUrl}/chat`, icon: <MessageSquareTextIcon /> },
     { title: "Profil", url: `${baseUrl}/profile`, icon: <UserRoundIcon /> },
     {
-      title: "Analyse des enjeux",
-      url: `${baseUrl}/context`,
-      icon: <CompassIcon />,
-    },
-    {
       title: "Veille réglementaire",
       url: `${baseUrl}/regulatory-watch`,
       icon: <ScaleIcon />,
+    },
+    {
+      title: "Analyse des enjeux",
+      url: `${baseUrl}/context`,
+      icon: <CompassIcon />,
     },
   ];
 }

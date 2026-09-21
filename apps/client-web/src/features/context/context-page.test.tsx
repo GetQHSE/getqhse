@@ -2,13 +2,14 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { clientApi } from "../../app/client-api.js";
 import { ContextPage } from "./context-page.js";
 
 vi.mock("../../app/client-api.js", () => ({
   clientApi: {
+    regulatoryWatch: vi.fn(),
     contextSettings: vi.fn(),
     setContextMethod: vi.fn(),
     contextInternalInputs: vi.fn(),
@@ -24,6 +25,37 @@ vi.mock("../../app/client-api.js", () => ({
   },
 }));
 
+const publishedWatch = {
+  id: "watch-1",
+  projectId: "project-1",
+  status: "ACTIVE" as const,
+  revision: 3,
+  createdAt: "2026-08-01T00:00:00.000Z",
+  updatedAt: "2026-09-10T00:00:00.000Z",
+  currentAnalysis: null,
+  currentBaseline: {
+    id: "baseline-1",
+    sequence: 1,
+    profileSnapshotId: "snapshot-1",
+    publishedAt: "2026-09-10T00:00:00.000Z",
+    entries: [],
+  },
+  synchronization: {
+    state: "IDLE" as const,
+    trigger: null,
+    sourceBaselineId: null,
+    progressPercent: 0,
+    lastCheckedAt: null,
+    lastSuccessfulSyncAt: null,
+  },
+};
+
+const unpublishedWatch = {
+  ...publishedWatch,
+  status: "NOT_STARTED" as const,
+  currentBaseline: null,
+};
+
 function renderPage() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
@@ -36,6 +68,13 @@ function renderPage() {
     </QueryClientProvider>,
   );
 }
+
+beforeEach(() => {
+  // Every module reads the veille first: default to a published register so
+  // existing tests exercise the stepper, not the gate. The gate itself gets
+  // its own describe block below, overriding this per test.
+  vi.mocked(clientApi.regulatoryWatch).mockResolvedValue(publishedWatch);
+});
 
 afterEach(() => {
   cleanup();
@@ -165,5 +204,60 @@ describe("ContextPage — method already chosen", () => {
     );
     expect(screen.getByText("À examiner")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /retenir/i })).toBeInTheDocument();
+  });
+});
+
+describe("ContextPage — gated on a published veille", () => {
+  it("shows the veille gate, never the method choice or stepper, before any register is published", async () => {
+    vi.mocked(clientApi.regulatoryWatch).mockResolvedValue(unpublishedWatch);
+
+    renderPage();
+
+    await waitFor(() =>
+      expect(screen.getByText(/publiez d'abord votre veille réglementaire/i)).toBeInTheDocument(),
+    );
+    expect(clientApi.contextSettings).not.toHaveBeenCalled();
+    expect(screen.queryByText(/choisissez la méthode d'analyse/i)).not.toBeInTheDocument();
+  });
+
+  it("links to the regulatory-watch page to unblock the gate", async () => {
+    vi.mocked(clientApi.regulatoryWatch).mockResolvedValue(unpublishedWatch);
+
+    renderPage();
+
+    await waitFor(() => expect(screen.getByRole("link")).toBeInTheDocument());
+    expect(screen.getByRole("link")).toHaveAttribute(
+      "href",
+      "/projects/project-1/regulatory-watch",
+    );
+  });
+
+  it("names the veille's current status in the gate message", async () => {
+    vi.mocked(clientApi.regulatoryWatch).mockResolvedValue({
+      ...unpublishedWatch,
+      status: "ANALYZING",
+    });
+
+    renderPage();
+
+    await waitFor(() => expect(screen.getByText(/en cours d'analyse/i)).toBeInTheDocument());
+  });
+
+  it("opens the stepper once a register has been published", async () => {
+    vi.mocked(clientApi.regulatoryWatch).mockResolvedValue(publishedWatch);
+    vi.mocked(clientApi.contextSettings).mockResolvedValue({
+      projectId: "project-1",
+      analysisMethod: "SWOT",
+      explicit: false,
+    });
+
+    renderPage();
+
+    await waitFor(() =>
+      expect(screen.getByText(/choisissez la méthode d'analyse/i)).toBeInTheDocument(),
+    );
+    expect(
+      screen.queryByText(/publiez d'abord votre veille réglementaire/i),
+    ).not.toBeInTheDocument();
   });
 });

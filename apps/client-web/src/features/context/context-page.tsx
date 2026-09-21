@@ -10,7 +10,7 @@
  * - Step 2's légal dimension is never searched here — it reuses the veille.
  */
 import { useState } from "react";
-import { useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertCircleIcon,
@@ -18,6 +18,7 @@ import {
   DownloadIcon,
   LoaderCircleIcon,
   PlusIcon,
+  ScaleIcon,
   SparklesIcon,
   XIcon,
 } from "lucide-react";
@@ -69,9 +70,18 @@ function ContextWorkflow({ projectId }: { projectId: string }) {
   const queryClient = useQueryClient();
   const [activeStep, setActiveStep] = useState(1);
 
+  const watchQuery = useQuery({
+    queryKey: ["regulatory-watch", projectId],
+    queryFn: () => clientApi.regulatoryWatch(projectId),
+  });
+
   const settingsQuery = useQuery({
     queryKey: ["context-settings", projectId],
     queryFn: () => clientApi.contextSettings(projectId),
+    // The légal/réglementaire dimension is never searched by this module — it
+    // reuses the published veille — so there is nothing useful to do here
+    // until a register has been published at least once.
+    enabled: watchQuery.data?.currentBaseline != null,
   });
 
   const setMethod = useMutation({
@@ -79,6 +89,16 @@ function ContextWorkflow({ projectId }: { projectId: string }) {
       clientApi.setContextMethod(projectId, { method }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["context-settings", projectId] }),
   });
+
+  if (watchQuery.isLoading) {
+    return <LoadingBlock label="Chargement de l'analyse des enjeux…" />;
+  }
+  if (watchQuery.isError || !watchQuery.data) {
+    return <ErrorBlock message="Impossible de charger la veille réglementaire." />;
+  }
+  if (watchQuery.data.currentBaseline == null) {
+    return <IncompleteWatchState projectId={projectId} status={watchQuery.data.status} />;
+  }
 
   if (settingsQuery.isLoading) {
     return <LoadingBlock label="Chargement de l'analyse des enjeux…" />;
@@ -139,6 +159,45 @@ function ErrorBlock({ message }: { message: string }) {
     <div className="flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
       <AlertCircleIcon className="size-4" aria-hidden="true" />
       {message}
+    </div>
+  );
+}
+
+const WATCH_STATUS_LABELS: Record<string, string> = {
+  NOT_STARTED: "pas encore lancée",
+  ANALYZING: "en cours d'analyse",
+  AWAITING_CLARIFICATION: "en attente de précisions",
+  REVIEW_REQUIRED: "en attente de votre validation",
+  STALE: "à revérifier",
+  FAILED: "en échec",
+};
+
+/**
+ * The légal/réglementaire dimension is never searched in step 2 — it reuses
+ * the published veille (RegulatoryRegisterEntry) — and step 3's synthesis
+ * reads that same published register. Neither can produce something honest
+ * before a register has been published at least once, so the whole module
+ * is gated here, the same way the veille itself gates on profile completion.
+ */
+function IncompleteWatchState({ projectId, status }: { projectId: string; status: string }) {
+  return (
+    <div className="mx-auto max-w-2xl py-16 text-center">
+      <span className="mx-auto grid size-16 place-items-center rounded-3xl border border-violet-200 bg-violet-50 text-violet-600">
+        <ScaleIcon className="size-7" aria-hidden="true" />
+      </span>
+      <Badge className="mt-6" variant="outline">
+        Étape préalable · Veille réglementaire
+      </Badge>
+      <h1 className="mt-5 text-2xl font-semibold tracking-tight text-slate-950">
+        Publiez d'abord votre veille réglementaire
+      </h1>
+      <p className="mt-3 text-sm leading-6 text-slate-500">
+        L'analyse des enjeux réutilise votre registre réglementaire publié pour la dimension légale
+        — elle ne la recherche jamais elle-même. Veille : {WATCH_STATUS_LABELS[status] ?? status}.
+      </p>
+      <Button className="mt-6" render={<Link to={`/projects/${projectId}/regulatory-watch`} />}>
+        <ScaleIcon className="size-4" aria-hidden="true" /> Ouvrir la veille réglementaire
+      </Button>
     </div>
   );
 }
