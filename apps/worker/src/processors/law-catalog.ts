@@ -95,6 +95,9 @@ export const applicableLawDiscoverySchema = z.object({
         // 12", "8.5.1" for an ISO clause) — never the law's own reference number, and null when
         // the source consulted doesn't establish one precisely. A human still reviews every entry
         // before it is trusted (requirementStatus stays SOURCE_REVIEW_REQUIRED downstream).
+        // Required (no default): OpenAI Structured Outputs rejects a JSON Schema default,
+        // which would otherwise make this property optional in strict mode. The prompt instructs
+        // the model to return an empty array rather than omit the field.
         applicableRequirements: z
           .array(
             z.object({
@@ -102,8 +105,7 @@ export const applicableLawDiscoverySchema = z.object({
               requirement: z.string().trim().min(1).max(600),
             }),
           )
-          .max(15)
-          .default([]),
+          .max(15),
       }),
     )
     .max(40),
