@@ -965,6 +965,79 @@ describe("RegulatoryWatchPage", () => {
     expect(screen.getByRole("button", { name: "Non applicable" })).toBeEnabled();
   });
 
+  it("links to the grounded source for a discovered law, with its AI-drafted article shown", async () => {
+    vi.mocked(clientApi.regulatoryWatch).mockResolvedValue({
+      ...notStartedWatch,
+      status: "REVIEW_REQUIRED",
+      currentAnalysis: {
+        ...analysis,
+        status: "READY_FOR_REVIEW",
+        review: submittedAnalysisReview,
+        phase: "review",
+        progressPercent: 100,
+        diff: { added: 1, unchanged: 0, modified: 0, removalProposed: 0, requiresReview: 1 },
+        candidates: [
+          {
+            id: "candidate-discovered",
+            changeType: "ADDED",
+            changeSummary:
+              "Nouveau texte potentiellement applicable identifié sans disposition source.",
+            previousEntryId: null,
+            previousSource: null,
+            requiresReview: true,
+            suggestion: "TO_CONFIRM",
+            decision: null,
+            decisionSource: null,
+            rationale: "Le projet traite des données personnelles de ses salariés.",
+            matchedProfileKeys: [],
+            confidence: 0.5,
+            decisionNote: null,
+            reviewedAt: null,
+            requirement: {
+              text: "Article 12 : Nommer un délégué à la protection des données.",
+              status: "SOURCE_REVIEW_REQUIRED",
+              supportingExcerpts: [],
+              issues: [],
+              source: "AI",
+              editedAt: null,
+            },
+            source: {
+              type: "DISCOVERED_LAW",
+              url: "https://adala.justice.gov.ma/loi-09-08",
+              sourceId: null,
+              documentId: null,
+              revisionId: null,
+              documentTitle: "Protection des données personnelles",
+              referenceNumber: "Loi 09-08",
+              revisionLabel: null,
+              sourceEdition: null,
+              jurisdiction: "Maroc",
+              countryCode: "MA",
+              language: "fr",
+              documentFamily: "regulation",
+              provisionType: null,
+              provisionIdentifier: null,
+              headingPath: [],
+              pageStart: null,
+              pageEnd: null,
+              excerpt: "Le projet traite des données personnelles de ses salariés.",
+              citationLabel: "Loi 09-08 — Protection des données personnelles",
+            },
+          },
+        ],
+      },
+    } as never);
+    renderPage();
+
+    expect(
+      await screen.findByText("Article 12 : Nommer un délégué à la protection des données."),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Consulter la source officielle" })).toHaveAttribute(
+      "href",
+      "https://adala.justice.gov.ma/loi-09-08",
+    );
+  });
+
   it("keeps completed candidates reviewable and still requires a decision before publishing a partial run", async () => {
     vi.mocked(clientApi.regulatoryWatch).mockResolvedValue({
       ...notStartedWatch,

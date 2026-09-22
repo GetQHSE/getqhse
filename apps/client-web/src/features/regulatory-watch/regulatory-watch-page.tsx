@@ -964,11 +964,26 @@ function ReviewState({
                           <p className="mt-2 text-xs font-semibold text-slate-700">
                             {candidate.source.citationLabel}
                           </p>
-                          <p className="mt-2 max-h-36 overflow-y-auto whitespace-pre-wrap text-xs leading-5 text-slate-600">
-                            {candidate.source.type === "DISCOVERED_LAW"
-                              ? "Source officielle à rattacher"
-                              : candidate.source.excerpt}
-                          </p>
+                          {candidate.source.type === "DISCOVERED_LAW" ? (
+                            candidate.source.url ? (
+                              <a
+                                className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-violet-700 underline underline-offset-2 hover:text-violet-900"
+                                href={candidate.source.url}
+                                rel="noreferrer"
+                                target="_blank"
+                              >
+                                Consulter la source officielle
+                              </a>
+                            ) : (
+                              <p className="mt-2 text-xs italic text-slate-400">
+                                Source officielle à rattacher
+                              </p>
+                            )
+                          ) : (
+                            <p className="mt-2 max-h-36 overflow-y-auto whitespace-pre-wrap text-xs leading-5 text-slate-600">
+                              {candidate.source.excerpt}
+                            </p>
+                          )}
                         </section>
                         <section
                           aria-label={`Décision de l’IA ${candidate.source.provisionIdentifier ?? candidate.id}`}

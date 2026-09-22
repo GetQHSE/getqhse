@@ -113,12 +113,14 @@ describe("law catalog and context", () => {
       title: "Code du travail marocain",
       reason: "Le projet emploie des salariés.",
       sourceUrl: null,
+      applicableRequirements: [],
     };
     const absent = {
       reference: "Loi 09-08",
       title: "Protection des données personnelles",
       reason: "Le projet traite des données.",
       sourceUrl: "https://adala.justice.gov.ma/example",
+      applicableRequirements: [],
     };
     expect(resolveApplicableLaws(catalog, [stored, stored, absent])).toEqual({
       documentIds: ["law-1"],
@@ -132,6 +134,7 @@ describe("law catalog and context", () => {
       title: "Réglementation sécurité industrielle",
       reason: "Activité industrielle.",
       sourceUrl: null,
+      applicableRequirements: [],
     };
     const catalog = ["law-1", "law-2"].map((documentId) => ({
       documentId,

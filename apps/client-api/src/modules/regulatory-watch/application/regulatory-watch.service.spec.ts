@@ -397,6 +397,29 @@ describe("accuracy-first regulatory review gates", () => {
     expect(candidateUpdate.mock.calls[0]?.[0]?.data).not.toHaveProperty("requirementText");
   });
 
+  it("keeps a discovered law's AI-drafted article under source review after approval", async () => {
+    const { service, candidateUpdate } = serviceWithLoadedWatch({
+      id: "candidate-discovered",
+      sourceType: "DISCOVERED_LAW",
+      requirementStatus: "SOURCE_REVIEW_REQUIRED",
+      requirementText: "Article 12 : Nommer un délégué à la protection des données.",
+    });
+    await service.decideCandidate(tenant, "project-1", "candidate-discovered", {
+      watchRevision: 3,
+      decision: "APPLICABLE",
+    });
+    expect(candidateUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          decision: "APPLICABLE",
+          requirementStatus: "SOURCE_REVIEW_REQUIRED",
+        }),
+      }),
+    );
+    // Approving applicability isn't approving the wording; the drafted text itself is untouched.
+    expect(candidateUpdate.mock.calls[0]?.[0]?.data).not.toHaveProperty("requirementText");
+  });
+
   it("records edited AI wording as human-approved provenance", async () => {
     const { service, candidateUpdate } = serviceWithLoadedWatch({
       id: "candidate-1",
@@ -674,6 +697,31 @@ describe("bulk regulatory review decisions", () => {
         data: expect.objectContaining({
           decision: "APPLICABLE",
           requirementStatus: "NOT_REQUIRED",
+        }),
+      }),
+    );
+  });
+
+  it("keeps a discovered law's AI-drafted article under source review in bulk approval", async () => {
+    const { service, candidateUpdateMany } = serviceWithCandidates([
+      {
+        id: "candidate-discovered",
+        sourceType: "DISCOVERED_LAW",
+        requirementText: "Article 12 : Nommer un délégué à la protection des données.",
+      },
+    ]);
+
+    await service.decideCandidates(tenant, "project-1", {
+      watchRevision: 3,
+      decisions: [{ candidateId: "candidate-discovered", decision: "APPLICABLE" }],
+    });
+
+    expect(candidateUpdateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: { in: ["candidate-discovered"] } },
+        data: expect.objectContaining({
+          decision: "APPLICABLE",
+          requirementStatus: "SOURCE_REVIEW_REQUIRED",
         }),
       }),
     );

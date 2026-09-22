@@ -38,12 +38,14 @@ describe("MVP applicable-law discovery", () => {
     title: "Protection des données personnelles",
     reason: "Le projet traite des données personnelles.",
     sourceUrl: null,
+    applicableRequirements: [],
   };
   const storedProposal = {
     reference: "Loi n° 1",
     title: "Loi test",
     reason: "Le projet emploie des salariés.",
     sourceUrl: null,
+    applicableRequirements: [],
   };
 
   function harness() {
@@ -358,6 +360,57 @@ describe("MVP applicable-law discovery", () => {
     expect(update).toHaveBeenCalledWith({
       where: { id: "run" },
       data: { completedProvisions: 1 },
+    });
+  });
+
+  it("carries article-level requirements into requirementText, gated on source review", async () => {
+    const createMany = vi.fn().mockResolvedValue({ count: 1 });
+    const update = vi.fn().mockResolvedValue({});
+    databaseFactory.mockReturnValue({
+      regulatoryApplicabilityCandidate: {
+        createMany,
+        count: vi.fn().mockResolvedValue(1),
+      },
+      regulatoryAnalysisRun: { update },
+    });
+    const processor = new RegulatoryAnalysisProcessor();
+    const persist = (
+      processor as unknown as {
+        persistDiscoveredLawCandidates(
+          runId: string,
+          revision: number,
+          candidates: unknown[],
+        ): Promise<void>;
+      }
+    ).persistDiscoveredLawCandidates.bind(processor);
+
+    await persist("run", 0, [
+      {
+        ...lead,
+        applicableRequirements: [
+          {
+            reference: "Article 12",
+            requirement: "Nommer un délégué à la protection des données.",
+          },
+          { reference: null, requirement: "Tenir un registre des traitements." },
+        ],
+        previousEntryId: null,
+        changeType: "ADDED",
+        requiresReview: true,
+        decision: null,
+      },
+    ]);
+
+    expect(createMany).toHaveBeenCalledWith({
+      data: [
+        expect.objectContaining({
+          sourceType: "DISCOVERED_LAW",
+          requirementText:
+            "Article 12 : Nommer un délégué à la protection des données.\nTenir un registre des traitements.",
+          requirementStatus: "SOURCE_REVIEW_REQUIRED",
+          requirementSource: "AI",
+        }),
+      ],
     });
   });
 });

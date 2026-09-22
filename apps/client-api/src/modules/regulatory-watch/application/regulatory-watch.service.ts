@@ -772,7 +772,14 @@ export class RegulatoryWatchService {
                   : {}),
               }
             : input.decision === "APPLICABLE"
-              ? { requirementStatus: "NOT_REQUIRED" as const }
+              ? // A discovered-law requirement is drafted from a live web search, never verbatim-
+                // verified against a stored source: approving applicability isn't approving its
+                // wording, so it keeps needing source review rather than being marked not required.
+                {
+                  requirementStatus: candidate.requirementText
+                    ? ("SOURCE_REVIEW_REQUIRED" as const)
+                    : ("NOT_REQUIRED" as const),
+                }
               : {}),
         },
       });
@@ -853,10 +860,28 @@ export class RegulatoryWatchService {
         });
       }
       if (applicableDiscovered.length) {
-        await tx.regulatoryApplicabilityCandidate.updateMany({
-          where: { id: { in: applicableDiscovered.map((candidate) => candidate.id) } },
-          data: { ...shared, decision: "APPLICABLE", requirementStatus: "NOT_REQUIRED" },
-        });
+        const [withRequirement, withoutRequirement] = [
+          applicableDiscovered.filter((candidate) => candidate.requirementText),
+          applicableDiscovered.filter((candidate) => !candidate.requirementText),
+        ];
+        // Same rule as the single-candidate path: approving applicability isn't approving the
+        // AI-drafted wording, so a discovered law with requirement text keeps needing review.
+        if (withRequirement.length) {
+          await tx.regulatoryApplicabilityCandidate.updateMany({
+            where: { id: { in: withRequirement.map((candidate) => candidate.id) } },
+            data: {
+              ...shared,
+              decision: "APPLICABLE",
+              requirementStatus: "SOURCE_REVIEW_REQUIRED",
+            },
+          });
+        }
+        if (withoutRequirement.length) {
+          await tx.regulatoryApplicabilityCandidate.updateMany({
+            where: { id: { in: withoutRequirement.map((candidate) => candidate.id) } },
+            data: { ...shared, decision: "APPLICABLE", requirementStatus: "NOT_REQUIRED" },
+          });
+        }
       }
       if (notApplicable.length) {
         await tx.regulatoryApplicabilityCandidate.updateMany({
