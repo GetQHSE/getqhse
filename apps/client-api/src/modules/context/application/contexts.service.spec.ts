@@ -164,7 +164,7 @@ describe("ContextsService.applyIssueOverride", () => {
 
     // Only review_status changed; title/description/etc. were not resupplied so are untouched.
     expect(createMany).toHaveBeenCalledWith({
-      data: [expect.objectContaining({ fieldName: "review_status", newValue: "VALIDATED" })],
+      data: [expect.objectContaining({ fieldName: "review_status", newValue: "validated" })],
     });
   });
 

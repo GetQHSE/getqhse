@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  buildDigest,
+  collectCitations,
   excludeLegalDimension,
   sanitizeExternalFactors,
 } from "./context-external-research.processor.js";
@@ -69,44 +69,33 @@ describe("sanitizeExternalFactors", () => {
   });
 });
 
-describe("buildDigest", () => {
-  const project = {
-    name: "Usine Nord",
-    entityType: "COMPANY",
-    description: "Fabrication de pièces automobiles.",
-    standardCode: "ISO_9001",
-  };
-
-  it("tells the model never to search the légal dimension when the veille is empty", () => {
-    const digest = buildDigest({
-      project,
-      snapshot: {},
-      internalInputs: [],
-      registerEntries: [],
-    });
-    expect(digest).toContain("ne doit PAS être recherchée ici");
+describe("collectCitations", () => {
+  it("keeps grounded sources first, then URLs the model wrote in its own text", () => {
+    const citations = collectCitations(
+      [{ sourceType: "url", url: "https://grounded.test/a", title: "A" }],
+      "Voir https://grounded.test/a et https://written.test/b.",
+    );
+    expect([...citations]).toEqual([
+      ["https://grounded.test/a", { title: "A", origin: "search_grounding" }],
+      ["https://written.test/b", { title: null, origin: "model_citation" }],
+    ]);
   });
+});
 
-  it("lists the published register entries instead, when the veille has content", () => {
-    const digest = buildDigest({
-      project,
-      snapshot: {},
-      internalInputs: [],
-      registerEntries: [{ citationLabel: "Code du travail — Art. 24", sourceReference: "Art. 24" }],
-    });
-    expect(digest).toContain("Code du travail — Art. 24 (Art. 24)");
-  });
-
-  it("groups internal inputs by section", () => {
-    const digest = buildDigest({
-      project,
-      snapshot: {},
-      internalInputs: [
-        { sectionKey: "culture_valeurs", questionLabel: "Climat social ?", answerText: "Bon" },
+describe("sanitizeExternalFactors — URL normalization", () => {
+  it("matches a URL the model copied without the search tool's utm_source, keeping the cited form", () => {
+    const [factor] = sanitizeExternalFactors(
+      [
+        {
+          title: "Trafic portuaire",
+          relevanceToCompany: "Délais d'importation des vitrages.",
+          sourceUrls: ["https://finances.gov.ma/Publication/depf/2026/nc_351.pdf/"],
+        },
       ],
-      registerEntries: [],
-    });
-    expect(digest).toContain("## culture_valeurs");
-    expect(digest).toContain("Climat social ?");
+      new Set(["https://www.finances.gov.ma/Publication/depf/2026/nc_351.pdf?utm_source=openai"]),
+    );
+    expect(factor?.sourceUrls).toEqual([
+      "https://www.finances.gov.ma/Publication/depf/2026/nc_351.pdf?utm_source=openai",
+    ]);
   });
 });

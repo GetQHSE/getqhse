@@ -1436,9 +1436,30 @@ export const upsertContextInternalInputSchema = z.object({
   questionKey: z.string().min(1).max(120),
   questionLabel: z.string().min(1).max(400),
   answerText: z.string().max(8_000),
-  status: z.enum(["draft", "answered"]).default("draft"),
+  status: z.enum(["draft", "completed"]).default("draft"),
 });
 export type UpsertContextInternalInput = z.infer<typeof upsertContextInternalInputSchema>;
+
+/** The foundation's step-1 form: every answer saved at once, as a draft or
+ * — on "Continuer" — as completed, which is what unlocks steps 2 and 3. */
+export const saveContextInternalInputsSchema = z.object({
+  status: z.enum(["draft", "completed"]),
+  answers: z
+    .array(upsertContextInternalInputSchema.omit({ status: true }))
+    .min(1)
+    .max(50),
+});
+export type SaveContextInternalInputs = z.infer<typeof saveContextInternalInputsSchema>;
+
+/** Scope summary shown above step 2 (organisation, activity, countries). */
+export const contextScopeSchema = z.object({
+  projectName: z.string(),
+  organizationName: z.string(),
+  isoStandard: z.string(),
+  activity: z.string().nullable(),
+  countries: z.array(z.string()),
+});
+export type ContextScope = z.infer<typeof contextScopeSchema>;
 
 /* ------------------------------- Step 2 ------------------------------- */
 

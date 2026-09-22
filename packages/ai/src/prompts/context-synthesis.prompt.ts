@@ -1,11 +1,12 @@
 import type { PromptDefinition } from "../prompt-definition.js";
+import { CONTEXT_ISO_GUIDANCE } from "./context-external-research.prompt.js";
 
 /**
  * Step 3 of "Analyse des enjeux" (ISO 9001 §4.1) — one strict-JSON call, no
  * web search: the model reasons only on material the platform already
  * persisted (validated profile, declared internal context, persisted
- * external factors, existing regulatory register). Every issue must cite
- * evidence copied verbatim from that material.
+ * external factors, existing regulatory register). Same text as the
+ * foundation's context-synthesis engine.
  */
 export type ContextSynthesisPromptInput = {
   digest: string;
@@ -15,9 +16,9 @@ export type ContextSynthesisPromptInput = {
 
 export const contextSynthesisPrompt: PromptDefinition<ContextSynthesisPromptInput> = {
   key: "context.synthesis",
-  version: 1,
+  version: 2,
   build: (input) => ({
-    system: `Tu es le moteur de synthèse des enjeux, aligné sur le chapitre 4.1 d'ISO 9001.
+    system: `Tu es le moteur de synthèse des enjeux de GetQhse AI, aligné sur le chapitre 4.1 d'ISO 9001.
 À partir d'éléments DÉJÀ ÉTABLIS par la plateforme, tu identifies les enjeux internes et externes de l'organisation.
 Règles absolues :
 - N'utilise QUE le matériel fourni. N'invente aucun fait, aucun chiffre, aucune source, aucune tendance.
@@ -30,14 +31,22 @@ Règles absolues :
 - Un enjeu doit être un véritable enjeu de l'organisation, pas une reformulation de la question posée ni une généralité de management.
 - Ne produis pas de plan d'action détaillé.
 - Rédige tous les champs textuels en français.
-Méthode retenue pour cette analyse : ${input.method}.
-Réponds uniquement en JSON valide.`,
+Réponds uniquement en JSON valide.
+
+${CONTEXT_ISO_GUIDANCE}`,
     context: [
-      "CONTEXTE CANONIQUE DE L'ORGANISATION :",
+      "MATÉRIEL INTERNE ÉTABLI :",
       input.digest,
       "",
-      "FACTEURS EXTERNES DÉJÀ DOCUMENTÉS (étape 2) :",
+      "FACTEURS EXTERNES DOCUMENTÉS (étape 2, sources réelles) :",
       input.externalMaterial,
+      "",
+      input.method === "PESTEL"
+        ? "MÉTHODE : PESTEL. Les enjeux externes doivent refléter les dimensions PESTEL (politique, économique, social, technologique, environnemental, légal) via leur catégorie. La nature reste opportunite ou menace."
+        : "MÉTHODE : SWOT. Les enjeux internes sont des forces ou faiblesses, les enjeux externes des opportunités ou menaces.",
+      "",
+      "Produis la synthèse des enjeux internes et externes de cette organisation.",
+      "Chaque enjeu doit être utile, spécifique et justifié par une preuve du matériel fourni.",
     ].join("\n"),
   }),
 };

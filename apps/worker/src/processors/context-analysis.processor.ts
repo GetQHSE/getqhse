@@ -14,6 +14,7 @@ import type { Job } from "bullmq";
 import { z } from "zod";
 
 import { queueNames } from "../queues.js";
+import { loadContextMaterial } from "./context-material.js";
 import { acquireModelTokens } from "./regulatory-rate-limiter.js";
 import { conservativeInputTokens, positiveNumber } from "./regulatory-model-cost.js";
 
@@ -103,15 +104,6 @@ export class ContextAnalysisProcessor extends WorkerHost {
     const run = await this.database.contextAnalysisRun.findUnique({ where: { id: runId } });
     if (!run) return;
 
-    const project = await this.database.project.findUniqueOrThrow({
-      where: { id: run.projectId },
-      include: {
-        profile: { include: { snapshots: { orderBy: { sequence: "desc" }, take: 1 } } },
-        contextSettings: true,
-        regulatoryWatch: true,
-      },
-    });
-
     const fail = async (message: string): Promise<void> => {
       await this.database.contextAnalysisRun.update({
         where: { id: runId },
@@ -119,18 +111,14 @@ export class ContextAnalysisProcessor extends WorkerHost {
       });
     };
 
-    if (!project.contextSettings) {
-      return fail("Choisissez d'abord la méthode d'analyse SWOT ou PESTEL.");
-    }
-    const method = project.contextSettings.analysisMethod;
-
-    const internalInputs = await this.database.contextInternalInput.findMany({
-      where: { projectId: project.id },
-    });
-    const completedInternalInputs = internalInputs.filter(
-      (input) => input.answerText.trim() && input.status === "answered",
+    const { project, method, digest, internalCompleted } = await loadContextMaterial(
+      this.database,
+      run.projectId,
     );
-    if (completedInternalInputs.length === 0) {
+    if (!method) {
+      return fail("Choisissez d’abord la méthode d’analyse SWOT ou PESTEL.");
+    }
+    if (!internalCompleted) {
       return fail("Le contexte interne (étape 1) doit être validé avant la synthèse des enjeux.");
     }
 
@@ -151,25 +139,12 @@ export class ContextAnalysisProcessor extends WorkerHost {
       );
     }
 
-    const registerEntries = project.regulatoryWatch?.currentBaselineId
-      ? await this.database.regulatoryRegisterEntry.findMany({
-          where: { baselineId: project.regulatoryWatch.currentBaselineId },
-          take: 60,
-        })
-      : [];
-
-    const digest = buildDigest({
-      project,
-      snapshot: project.profile?.snapshots[0]?.data ?? {},
-      internalInputs: completedInternalInputs,
-      registerEntries,
-    });
     const externalMaterial = factors
       .map((factor, index) =>
         [
           `${index + 1}. [${factor.categoryLabel}] ${factor.title}`,
           factor.description ? `   Description : ${factor.description}` : null,
-          `   Lien avec l'organisation : ${factor.relevanceToCompany}`,
+          `   Lien avec l'organisation : ${factor.relevanceToCompany ?? "—"}`,
           factor.influenceOnObjectives
             ? `   Influence objectifs : ${factor.influenceOnObjectives}`
             : null,
@@ -177,7 +152,7 @@ export class ContextAnalysisProcessor extends WorkerHost {
           factor.influenceOnCustomerSatisfaction
             ? `   Influence satisfaction client : ${factor.influenceOnCustomerSatisfaction}`
             : null,
-          `   Orientation : ${factor.orientation ?? "incertain"} — solidité : ${factor.evidenceStrength ?? "faible"}`,
+          `   Orientation : ${factor.orientation ?? "incertain"} — solidité des preuves : ${factor.evidenceStrength ?? "faible"}`,
           factor.geographicScope ? `   Portée : ${factor.geographicScope}` : null,
           `   Sources : ${factor.sources
             .map((source) => source.url)
@@ -191,7 +166,7 @@ export class ContextAnalysisProcessor extends WorkerHost {
 
     await this.database.contextAnalysisRun.update({
       where: { id: runId },
-      data: { status: "RUNNING", startedAt: new Date() },
+      data: { status: "RUNNING", startedAt: new Date(), methodologyVersion: "issues-v2" },
     });
 
     const provider = contextSynthesisProvider();
@@ -212,6 +187,8 @@ export class ContextAnalysisProcessor extends WorkerHost {
         timeout: llmSettings().regulatoryTimeoutMs,
         maxOutputTokens: 12_000,
         maxRetries: 2,
+        // The foundation runs Gemini at 0.15; OpenAI reasoning models reject temperature.
+        ...(provider === "google" ? { temperature: 0.15 } : {}),
         providerOptions: languageProviderOptions(provider, { model }),
         telemetry: { isEnabled: false },
       });
@@ -352,53 +329,4 @@ export class ContextAnalysisProcessor extends WorkerHost {
       );
     }
   }
-}
-
-export function buildDigest(input: {
-  project: { name: string; entityType: string; description: string | null; standardCode: string };
-  snapshot: unknown;
-  internalInputs: { sectionKey: string; questionLabel: string; answerText: string }[];
-  registerEntries: { citationLabel: string; sourceReference: string | null }[];
-}): string {
-  const lines: string[] = [
-    "== IDENTITÉ DE L'ORGANISATION ==",
-    `Projet : ${input.project.name}`,
-    `Type d'entité : ${input.project.entityType}`,
-    `Description : ${input.project.description ?? "non précisée"}`,
-    `Référentiel : ${input.project.standardCode}`,
-    "",
-    "== PROFIL VALIDÉ (faits d'entreprise) ==",
-    JSON.stringify(input.snapshot),
-    "",
-    "== CONTEXTE INTERNE DÉCLARÉ (étape 1) ==",
-  ];
-  if (input.internalInputs.length === 0) {
-    lines.push("Aucune information interne renseignée.");
-  } else {
-    const bySection = new Map<string, typeof input.internalInputs>();
-    for (const item of input.internalInputs) {
-      const bucket = bySection.get(item.sectionKey) ?? [];
-      bucket.push(item);
-      bySection.set(item.sectionKey, bucket);
-    }
-    for (const [section, items] of bySection) {
-      lines.push("", `## ${section}`);
-      for (const item of items) {
-        lines.push(`- ${item.questionLabel}`, `  ${item.answerText}`);
-      }
-    }
-  }
-  lines.push("", "== CONTEXTE RÉGLEMENTAIRE DÉJÀ ÉTABLI (module veille) ==");
-  if (input.registerEntries.length === 0) {
-    lines.push(
-      "Aucune veille réglementaire publiée : la dimension légale ne doit PAS être recherchée ici.",
-    );
-  } else {
-    for (const entry of input.registerEntries) {
-      lines.push(
-        `- ${entry.citationLabel}${entry.sourceReference ? ` (${entry.sourceReference})` : ""}`,
-      );
-    }
-  }
-  return lines.join("\n");
 }

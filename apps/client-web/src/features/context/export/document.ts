@@ -8,14 +8,17 @@
  * platform's ContextIssue/ContextExternalFactor contracts.
  */
 import type { ContextAnalysisMethod, ContextExternalFactor, ContextIssue } from "@qhse/contracts";
-import { smqContext } from "@qhse/domain";
-
-const { HISTORICAL_METHOD_LABEL, PESTEL_DIMENSIONS, SWOT_QUADRANTS, pestelDimensionKey } =
-  smqContext;
+import {
+  HISTORICAL_METHOD_LABEL,
+  PESTEL_DIMENSIONS,
+  SWOT_QUADRANTS,
+  analysisMethodLabel as domainMethodLabel,
+  pestelDimensionKey,
+} from "@qhse/domain/smq/context/method";
 
 /** The domain labels speak "swot"/"pestel"; the API speaks "SWOT"/"PESTEL". */
 function analysisMethodLabel(method: ContextAnalysisMethod): string {
-  return smqContext.analysisMethodLabel(method.toLowerCase());
+  return domainMethodLabel(method.toLowerCase());
 }
 
 export interface ContextDocumentIssue {
@@ -219,7 +222,10 @@ export function buildContextDocument(input: {
 
 export const HISTORICAL_METHOD_NOTICE = `${HISTORICAL_METHOD_LABEL} : cette analyse a été réalisée avant l'enregistrement d'une méthode.`;
 
-export function contextDocumentFileName(doc: ContextDocument, extension: "xlsx"): string {
+export function contextDocumentFileName(
+  doc: ContextDocument,
+  extension: "docx" | "pdf" | "xlsx",
+): string {
   const slug = doc.projectName
     .normalize("NFD")
     .replace(/[̀-ͯ]/g, "")

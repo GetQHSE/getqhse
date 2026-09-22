@@ -8,13 +8,17 @@ import type {
   ContextAnalysisRunSummary,
   ContextAnswerAssistRequest,
   ContextAnswerAssistResponse,
+  ContextExternalFactor,
   ContextExternalRunSummary,
   ContextInternalInput,
   ContextIssue,
   CreateManualContextIssue,
+  ContextScope,
   ProjectContextSettings,
+  SaveContextInternalInputs,
   UpsertContextInternalInput,
 } from "@qhse/contracts";
+import { contextActivitySummary, contextScopeCountries } from "@qhse/ai";
 import { createPrismaClient, Prisma, type DatabaseClient } from "@qhse/database";
 
 import type { TenantContext } from "../../../common/request-context.js";
@@ -156,6 +160,80 @@ export class ContextsService {
     };
   }
 
+  /** The foundation's step-1 form: all answers upserted at once, as a draft
+   * or as completed ("Continuer"), which is what unlocks steps 2 and 3. */
+  async saveInternalInputs(
+    tenant: TenantContext,
+    projectIdOrSlug: string,
+    input: SaveContextInternalInputs,
+  ): Promise<ContextInternalInput[]> {
+    const project = await this.loadProject(tenant, projectIdOrSlug);
+    await this.database.$transaction(
+      input.answers.map((answer) =>
+        this.database.contextInternalInput.upsert({
+          where: {
+            projectId_questionKey: { projectId: project.id, questionKey: answer.questionKey },
+          },
+          create: {
+            projectId: project.id,
+            sectionKey: answer.sectionKey,
+            questionKey: answer.questionKey,
+            questionLabel: answer.questionLabel,
+            answerText: answer.answerText.trim(),
+            status: input.status,
+            createdById: tenant.userId,
+            updatedById: tenant.userId,
+          },
+          update: {
+            sectionKey: answer.sectionKey,
+            questionLabel: answer.questionLabel,
+            answerText: answer.answerText.trim(),
+            status: input.status,
+            updatedById: tenant.userId,
+          },
+        }),
+      ),
+    );
+    return this.listInternalInputs(tenant, project.id);
+  }
+
+  /** Scope rows shown above step 2 — same sources as the model's digest. */
+  async getScope(tenant: TenantContext, projectIdOrSlug: string): Promise<ContextScope> {
+    const { id } = await this.loadProject(tenant, projectIdOrSlug);
+    const project = await this.database.project.findUniqueOrThrow({
+      where: { id },
+      include: {
+        organization: true,
+        activities: { orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }] },
+        profile: { include: { snapshots: { orderBy: { sequence: "desc" }, take: 1 } } },
+      },
+    });
+    const snapshot = (project.profile?.snapshots[0]?.data ?? {}) as {
+      fields?: Record<string, unknown>;
+    };
+    const digestInput = {
+      project: {
+        name: project.name,
+        entityType: project.entityType,
+        description: project.description,
+        standardCode: project.standardCode,
+        countryCode: project.countryCode,
+        organizationName: project.organization.name,
+        activities: project.activities.map((activity) => activity.name),
+      },
+      profileFields: snapshot.fields ?? {},
+      internalInputs: [],
+      registerEntries: [],
+    };
+    return {
+      projectName: project.name,
+      organizationName: project.organization.name,
+      isoStandard: project.standardCode,
+      activity: contextActivitySummary(digestInput),
+      countries: contextScopeCountries(digestInput),
+    };
+  }
+
   /**
    * Step 1 answer assistance, direct port of the foundation's profiling
    * answer-validation engine narrowed to one already-declared internal-
@@ -215,8 +293,31 @@ export class ContextsService {
       sourcesCount: run.factors.reduce((sum, factor) => sum + factor.sources.length, 0),
       searchQueries: Array.isArray(run.searchQueries) ? (run.searchQueries as string[]) : [],
       regulatoryRunId: run.regulatoryRunId,
-      analysisMethod: null,
+      analysisMethod: summaryMethod(run.summary),
     }));
+  }
+
+  /** Factors of the latest COMPLETED external run (what step 2 displays). */
+  async listExternalFactors(
+    tenant: TenantContext,
+    projectIdOrSlug: string,
+  ): Promise<ContextExternalFactor[]> {
+    const project = await this.loadProject(tenant, projectIdOrSlug);
+    return this.latestExternalFactors(project.id);
+  }
+
+  private async latestExternalFactors(projectId: string): Promise<ContextExternalFactor[]> {
+    const externalRun = await this.database.contextExternalResearchRun.findFirst({
+      where: { projectId, status: "COMPLETED" },
+      orderBy: { completedAt: "desc" },
+    });
+    if (!externalRun) return [];
+    const factors = await this.database.contextExternalFactor.findMany({
+      where: { runId: externalRun.id },
+      include: { sources: true },
+      orderBy: { generatedAt: "asc" },
+    });
+    return factors.map(toFactorContract);
   }
 
   /** Creates a DRAFT run and hands it to the worker; no retrieval happens here. */
@@ -275,7 +376,7 @@ export class ContextsService {
       externalCount: run.issues.filter((issue) => issue.aiOrigin === "EXTERNAL").length,
       model: null,
       methodologyVersion: run.methodologyVersion,
-      analysisMethod: null,
+      analysisMethod: summaryMethod(run.summary),
     }));
   }
 
@@ -375,7 +476,11 @@ export class ContextsService {
       if (inputValue === undefined) return;
       const previous = current[field as keyof typeof current];
       if (jsonEquals(previous, inputValue)) return;
-      changes.push({ field, previous, next: inputValue });
+      // The audit trail speaks the foundation's lowercase review statuses,
+      // which is what smqContext.groupCorrections labels.
+      const audit = (value: unknown) =>
+        field === "review_status" && typeof value === "string" ? value.toLowerCase() : value;
+      changes.push({ field, previous: audit(previous), next: audit(inputValue) });
       patch[patchKey] = inputValue;
     };
 
@@ -565,16 +670,7 @@ export class ContextsService {
         })
       : [];
 
-    const externalRun = await this.database.contextExternalResearchRun.findFirst({
-      where: { projectId: project.id, status: "COMPLETED" },
-      orderBy: { completedAt: "desc" },
-    });
-    const factors = externalRun
-      ? await this.database.contextExternalFactor.findMany({
-          where: { runId: externalRun.id },
-          include: { sources: true },
-        })
-      : [];
+    const factors = await this.latestExternalFactors(project.id);
 
     const document = buildContextDocument({
       organizationName: project.organization.name,
@@ -583,38 +679,7 @@ export class ContextsService {
       method,
       methodExplicit,
       analysisDate: latestRun?.completedAt?.toISOString() ?? null,
-      factors: factors.map((factor) => ({
-        id: factor.id,
-        runId: factor.runId,
-        categoryKey: factor.categoryKey,
-        categoryLabel: factor.categoryLabel,
-        title: factor.title,
-        description: factor.description,
-        relevanceToCompany: factor.relevanceToCompany,
-        influenceOnObjectives: factor.influenceOnObjectives,
-        influenceOnQuality: factor.influenceOnQuality,
-        influenceOnCustomerSatisfaction: factor.influenceOnCustomerSatisfaction,
-        geographicScope: factor.geographicScope,
-        orientation: factor.orientation,
-        evidenceStrength: factor.evidenceStrength,
-        confidence: factor.confidence ? Number(factor.confidence) : null,
-        sourceOrigin: factor.sourceOrigin,
-        regulatoryEntryId: factor.regulatoryEntryId,
-        canonicalKey: factor.canonicalKey,
-        comparisonStatus: factor.comparisonStatus,
-        model: factor.model,
-        generatedAt: factor.generatedAt.toISOString(),
-        sources: factor.sources.map((source) => ({
-          id: source.id,
-          url: source.url,
-          title: source.title,
-          publisher: source.publisher,
-          sourceDate: source.sourceDate?.toISOString() ?? null,
-          groundingOrigin: source.groundingOrigin,
-          excerpt: source.excerpt,
-          authorityTier: source.authorityTier,
-        })),
-      })),
+      factors,
       issues: issues.map(toIssueContract),
     });
 
@@ -622,6 +687,48 @@ export class ContextsService {
     const output = await workbook.xlsx.writeBuffer();
     return { buffer: Buffer.from(output), fileName: contextDocumentFileName(document, "xlsx") };
   }
+}
+
+function summaryMethod(summary: unknown): ContextAnalysisMethod | null {
+  const method = (summary as { analysisMethod?: unknown } | null)?.analysisMethod;
+  return method === "SWOT" || method === "PESTEL" ? method : null;
+}
+
+type FactorRow = Prisma.ContextExternalFactorGetPayload<{ include: { sources: true } }>;
+
+function toFactorContract(factor: FactorRow): ContextExternalFactor {
+  return {
+    id: factor.id,
+    runId: factor.runId,
+    categoryKey: factor.categoryKey,
+    categoryLabel: factor.categoryLabel,
+    title: factor.title,
+    description: factor.description,
+    relevanceToCompany: factor.relevanceToCompany,
+    influenceOnObjectives: factor.influenceOnObjectives,
+    influenceOnQuality: factor.influenceOnQuality,
+    influenceOnCustomerSatisfaction: factor.influenceOnCustomerSatisfaction,
+    geographicScope: factor.geographicScope,
+    orientation: factor.orientation,
+    evidenceStrength: factor.evidenceStrength,
+    confidence: factor.confidence ? Number(factor.confidence) : null,
+    sourceOrigin: factor.sourceOrigin,
+    regulatoryEntryId: factor.regulatoryEntryId,
+    canonicalKey: factor.canonicalKey,
+    comparisonStatus: factor.comparisonStatus,
+    model: factor.model,
+    generatedAt: factor.generatedAt.toISOString(),
+    sources: factor.sources.map((source) => ({
+      id: source.id,
+      url: source.url,
+      title: source.title,
+      publisher: source.publisher,
+      sourceDate: source.sourceDate?.toISOString() ?? null,
+      groundingOrigin: source.groundingOrigin,
+      excerpt: source.excerpt,
+      authorityTier: source.authorityTier,
+    })),
+  };
 }
 
 function hashFingerprint(...parts: string[]): string {

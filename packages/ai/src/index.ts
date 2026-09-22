@@ -2,6 +2,7 @@ export * from "./llm-provider.js";
 export * from "./llm-secret.js";
 export * from "./llm-settings-store.js";
 export * from "./prompt-definition.js";
+export * from "./prompts/context-digest.js";
 export * from "./prompts/context-external-research.prompt.js";
 export * from "./prompts/context-internal-input-assist.prompt.js";
 export * from "./prompts/context-synthesis.prompt.js";

@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { clientApi } from "../../app/client-api.js";
 import { ContextPage } from "./context-page.js";
+import { INTERNAL_CONTEXT_SECTIONS } from "./internal-context-questions.js";
 
 vi.mock("../../app/client-api.js", () => ({
   clientApi: {
@@ -13,9 +14,10 @@ vi.mock("../../app/client-api.js", () => ({
     contextSettings: vi.fn(),
     setContextMethod: vi.fn(),
     contextInternalInputs: vi.fn(),
-    upsertContextInternalInput: vi.fn(),
-    assistContextAnswer: vi.fn(),
+    saveContextInternalInputs: vi.fn(),
+    contextScope: vi.fn(),
     contextExternalRuns: vi.fn(),
+    contextExternalFactors: vi.fn(),
     triggerContextExternalResearch: vi.fn(),
     contextAnalysisRuns: vi.fn(),
     triggerContextSynthesis: vi.fn(),
@@ -75,6 +77,8 @@ beforeEach(() => {
   // existing tests exercise the stepper, not the gate. The gate itself gets
   // its own describe block below, overriding this per test.
   vi.mocked(clientApi.regulatoryWatch).mockResolvedValue(publishedWatch);
+  // jsdom has no layout: the form scrolls to the first missing answer.
+  Element.prototype.scrollIntoView = vi.fn();
 });
 
 afterEach(() => {
@@ -82,206 +86,165 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-describe("ContextPage — method not yet chosen", () => {
-  it("offers SWOT and PESTEL, and never shows the stepper before a choice is made", async () => {
-    vi.mocked(clientApi.contextSettings).mockResolvedValue({
-      projectId: "project-1",
-      analysisMethod: "SWOT",
-      explicit: false,
-    });
+function stubEmptyModule(explicit = true) {
+  vi.mocked(clientApi.contextSettings).mockResolvedValue({
+    projectId: "project-1",
+    analysisMethod: "SWOT",
+    explicit,
+  });
+  vi.mocked(clientApi.contextScope).mockResolvedValue({
+    projectName: "Usine Nord",
+    organizationName: "Groupe Nord",
+    isoStandard: "ISO_9001",
+    activity: "Emboutissage",
+    countries: ["Maroc"],
+  });
+  vi.mocked(clientApi.contextInternalInputs).mockResolvedValue([]);
+  vi.mocked(clientApi.contextExternalRuns).mockResolvedValue([]);
+  vi.mocked(clientApi.contextExternalFactors).mockResolvedValue([]);
+  vi.mocked(clientApi.contextAnalysisRuns).mockResolvedValue([]);
+  vi.mocked(clientApi.contextIssues).mockResolvedValue([]);
+}
 
+const completedInputs = INTERNAL_CONTEXT_SECTIONS.flatMap((section) =>
+  section.questions.map((question, index) => ({
+    id: `input-${question.questionKey}`,
+    projectId: "project-1",
+    sectionKey: question.sectionKey,
+    questionKey: question.questionKey,
+    questionLabel: question.label,
+    answerText: `Réponse ${index + 1}`,
+    status: "completed",
+    createdAt: "2026-09-01T00:00:00.000Z",
+    updatedAt: "2026-09-01T00:00:00.000Z",
+  })),
+);
+
+const pendingIssue = {
+  id: "issue-1",
+  runId: "run-1",
+  canonicalKey: "rotation-personnel",
+  comparisonStatus: null,
+  aiOrigin: "INTERNAL" as const,
+  aiCategoryKey: "ressources",
+  aiCategoryLabel: "Ressources",
+  aiTitle: "Rotation élevée du personnel",
+  aiDescription: "Le taux de rotation dépasse la moyenne du secteur.",
+  aiReasoning: null,
+  aiNature: "faiblesse",
+  aiImpactQuality: null,
+  aiImpactCustomerSatisfaction: null,
+  aiImpactOverall: null,
+  aiScores: {},
+  aiConfidence: null,
+  aiRecommendedPriority: false,
+  aiModel: "gpt-5-mini",
+  aiGeneratedAt: "2026-09-01T00:00:00.000Z",
+  origin: "INTERNAL" as const,
+  categoryKey: "ressources",
+  categoryLabel: "Ressources",
+  title: "Rotation élevée du personnel",
+  description: "Le taux de rotation dépasse la moyenne du secteur.",
+  nature: "faiblesse",
+  impactQuality: null,
+  impactCustomerSatisfaction: null,
+  impactOverall: null,
+  scores: { influenceObjectives: 3, influenceQuality: 4, influenceCustomer: 2, overall: 3 },
+  selectedPriority: false,
+  reviewStatus: "PENDING" as const,
+  humanOverride: false,
+  humanReviewedAt: null,
+  updatedAt: "2026-09-01T00:00:00.000Z",
+  sourceKind: "AI" as const,
+  createdAt: "2026-09-01T00:00:00.000Z",
+  evidence: [],
+  corrections: [],
+};
+
+describe("ContextPage — step 1, the foundation's internal-context form", () => {
+  it("shows every question at once with the foundation's counter", async () => {
+    stubEmptyModule();
     renderPage();
 
     await waitFor(() =>
-      expect(screen.getByText(/choisissez la méthode d'analyse/i)).toBeInTheDocument(),
+      expect(
+        screen.getByText("Complétez le contexte interne de votre organisation"),
+      ).toBeInTheDocument(),
     );
-    expect(screen.getByText("SWOT")).toBeInTheDocument();
-    expect(screen.getByText("PESTEL")).toBeInTheDocument();
-    expect(screen.queryByText("Contexte interne")).not.toBeInTheDocument();
+    expect(screen.getByText("0 / 11 informations renseignées")).toBeInTheDocument();
+    expect(screen.getAllByRole("textbox")).toHaveLength(11);
   });
 
-  it("persists the chosen method and only then reveals the stepper", async () => {
-    vi.mocked(clientApi.contextSettings).mockResolvedValueOnce({
-      projectId: "project-1",
-      analysisMethod: "SWOT",
-      explicit: false,
-    });
-    vi.mocked(clientApi.setContextMethod).mockResolvedValue({
-      projectId: "project-1",
-      analysisMethod: "PESTEL",
-      explicit: true,
-    });
-    vi.mocked(clientApi.contextSettings).mockResolvedValueOnce({
-      projectId: "project-1",
-      analysisMethod: "PESTEL",
-      explicit: false,
-    });
-    vi.mocked(clientApi.contextSettings).mockResolvedValue({
-      projectId: "project-1",
-      analysisMethod: "PESTEL",
-      explicit: true,
-    });
-    vi.mocked(clientApi.contextInternalInputs).mockResolvedValue([]);
-
+  it("keeps an incomplete form as a draft when « Continuer » is pressed", async () => {
+    stubEmptyModule();
+    vi.mocked(clientApi.saveContextInternalInputs).mockResolvedValue([]);
     renderPage();
-    await waitFor(() => expect(screen.getByText("PESTEL")).toBeInTheDocument());
-    await userEvent.click(screen.getByText("PESTEL"));
 
-    expect(clientApi.setContextMethod).toHaveBeenCalledWith("project-1", { method: "PESTEL" });
+    await waitFor(() => expect(screen.getByRole("button", { name: "Continuer" })).toBeEnabled());
+    await userEvent.click(screen.getByRole("button", { name: "Continuer" }));
+
+    await waitFor(() =>
+      expect(clientApi.saveContextInternalInputs).toHaveBeenCalledWith(
+        "project-1",
+        expect.objectContaining({ status: "draft" }),
+      ),
+    );
+    expect(
+      screen.getByText("Complétez les informations manquantes avant de continuer."),
+    ).toBeInTheDocument();
   });
 });
 
-describe("ContextPage — method already chosen", () => {
-  it("opens on step 1 and shows the declared internal-context questionnaire, never AI-generated", async () => {
-    vi.mocked(clientApi.contextSettings).mockResolvedValue({
-      projectId: "project-1",
-      analysisMethod: "SWOT",
-      explicit: true,
-    });
-    vi.mocked(clientApi.contextInternalInputs).mockResolvedValue([]);
-
+describe("ContextPage — step 2", () => {
+  it("opens on the external analysis once step 1 is completed, with the scope rows", async () => {
+    stubEmptyModule();
+    vi.mocked(clientApi.contextInternalInputs).mockResolvedValue(completedInputs);
     renderPage();
-
-    await waitFor(() => expect(screen.getByText("Culture et valeurs")).toBeInTheDocument());
-    expect(screen.getByText(/Déclaré par vous : GetQhse ne génère rien ici/i)).toBeInTheDocument();
-  });
-
-  it("asks a follow-up instead of saving when the assistant judges the answer insufficient", async () => {
-    vi.mocked(clientApi.contextSettings).mockResolvedValue({
-      projectId: "project-1",
-      analysisMethod: "SWOT",
-      explicit: true,
-    });
-    vi.mocked(clientApi.contextInternalInputs).mockResolvedValue([]);
-    vi.mocked(clientApi.assistContextAnswer).mockResolvedValue({
-      valid: false,
-      quality: "unknown",
-      reason: "réponse insuffisante",
-      followUpQuestion: "Pouvez-vous donner un exemple concret ?",
-      structuredAnswer: null,
-    });
-
-    renderPage();
-    await waitFor(() => expect(screen.getByText("Culture et valeurs")).toBeInTheDocument());
-
-    const [firstAnswerButton] = screen.getAllByRole("button", { name: /répondre/i });
-    await userEvent.click(firstAnswerButton!);
-    const textbox = screen.getAllByPlaceholderText(/répondez avec vos propres mots/i)[0]!;
-    await userEvent.type(textbox, "Je ne sais pas trop.");
-    await userEvent.click(screen.getAllByRole("button", { name: /^envoyer$/i })[0]!);
 
     await waitFor(() =>
-      expect(screen.getByText("Pouvez-vous donner un exemple concret ?")).toBeInTheDocument(),
+      expect(screen.getByText("Analyse du contexte externe")).toBeInTheDocument(),
     );
-    expect(clientApi.upsertContextInternalInput).not.toHaveBeenCalled();
+    expect(screen.getByText("Groupe Nord")).toBeInTheDocument();
+    expect(screen.getByText("Validé (étape 1)")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Lancer l’analyse externe" })).toBeEnabled();
   });
 
-  it("saves the structured answer and closes the chat once the assistant judges it sufficient", async () => {
-    vi.mocked(clientApi.contextSettings).mockResolvedValue({
-      projectId: "project-1",
-      analysisMethod: "SWOT",
-      explicit: true,
-    });
-    vi.mocked(clientApi.contextInternalInputs).mockResolvedValue([]);
-    vi.mocked(clientApi.assistContextAnswer).mockResolvedValue({
-      valid: true,
-      quality: "sufficient",
-      reason: "réponse suffisante",
-      followUpQuestion: null,
-      structuredAnswer: "Climat social stable, faible turnover.",
-    });
-    vi.mocked(clientApi.upsertContextInternalInput).mockResolvedValue({
-      id: "input-1",
-      projectId: "project-1",
-      sectionKey: "culture_valeurs",
-      questionKey: "cv_climat_social",
-      questionLabel: "Comment décririez-vous le climat social au sein de votre organisation ?",
-      answerText: "Climat social stable, faible turnover.",
-      status: "answered",
-      createdAt: "2026-09-21T00:00:00.000Z",
-      updatedAt: "2026-09-21T00:00:00.000Z",
-    });
-
+  it("blocks the launch until a method has been explicitly chosen", async () => {
+    stubEmptyModule(false);
+    vi.mocked(clientApi.contextInternalInputs).mockResolvedValue(completedInputs);
     renderPage();
-    await waitFor(() => expect(screen.getByText("Culture et valeurs")).toBeInTheDocument());
-
-    const [firstAnswerButton] = screen.getAllByRole("button", { name: /répondre/i });
-    await userEvent.click(firstAnswerButton!);
-    const textbox = screen.getAllByPlaceholderText(/répondez avec vos propres mots/i)[0]!;
-    await userEvent.type(textbox, "Climat correct, peu de turnover.");
-    await userEvent.click(screen.getAllByRole("button", { name: /^envoyer$/i })[0]!);
 
     await waitFor(() =>
-      expect(clientApi.upsertContextInternalInput).toHaveBeenCalledWith(
-        "project-1",
-        expect.objectContaining({
-          questionKey: "cv_climat_social",
-          answerText: "Climat social stable, faible turnover.",
-          status: "answered",
-        }),
-      ),
+      expect(
+        screen.getByText("Choisissez d’abord la méthode d’analyse SWOT ou PESTEL."),
+      ).toBeInTheDocument(),
     );
+    expect(screen.getByText("SWOT (par défaut)")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Lancer l’analyse externe" })).toBeDisabled();
   });
+});
 
-  it("moves to step 4 and shows the register once issues exist", async () => {
-    vi.mocked(clientApi.contextSettings).mockResolvedValue({
-      projectId: "project-1",
-      analysisMethod: "SWOT",
-      explicit: true,
+describe("ContextPage — step 4", () => {
+  it("validates an issue through the audited override with the foundation's reason", async () => {
+    stubEmptyModule();
+    vi.mocked(clientApi.contextInternalInputs).mockResolvedValue(completedInputs);
+    vi.mocked(clientApi.contextIssues).mockResolvedValue([pendingIssue]);
+    vi.mocked(clientApi.applyContextIssueOverride).mockResolvedValue({
+      ...pendingIssue,
+      reviewStatus: "VALIDATED",
     });
-    vi.mocked(clientApi.contextInternalInputs).mockResolvedValue([]);
-    vi.mocked(clientApi.contextIssues).mockResolvedValue([
-      {
-        id: "issue-1",
-        runId: "run-1",
-        canonicalKey: "rotation-personnel",
-        comparisonStatus: null,
-        aiOrigin: "INTERNAL",
-        aiCategoryKey: "ressources",
-        aiCategoryLabel: "Ressources",
-        aiTitle: "Rotation élevée du personnel",
-        aiDescription: "Le taux de rotation dépasse la moyenne du secteur.",
-        aiReasoning: null,
-        aiNature: "faiblesse",
-        aiImpactQuality: null,
-        aiImpactCustomerSatisfaction: null,
-        aiImpactOverall: null,
-        aiScores: {},
-        aiConfidence: null,
-        aiRecommendedPriority: false,
-        aiModel: "gpt-5-mini",
-        aiGeneratedAt: "2026-09-01T00:00:00.000Z",
-        origin: "INTERNAL",
-        categoryKey: "ressources",
-        categoryLabel: "Ressources",
-        title: "Rotation élevée du personnel",
-        description: "Le taux de rotation dépasse la moyenne du secteur.",
-        nature: "faiblesse",
-        impactQuality: null,
-        impactCustomerSatisfaction: null,
-        impactOverall: null,
-        scores: {},
-        selectedPriority: false,
-        reviewStatus: "PENDING",
-        humanOverride: false,
-        humanReviewedAt: null,
-        updatedAt: "2026-09-01T00:00:00.000Z",
-        sourceKind: "AI",
-        createdAt: "2026-09-01T00:00:00.000Z",
-        evidence: [],
-        corrections: [],
-      },
-    ]);
-
     renderPage();
-    await waitFor(() => expect(screen.getByText("4. Validation")).toBeInTheDocument());
-    await userEvent.click(screen.getByText("4. Validation"));
+
+    await waitFor(() => expect(screen.getByText("Validation des enjeux")).toBeInTheDocument());
+    expect(screen.getByText("Rotation élevée du personnel")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Valider cet enjeu" }));
 
     await waitFor(() =>
-      expect(screen.getByText("Rotation élevée du personnel")).toBeInTheDocument(),
+      expect(clientApi.applyContextIssueOverride).toHaveBeenCalledWith("project-1", "issue-1", {
+        reviewStatus: "VALIDATED",
+        correctionReason: "Enjeu validé par la revue humaine.",
+      }),
     );
-    expect(screen.getByText("À examiner")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /retenir/i })).toBeInTheDocument();
   });
 });
 
@@ -295,7 +258,7 @@ describe("ContextPage — gated on a published veille", () => {
       expect(screen.getByText(/publiez d'abord votre veille réglementaire/i)).toBeInTheDocument(),
     );
     expect(clientApi.contextSettings).not.toHaveBeenCalled();
-    expect(screen.queryByText(/choisissez la méthode d'analyse/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/étapes de l’analyse/i)).not.toBeInTheDocument();
   });
 
   it("links to the regulatory-watch page to unblock the gate", async () => {
@@ -331,9 +294,7 @@ describe("ContextPage — gated on a published veille", () => {
 
     renderPage();
 
-    await waitFor(() =>
-      expect(screen.getByText(/choisissez la méthode d'analyse/i)).toBeInTheDocument(),
-    );
+    await waitFor(() => expect(screen.getByText("1. Contexte interne")).toBeInTheDocument());
     expect(
       screen.queryByText(/publiez d'abord votre veille réglementaire/i),
     ).not.toBeInTheDocument();

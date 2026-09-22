@@ -17,6 +17,7 @@ import {
   applyContextIssueOverrideSchema,
   contextAnswerAssistRequestSchema,
   createManualContextIssueSchema,
+  saveContextInternalInputsSchema,
   setContextAnalysisMethodSchema,
   upsertContextInternalInputSchema,
 } from "@qhse/contracts";
@@ -75,6 +76,31 @@ export class ContextsController {
   ) {
     const input = parse(upsertContextInternalInputSchema, body);
     return this.contexts.upsertInternalInput(request.tenant!, projectIdOrSlug, input);
+  }
+
+  @Post("internal-inputs/bulk")
+  saveInternalInputs(
+    @Req() request: QhseRequest,
+    @Param("projectIdOrSlug") projectIdOrSlug: string,
+    @Body() body: unknown,
+  ) {
+    const input = parse(saveContextInternalInputsSchema, body);
+    return this.contexts.saveInternalInputs(request.tenant!, projectIdOrSlug, input);
+  }
+
+  @Get("scope")
+  @ApiOkResponse({ description: "Scope summary shown above step 2" })
+  getScope(@Req() request: QhseRequest, @Param("projectIdOrSlug") projectIdOrSlug: string) {
+    return this.contexts.getScope(request.tenant!, projectIdOrSlug);
+  }
+
+  @Get("external-factors")
+  @ApiOkResponse({ description: "Step 2 — factors of the latest completed external run" })
+  listExternalFactors(
+    @Req() request: QhseRequest,
+    @Param("projectIdOrSlug") projectIdOrSlug: string,
+  ) {
+    return this.contexts.listExternalFactors(request.tenant!, projectIdOrSlug);
   }
 
   @Post("internal-inputs/assist")

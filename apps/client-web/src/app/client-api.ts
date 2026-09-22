@@ -174,6 +174,12 @@ export const clientApi = {
     idOrSlug: string,
     input: Parameters<QhseApiClient["upsertContextInternalInput"]>[1],
   ) => qhseApi.upsertContextInternalInput(idOrSlug, input),
+  saveContextInternalInputs: (
+    idOrSlug: string,
+    input: Parameters<QhseApiClient["saveContextInternalInputs"]>[1],
+  ) => qhseApi.saveContextInternalInputs(idOrSlug, input),
+  contextScope: (idOrSlug: string) => qhseApi.getContextScope(idOrSlug),
+  contextExternalFactors: (idOrSlug: string) => qhseApi.listContextExternalFactors(idOrSlug),
   contextExternalRuns: (idOrSlug: string) => qhseApi.listContextExternalRuns(idOrSlug),
   triggerContextExternalResearch: (idOrSlug: string) =>
     qhseApi.triggerContextExternalResearch(idOrSlug),

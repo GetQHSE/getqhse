@@ -13,6 +13,9 @@ import {
   projectContextSettingsSchema,
   setContextAnalysisMethodSchema,
   upsertContextInternalInputSchema,
+  saveContextInternalInputsSchema,
+  contextScopeSchema,
+  contextExternalFactorSchema,
   createFileUploadSchema,
   createSiteSchema,
   completeProjectProfileSchema,
@@ -84,6 +87,9 @@ import {
   type SetContextAnalysisMethod,
   type StartRegulatoryAnalysis,
   type UpsertContextInternalInput,
+  type SaveContextInternalInputs,
+  type ContextScope,
+  type ContextExternalFactor,
   type UpdateRegulatoryAction,
   type UpdateRegulatoryEvaluation,
   type UpdateRegulatoryEvidence,
@@ -472,6 +478,31 @@ export class QhseApiClient {
       `/v1/projects/${encodeURIComponent(projectIdOrSlug)}/context/internal-inputs`,
       contextInternalInputSchema,
       { method: "POST", body: JSON.stringify(upsertContextInternalInputSchema.parse(input)) },
+    );
+  }
+
+  saveContextInternalInputs(
+    projectIdOrSlug: string,
+    input: SaveContextInternalInputs,
+  ): Promise<ContextInternalInput[]> {
+    return this.#request(
+      `/v1/projects/${encodeURIComponent(projectIdOrSlug)}/context/internal-inputs/bulk`,
+      z.array(contextInternalInputSchema),
+      { method: "POST", body: JSON.stringify(saveContextInternalInputsSchema.parse(input)) },
+    );
+  }
+
+  getContextScope(projectIdOrSlug: string): Promise<ContextScope> {
+    return this.#request(
+      `/v1/projects/${encodeURIComponent(projectIdOrSlug)}/context/scope`,
+      contextScopeSchema,
+    );
+  }
+
+  listContextExternalFactors(projectIdOrSlug: string): Promise<ContextExternalFactor[]> {
+    return this.#request(
+      `/v1/projects/${encodeURIComponent(projectIdOrSlug)}/context/external-factors`,
+      z.array(contextExternalFactorSchema),
     );
   }
 

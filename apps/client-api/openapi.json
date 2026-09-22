@@ -252,6 +252,440 @@
         "tags": ["projects"]
       }
     },
+    "/v1/projects/{projectIdOrSlug}/context/settings": {
+      "get": {
+        "operationId": "ContextsController_getSettings",
+        "parameters": [
+          {
+            "name": "x-organization-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Analysis method choice (SWOT or PESTEL)"
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["context"]
+      }
+    },
+    "/v1/projects/{projectIdOrSlug}/context/settings/method": {
+      "post": {
+        "operationId": "ContextsController_setMethod",
+        "parameters": [
+          {
+            "name": "x-organization-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["context"]
+      }
+    },
+    "/v1/projects/{projectIdOrSlug}/context/internal-inputs": {
+      "get": {
+        "operationId": "ContextsController_listInternalInputs",
+        "parameters": [
+          {
+            "name": "x-organization-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Step 1 — contexte interne, declared by the human"
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["context"]
+      },
+      "post": {
+        "operationId": "ContextsController_upsertInternalInput",
+        "parameters": [
+          {
+            "name": "x-organization-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["context"]
+      }
+    },
+    "/v1/projects/{projectIdOrSlug}/context/internal-inputs/bulk": {
+      "post": {
+        "operationId": "ContextsController_saveInternalInputs",
+        "parameters": [
+          {
+            "name": "x-organization-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["context"]
+      }
+    },
+    "/v1/projects/{projectIdOrSlug}/context/scope": {
+      "get": {
+        "operationId": "ContextsController_getScope",
+        "parameters": [
+          {
+            "name": "x-organization-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Scope summary shown above step 2"
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["context"]
+      }
+    },
+    "/v1/projects/{projectIdOrSlug}/context/external-factors": {
+      "get": {
+        "operationId": "ContextsController_listExternalFactors",
+        "parameters": [
+          {
+            "name": "x-organization-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Step 2 — factors of the latest completed external run"
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["context"]
+      }
+    },
+    "/v1/projects/{projectIdOrSlug}/context/internal-inputs/assist": {
+      "post": {
+        "operationId": "ContextsController_assistInternalInputAnswer",
+        "parameters": [
+          {
+            "name": "x-organization-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["context"]
+      }
+    },
+    "/v1/projects/{projectIdOrSlug}/context/external-runs": {
+      "get": {
+        "operationId": "ContextsController_listExternalRuns",
+        "parameters": [
+          {
+            "name": "x-organization-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Step 2 — analyse externe run history"
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["context"]
+      },
+      "post": {
+        "operationId": "ContextsController_triggerExternalResearch",
+        "parameters": [
+          {
+            "name": "x-organization-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["context"]
+      }
+    },
+    "/v1/projects/{projectIdOrSlug}/context/runs": {
+      "get": {
+        "operationId": "ContextsController_listAnalysisRuns",
+        "parameters": [
+          {
+            "name": "x-organization-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Step 3 — synthèse des enjeux run history"
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["context"]
+      },
+      "post": {
+        "operationId": "ContextsController_triggerSynthesis",
+        "parameters": [
+          {
+            "name": "x-organization-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["context"]
+      }
+    },
+    "/v1/projects/{projectIdOrSlug}/context/issues": {
+      "get": {
+        "operationId": "ContextsController_listIssues",
+        "parameters": [
+          {
+            "name": "x-organization-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Step 4 — the latest completed run's register, for validation"
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["context"]
+      },
+      "post": {
+        "operationId": "ContextsController_createManualIssue",
+        "parameters": [
+          {
+            "name": "x-organization-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["context"]
+      }
+    },
+    "/v1/projects/{projectIdOrSlug}/context/issues/{issueId}/override": {
+      "post": {
+        "operationId": "ContextsController_applyIssueOverride",
+        "parameters": [
+          {
+            "name": "x-organization-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["context"]
+      }
+    },
+    "/v1/projects/{projectIdOrSlug}/context/issues/{issueId}/evidence": {
+      "post": {
+        "operationId": "ContextsController_addIssueEvidence",
+        "parameters": [
+          {
+            "name": "x-organization-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["context"]
+      }
+    },
+    "/v1/projects/{projectIdOrSlug}/context/export.xlsx": {
+      "get": {
+        "operationId": "ContextsController_export",
+        "parameters": [
+          {
+            "name": "x-organization-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["context"]
+      }
+    },
     "/v1/projects/{projectIdOrSlug}/profile": {
       "get": {
         "operationId": "ProjectProfilesController_get",

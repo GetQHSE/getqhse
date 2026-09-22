@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { buildDigest, sanitizeSynthesizedIssues } from "./context-analysis.processor.js";
+import { sanitizeSynthesizedIssues } from "./context-analysis.processor.js";
 
 describe("sanitizeSynthesizedIssues", () => {
   const base = {
@@ -26,29 +26,5 @@ describe("sanitizeSynthesizedIssues", () => {
   it("drops an issue missing a title or a description", () => {
     expect(sanitizeSynthesizedIssues([{ ...base, title: "" }])).toHaveLength(0);
     expect(sanitizeSynthesizedIssues([{ ...base, description: "  " }])).toHaveLength(0);
-  });
-});
-
-describe("buildDigest", () => {
-  const project = {
-    name: "Usine Nord",
-    entityType: "COMPANY",
-    description: "Fabrication de pièces automobiles.",
-    standardCode: "ISO_9001",
-  };
-
-  it("tells the model the légal dimension must not be searched when the veille is empty", () => {
-    const digest = buildDigest({ project, snapshot: {}, internalInputs: [], registerEntries: [] });
-    expect(digest).toContain("ne doit PAS être recherchée ici");
-  });
-
-  it("carries the published register entries into the digest", () => {
-    const digest = buildDigest({
-      project,
-      snapshot: {},
-      internalInputs: [],
-      registerEntries: [{ citationLabel: "Code du travail — Art. 24", sourceReference: null }],
-    });
-    expect(digest).toContain("Code du travail — Art. 24");
   });
 });

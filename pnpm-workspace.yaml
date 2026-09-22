@@ -8,6 +8,7 @@ packages:
 allowBuilds:
   "@prisma/engines": true
   "@scarf/scarf": false
+  core-js: false
   cpu-features: false
   esbuild: true
   msgpackr-extract: false

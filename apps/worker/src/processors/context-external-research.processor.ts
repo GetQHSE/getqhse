@@ -17,6 +17,7 @@ import type { Job } from "bullmq";
 import { z } from "zod";
 
 import { queueNames } from "../queues.js";
+import { loadContextMaterial } from "./context-material.js";
 import { acquireModelTokens } from "./regulatory-rate-limiter.js";
 import { conservativeInputTokens, positiveNumber } from "./regulatory-model-cost.js";
 
@@ -36,9 +37,7 @@ const { canonicalKey, factorFingerprint, PESTEL_DIMENSIONS } = smqContext;
  */
 
 const planSchema = z.object({
-  entries: z
-    .array(z.object({ dimension: z.string(), query: z.string(), rationale: z.string() }))
-    .max(8),
+  entries: z.array(z.object({ dimension: z.string(), query: z.string(), rationale: z.string() })),
   excludedDimensions: z.array(z.string()),
 });
 
@@ -96,13 +95,64 @@ export function excludeLegalDimension<T extends { dimension: string }>(entries: 
 export function sanitizeExternalFactors<
   T extends { title: string; relevanceToCompany: string; sourceUrls: string[] },
 >(factors: T[], citedUrls: ReadonlySet<string>): T[] {
+  // The model often copies a cited URL without the search tool's tracking
+  // parameters (utm_source=openai) or with a different trailing slash: match on
+  // a normalized form, but keep the URL exactly as the search returned it.
+  const byNormalized = new Map<string, string>();
+  for (const url of citedUrls) {
+    const key = normalizeUrl(url);
+    if (!byNormalized.has(key)) byNormalized.set(key, url);
+  }
   return factors
     .filter((factor) => factor.title.trim() && factor.relevanceToCompany.trim())
     .map((factor) => ({
       ...factor,
-      sourceUrls: factor.sourceUrls.filter((url) => citedUrls.has(url)),
+      sourceUrls: [
+        ...new Set(
+          factor.sourceUrls.flatMap((url) => {
+            const cited = byNormalized.get(normalizeUrl(url));
+            return cited ? [cited] : [];
+          }),
+        ),
+      ],
     }))
     .filter((factor) => factor.sourceUrls.length > 0);
+}
+
+/** Lower-cased host without www, no tracking params, no fragment, no trailing slash. */
+export function normalizeUrl(url: string): string {
+  try {
+    const parsed = new URL(url.trim());
+    for (const key of [...parsed.searchParams.keys()]) {
+      if (key.startsWith("utm_")) parsed.searchParams.delete(key);
+    }
+    const host = parsed.hostname.toLowerCase().replace(/^www\./, "");
+    const path = parsed.pathname.replace(/\/+$/, "");
+    const query = parsed.searchParams.toString();
+    return `${host}${path}${query ? `?${query}` : ""}`;
+  } catch {
+    return url.trim();
+  }
+}
+
+type Citation = { title: string | null; origin: "search_grounding" | "model_citation" };
+
+/** Grounded sources first, then URLs the model wrote in its own text — the
+ * foundation's discoverExternalSignals keeps both. */
+export function collectCitations(
+  sources: readonly { sourceType: string; url?: string; title?: string }[],
+  text: string,
+): Map<string, Citation> {
+  const citations = new Map<string, Citation>();
+  for (const source of sources) {
+    if (source.sourceType !== "url" || !source.url || citations.has(source.url)) continue;
+    citations.set(source.url, { title: source.title ?? null, origin: "search_grounding" });
+  }
+  for (const match of text.matchAll(/https?:\/\/[^\s)"'<>]+/g)) {
+    const url = match[0].replace(/[.,;]+$/, "");
+    if (!citations.has(url)) citations.set(url, { title: null, origin: "model_citation" });
+  }
+  return citations;
 }
 
 @Processor(queueNames.contextExternalResearch, { concurrency: 2 })
@@ -117,15 +167,6 @@ export class ContextExternalResearchProcessor extends WorkerHost {
     });
     if (!run) return;
 
-    const project = await this.database.project.findUniqueOrThrow({
-      where: { id: run.projectId },
-      include: {
-        profile: { include: { snapshots: { orderBy: { sequence: "desc" }, take: 1 } } },
-        contextSettings: true,
-        regulatoryWatch: true,
-      },
-    });
-
     const fail = async (message: string): Promise<void> => {
       await this.database.contextExternalResearchRun.update({
         where: { id: runId },
@@ -133,49 +174,27 @@ export class ContextExternalResearchProcessor extends WorkerHost {
       });
     };
 
-    if (!project.contextSettings) {
+    const material = await loadContextMaterial(this.database, run.projectId);
+    const { project, method, digest, registerEntries } = material;
+    if (!method) {
       // A NEW run requires an explicit persisted method choice; the default is a
       // display fallback only, never silently executed.
-      return fail("Choisissez d'abord la méthode d'analyse SWOT ou PESTEL.");
+      return fail("Choisissez d’abord la méthode d’analyse SWOT ou PESTEL.");
     }
-    const method = project.contextSettings.analysisMethod;
-
-    const internalInputs = await this.database.contextInternalInput.findMany({
-      where: { projectId: project.id },
-    });
-    const completedInternalInputs = internalInputs.filter(
-      (input) => input.answerText.trim() && input.status === "answered",
-    );
-    if (completedInternalInputs.length === 0) {
+    if (material.validatedAnswersCount === 0) {
+      return fail(
+        "Aucune réponse validée dans le profil du projet : l'analyse externe a besoin d'un profil d'entreprise validé.",
+      );
+    }
+    if (!material.internalCompleted) {
       return fail(
         "Le contexte interne (étape 1) n'est pas encore validé : complétez-le avant de lancer l'analyse externe.",
       );
     }
 
-    const snapshot = project.profile?.snapshots[0] ?? null;
-    if (!snapshot) {
-      return fail(
-        "Aucune réponse validée dans le profil du projet : l'analyse externe a besoin d'un profil d'entreprise validé.",
-      );
-    }
-
-    const registerEntries = project.regulatoryWatch?.currentBaselineId
-      ? await this.database.regulatoryRegisterEntry.findMany({
-          where: { baselineId: project.regulatoryWatch.currentBaselineId },
-          take: 60,
-        })
-      : [];
-
-    const digest = buildDigest({
-      project,
-      snapshot: snapshot.data,
-      internalInputs: completedInternalInputs,
-      registerEntries,
-    });
-
     await this.database.contextExternalResearchRun.update({
       where: { id: runId },
-      data: { status: "RUNNING", startedAt: new Date() },
+      data: { status: "RUNNING", startedAt: new Date(), methodologyVersion: "external-v2" },
     });
 
     const provider = contextResearchProvider();
@@ -197,11 +216,13 @@ export class ContextExternalResearchProcessor extends WorkerHost {
         timeout: llmSettings().regulatoryTimeoutMs,
         maxOutputTokens: 2_000,
         maxRetries: 2,
+        // The foundation runs Gemini at 0.15; OpenAI reasoning models reject temperature.
+        ...(provider === "google" ? { temperature: 0.15 } : {}),
         providerOptions: languageProviderOptions(provider, { model }),
         telemetry: { isEnabled: false },
       });
       const plan = planSchema.parse(planResult.output);
-      const entries = excludeLegalDimension(plan.entries);
+      const entries = excludeLegalDimension(plan.entries).slice(0, 8);
       if (entries.length === 0) {
         return fail(
           "Le périmètre d'analyse externe n'a pas pu être défini à partir du contexte disponible (secteur ou pays insuffisamment précisés).",
@@ -228,14 +249,12 @@ export class ContextExternalResearchProcessor extends WorkerHost {
         timeout: llmSettings().regulatoryTimeoutMs,
         maxOutputTokens: 8_000,
         maxRetries: 2,
+        // The foundation runs Gemini at 0.15; OpenAI reasoning models reject temperature.
+        ...(provider === "google" ? { temperature: 0.15 } : {}),
         providerOptions: languageProviderOptions(provider, { model }),
         telemetry: { isEnabled: false },
       });
-      const citedUrls = new Map(
-        discoveryResult.sources.flatMap((source) =>
-          source.sourceType === "url" ? [[source.url, source.title ?? null] as const] : [],
-        ),
-      );
+      const citedUrls = collectCitations(discoveryResult.sources, discoveryResult.text);
       if (citedUrls.size === 0) {
         return fail(
           "Aucune source consultable n'a été retournée par la recherche web. Aucun facteur n'a été enregistré.",
@@ -246,7 +265,7 @@ export class ContextExternalResearchProcessor extends WorkerHost {
       const structurePrompt = contextExternalStructurePrompt.build({
         digest,
         researchText: discoveryResult.text,
-        allowedUrls: [...citedUrls.keys()],
+        sources: [...citedUrls].map(([url, citation]) => ({ url, title: citation.title })),
       });
       await acquireModelTokens(
         `${provider}:${model}`,
@@ -261,12 +280,26 @@ export class ContextExternalResearchProcessor extends WorkerHost {
         timeout: llmSettings().regulatoryTimeoutMs,
         maxOutputTokens: 8_000,
         maxRetries: 2,
+        // The foundation runs Gemini at 0.15; OpenAI reasoning models reject temperature.
+        ...(provider === "google" ? { temperature: 0.15 } : {}),
         providerOptions: languageProviderOptions(provider, { model }),
         telemetry: { isEnabled: false },
       });
       const { factors: rawFactors } = structureSchema.parse(structureResult.output);
 
       const sanitized = sanitizeExternalFactors(rawFactors, new Set(citedUrls.keys()));
+      this.logger.info(
+        {
+          event: "context_external_structured",
+          runId,
+          planEntries: entries.length,
+          citedUrls: citedUrls.size,
+          rawFactors: rawFactors.length,
+          keptFactors: sanitized.length,
+          finishReason: structureResult.finishReason,
+        },
+        "context external research structured",
+      );
 
       if (sanitized.length === 0) {
         return fail(
@@ -335,9 +368,10 @@ export class ContextExternalResearchProcessor extends WorkerHost {
             data: {
               factorId: created.id,
               url,
-              title: citedUrls.get(url) ?? null,
-              groundingOrigin: "search_grounding",
-              authorityTier: "grounded",
+              title: citedUrls.get(url)?.title ?? null,
+              groundingOrigin: citedUrls.get(url)?.origin ?? "search_grounding",
+              authorityTier:
+                citedUrls.get(url)?.origin === "model_citation" ? "declared" : "grounded",
             },
           });
           sourcesCreated += 1;
@@ -378,53 +412,4 @@ export class ContextExternalResearchProcessor extends WorkerHost {
       );
     }
   }
-}
-
-export function buildDigest(input: {
-  project: { name: string; entityType: string; description: string | null; standardCode: string };
-  snapshot: unknown;
-  internalInputs: { sectionKey: string; questionLabel: string; answerText: string }[];
-  registerEntries: { citationLabel: string; sourceReference: string | null }[];
-}): string {
-  const lines: string[] = [
-    "== IDENTITÉ DE L'ORGANISATION ==",
-    `Projet : ${input.project.name}`,
-    `Type d'entité : ${input.project.entityType}`,
-    `Description : ${input.project.description ?? "non précisée"}`,
-    `Référentiel : ${input.project.standardCode}`,
-    "",
-    "== PROFIL VALIDÉ (faits d'entreprise) ==",
-    JSON.stringify(input.snapshot),
-    "",
-    "== CONTEXTE INTERNE DÉCLARÉ (étape 1) ==",
-  ];
-  if (input.internalInputs.length === 0) {
-    lines.push("Aucune information interne renseignée.");
-  } else {
-    const bySection = new Map<string, typeof input.internalInputs>();
-    for (const item of input.internalInputs) {
-      const bucket = bySection.get(item.sectionKey) ?? [];
-      bucket.push(item);
-      bySection.set(item.sectionKey, bucket);
-    }
-    for (const [section, items] of bySection) {
-      lines.push("", `## ${section}`);
-      for (const item of items) {
-        lines.push(`- ${item.questionLabel}`, `  ${item.answerText}`);
-      }
-    }
-  }
-  lines.push("", "== CONTEXTE RÉGLEMENTAIRE DÉJÀ ÉTABLI (module veille) ==");
-  if (input.registerEntries.length === 0) {
-    lines.push(
-      "Aucune veille réglementaire publiée : la dimension légale ne doit PAS être recherchée ici.",
-    );
-  } else {
-    for (const entry of input.registerEntries) {
-      lines.push(
-        `- ${entry.citationLabel}${entry.sourceReference ? ` (${entry.sourceReference})` : ""}`,
-      );
-    }
-  }
-  return lines.join("\n");
 }
