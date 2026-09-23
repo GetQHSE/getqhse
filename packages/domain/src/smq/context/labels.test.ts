@@ -91,3 +91,35 @@ describe("hasAnalysisCorrection", () => {
     };
   }
 });
+
+describe("localized labels", () => {
+  const correction = {
+    id: "c1",
+    fieldName: "review_status",
+    previousValue: "pending",
+    newValue: "validated",
+    correctionReason: null,
+    createdAt: "2026-09-20T10:00:00.000Z",
+  };
+
+  it("labels evidence sources and audit events in English and Arabic", () => {
+    expect(evidenceSourceLabel("regulatory_item", "en")).toBe("Regulatory watch");
+    expect(evidenceSourceLabel("regulatory_item", "ar")).toBe("اليقظة التنظيمية");
+    expect(groupCorrections([correction], "en")[0]!.label).toBe("Issue validated by human review");
+    expect(groupCorrections([correction], "ar")[0]!.label).toBe(
+      "تم اعتماد الرهان بعد المراجعة البشرية",
+    );
+  });
+
+  it("keeps the priority detail logic language-independent", () => {
+    const events = groupCorrections(
+      [
+        { ...correction, fieldName: "title", previousValue: "a", newValue: "b" },
+        { ...correction, id: "c2", fieldName: "user_selected_priority", newValue: true },
+      ],
+      "en",
+    );
+    expect(events[0]!.label).toBe("Title changed");
+    expect(events[0]!.details).toEqual(["Marked as priority"]);
+  });
+});

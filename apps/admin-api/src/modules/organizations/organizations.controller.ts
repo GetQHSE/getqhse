@@ -31,7 +31,6 @@ export class OrganizationsController {
   @Get()
   @ApiQuery({ name: "search", required: false })
   @ApiQuery({ name: "status", required: false, enum: organizationStatuses })
-  @ApiQuery({ name: "countryCode", required: false })
   @ApiQuery({ name: "page", required: false, type: Number })
   @ApiQuery({ name: "pageSize", required: false, type: Number })
   list(@Query() query: Record<string, unknown>) {

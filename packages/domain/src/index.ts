@@ -1,3 +1,5 @@
+export * from "./countries.js";
+export * from "./language.js";
 export type RequirementAssessment = {
   requirementId: string;
   applicable: boolean;

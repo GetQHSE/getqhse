@@ -2,6 +2,7 @@
 
 import {
   contextDocumentFileName,
+  exportTranslator,
   type ContextDocument,
   type ContextDocumentGroup,
   type ContextDocumentIssue,
@@ -26,20 +27,24 @@ export async function buildContextWordBlob(doc: ContextDocument): Promise<Blob> 
     WidthType,
   } = await import("docx");
 
+  const t = exportTranslator(doc.language);
+  // Arabic documents read right to left: paragraphs, runs and tables are mirrored.
+  const rtl = doc.language === "ar";
   const FONT = "Arial";
   const border = { style: BorderStyle.SINGLE, size: 1, color: "CCCCCC" };
   const borders = { top: border, bottom: border, left: border, right: border };
   const margins = { top: 60, bottom: 60, left: 100, right: 100 };
 
   const text = (value: string, options: { bold?: boolean; size?: number; color?: string } = {}) =>
-    new TextRun({ text: value, font: FONT, ...options });
+    new TextRun({ text: value, font: FONT, rightToLeft: rtl, ...options });
 
   const body = (value: string, bold = false) =>
-    new Paragraph({ children: [text(value, { size: 20, bold })] });
+    new Paragraph({ bidirectional: rtl, children: [text(value, { size: 20, bold })] });
 
   const heading = (value: string) =>
     new Paragraph({
       heading: HeadingLevel.HEADING_2,
+      bidirectional: rtl,
       children: [text(value, { bold: true, size: 26 })],
     });
 
@@ -49,9 +54,13 @@ export async function buildContextWordBlob(doc: ContextDocument): Promise<Blob> 
       margins,
       width: { size: width, type: WidthType.DXA },
       ...(header ? { shading: { fill: "F2F5F9", type: ShadingType.CLEAR } } : {}),
-      children: value
-        .split("\n")
-        .map((line) => new Paragraph({ children: [text(line, { size: 18, bold: header })] })),
+      children: value.split("\n").map(
+        (line) =>
+          new Paragraph({
+            bidirectional: rtl,
+            children: [text(line, { size: 18, bold: header })],
+          }),
+      ),
     });
 
   const ISSUE_WIDTHS = [2400, 3400, 1720, 1840] as const;
@@ -59,14 +68,15 @@ export async function buildContextWordBlob(doc: ContextDocument): Promise<Blob> 
   const issueTable = (issues: ContextDocumentIssue[]) =>
     new Table({
       width: { size: 9360, type: WidthType.DXA },
+      visuallyRightToLeft: rtl,
       columnWidths: [...ISSUE_WIDTHS],
       rows: [
         new TableRow({
           children: [
-            cell("Enjeu", ISSUE_WIDTHS[0], true),
-            cell("Description", ISSUE_WIDTHS[1], true),
-            cell("Nature / catégorie", ISSUE_WIDTHS[2], true),
-            cell("Évaluation / statut", ISSUE_WIDTHS[3], true),
+            cell(t("export.columns.issue"), ISSUE_WIDTHS[0], true),
+            cell(t("export.columns.description"), ISSUE_WIDTHS[1], true),
+            cell(t("export.columns.natureCategory"), ISSUE_WIDTHS[2], true),
+            cell(t("export.columns.assessment"), ISSUE_WIDTHS[3], true),
           ],
         }),
         ...issues.map(
@@ -76,8 +86,8 @@ export async function buildContextWordBlob(doc: ContextDocument): Promise<Blob> 
                 cell(
                   [
                     issue.title,
-                    issue.addedManually ? "Ajouté par vous" : "",
-                    issue.corrected ? "Corrigé" : "",
+                    issue.addedManually ? t("export.addedByYou") : "",
+                    issue.corrected ? t("export.corrected") : "",
                   ]
                     .filter(Boolean)
                     .join("\n"),
@@ -87,10 +97,10 @@ export async function buildContextWordBlob(doc: ContextDocument): Promise<Blob> 
                 cell(`${issue.natureLabel}\n${issue.categoryLabel}`, ISSUE_WIDTHS[2]),
                 cell(
                   [
-                    `Statut : ${issue.statusLabel}`,
-                    `Impact qualité : ${issue.impactQuality}`,
-                    `Satisfaction client : ${issue.impactCustomer}`,
-                    `Influence globale : ${issue.impactOverall}`,
+                    t("export.statusLine", { value: issue.statusLabel }),
+                    t("export.qualityLine", { value: issue.impactQuality }),
+                    t("export.customerLine", { value: issue.impactCustomer }),
+                    t("export.overallLine", { value: issue.impactOverall }),
                   ].join("\n"),
                   ISSUE_WIDTHS[3],
                 ),
@@ -103,38 +113,35 @@ export async function buildContextWordBlob(doc: ContextDocument): Promise<Blob> 
   const children: object[] = [
     new Paragraph({
       heading: HeadingLevel.HEADING_1,
+      bidirectional: rtl,
       children: [text(doc.title, { bold: true, size: 32 })],
     }),
     body(`${doc.organizationName} · ${doc.projectName}`),
-    body(`Référentiel : ${doc.isoStandard}`),
-    body(`Méthode d’analyse : ${doc.methodLabel} — ${doc.methodSummary}`),
-    body(
-      `Date de l’analyse : ${doc.analysisDate ?? "—"}   |   Document généré le ${doc.generatedOn}`,
-    ),
-    body(
-      `Enjeux : ${doc.summary.issues}   |   Retenus : ${doc.summary.retained}   |   Non retenus : ${doc.summary.notRetained}   |   À examiner : ${doc.summary.pending}   |   Corrigés : ${doc.summary.corrected}   |   Ajoutés manuellement : ${doc.summary.manual}`,
-    ),
-    body(`Facteurs externes documentés : ${doc.summary.factors}`),
+    body(t("export.standard", { value: doc.isoStandard })),
+    body(t("export.method", { method: doc.methodLabel, summary: doc.methodSummary })),
+    body(t("export.dates", { analysis: doc.analysisDate ?? "—", generated: doc.generatedOn })),
+    body(t("export.summaryLine", doc.summary)),
+    body(t("export.factorsDocumented", { count: doc.summary.factors })),
   ];
 
-  children.push(heading("1. Contexte interne — enjeux retenus"));
+  children.push(heading(t("export.sectionInternal")));
   if (doc.internalIssues.length === 0) {
-    children.push(body("Aucun enjeu interne identifié."));
+    children.push(body(t("export.noInternal")));
   } else {
     children.push(issueTable(doc.internalIssues));
   }
   children.push(body(""));
 
-  children.push(heading("2. Analyse externe"));
+  children.push(heading(t("export.sectionExternal")));
   if (doc.factors.length === 0) {
-    children.push(body("Aucun facteur externe documenté."));
+    children.push(body(t("export.noFactors")));
   } else {
     for (const factor of doc.factors) {
       children.push(body(`${factor.title} — ${factor.categoryLabel}`, true));
       children.push(body(factor.description));
-      children.push(body(`Pertinence : ${factor.relevance}`));
+      children.push(body(t("export.relevanceLine", { value: factor.relevance })));
       if (factor.publishers.length > 0) {
-        children.push(body(`Organismes cités : ${factor.publishers.join(", ")}`));
+        children.push(body(t("export.publishersLine", { value: factor.publishers.join(", ") })));
       }
       children.push(body(""));
     }
@@ -152,17 +159,17 @@ export async function buildContextWordBlob(doc: ContextDocument): Promise<Blob> 
 
   let index = 3;
   if (doc.swot) {
-    groupSection(`${index}. Analyse SWOT`, doc.swot);
+    groupSection(t("export.sectionSwot", { index }), doc.swot);
     index += 1;
   }
   if (doc.pestel) {
-    groupSection(`${index}. Analyse PESTEL`, doc.pestel);
+    groupSection(t("export.sectionPestel", { index }), doc.pestel);
     index += 1;
   }
 
-  children.push(heading(`${index}. Synthèse des enjeux`));
+  children.push(heading(t("export.sectionSynthesis", { index })));
   if (doc.synthesis.length === 0) {
-    children.push(body("Aucun enjeu enregistré."));
+    children.push(body(t("export.noIssues")));
   } else {
     children.push(issueTable(doc.synthesis));
   }
@@ -181,9 +188,10 @@ export async function buildContextWordBlob(doc: ContextDocument): Promise<Blob> 
           default: new Footer({
             children: [
               new Paragraph({
-                alignment: AlignmentType.RIGHT,
+                alignment: rtl ? AlignmentType.LEFT : AlignmentType.RIGHT,
+                bidirectional: rtl,
                 children: [
-                  text("Page ", { size: 16 }),
+                  text(t("export.page"), { size: 16 }),
                   new TextRun({ children: [PageNumber.CURRENT], font: FONT, size: 16 }),
                 ],
               }),

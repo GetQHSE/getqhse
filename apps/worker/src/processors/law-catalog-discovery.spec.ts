@@ -38,6 +38,7 @@ describe("MVP applicable-law discovery", () => {
     title: "Protection des données personnelles",
     reason: "Le projet traite des données personnelles.",
     sourceUrl: null,
+    countryCode: "MA" as string | null,
     applicableRequirements: [],
   };
   const storedProposal = {
@@ -45,6 +46,7 @@ describe("MVP applicable-law discovery", () => {
     title: "Loi test",
     reason: "Le projet emploie des salariés.",
     sourceUrl: null,
+    countryCode: "MA" as string | null,
     applicableRequirements: [],
   };
 
@@ -81,7 +83,9 @@ describe("MVP applicable-law discovery", () => {
           asOf: new Date("2026-09-06"),
           languages: ["fr"],
           clarificationRevision: 0,
-          profileSnapshot: { data: { employeeCount: 12 } },
+          profileSnapshot: {
+            data: { employeeCount: 12, fields: { "scope.operatingCountries": ["MA"] } },
+          },
           scopeFacts: [],
         },
         { updateProgress: vi.fn() },
@@ -130,53 +134,62 @@ describe("MVP applicable-law discovery", () => {
     expect(db.$queryRaw).not.toHaveBeenCalled();
   });
 
-  it("adds approved discovery knowledge without exposing provenance", async () => {
+  it("refuses to guess a country when the profile declares none", async () => {
+    const { processor } = harness();
+    const discover = (
+      processor as unknown as { discoverApplicableLaws(run: unknown): Promise<unknown> }
+    ).discoverApplicableLaws.bind(processor);
+
+    await expect(
+      discover({
+        id: "run",
+        asOf: new Date("2026-09-06"),
+        clarificationRevision: 0,
+        profileSnapshot: { data: { fields: {} } },
+        scopeFacts: [],
+      }),
+    ).rejects.toMatchObject({ code: "PROJECT_COUNTRIES_MISSING" });
+    expect(generated).not.toHaveBeenCalled();
+  });
+
+  it("relies only on web search: no embedding or reviewed-example lookup", async () => {
     const { db, run } = harness();
-    db.aiKnowledgeExample.findMany.mockResolvedValue([
-      {
-        id: "knowledge-1",
-        feature: "DISCOVERY",
-        title: "Gestion des déchets industriels",
-        scenarioSummary: "Site industriel produisant des déchets.",
-        guidance: "La loi sur les déchets manquait.",
-        jurisdiction: "MA",
-        language: "fr",
-        tags: ["déchets"],
-        rating: 1,
-        expectedResult: null,
-        evaluationSignal: null,
-        payload: {
-          includedLaws: [
-            {
-              reference: "Loi 28-00",
-              title: "Gestion des déchets",
-              reason: "Le site produit des déchets industriels.",
-            },
-          ],
-          excludedLaws: [],
-        },
-      },
-    ]);
-    generated.mockResolvedValue({
-      output: { laws: [] },
-      totalUsage: { inputTokens: 100, outputTokens: 50 },
-      sources: [],
-    });
+    respond([]);
 
     await run();
 
-    expect(db.aiKnowledgeExample.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: expect.objectContaining({ feature: "DISCOVERY", status: "ACTIVE" }),
-        take: 5,
-      }),
-    );
-    expect(generated).toHaveBeenCalledWith(
-      expect.objectContaining({
-        prompt: expect.stringContaining("La loi sur les déchets manquait."),
-      }),
-    );
-    expect(generated.mock.calls.at(-1)?.[0].prompt).not.toContain("secret-organization");
+    expect(db.embeddingProfile.findFirst).not.toHaveBeenCalled();
+    expect(db.aiKnowledgeExample.findMany).not.toHaveBeenCalled();
+    expect(generated.mock.calls.at(-1)?.[0].prompt).not.toContain("priorReviewedExamples");
+  });
+
+  it("asks for each of the project's countries and records the country of every law", async () => {
+    const { run, processor } = harness();
+    const french = { ...lead, reference: "Code du travail", countryCode: "fr" };
+    const iso = { ...lead, reference: "ISO 9001:2015", countryCode: null };
+    respond([french, iso]);
+    const discover = (
+      processor as unknown as {
+        discoverApplicableLaws(run: unknown): Promise<{ laws: { countryCode: string | null }[] }>;
+      }
+    ).discoverApplicableLaws.bind(processor);
+
+    const result = await discover({
+      id: "run",
+      asOf: new Date("2026-09-06"),
+      clarificationRevision: 0,
+      profileSnapshot: {
+        data: {
+          project: { countryCode: "MA" },
+          fields: { "scope.operatingCountries": ["MA", "FR"] },
+        },
+      },
+      scopeFacts: [],
+    });
+
+    expect(generated.mock.calls.at(-1)?.[0].system).toContain("Maroc (MA), France (FR)");
+    expect(result.laws.map((law) => law.countryCode)).toEqual(["FR", null]);
+    void run;
   });
 
   it("can disable web search for local free-tier testing", async () => {

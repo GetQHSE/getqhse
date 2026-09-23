@@ -1,5 +1,11 @@
-import { buildContextDigest, validatedProfileAnswers, type ContextDigestInput } from "@qhse/ai";
+import {
+  buildContextDigest,
+  toOutputLanguage,
+  validatedProfileAnswers,
+  type ContextDigestInput,
+} from "@qhse/ai";
 import type { DatabaseClient } from "@qhse/database";
+import { projectCountryCodes } from "@qhse/domain";
 
 /**
  * Canonical material for steps 2 and 3 of "Analyse des enjeux" — the
@@ -52,8 +58,11 @@ export async function loadContextMaterial(database: DatabaseClient, projectId: s
 
   return {
     project,
+    /** Every text generated for the project is written in its language. */
+    language: toOutputLanguage(project.language),
     method: project.contextSettings?.analysisMethod ?? null,
     internalCompleted,
+    countries: projectCountryCodes(snapshotData, project.countryCode),
     validatedAnswersCount: validatedProfileAnswers(digestInput.profileFields).length,
     registerEntries,
     digest: buildContextDigest(digestInput),

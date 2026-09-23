@@ -16,6 +16,7 @@ const project: Project = {
   logoUrl: null,
   entityType: "COMPANY",
   countryCode: "MA",
+  language: "en",
   standardCode: "ISO_9001",
   description: null,
   status: "EMPTY",
@@ -26,7 +27,8 @@ const project: Project = {
 const input: CreateProject = {
   name: project.name,
   entityType: "COMPANY",
-  countryCode: "MA",
+  countryCodes: ["MA"],
+  language: "en",
   activities: [{ name: "Manufacturing" }],
   description: null,
 };

@@ -90,6 +90,9 @@ export const applicableLawDiscoverySchema = z.object({
         // Discovery URLs are still constrained here and are accepted later only when they match
         // a URL actually cited by the provider's web-search result.
         sourceUrl: z.string().max(2_048).nullable(),
+        // ISO 3166-1 alpha-2 code of the country that issued the text, among the project's
+        // countries; null for an ISO / international standard. Normalized downstream.
+        countryCode: z.string().trim().max(8).nullable(),
         // Article/clause-level requirements found in the sources actually consulted during
         // discovery. `reference` is the exact identifier established by the source (e.g. "Article
         // 12", "8.5.1" for an ISO clause) — never the law's own reference number, and null when

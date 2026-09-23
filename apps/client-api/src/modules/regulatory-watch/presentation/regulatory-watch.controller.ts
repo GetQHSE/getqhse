@@ -147,6 +147,19 @@ export class RegulatoryWatchController {
     );
   }
 
+  @Post("baselines/automatic")
+  publishAutomatically(
+    @Req() request: QhseRequest,
+    @Param("projectIdOrSlug") projectIdOrSlug: string,
+    @Body() body: unknown,
+  ) {
+    return this.regulatory.publishAutomatically(
+      request.tenant!,
+      projectIdOrSlug,
+      parse(publishRegulatoryBaselineSchema, body),
+    );
+  }
+
   @Post("evaluation-runs")
   startEvaluation(@Req() request: QhseRequest, @Param("projectIdOrSlug") projectIdOrSlug: string) {
     return this.regulatory.startEvaluation(request.tenant!, projectIdOrSlug);

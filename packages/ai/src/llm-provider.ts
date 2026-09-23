@@ -144,15 +144,30 @@ export function languageProviderOptions(
   };
 }
 
-export function providerWebSearch(provider: LanguageProvider): { name: string; tool: unknown } {
+/** Where the web search should be localised; `null` searches without a
+ * location (a project spanning several countries). Always explicit: there is
+ * no default country. */
+export type WebSearchLocation = { country: string; timezone?: string | undefined } | null;
+
+export function providerWebSearch(
+  provider: LanguageProvider,
+  location: WebSearchLocation,
+): { name: string; tool: unknown } {
   const client = providerClient(provider);
+  const userLocation = location
+    ? {
+        type: "approximate" as const,
+        country: location.country,
+        ...(location.timezone ? { timezone: location.timezone } : {}),
+      }
+    : undefined;
   if (provider === "openai") {
     return {
       name: "web_search",
       tool: (client as OpenAIProvider).tools.webSearch({
         externalWebAccess: true,
         searchContextSize: "medium",
-        userLocation: { type: "approximate", country: "MA", timezone: "Africa/Casablanca" },
+        ...(userLocation ? { userLocation } : {}),
       }),
     };
   }
@@ -161,7 +176,7 @@ export function providerWebSearch(provider: LanguageProvider): { name: string; t
       name: "web_search",
       tool: (client as AnthropicProvider).tools.webSearch_20250305({
         maxUses: 5,
-        userLocation: { type: "approximate", country: "MA", timezone: "Africa/Casablanca" },
+        ...(userLocation ? { userLocation } : {}),
       }),
     };
   }

@@ -59,7 +59,39 @@ export const createSiteSchema = siteSchema.pick({ name: true, code: true, addres
 export type Site = z.infer<typeof siteSchema>;
 export type CreateSite = z.infer<typeof createSiteSchema>;
 
-export const supportedCountryCodeSchema = z.enum(["MA", "FR", "DZ", "TN", "SN", "CI"]);
+/**
+ * Languages the platform speaks. A project's language drives everything the AI
+ * generates for it; a user's interface language drives the rest of the UI.
+ */
+export const supportedLanguages = ["fr", "en", "ar"] as const;
+export const supportedLanguageSchema = z.enum(supportedLanguages);
+export type SupportedLanguage = z.infer<typeof supportedLanguageSchema>;
+
+/** Maps a stored locale ("fr-MA", "ar", "en-GB"…) to a supported language. */
+export function toSupportedLanguage(
+  locale: string | null | undefined,
+  fallback: SupportedLanguage = "fr",
+): SupportedLanguage {
+  const base = locale?.trim().toLowerCase().split(/[-_]/)[0];
+  return supportedLanguageSchema.safeParse(base).success ? (base as SupportedLanguage) : fallback;
+}
+
+export const userPreferencesSchema = z.object({ locale: supportedLanguageSchema });
+export const updateUserPreferencesSchema = userPreferencesSchema;
+export type UserPreferences = z.infer<typeof userPreferencesSchema>;
+
+/** Any ISO 3166-1 alpha-2 country code (projects may operate anywhere). */
+export const countryCodeSchema = z
+  .string()
+  .trim()
+  .toUpperCase()
+  .regex(/^[A-Z]{2}$/);
+/** A project covers 1 to 5 countries; the first one is its home country. */
+export const projectCountryCodesSchema = z
+  .array(countryCodeSchema)
+  .min(1)
+  .max(5)
+  .refine((codes) => new Set(codes).size === codes.length, "Duplicate country");
 export const projectEntityTypeSchema = z.enum([
   "COMPANY",
   "SCHOOL",
@@ -95,7 +127,9 @@ export const projectSchema = tenantEntitySchema.extend({
   slug: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
   logoUrl: z.url().nullable(),
   entityType: projectEntityTypeSchema,
-  countryCode: supportedCountryCodeSchema,
+  countryCode: countryCodeSchema,
+  /** Output language of every AI generation and deliverable; fixed at creation. */
+  language: supportedLanguageSchema,
   standardCode: z.literal("ISO_9001"),
   description: z.string().max(2_000).nullable(),
   status: projectStatusSchema,
@@ -108,7 +142,8 @@ export const createProjectSchema = z.object({
     z.url().nullable().optional(),
   ),
   entityType: projectEntityTypeSchema,
-  countryCode: supportedCountryCodeSchema.default("MA"),
+  countryCodes: projectCountryCodesSchema,
+  language: supportedLanguageSchema.default("fr"),
   activities: z.array(projectActivityInputSchema).min(1).max(30),
   description: z.string().trim().max(2_000).nullable().optional(),
 });
@@ -239,7 +274,11 @@ export const portableProjectProfileSchema = z
     exportedAt: isoDateTimeSchema,
     sourceProject: z.strictObject({
       name: z.string().trim().min(1).max(160),
-      countryCode: supportedCountryCodeSchema,
+      countryCode: countryCodeSchema,
+      /** All countries of the source project (absent in files exported before multi-country). */
+      countryCodes: projectCountryCodesSchema.optional(),
+      /** Language of the source project (absent in files exported before i18n). */
+      language: supportedLanguageSchema.optional(),
       standardCode: z.literal("ISO_9001"),
     }),
     fields: z.array(portableProjectProfileFieldSchema).min(1).max(33),
@@ -272,7 +311,7 @@ export const projectProfileChatRequestSchema = z.object({
   message: z.string().trim().min(1).max(4_000),
   messageId: z.string().trim().min(1).max(128).optional(),
   conversationId: idSchema.optional(),
-  language: z.enum(["fr", "ar"]).default("fr"),
+  language: supportedLanguageSchema.optional(),
   module: aiModuleSchema.default("PROFILE_COMPLETION"),
   attachmentIds: z.array(idSchema).max(10).default([]),
 });
@@ -302,7 +341,7 @@ export type ProjectProfileMessage = z.infer<typeof projectProfileMessageSchema>;
 export const projectProfileConversationSchema = z.object({
   id: idSchema,
   status: z.enum(["ACTIVE", "COMPLETED", "ABANDONED"]),
-  language: z.enum(["fr", "ar"]),
+  language: supportedLanguageSchema,
   currentQuestionKey: profileFieldKeySchema.nullable(),
   messages: z.array(projectProfileMessageSchema),
   createdAt: isoDateTimeSchema,
@@ -343,7 +382,7 @@ export const projectProfileStreamRequestSchema = z.object({
   messages: z.array(projectProfileUiMessageSchema).min(1).max(100),
   trigger: z.enum(["submit-message", "regenerate-message"]).optional(),
   messageId: z.string().max(128).optional(),
-  language: z.enum(["fr", "ar"]).default("fr"),
+  language: supportedLanguageSchema.optional(),
   module: aiModuleSchema.default("PROFILE_COMPLETION"),
   attachmentIds: z.array(idSchema).max(10).default([]),
 });
@@ -416,7 +455,6 @@ export const onboardingStatusSchema = z.object({
       name: z.string().min(1),
       slug: z.string().min(1),
       icon: z.string().nullable(),
-      countryCode: supportedCountryCodeSchema,
     })
     .nullable(),
   activeOrganizationProjectCount: z.number().int().nonnegative(),
@@ -970,6 +1008,8 @@ export const regulatoryAnalysisErrorCodeSchema = z.enum([
   "REGULATORY_WORKER_UNAVAILABLE",
   /** The configured per-run OpenAI budget was exhausted. */
   "REGULATORY_BUDGET_LIMIT",
+  /** The profile declares no operating country: there is nothing to search for. */
+  "PROJECT_COUNTRIES_MISSING",
   /** Anything else. */
   "ANALYSIS_FAILED",
 ]);
@@ -1000,6 +1040,8 @@ export const regulatoryAnalysisErrorMessages: Record<RegulatoryAnalysisErrorCode
     "Le service de veille réglementaire n’est pas disponible. Contactez votre administrateur.",
   REGULATORY_BUDGET_LIMIT:
     "La limite de coût de cette analyse a été atteinte. Les résultats terminés restent consultables.",
+  PROJECT_COUNTRIES_MISSING:
+    "Indiquez au moins un pays d’activité dans le profil du projet, puis relancez l’analyse.",
   ANALYSIS_FAILED: "Vous pouvez relancer l’analyse sans modifier le profil.",
 };
 

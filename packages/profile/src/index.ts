@@ -163,7 +163,7 @@ const profileValueSchemas = {
       }
     }),
   "scope.operatingReach": z.enum(["LOCAL", "NATIONAL", "INTERNATIONAL"]),
-  "scope.operatingCountries": z.array(countryCode).min(1).max(100),
+  "scope.operatingCountries": z.array(countryCode).min(1).max(5),
   "organization.primarySector": z.object({ label: text(200), code: optionalText(50) }),
   "regulatory.implementedFrameworks": z
     .object({
@@ -317,7 +317,7 @@ export type ProfileSection =
 export type ProfileQuestion = {
   key: ProfileFieldKey;
   section: ProfileSection;
-  prompt: { fr: string; ar?: string };
+  prompt: { fr: string; en: string; ar: string };
   required: boolean;
   regulatoryCritical: boolean;
   allowNotApplicable: boolean;
@@ -359,6 +359,48 @@ const arabicPrompts: Record<ProfileFieldKey, string> = {
   "operations.recurrentIssues": "هل لديكم حوادث أو حالات عدم مطابقة متكررة في عملياتكم؟",
 };
 
+const englishPrompts: Record<ProfileFieldKey, string> = {
+  "project.name": "What is the name of your company?",
+  "project.logoUrl": "Would you like to add your company's logo?",
+  "organization.mission": "What is your company's main mission?",
+  "organization.offerings": "What products or services do you offer?",
+  "organization.offeringRanges": "Do you have several product or service ranges?",
+  "market.primaryCustomerSegments": "Who do you mainly sell to?",
+  "organization.employeeCount": "Approximately how many employees does your company have?",
+  "operations.keyProcesses":
+    "What are the key processes or steps needed to deliver your products or services?",
+  "scope.certificationScope": "What scope do you want the ISO 9001 certification to cover?",
+  "operations.externalProviders":
+    "Do you use subcontractors or external providers for some activities?",
+  "organization.afterSalesServices": "Do you offer after-sales or maintenance services?",
+  "scope.operatingReach": "Are your activities local, national or international?",
+  "scope.operatingCountries": "In which countries do you operate?",
+  "organization.primarySector": "What is your main business sector?",
+  "regulatory.implementedFrameworks":
+    "Have you already implemented specific standards or regulations?",
+  "operations.orderToDeliveryFlow":
+    "How does an order flow, from the customer's request to delivery?",
+  "resources.keyResources": "What key resources does your organisation rely on to operate?",
+  "resources.criticalCompetencies": "Which skills are essential to your business?",
+  "operations.majorDifficulties": "Have you already faced major difficulties in your operations?",
+  "context.externalFactors": "Which external factors may affect your business?",
+  "regulatory.knownRequirements":
+    "Are you aware of specific legal or normative requirements you must comply with?",
+  "context.sectorChallenges": "What are the current challenges in your business sector?",
+  "stakeholders.customerNeeds": "Who are your typical customers and what do they mainly look for?",
+  "stakeholders.otherParties": "Who are your other important stakeholders or interested parties?",
+  "stakeholders.expectations": "What do these interested parties expect from your company?",
+  "strategy.annualObjectives": "What are your company's three or four main objectives this year?",
+  "strategy.values": "What values guide your decisions?",
+  "strategy.differentiators": "What sets you apart from your competitors?",
+  "strategy.iso9001Motivation": "Why do you want to commit to an ISO 9001 approach?",
+  "context.marketChallenges": "What are the main challenges you face in your market?",
+  "context.growthOpportunities": "What growth opportunities do you see?",
+  "regulatory.criticalRisks": "Which legal or regulatory risks do you consider critical?",
+  "operations.recurrentIssues":
+    "Do you have recurring incidents or nonconformities in your processes?",
+};
+
 const question = (
   key: ProfileFieldKey,
   section: ProfileSection,
@@ -371,7 +413,7 @@ const question = (
 ): ProfileQuestion => ({
   key,
   section,
-  prompt: { fr, ar: arabicPrompts[key] },
+  prompt: { fr, en: englishPrompts[key], ar: arabicPrompts[key] },
   required: options.required ?? true,
   regulatoryCritical: options.regulatoryCritical ?? false,
   allowNotApplicable: options.allowNotApplicable ?? false,
@@ -642,7 +684,7 @@ export function calculateProfileCompletion(
 
 export function getNextProfileQuestion(
   fields: readonly ProfileFieldState[],
-  language: "fr" | "ar" = "fr",
+  language: "fr" | "en" | "ar" = "fr",
 ) {
   const missing = new Set(calculateProfileCompletion(fields).missingRequiredKeys);
   const next = profileQuestions.find((item) => missing.has(item.key));
@@ -650,7 +692,7 @@ export function getNextProfileQuestion(
   return {
     key: next.key,
     section: next.section,
-    prompt: next.prompt[language] ?? next.prompt.fr,
+    prompt: next.prompt[language],
     required: next.required,
     regulatoryCritical: next.regulatoryCritical,
     allowNotApplicable: next.allowNotApplicable,

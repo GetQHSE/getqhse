@@ -3,22 +3,51 @@
  *
  * The database keeps raw, append-only correction rows and raw evidence
  * `sourceType` values. Nothing here writes or rewrites data: it only turns
- * technical identifiers into professional French labels, and groups the
- * corrections produced by ONE user action into ONE readable audit event.
+ * technical identifiers into professional labels (French by default), and
+ * groups the corrections produced by ONE user action into ONE readable audit
+ * event.
  */
 
-const EVIDENCE_SOURCE_LABELS: Record<string, string> = {
-  internal_context: "Contexte interne",
-  internal_input: "Contexte interne",
-  external_factor: "Analyse externe",
-  external_factors: "Analyse externe",
-  profile_answer: "Profil de l’organisation",
-  profile: "Profil de l’organisation",
-  regulatory_item: "Veille réglementaire",
-  regulatory: "Veille réglementaire",
-  user_input: "Information ajoutée par l’utilisateur",
-  user_evidence: "Information ajoutée par l’utilisateur",
-  document: "Document fourni",
+import type { Language, Localized } from "../../language.js";
+
+const INTERNAL_CONTEXT: Localized = {
+  fr: "Contexte interne",
+  en: "Internal context",
+  ar: "السياق الداخلي",
+};
+const EXTERNAL_ANALYSIS: Localized = {
+  fr: "Analyse externe",
+  en: "External analysis",
+  ar: "التحليل الخارجي",
+};
+const ORGANIZATION_PROFILE: Localized = {
+  fr: "Profil de l’organisation",
+  en: "Organisation profile",
+  ar: "ملف المؤسسة",
+};
+const REGULATORY_WATCH: Localized = {
+  fr: "Veille réglementaire",
+  en: "Regulatory watch",
+  ar: "اليقظة التنظيمية",
+};
+const USER_INFORMATION: Localized = {
+  fr: "Information ajoutée par l’utilisateur",
+  en: "Information added by the user",
+  ar: "معلومة أضافها المستخدم",
+};
+
+const EVIDENCE_SOURCE_LABELS: Record<string, Localized> = {
+  internal_context: INTERNAL_CONTEXT,
+  internal_input: INTERNAL_CONTEXT,
+  external_factor: EXTERNAL_ANALYSIS,
+  external_factors: EXTERNAL_ANALYSIS,
+  profile_answer: ORGANIZATION_PROFILE,
+  profile: ORGANIZATION_PROFILE,
+  regulatory_item: REGULATORY_WATCH,
+  regulatory: REGULATORY_WATCH,
+  user_input: USER_INFORMATION,
+  user_evidence: USER_INFORMATION,
+  document: { fr: "Document fourni", en: "Provided document", ar: "وثيقة مقدَّمة" },
 };
 
 /** The shape groupCorrections/hasAnalysisCorrection need from a correction row. */
@@ -31,9 +60,9 @@ export interface ContextIssueCorrectionLike {
   createdAt: string;
 }
 
-export function evidenceSourceLabel(sourceType: string): string {
+export function evidenceSourceLabel(sourceType: string, language: Language = "fr"): string {
   return (
-    EVIDENCE_SOURCE_LABELS[sourceType] ??
+    EVIDENCE_SOURCE_LABELS[sourceType]?.[language] ??
     sourceType.replace(/[_-]+/g, " ").replace(/^./, (char) => char.toUpperCase())
   );
 }
@@ -52,18 +81,80 @@ export const ANALYSIS_FIELDS = new Set([
   "scores",
 ]);
 
-const FIELD_LABELS: Record<string, string> = {
-  title: "Intitulé modifié",
-  description: "Description modifiée",
-  nature: "Nature de l’enjeu modifiée",
-  origin: "Origine de l’enjeu modifiée",
-  category_key: "Catégorie modifiée",
-  category_label: "Catégorie modifiée",
-  impact_quality: "Impact qualité modifié",
-  impact_customer_satisfaction: "Impact satisfaction client modifié",
-  impact_overall: "Impact global modifié",
-  scores: "Scores d’impact modifiés",
+const CATEGORY_CHANGED: Localized = {
+  fr: "Catégorie modifiée",
+  en: "Category changed",
+  ar: "تم تعديل الفئة",
 };
+
+const FIELD_LABELS: Record<string, Localized> = {
+  title: { fr: "Intitulé modifié", en: "Title changed", ar: "تم تعديل العنوان" },
+  description: { fr: "Description modifiée", en: "Description changed", ar: "تم تعديل الوصف" },
+  nature: {
+    fr: "Nature de l’enjeu modifiée",
+    en: "Issue type changed",
+    ar: "تم تعديل طبيعة الرهان",
+  },
+  origin: {
+    fr: "Origine de l’enjeu modifiée",
+    en: "Issue origin changed",
+    ar: "تم تعديل مصدر الرهان",
+  },
+  category_key: CATEGORY_CHANGED,
+  category_label: CATEGORY_CHANGED,
+  impact_quality: {
+    fr: "Impact qualité modifié",
+    en: "Quality impact changed",
+    ar: "تم تعديل الأثر على الجودة",
+  },
+  impact_customer_satisfaction: {
+    fr: "Impact satisfaction client modifié",
+    en: "Customer satisfaction impact changed",
+    ar: "تم تعديل الأثر على رضا العملاء",
+  },
+  impact_overall: {
+    fr: "Impact global modifié",
+    en: "Overall impact changed",
+    ar: "تم تعديل الأثر الإجمالي",
+  },
+  scores: {
+    fr: "Scores d’impact modifiés",
+    en: "Impact scores changed",
+    ar: "تم تعديل درجات الأثر",
+  },
+};
+
+const EVENT_LABELS = {
+  validated: {
+    fr: "Enjeu validé par la revue humaine",
+    en: "Issue validated by human review",
+    ar: "تم اعتماد الرهان بعد المراجعة البشرية",
+  },
+  not_retained: { fr: "Enjeu non retenu", en: "Issue not retained", ar: "لم يُعتمد الرهان" },
+  modified: {
+    fr: "Analyse modifiée par un expert",
+    en: "Analysis changed by an expert",
+    ar: "عدّل خبير التحليل",
+  },
+  pending: {
+    fr: "Enjeu réintégré à la revue",
+    en: "Issue returned to review",
+    ar: "أُعيد الرهان إلى المراجعة",
+  },
+  marked_priority: {
+    fr: "Enjeu marqué prioritaire",
+    en: "Issue marked as priority",
+    ar: "تم تحديد الرهان كأولوية",
+  },
+  priority_removed: { fr: "Priorité retirée", en: "Priority removed", ar: "أُزيلت الأولوية" },
+  detail_marked: { fr: "Marqué prioritaire", en: "Marked as priority", ar: "حُدِّد كأولوية" },
+  detail_removed: {
+    fr: "Retiré des priorités",
+    en: "Removed from priorities",
+    ar: "أُزيل من الأولويات",
+  },
+  decision: { fr: "Décision enregistrée", en: "Decision recorded", ar: "تم تسجيل القرار" },
+} satisfies Record<string, Localized>;
 
 export interface AuditEvent {
   id: string;
@@ -73,16 +164,19 @@ export interface AuditEvent {
   details: string[];
 }
 
-function reviewStatusLabel(value: unknown): string | null {
-  if (value === "validated") return "Enjeu validé par la revue humaine";
-  if (value === "not_retained") return "Enjeu non retenu";
-  if (value === "modified") return "Analyse modifiée par un expert";
-  if (value === "pending") return "Enjeu réintégré à la revue";
+function reviewStatusLabel(value: unknown): Localized | null {
+  if (value === "validated") return EVENT_LABELS.validated;
+  if (value === "not_retained") return EVENT_LABELS.not_retained;
+  if (value === "modified") return EVENT_LABELS.modified;
+  if (value === "pending") return EVENT_LABELS.pending;
   return null;
 }
 
 /** Groups raw corrections of one logical user action into one audit event. */
-export function groupCorrections(corrections: ContextIssueCorrectionLike[]): AuditEvent[] {
+export function groupCorrections(
+  corrections: ContextIssueCorrectionLike[],
+  language: Language = "fr",
+): AuditEvent[] {
   const buckets = new Map<string, ContextIssueCorrectionLike[]>();
 
   for (const correction of corrections) {
@@ -100,28 +194,35 @@ export function groupCorrections(corrections: ContextIssueCorrectionLike[]): Aud
     const priority = bucket.find((item) => item.fieldName === "user_selected_priority");
     const analysis = bucket.filter((item) => ANALYSIS_FIELDS.has(item.fieldName));
 
-    let label: string | null = status ? reviewStatusLabel(status.newValue) : null;
+    let label: Localized | null = status ? reviewStatusLabel(status.newValue) : null;
     if (!label && analysis.length > 0) {
-      label = FIELD_LABELS[analysis[0]!.fieldName] ?? "Analyse modifiée par un expert";
+      label = FIELD_LABELS[analysis[0]!.fieldName] ?? EVENT_LABELS.modified;
     }
-    if (!label && priority) {
-      label = priority.newValue === true ? "Enjeu marqué prioritaire" : "Priorité retirée";
-    }
+    const priorityLabel = priority
+      ? priority.newValue === true
+        ? EVENT_LABELS.marked_priority
+        : EVENT_LABELS.priority_removed
+      : null;
+    if (!label && priorityLabel) label = priorityLabel;
 
     const details: string[] = [];
     for (const item of analysis) {
       const detail = FIELD_LABELS[item.fieldName];
-      if (detail && detail !== label) details.push(detail);
+      if (detail && detail !== label) details.push(detail[language]);
     }
-    if (priority && label !== "Enjeu marqué prioritaire" && label !== "Priorité retirée") {
-      details.push(priority.newValue === true ? "Marqué prioritaire" : "Retiré des priorités");
+    if (priority && label !== priorityLabel) {
+      details.push(
+        (priority.newValue === true ? EVENT_LABELS.detail_marked : EVENT_LABELS.detail_removed)[
+          language
+        ],
+      );
     }
 
     const first = bucket[0]!;
     events.push({
       id: first.id,
       createdAt: first.createdAt,
-      label: label ?? "Décision enregistrée",
+      label: (label ?? EVENT_LABELS.decision)[language],
       reason: first.correctionReason ?? null,
       details,
     });

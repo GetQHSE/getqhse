@@ -12,15 +12,11 @@ import {
   UserRoundXIcon,
 } from "lucide-react";
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import { authClient, useAuth } from "../../app/auth.js";
 import { clientApi } from "../../app/client-api.js";
-
-const roleLabels: Record<OrganizationRoleContract, string> = {
-  owner: "Propriétaire",
-  admin: "Administrateur",
-  member: "Membre",
-};
+import { useFormat } from "../../app/format.js";
 
 function allowedRoles(currentRole: OrganizationRoleContract): OrganizationRoleContract[] {
   return currentRole === "owner" ? ["owner", "admin", "member"] : ["admin", "member"];
@@ -29,6 +25,9 @@ function allowedRoles(currentRole: OrganizationRoleContract): OrganizationRoleCo
 export function TeamPage() {
   const { activeOrganization, user } = useAuth();
   const queryClient = useQueryClient();
+  const { t } = useTranslation("workspace");
+  const format = useFormat();
+  const roleLabel = (value: OrganizationRoleContract) => t(`roles.${value}`, { ns: "common" });
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<OrganizationRoleContract>("member");
   const [message, setMessage] = useState<string | null>(null);
@@ -51,7 +50,7 @@ export function TeamPage() {
     mutationFn: async (action: () => Promise<unknown>) => action(),
     onSuccess: async () => refresh(),
     onError: (reason) =>
-      setError(reason instanceof Error ? reason.message : "Opération impossible"),
+      setError(reason instanceof Error ? reason.message : t("team.operationFailed")),
   });
 
   async function invite(event: React.FormEvent) {
@@ -65,12 +64,12 @@ export function TeamPage() {
       organizationId: activeOrganization.id,
     });
     if (result.error) {
-      setError(result.error.message ?? "Invitation impossible");
+      setError(result.error.message ?? t("team.inviteFailed"));
       return;
     }
     setEmail("");
     setRole("member");
-    setMessage("Invitation créée. Son état d’envoi Brevo apparaît ci-dessous.");
+    setMessage(t("team.invited"));
     await refresh();
   }
 
@@ -87,7 +86,7 @@ export function TeamPage() {
           <p className="font-medium">
             {member.name}{" "}
             {member.email === user?.email ? (
-              <span className="text-xs text-slate-500">(vous)</span>
+              <span className="text-xs text-slate-500">{t("team.you")}</span>
             ) : null}
           </p>
           <p className="text-sm text-slate-500">{member.email}</p>
@@ -95,11 +94,11 @@ export function TeamPage() {
         <span
           className={`w-fit rounded-full px-2.5 py-1 text-xs ${member.status === "active" ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-800"}`}
         >
-          {member.status === "active" ? "Actif" : "Suspendu"}
+          {member.status === "active" ? t("team.active") : t("team.suspended")}
         </span>
         {manageable ? (
           <select
-            aria-label={`Rôle de ${member.name}`}
+            aria-label={t("team.roleOf", { name: member.name })}
             className="h-9 rounded-xl border border-slate-200 bg-white px-3 text-sm"
             value={member.role}
             onChange={(event) => {
@@ -107,7 +106,7 @@ export function TeamPage() {
               if (
                 member.role === "owner" &&
                 nextRole !== "owner" &&
-                !window.confirm(`Rétrograder ${member.name} ?`)
+                !window.confirm(t("team.confirmDemote", { name: member.name }))
               )
                 return;
               operation.mutate(async () => {
@@ -122,12 +121,12 @@ export function TeamPage() {
           >
             {allowedRoles(currentRole).map((value) => (
               <option key={value} value={value}>
-                {roleLabels[value]}
+                {roleLabel(value)}
               </option>
             ))}
           </select>
         ) : (
-          <span className="text-sm">{roleLabels[member.role]}</span>
+          <span className="text-sm">{roleLabel(member.role)}</span>
         )}
         {manageable ? (
           <div className="flex gap-2">
@@ -137,7 +136,7 @@ export function TeamPage() {
               onClick={() => {
                 if (
                   member.status === "active" &&
-                  !window.confirm(`Suspendre immédiatement l’accès de ${member.name} ?`)
+                  !window.confirm(t("team.confirmSuspend", { name: member.name }))
                 )
                   return;
                 operation.mutate(() =>
@@ -148,14 +147,13 @@ export function TeamPage() {
               }}
             >
               {member.status === "active" ? <UserRoundXIcon /> : <UserRoundCheckIcon />}
-              {member.status === "active" ? "Suspendre" : "Réactiver"}
+              {member.status === "active" ? t("team.suspend") : t("team.reactivate")}
             </Button>
             <Button
               size="sm"
               variant="outline"
               onClick={() => {
-                if (!window.confirm(`Retirer définitivement ${member.name} de l’organisation ?`))
-                  return;
+                if (!window.confirm(t("team.confirmRemove", { name: member.name }))) return;
                 operation.mutate(async () => {
                   const result = await authClient.organization.removeMember({
                     memberIdOrEmail: member.id,
@@ -165,7 +163,7 @@ export function TeamPage() {
                 });
               }}
             >
-              <Trash2Icon /> Retirer
+              <Trash2Icon /> {t("team.remove")}
             </Button>
           </div>
         ) : null}
@@ -176,11 +174,9 @@ export function TeamPage() {
   return (
     <section className="mx-auto max-w-6xl space-y-6">
       <header>
-        <p className="text-sm font-medium text-violet-700">Organisation</p>
-        <h1 className="mt-1 text-3xl font-semibold">Équipe</h1>
-        <p className="mt-2 text-sm text-slate-600">
-          Invitez des collaborateurs et gérez leurs accès à cet espace.
-        </p>
+        <p className="text-sm font-medium text-violet-700">{t("team.eyebrow")}</p>
+        <h1 className="mt-1 text-3xl font-semibold">{t("team.title")}</h1>
+        <p className="mt-2 text-sm text-slate-600">{t("team.subtitle")}</p>
       </header>
       {error ? (
         <p
@@ -199,7 +195,7 @@ export function TeamPage() {
       {canManage ? (
         <Card>
           <CardHeader>
-            <CardTitle>Inviter un membre</CardTitle>
+            <CardTitle>{t("team.inviteMember")}</CardTitle>
           </CardHeader>
           <CardContent>
             <form
@@ -207,27 +203,27 @@ export function TeamPage() {
               onSubmit={(event) => void invite(event)}
             >
               <Input
-                aria-label="Adresse e-mail à inviter"
+                aria-label={t("team.inviteEmail")}
                 type="email"
                 required
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
-                placeholder="collaborateur@entreprise.com"
+                placeholder={t("team.invitePlaceholder")}
               />
               <select
-                aria-label="Rôle de l’invitation"
+                aria-label={t("team.inviteRole")}
                 className="h-9 rounded-xl border border-slate-200 bg-white px-3 text-sm"
                 value={role}
                 onChange={(event) => setRole(event.target.value as OrganizationRoleContract)}
               >
                 {allowedRoles(currentRole).map((value) => (
                   <option key={value} value={value}>
-                    {roleLabels[value]}
+                    {roleLabel(value)}
                   </option>
                 ))}
               </select>
               <Button type="submit">
-                <MailPlusIcon /> Inviter
+                <MailPlusIcon /> {t("team.invite")}
               </Button>
             </form>
           </CardContent>
@@ -237,12 +233,15 @@ export function TeamPage() {
       <Card>
         <CardHeader>
           <CardTitle>
-            Membres actifs (
-            {team.data?.members.filter((member) => member.status === "active").length ?? 0})
+            {t("team.activeMembers", {
+              count: team.data?.members.filter((member) => member.status === "active").length ?? 0,
+            })}
           </CardTitle>
         </CardHeader>
         <CardContent className="divide-y p-0">
-          {team.isLoading ? <p className="p-5 text-sm text-slate-500">Chargement…</p> : null}
+          {team.isLoading ? (
+            <p className="p-5 text-sm text-slate-500">{t("loading", { ns: "common" })}</p>
+          ) : null}
           {team.data?.members.filter((member) => member.status === "active").map(memberRow)}
         </CardContent>
       </Card>
@@ -250,13 +249,15 @@ export function TeamPage() {
       <Card>
         <CardHeader>
           <CardTitle>
-            Membres suspendus (
-            {team.data?.members.filter((member) => member.status === "suspended").length ?? 0})
+            {t("team.suspendedMembers", {
+              count:
+                team.data?.members.filter((member) => member.status === "suspended").length ?? 0,
+            })}
           </CardTitle>
         </CardHeader>
         <CardContent className="divide-y p-0">
           {team.data?.members.filter((member) => member.status === "suspended").length === 0 ? (
-            <p className="p-5 text-sm text-slate-500">Aucun membre suspendu.</p>
+            <p className="p-5 text-sm text-slate-500">{t("team.noSuspended")}</p>
           ) : null}
           {team.data?.members.filter((member) => member.status === "suspended").map(memberRow)}
         </CardContent>
@@ -264,11 +265,13 @@ export function TeamPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Invitations en attente ({team.data?.invitations.length ?? 0})</CardTitle>
+          <CardTitle>
+            {t("team.pendingInvitations", { count: team.data?.invitations.length ?? 0 })}
+          </CardTitle>
         </CardHeader>
         <CardContent className="divide-y p-0">
           {team.data?.invitations.length === 0 ? (
-            <p className="p-5 text-sm text-slate-500">Aucune invitation en attente.</p>
+            <p className="p-5 text-sm text-slate-500">{t("team.noInvitations")}</p>
           ) : null}
           {team.data?.invitations.map((invitation) => (
             <div
@@ -278,15 +281,19 @@ export function TeamPage() {
               <div className="min-w-0 flex-1">
                 <p className="font-medium">{invitation.email}</p>
                 <p className="text-xs text-slate-500">
-                  {roleLabels[invitation.role]} · expire le{" "}
-                  {new Date(invitation.expiresAt).toLocaleString()}
+                  {t("team.expiresOn", {
+                    role: roleLabel(invitation.role),
+                    date: format.dateTime(invitation.expiresAt),
+                  })}
                 </p>
                 {invitation.deliveryError ? (
                   <p className="mt-1 text-xs text-red-700">{invitation.deliveryError}</p>
                 ) : null}
               </div>
               <span className="w-fit rounded-full bg-slate-100 px-2.5 py-1 text-xs">
-                {invitation.deliveryStatus?.toLowerCase() ?? "non configuré"}
+                {invitation.deliveryStatus
+                  ? t(`team.delivery.${invitation.deliveryStatus}`)
+                  : t("team.notConfigured")}
               </span>
               {canManage ? (
                 <>
@@ -305,13 +312,14 @@ export function TeamPage() {
                       })
                     }
                   >
-                    <RefreshCwIcon /> Renvoyer
+                    <RefreshCwIcon /> {t("team.resend")}
                   </Button>
                   <Button
                     size="sm"
                     variant="outline"
                     onClick={() => {
-                      if (!window.confirm(`Annuler l’invitation de ${invitation.email} ?`)) return;
+                      if (!window.confirm(t("team.confirmCancel", { email: invitation.email })))
+                        return;
                       operation.mutate(async () => {
                         const result = await authClient.organization.cancelInvitation({
                           invitationId: invitation.id,
@@ -320,7 +328,7 @@ export function TeamPage() {
                       });
                     }}
                   >
-                    <ShieldAlertIcon /> Annuler
+                    <ShieldAlertIcon /> {t("team.cancel")}
                   </Button>
                 </>
               ) : null}

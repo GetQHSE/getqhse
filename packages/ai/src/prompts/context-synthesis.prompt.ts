@@ -1,5 +1,6 @@
 import type { PromptDefinition } from "../prompt-definition.js";
 import { CONTEXT_ISO_GUIDANCE } from "./context-external-research.prompt.js";
+import { inLanguage, outputLanguageRule, type OutputLanguage } from "./language.js";
 
 /**
  * Step 3 of "Analyse des enjeux" (ISO 9001 §4.1) — one strict-JSON call, no
@@ -12,11 +13,12 @@ export type ContextSynthesisPromptInput = {
   digest: string;
   externalMaterial: string;
   method: "SWOT" | "PESTEL";
+  language: OutputLanguage;
 };
 
 export const contextSynthesisPrompt: PromptDefinition<ContextSynthesisPromptInput> = {
   key: "context.synthesis",
-  version: 2,
+  version: 3,
   build: (input) => ({
     system: `Tu es le moteur de synthèse des enjeux de GetQhse AI, aligné sur le chapitre 4.1 d'ISO 9001.
 À partir d'éléments DÉJÀ ÉTABLIS par la plateforme, tu identifies les enjeux internes et externes de l'organisation.
@@ -30,7 +32,8 @@ Règles absolues :
 - confidence est une estimation interne entre 0 et 1 : elle ne remplace jamais la validation humaine.
 - Un enjeu doit être un véritable enjeu de l'organisation, pas une reformulation de la question posée ni une généralité de management.
 - Ne produis pas de plan d'action détaillé.
-- Rédige tous les champs textuels en français.
+- Rédige tous les champs textuels ${inLanguage(input.language)}.
+${outputLanguageRule(input.language)}
 Réponds uniquement en JSON valide.
 
 ${CONTEXT_ISO_GUIDANCE}`,

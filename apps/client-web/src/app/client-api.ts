@@ -14,6 +14,8 @@ import {
   invitationPreviewSchema,
   organizationTeamSchema,
   updateMembershipStatusSchema,
+  updateUserPreferencesSchema,
+  userPreferencesSchema,
   type CreateFileUpload,
   type FileTranscription,
   type FileUploadResponse,
@@ -27,6 +29,7 @@ import {
   type InvitationPreview,
   type OrganizationTeam,
   type UpdateMembershipStatus,
+  type UserPreferences,
 } from "@qhse/contracts";
 import {
   apiRequest,
@@ -49,6 +52,13 @@ async function request<T>(
 }
 
 export const clientApi = {
+  preferences: (): Promise<UserPreferences> =>
+    request("/api/auth-context/preferences", (value) => userPreferencesSchema.parse(value)),
+  updatePreferences: (input: UserPreferences): Promise<UserPreferences> =>
+    request("/api/auth-context/preferences", (value) => userPreferencesSchema.parse(value), {
+      method: "PATCH",
+      body: JSON.stringify(updateUserPreferencesSchema.parse(input)),
+    }),
   invitationPreview: (id: string): Promise<InvitationPreview> =>
     request(`/v1/organization-invitations/${encodeURIComponent(id)}/preview`, (value) =>
       invitationPreviewSchema.parse(value),
@@ -135,6 +145,10 @@ export const clientApi = {
     idOrSlug: string,
     input: Parameters<QhseApiClient["publishRegulatoryBaseline"]>[1],
   ) => qhseApi.publishRegulatoryBaseline(idOrSlug, input),
+  publishRegulatoryBaselineAutomatically: (
+    idOrSlug: string,
+    input: Parameters<QhseApiClient["publishRegulatoryBaselineAutomatically"]>[1],
+  ) => qhseApi.publishRegulatoryBaselineAutomatically(idOrSlug, input),
   startRegulatoryEvaluation: (idOrSlug: string) => qhseApi.startRegulatoryEvaluation(idOrSlug),
   updateRegulatoryEvaluation: (
     idOrSlug: string,

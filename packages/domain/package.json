@@ -15,6 +15,14 @@
     "./smq/context/labels": {
       "types": "./dist/smq/context/labels.d.ts",
       "default": "./dist/smq/context/labels.js"
+    },
+    "./countries": {
+      "types": "./dist/countries.d.ts",
+      "default": "./dist/countries.js"
+    },
+    "./language": {
+      "types": "./dist/language.d.ts",
+      "default": "./dist/language.js"
     }
   },
   "scripts": {

@@ -660,13 +660,13 @@ describe("applicability auto-decision", () => {
     else process.env["REGULATORY_AUTO_APPLICABLE"] = ORIGINAL;
   });
 
-  it("keeps human review on unless the flag is explicitly true", () => {
+  it("enables automatic applicability unless manual review is explicitly requested", () => {
     delete process.env["REGULATORY_AUTO_APPLICABLE"];
-    expect(regulatoryAutoApplicable()).toBe(false);
+    expect(regulatoryAutoApplicable()).toBe(true);
     process.env["REGULATORY_AUTO_APPLICABLE"] = "false";
     expect(regulatoryAutoApplicable()).toBe(false);
     process.env["REGULATORY_AUTO_APPLICABLE"] = "1";
-    expect(regulatoryAutoApplicable()).toBe(false);
+    expect(regulatoryAutoApplicable()).toBe(true);
     process.env["REGULATORY_AUTO_APPLICABLE"] = "true";
     expect(regulatoryAutoApplicable()).toBe(true);
   });

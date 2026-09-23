@@ -1,3 +1,4 @@
+import { countryName } from "@qhse/domain/countries";
 import {
   portableProjectProfileSchema,
   type ProjectProfile,
@@ -55,9 +56,12 @@ import {
   UploadIcon,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import type { TFunction } from "i18next";
+import { useTranslation } from "react-i18next";
 import { Link, useParams } from "react-router-dom";
 
 import { clientApi } from "../../app/client-api.js";
+import { currentLanguage } from "../../app/i18n.js";
 import {
   cleanEditorValue,
   initialEditorValue,
@@ -65,61 +69,79 @@ import {
   profileEditorSchemas,
 } from "./profile-field-editor.js";
 
-const sections: Array<{ key: ProfileSection; label: string; shortLabel: string }> = [
-  { key: "IDENTITY_ACTIVITY", label: "Identité et activité", shortLabel: "Identité" },
-  { key: "SCOPE_GEOGRAPHY", label: "Périmètre et géographie", shortLabel: "Périmètre" },
-  { key: "OPERATIONS_RESOURCES", label: "Opérations et ressources", shortLabel: "Opérations" },
-  { key: "EXTERNAL_CONTEXT", label: "Contexte externe", shortLabel: "Contexte" },
-  { key: "INTERESTED_PARTIES", label: "Parties intéressées", shortLabel: "Parties" },
-  { key: "STRATEGY_OBJECTIVES", label: "Stratégie et objectifs", shortLabel: "Stratégie" },
+const sections: ProfileSection[] = [
+  "IDENTITY_ACTIVITY",
+  "SCOPE_GEOGRAPHY",
+  "OPERATIONS_RESOURCES",
+  "EXTERNAL_CONTEXT",
+  "INTERESTED_PARTIES",
+  "STRATEGY_OBJECTIVES",
 ];
 
-const sourceLabels: Record<string, string> = {
-  ONBOARDING: "Onboarding",
-  USER_CHAT: "Assistant",
-  USER_EDIT: "Modification manuelle",
-  AI_INFERRED: "Suggestion IA",
-  IMPORTED: "Import",
-  SYSTEM: "Système",
-};
+const sources = [
+  "ONBOARDING",
+  "USER_CHAT",
+  "USER_EDIT",
+  "AI_INFERRED",
+  "IMPORTED",
+  "SYSTEM",
+] as const;
+
+function sourceLabel(source: string, t: TFunction<"profile">): string {
+  return (sources as readonly string[]).includes(source)
+    ? t(`sources.${source as (typeof sources)[number]}`)
+    : source;
+}
 
 function answered(field: ProjectProfileField | undefined): boolean {
   return Boolean(field && ["ANSWERED", "CONFIRMED", "NOT_APPLICABLE"].includes(field.status));
 }
 
-function statusInfo(field: ProjectProfileField | undefined) {
+function statusInfo(field: ProjectProfileField | undefined, t: TFunction<"profile">) {
   if (!field || field.status === "UNANSWERED") {
-    return { label: "À renseigner", className: "border-amber-200 bg-amber-50 text-amber-800" };
+    return {
+      label: t("status.unanswered"),
+      className: "border-amber-200 bg-amber-50 text-amber-800",
+    };
   }
   if (field.status === "NEEDS_CLARIFICATION") {
-    return { label: "À préciser", className: "border-orange-200 bg-orange-50 text-orange-800" };
+    return {
+      label: t("status.needsClarification"),
+      className: "border-orange-200 bg-orange-50 text-orange-800",
+    };
   }
   if (field.status === "NOT_APPLICABLE") {
-    return { label: "Non applicable", className: "border-slate-200 bg-slate-50 text-slate-600" };
+    return {
+      label: t("status.notApplicable"),
+      className: "border-slate-200 bg-slate-50 text-slate-600",
+    };
   }
   if (field.status === "CONFIRMED") {
-    return { label: "Confirmé", className: "border-emerald-200 bg-emerald-50 text-emerald-700" };
+    return {
+      label: t("status.confirmed"),
+      className: "border-emerald-200 bg-emerald-50 text-emerald-700",
+    };
   }
-  return { label: "Enregistré", className: "border-blue-200 bg-blue-50 text-blue-700" };
+  return { label: t("status.answered"), className: "border-blue-200 bg-blue-50 text-blue-700" };
 }
 
-function displayValue(value: unknown): string[] {
+function displayValue(value: unknown, t: TFunction<"profile">): string[] {
   if (value == null) return [];
   if (typeof value === "string" || typeof value === "number") return [String(value)];
-  if (typeof value === "boolean") return [value ? "Oui" : "Non"];
+  if (typeof value === "boolean") return [value ? t("editorUi.yes") : t("editorUi.no")];
   if (Array.isArray(value)) {
     return value
-      .flatMap((item) => displayValue(item))
+      .flatMap((item) => displayValue(item, t))
       .filter(Boolean)
       .slice(0, 5);
   }
   if (typeof value === "object") {
     const record = value as Record<string, unknown>;
     const preferred = ["name", "label", "description", "party", "customerType", "reference"];
-    const selected = preferred.flatMap((key) => displayValue(record[key])).filter(Boolean);
+    const selected = preferred.flatMap((key) => displayValue(record[key], t)).filter(Boolean);
     if (selected.length) return selected.slice(0, 5);
     return Object.values(record)
-      .flatMap((item) => displayValue(item))
+      .flatMap((item) => displayValue(item, t))
       .filter(Boolean)
       .slice(0, 5);
   }
@@ -127,19 +149,22 @@ function displayValue(value: unknown): string[] {
 }
 
 function ProfileValue({ field }: { field: ProjectProfileField | undefined }) {
+  const { t } = useTranslation("profile");
   if (!field || field.status === "UNANSWERED") {
-    return <p className="text-sm italic text-slate-400">Aucune réponse enregistrée.</p>;
+    return <p className="text-sm italic text-slate-400">{t("value.none")}</p>;
   }
   if (field.status === "NOT_APPLICABLE") {
     return (
       <p className="text-sm text-slate-500">
-        {field.notApplicableReason ?? "Cette information ne s’applique pas."}
+        {field.notApplicableReason ?? t("value.notApplicable")}
       </p>
     );
   }
-  const values = displayValue(field.value);
-  if (!values.length)
-    return <p className="text-sm text-slate-500">Information structurée enregistrée.</p>;
+  const values =
+    field.key === "scope.operatingCountries" && Array.isArray(field.value)
+      ? field.value.map((code) => countryName(String(code), currentLanguage()))
+      : displayValue(field.value, t);
+  if (!values.length) return <p className="text-sm text-slate-500">{t("value.structured")}</p>;
   if (values.length === 1)
     return <p className="line-clamp-3 text-sm leading-6 text-slate-700">{values[0]}</p>;
   return (
@@ -172,6 +197,7 @@ function EditProfileFieldDialog({
   onOpenChange: (open: boolean) => void;
 }) {
   const queryClient = useQueryClient();
+  const { t } = useTranslation("profile");
   const schema = question ? profileEditorSchemas[question.key] : null;
   const [value, setValue] = useState<unknown>();
   const [notApplicable, setNotApplicable] = useState(false);
@@ -194,7 +220,7 @@ function EditProfileFieldDialog({
       | { key: ProfileFieldKey; status: "ANSWERED"; value: unknown };
     if (notApplicable) {
       if (notApplicableReason.trim().length < 3) {
-        setError("Indiquez brièvement pourquoi cette information ne s’applique pas.");
+        setError(t("edit.reasonRequired"));
         return;
       }
       answer = {
@@ -206,7 +232,7 @@ function EditProfileFieldDialog({
       const cleaned = cleanEditorValue(schema, value);
       const parsed = validateProfileFieldValue(question.key, cleaned);
       if (!parsed.success) {
-        setError(parsed.error.issues[0]?.message ?? "Vérifiez les informations saisies.");
+        setError(parsed.error.issues[0]?.message ?? t("edit.checkInput"));
         return;
       }
       answer = { key: question.key, status: "ANSWERED", value: parsed.data };
@@ -217,7 +243,7 @@ function EditProfileFieldDialog({
       const updated = await clientApi.updateProjectProfile(projectIdOrSlug, {
         revision: profile.profile.revision,
         answers: [answer],
-        changeReason: "Mise à jour depuis la page profil",
+        changeReason: t("page.changeReason"),
       });
       queryClient.setQueryData(["project-profile", projectIdOrSlug], updated);
       await queryClient.invalidateQueries({
@@ -225,11 +251,7 @@ function EditProfileFieldDialog({
       });
       onOpenChange(false);
     } catch (saveError) {
-      setError(
-        saveError instanceof Error
-          ? saveError.message
-          : "La modification n’a pas pu être enregistrée.",
-      );
+      setError(saveError instanceof Error ? saveError.message : t("edit.saveFailed"));
       await queryClient.invalidateQueries({ queryKey: ["project-profile", projectIdOrSlug] });
     } finally {
       setSaving(false);
@@ -239,9 +261,9 @@ function EditProfileFieldDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[min(90vh,820px)] overflow-hidden p-0 sm:max-w-2xl">
-        <DialogHeader className="border-b border-slate-100 px-6 py-5 pr-14">
-          <DialogTitle className="text-lg">Modifier une information</DialogTitle>
-          <DialogDescription>{question?.prompt.fr}</DialogDescription>
+        <DialogHeader className="border-b border-slate-100 px-6 py-5 pe-14">
+          <DialogTitle className="text-lg">{t("edit.title")}</DialogTitle>
+          <DialogDescription>{question?.prompt[currentLanguage()]}</DialogDescription>
         </DialogHeader>
         <ScrollArea className="max-h-[calc(min(90vh,820px)-12rem)]">
           <div className="space-y-5 px-6 py-5">
@@ -249,10 +271,8 @@ function EditProfileFieldDialog({
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                 <div className="flex items-center justify-between gap-4">
                   <div>
-                    <p className="text-sm font-medium">Cette information ne s’applique pas</p>
-                    <p className="mt-1 text-xs text-slate-500">
-                      Utilisez cette option uniquement si elle est réellement hors périmètre.
-                    </p>
+                    <p className="text-sm font-medium">{t("edit.notApplicableTitle")}</p>
+                    <p className="mt-1 text-xs text-slate-500">{t("edit.notApplicableHelp")}</p>
                   </div>
                   <button
                     type="button"
@@ -266,16 +286,16 @@ function EditProfileFieldDialog({
                     <span
                       className={cn(
                         "absolute top-1 size-4 rounded-full bg-white transition",
-                        notApplicable ? "left-6" : "left-1",
+                        notApplicable ? "start-6" : "start-1",
                       )}
                     />
                   </button>
                 </div>
                 {notApplicable && (
                   <textarea
-                    aria-label="Motif de non-applicabilité"
+                    aria-label={t("edit.notApplicableReason")}
                     className="mt-3 min-h-20 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-violet-400 focus:ring-4 focus:ring-violet-100"
-                    placeholder="Expliquez brièvement pourquoi…"
+                    placeholder={t("edit.notApplicablePlaceholder")}
                     value={notApplicableReason}
                     onChange={(event) => setNotApplicableReason(event.target.value)}
                   />
@@ -302,7 +322,7 @@ function EditProfileFieldDialog({
             disabled={saving}
             onClick={() => onOpenChange(false)}
           >
-            Annuler
+            {t("cancel", { ns: "common" })}
           </Button>
           <Button
             type="button"
@@ -311,7 +331,7 @@ function EditProfileFieldDialog({
             onClick={() => void save()}
           >
             {saving && <LoaderCircleIcon className="size-4 animate-spin" />}
-            {saving ? "Enregistrement…" : "Enregistrer"}
+            {saving ? t("saving", { ns: "common" }) : t("save", { ns: "common" })}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -323,6 +343,7 @@ export function ProjectProfilePage() {
   const { projectId } = useParams();
   const projectIdOrSlug = projectId ?? "";
   const queryClient = useQueryClient();
+  const { t } = useTranslation("profile");
   const profileQuery = useQuery({
     queryKey: ["project-profile", projectIdOrSlug],
     enabled: Boolean(projectIdOrSlug),
@@ -353,7 +374,7 @@ export function ProjectProfilePage() {
     return (
       <div className="grid min-h-[28rem] place-items-center">
         <div className="flex items-center gap-3 text-sm text-slate-500">
-          <LoaderCircleIcon className="size-5 animate-spin text-violet-600" /> Chargement du profil…
+          <LoaderCircleIcon className="size-5 animate-spin text-violet-600" /> {t("page.loading")}
         </div>
       </div>
     );
@@ -361,9 +382,9 @@ export function ProjectProfilePage() {
   if (!profile || profileQuery.error) {
     return (
       <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-red-800">
-        <h1 className="font-semibold">Le profil ne peut pas être chargé</h1>
+        <h1 className="font-semibold">{t("page.loadFailed")}</h1>
         <Button className="mt-4" variant="outline" onClick={() => void profileQuery.refetch()}>
-          Réessayer
+          {t("retry", { ns: "common" })}
         </Button>
       </div>
     );
@@ -373,7 +394,7 @@ export function ProjectProfilePage() {
     if (question.section !== selectedSection) return false;
     return !missingOnly || !answered(fieldsByKey.get(question.key));
   });
-  const currentSection = sections.find((section) => section.key === selectedSection)!;
+
   const readyToFinalize =
     profile.completion.completenessPercent === 100 &&
     profile.completion.regulatoryReadiness === 100;
@@ -392,7 +413,7 @@ export function ProjectProfilePage() {
       ]);
       setFinalizeOpen(false);
     } catch (error) {
-      setPageError(error instanceof Error ? error.message : "Le profil ne peut pas être finalisé.");
+      setPageError(error instanceof Error ? error.message : t("page.finalizeFailed"));
     } finally {
       setFinalizing(false);
     }
@@ -414,7 +435,7 @@ export function ProjectProfilePage() {
       anchor.click();
       URL.revokeObjectURL(url);
     } catch (error) {
-      setPageError(error instanceof Error ? error.message : "Le profil ne peut pas être exporté.");
+      setPageError(error instanceof Error ? error.message : t("page.exportFailed"));
     } finally {
       setExporting(false);
     }
@@ -426,7 +447,7 @@ export function ProjectProfilePage() {
     setPageError(undefined);
     setPageSuccess(undefined);
     try {
-      if (file.size > 1_000_000) throw new Error("Le fichier JSON dépasse la limite de 1 Mo.");
+      if (file.size > 1_000_000) throw new Error(t("page.fileTooLarge"));
       const raw: unknown = JSON.parse(await file.text());
       const document = portableProjectProfileSchema.parse(raw);
       const updated = await clientApi.importProjectProfile(projectIdOrSlug, {
@@ -443,14 +464,14 @@ export function ProjectProfilePage() {
         queryClient.invalidateQueries({ queryKey: ["client", "projects"] }),
         queryClient.invalidateQueries({ queryKey: ["projects"] }),
       ]);
-      setPageSuccess("Le profil JSON a été importé et finalisé avec succès.");
+      setPageSuccess(t("page.imported"));
     } catch (error) {
       setPageError(
         error instanceof SyntaxError
-          ? "Le fichier sélectionné n’est pas un JSON valide."
+          ? t("page.invalidJson")
           : error instanceof Error
             ? error.message
-            : "Le profil ne peut pas être importé.",
+            : t("page.importFailed"),
       );
     } finally {
       setImporting(false);
@@ -461,7 +482,7 @@ export function ProjectProfilePage() {
   return (
     <section className="mx-auto w-full max-w-[1380px] space-y-6">
       <header className="relative overflow-hidden rounded-3xl bg-[#0a0e18] p-6 text-white sm:p-8">
-        <div className="absolute -right-20 -top-24 size-80 rounded-full bg-violet-600/25 blur-3xl" />
+        <div className="absolute -end-20 -top-24 size-80 rounded-full bg-violet-600/25 blur-3xl" />
         <div className="relative flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
           <div className="max-w-2xl">
             <div className="flex flex-wrap items-center gap-2">
@@ -476,23 +497,27 @@ export function ProjectProfilePage() {
                     : "bg-violet-400/15 text-violet-200",
                 )}
               >
-                {profile.profile.status === "COMPLETE"
-                  ? "Profil finalisé"
-                  : "Profil en construction"}
+                {profile.profile.status === "COMPLETE" ? t("page.finalized") : t("page.inProgress")}
+              </Badge>
+              <Badge
+                className="border-white/10 bg-white/10 text-slate-200"
+                variant="outline"
+                title={t("projectLanguage.label", { ns: "common" })}
+              >
+                {t("page.language", {
+                  language: t(`projectLanguage.${profile.project.language}`, { ns: "common" }),
+                })}
               </Badge>
             </div>
             <h1 className="mt-4 text-3xl font-semibold tracking-tight">
-              Profil de {profile.project.name}
+              {t("page.title", { project: profile.project.name })}
             </h1>
-            <p className="mt-2 text-sm leading-6 text-slate-400">
-              Vérifiez et complétez les informations utilisées par l’assistant et la veille
-              réglementaire.
-            </p>
+            <p className="mt-2 text-sm leading-6 text-slate-400">{t("page.subtitle")}</p>
           </div>
           <div className="flex flex-wrap gap-2">
             <input
               ref={importInputRef}
-              aria-label="Importer un profil JSON"
+              aria-label={t("page.importJson")}
               accept="application/json,.json"
               className="sr-only"
               type="file"
@@ -508,7 +533,7 @@ export function ProjectProfilePage() {
               onClick={() => importInputRef.current?.click()}
             >
               {importing ? <LoaderCircleIcon className="animate-spin" /> : <UploadIcon />}
-              {importing ? "Import…" : "Importer JSON"}
+              {importing ? t("page.importing") : t("page.import")}
             </Button>
             <Button
               variant="outline"
@@ -517,7 +542,7 @@ export function ProjectProfilePage() {
               onClick={() => void exportJson()}
             >
               {exporting ? <LoaderCircleIcon className="animate-spin" /> : <DownloadIcon />}
-              {exporting ? "Export…" : "Exporter JSON"}
+              {exporting ? t("page.exporting") : t("page.export")}
             </Button>
             <Button
               nativeButton={false}
@@ -525,7 +550,7 @@ export function ProjectProfilePage() {
               className="border-white/15 bg-white/5 text-white hover:bg-white/10 hover:text-white"
               render={<Link to={`/projects/${profile.project.slug}/chat`} />}
             >
-              <BotIcon /> Continuer avec l’assistant
+              <BotIcon /> {t("page.continueAssistant")}
             </Button>
             <AlertDialog open={finalizeOpen} onOpenChange={setFinalizeOpen}>
               <AlertDialogTrigger
@@ -537,23 +562,23 @@ export function ProjectProfilePage() {
                 }
               >
                 <FileCheck2Icon />{" "}
-                {profile.profile.status === "COMPLETE" ? "Profil finalisé" : "Finaliser le profil"}
+                {profile.profile.status === "COMPLETE" ? t("page.finalized") : t("page.finalize")}
               </AlertDialogTrigger>
               <AlertDialogContent>
                 <AlertDialogHeader>
                   <AlertDialogMedia className="bg-emerald-50 text-emerald-700">
                     <ShieldCheckIcon />
                   </AlertDialogMedia>
-                  <AlertDialogTitle>Finaliser cette version ?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    Un instantané immuable du profil sera créé. Toute modification ultérieure
-                    rouvrira le profil pour révision.
-                  </AlertDialogDescription>
+                  <AlertDialogTitle>{t("page.finalizeTitle")}</AlertDialogTitle>
+                  <AlertDialogDescription>{t("page.finalizeBody")}</AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
-                  <AlertDialogCancel disabled={finalizing}>Annuler</AlertDialogCancel>
+                  <AlertDialogCancel disabled={finalizing}>
+                    {t("cancel", { ns: "common" })}
+                  </AlertDialogCancel>
                   <AlertDialogAction disabled={finalizing} onClick={() => void finalize()}>
-                    {finalizing && <LoaderCircleIcon className="animate-spin" />}Confirmer
+                    {finalizing && <LoaderCircleIcon className="animate-spin" />}
+                    {t("confirm", { ns: "common" })}
                   </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
@@ -583,7 +608,7 @@ export function ProjectProfilePage() {
         <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="flex items-start justify-between">
             <div>
-              <p className="text-xs font-medium text-slate-500">Complétude du profil</p>
+              <p className="text-xs font-medium text-slate-500">{t("page.completeness")}</p>
               <p className="mt-2 text-3xl font-semibold tracking-tight">
                 {profile.completion.completenessPercent}%
               </p>
@@ -597,13 +622,16 @@ export function ProjectProfilePage() {
             className="mt-4 [&_[data-slot=progress-indicator]]:bg-violet-600"
           />
           <p className="mt-3 text-xs text-slate-500">
-            {profile.completion.answeredRequired} réponses sur {profile.completion.totalRequired}
+            {t("page.answers", {
+              answered: profile.completion.answeredRequired,
+              total: profile.completion.totalRequired,
+            })}
           </p>
         </article>
         <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="flex items-start justify-between">
             <div>
-              <p className="text-xs font-medium text-slate-500">Préparation réglementaire</p>
+              <p className="text-xs font-medium text-slate-500">{t("page.regulatoryReadiness")}</p>
               <p className="mt-2 text-3xl font-semibold tracking-tight">
                 {profile.completion.regulatoryReadiness}%
               </p>
@@ -617,8 +645,10 @@ export function ProjectProfilePage() {
             className="mt-4 [&_[data-slot=progress-indicator]]:bg-blue-600"
           />
           <p className="mt-3 text-xs text-slate-500">
-            {profile.completion.answeredRegulatory} réponses critiques sur{" "}
-            {profile.completion.totalRegulatory}
+            {t("page.criticalAnswers", {
+              answered: profile.completion.answeredRegulatory,
+              total: profile.completion.totalRegulatory,
+            })}
           </p>
         </article>
         <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:col-span-2 lg:col-span-1">
@@ -627,36 +657,35 @@ export function ProjectProfilePage() {
               <LockKeyholeIcon className="size-5" />
             </span>
             <div>
-              <p className="text-sm font-semibold">Révision {profile.profile.revision}</p>
-              <p className="mt-1 text-xs leading-5 text-slate-500">
-                Chaque modification est historisée. Les informations confirmées manuellement
-                prennent priorité sur les suggestions de l’assistant.
+              <p className="text-sm font-semibold">
+                {t("page.revision", { revision: profile.profile.revision })}
               </p>
+              <p className="mt-1 text-xs leading-5 text-slate-500">{t("page.revisionHelp")}</p>
             </div>
           </div>
         </article>
       </div>
 
       <nav
-        aria-label="Sections du profil"
+        aria-label={t("page.sectionsNav")}
         className="overflow-x-auto rounded-2xl border border-slate-200 bg-white p-2 shadow-sm"
       >
         <div className="flex min-w-max gap-1">
           {sections.map((section) => {
             const questions = profileQuestions.filter(
-              (question) => question.section === section.key && question.required,
+              (question) => question.section === section && question.required,
             );
             const completed = questions.filter((question) =>
               answered(fieldsByKey.get(question.key)),
             ).length;
-            const selected = selectedSection === section.key;
+            const selected = selectedSection === section;
             return (
               <button
                 type="button"
-                key={section.key}
-                onClick={() => setSelectedSection(section.key)}
+                key={section}
+                onClick={() => setSelectedSection(section)}
                 className={cn(
-                  "flex min-w-36 items-center gap-3 rounded-xl px-3 py-2.5 text-left transition",
+                  "flex min-w-36 items-center gap-3 rounded-xl px-3 py-2.5 text-start transition",
                   selected ? "bg-slate-950 text-white" : "text-slate-600 hover:bg-slate-50",
                 )}
               >
@@ -673,7 +702,9 @@ export function ProjectProfilePage() {
                   {completed === questions.length ? <CheckIcon className="size-3.5" /> : completed}
                 </span>
                 <span>
-                  <span className="block text-xs font-semibold">{section.shortLabel}</span>
+                  <span className="block text-xs font-semibold">
+                    {t(`sections.${section}.short`)}
+                  </span>
                   <span
                     className={cn(
                       "mt-0.5 block text-[10px]",
@@ -693,9 +724,9 @@ export function ProjectProfilePage() {
         <div className="flex flex-col gap-4 border-b border-slate-100 px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.13em] text-violet-700">
-              Section
+              {t("page.section")}
             </p>
-            <h2 className="mt-1 text-xl font-semibold">{currentSection.label}</h2>
+            <h2 className="mt-1 text-xl font-semibold">{t(`sections.${selectedSection}.label`)}</h2>
           </div>
           <button
             type="button"
@@ -708,13 +739,13 @@ export function ProjectProfilePage() {
                 : "border-slate-200 text-slate-600 hover:bg-slate-50",
             )}
           >
-            <SearchIcon className="size-3.5" /> Afficher uniquement les informations manquantes
+            <SearchIcon className="size-3.5" /> {t("page.missingOnly")}
           </button>
         </div>
         <div className="divide-y divide-slate-100">
           {currentQuestions.map((question) => {
             const field = fieldsByKey.get(question.key);
-            const status = statusInfo(field);
+            const status = statusInfo(field, t);
             return (
               <article
                 key={question.key}
@@ -741,21 +772,21 @@ export function ProjectProfilePage() {
                     </Badge>
                     {question.regulatoryCritical && (
                       <Badge variant="outline" className="border-blue-200 bg-blue-50 text-blue-700">
-                        <ScaleIcon className="size-3" /> Réglementaire
+                        <ScaleIcon className="size-3" /> {t("page.regulatory")}
                       </Badge>
                     )}
-                    {!question.required && <Badge variant="secondary">Facultatif</Badge>}
+                    {!question.required && <Badge variant="secondary">{t("page.optional")}</Badge>}
                   </div>
                   <h3 className="mt-3 text-sm font-semibold leading-6 text-slate-900">
-                    {question.prompt.fr}
+                    {question.prompt[currentLanguage()]}
                   </h3>
                   <div className="mt-2">
                     <ProfileValue field={field} />
                   </div>
                   {field?.source && (
                     <p className="mt-3 flex items-center gap-1.5 text-[11px] text-slate-400">
-                      <SparklesIcon className="size-3" /> Source :{" "}
-                      {sourceLabels[field.source] ?? field.source}
+                      <SparklesIcon className="size-3" />{" "}
+                      {t("page.source", { source: sourceLabel(field.source, t) })}
                     </p>
                   )}
                 </div>
@@ -766,7 +797,8 @@ export function ProjectProfilePage() {
                     className={cn(!answered(field) && "bg-violet-600 hover:bg-violet-700")}
                     onClick={() => setEditingKey(question.key)}
                   >
-                    <PencilIcon className="size-4" /> {answered(field) ? "Modifier" : "Renseigner"}
+                    <PencilIcon className="size-4" />{" "}
+                    {answered(field) ? t("edit", { ns: "common" }) : t("page.fill")}
                   </Button>
                 </div>
               </article>
@@ -775,10 +807,8 @@ export function ProjectProfilePage() {
           {!currentQuestions.length && (
             <div className="grid place-items-center px-6 py-14 text-center">
               <CheckCircle2Icon className="size-8 text-emerald-500" />
-              <h3 className="mt-3 font-semibold">Cette section est complète</h3>
-              <p className="mt-1 text-sm text-slate-500">
-                Désactivez le filtre pour revoir les informations enregistrées.
-              </p>
+              <h3 className="mt-3 font-semibold">{t("page.sectionComplete")}</h3>
+              <p className="mt-1 text-sm text-slate-500">{t("page.sectionCompleteHelp")}</p>
             </div>
           )}
         </div>
@@ -790,19 +820,15 @@ export function ProjectProfilePage() {
             <SparklesIcon className="size-5" />
           </span>
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-semibold text-violet-950">
-              Besoin d’aide pour compléter les informations restantes ?
-            </p>
-            <p className="mt-1 text-xs leading-5 text-violet-900/70">
-              L’assistant peut vous guider question par question et analyser vos documents.
-            </p>
+            <p className="text-sm font-semibold text-violet-950">{t("page.needHelp")}</p>
+            <p className="mt-1 text-xs leading-5 text-violet-900/70">{t("page.needHelpBody")}</p>
           </div>
           <Button
             nativeButton={false}
             render={<Link to={`/projects/${profile.project.slug}/chat`} />}
             className="bg-violet-600 hover:bg-violet-700"
           >
-            Ouvrir l’assistant <ArrowRightIcon />
+            {t("page.openAssistant")} <ArrowRightIcon className="rtl:rotate-180" />
           </Button>
         </div>
       )}

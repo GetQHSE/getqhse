@@ -1,6 +1,9 @@
 import ExcelJS from "exceljs";
 
 import type { ContextDocument, ContextDocumentIssue } from "./context-document.js";
+import { CONTEXT_EXPORT_LABELS } from "./context-export-labels.js";
+
+type ExportLabels = (typeof CONTEXT_EXPORT_LABELS)[keyof typeof CONTEXT_EXPORT_LABELS];
 
 const border: Partial<ExcelJS.Borders> = {
   top: { style: "thin", color: { argb: "FF000000" } },
@@ -19,33 +22,38 @@ function styleHeader(sheet: ExcelJS.Worksheet, row: number, columns: number): vo
   }
 }
 
-function styleDataRow(sheet: ExcelJS.Worksheet, row: number, columns: number): void {
+function styleDataRow(sheet: ExcelJS.Worksheet, row: number, columns: number, rtl = false): void {
   for (let column = 1; column <= columns; column += 1) {
     const cell = sheet.getCell(row, column);
     cell.border = border;
-    cell.alignment = { vertical: "top", horizontal: "left", wrapText: true };
+    cell.alignment = { vertical: "top", horizontal: rtl ? "right" : "left", wrapText: true };
     cell.font = { name: "Arial", size: 9 };
   }
 }
 
 const ISSUE_COLUMNS = [
-  { header: "Intitulé", key: "title", width: 32 },
-  { header: "Description", key: "description", width: 40 },
-  { header: "Origine", key: "originLabel", width: 14 },
-  { header: "Nature", key: "natureLabel", width: 14 },
-  { header: "Catégorie", key: "categoryLabel", width: 20 },
-  { header: "Statut", key: "statusLabel", width: 18 },
-  { header: "Impact qualité", key: "impactQuality", width: 24 },
-  { header: "Impact satisfaction client", key: "impactCustomer", width: 24 },
-  { header: "Impact global", key: "impactOverall", width: 24 },
-  { header: "Priorité", key: "priorityLabel", width: 12 },
-  { header: "Ajout manuel", key: "addedManually", width: 12 },
-  { header: "Corrigé", key: "corrected", width: 10 },
+  { header: "title", key: "title", width: 32 },
+  { header: "description", key: "description", width: 40 },
+  { header: "origin", key: "originLabel", width: 14 },
+  { header: "nature", key: "natureLabel", width: 14 },
+  { header: "category", key: "categoryLabel", width: 20 },
+  { header: "status", key: "statusLabel", width: 18 },
+  { header: "impactQuality", key: "impactQuality", width: 24 },
+  { header: "impactCustomer", key: "impactCustomer", width: 24 },
+  { header: "impactOverall", key: "impactOverall", width: 24 },
+  { header: "priority", key: "priorityLabel", width: 12 },
+  { header: "manual", key: "addedManually", width: 12 },
+  { header: "corrected", key: "corrected", width: 10 },
 ] as const;
 
-function writeIssueSheet(sheet: ExcelJS.Worksheet, issues: ContextDocumentIssue[]): void {
+function writeIssueSheet(
+  sheet: ExcelJS.Worksheet,
+  issues: ContextDocumentIssue[],
+  labels: ExportLabels,
+  rtl: boolean,
+): void {
   sheet.columns = ISSUE_COLUMNS.map((column) => ({
-    header: column.header,
+    header: labels.columns[column.header],
     key: column.key,
     width: column.width,
   }));
@@ -64,9 +72,9 @@ function writeIssueSheet(sheet: ExcelJS.Worksheet, issues: ContextDocumentIssue[
     row.getCell(8).value = issue.impactCustomer;
     row.getCell(9).value = issue.impactOverall;
     row.getCell(10).value = issue.priorityLabel;
-    row.getCell(11).value = issue.addedManually ? "Oui" : "Non";
-    row.getCell(12).value = issue.corrected ? "Oui" : "Non";
-    styleDataRow(sheet, index + 2, ISSUE_COLUMNS.length);
+    row.getCell(11).value = issue.addedManually ? labels.yes : labels.no;
+    row.getCell(12).value = issue.corrected ? labels.yes : labels.no;
+    styleDataRow(sheet, index + 2, ISSUE_COLUMNS.length, rtl);
   });
 }
 
@@ -80,47 +88,56 @@ export function buildContextRegisterWorkbook(doc: ContextDocument): ExcelJS.Work
   const workbook = new ExcelJS.Workbook();
   workbook.creator = "GetQhse AI";
   workbook.created = new Date();
+  const labels = CONTEXT_EXPORT_LABELS[doc.language];
+  // Arabic registers read right to left.
+  const rtl = doc.language === "ar";
+  const sheetOptions = rtl ? { views: [{ rightToLeft: true }] } : {};
 
-  const summary = workbook.addWorksheet("Synthèse");
+  const summary = workbook.addWorksheet(labels.sheets.summary, sheetOptions);
   summary.columns = [
-    { header: "Champ", key: "field", width: 32 },
-    { header: "Valeur", key: "value", width: 48 },
+    { header: labels.columns.field, key: "field", width: 32 },
+    { header: labels.columns.value, key: "value", width: 48 },
   ];
   styleHeader(summary, 1, 2);
   const summaryRows: [string, string][] = [
-    ["Organisation", doc.organizationName],
-    ["Projet", doc.projectName],
-    ["Référentiel", doc.isoStandard],
-    ["Méthode", doc.methodLabel],
-    ["Résumé de la méthode", doc.methodSummary],
-    ["Date de l'analyse", doc.analysisDate ?? "—"],
-    ["Généré le", doc.generatedOn],
-    ["Enjeux au total", String(doc.summary.issues)],
-    ["Retenus", String(doc.summary.retained)],
-    ["Non retenus", String(doc.summary.notRetained)],
-    ["À examiner", String(doc.summary.pending)],
-    ["Ajoutés manuellement", String(doc.summary.manual)],
-    ["Corrigés par un expert", String(doc.summary.corrected)],
-    ["Facteurs externes documentés", String(doc.summary.factors)],
-    ["Sources externes citées", String(doc.summary.sources)],
+    [labels.summary.organization, doc.organizationName],
+    [labels.summary.project, doc.projectName],
+    [labels.summary.standard, doc.isoStandard],
+    [labels.summary.method, doc.methodLabel],
+    [labels.summary.methodSummary, doc.methodSummary],
+    [labels.summary.analysisDate, doc.analysisDate ?? "—"],
+    [labels.summary.generatedOn, doc.generatedOn],
+    [labels.summary.issues, String(doc.summary.issues)],
+    [labels.summary.retained, String(doc.summary.retained)],
+    [labels.summary.notRetained, String(doc.summary.notRetained)],
+    [labels.summary.pending, String(doc.summary.pending)],
+    [labels.summary.manual, String(doc.summary.manual)],
+    [labels.summary.corrected, String(doc.summary.corrected)],
+    [labels.summary.factors, String(doc.summary.factors)],
+    [labels.summary.sources, String(doc.summary.sources)],
   ];
   summaryRows.forEach(([field, value], index) => {
     const row = summary.getRow(index + 2);
     row.getCell(1).value = field;
     row.getCell(2).value = value;
-    styleDataRow(summary, index + 2, 2);
+    styleDataRow(summary, index + 2, 2, rtl);
   });
 
-  writeIssueSheet(workbook.addWorksheet("Registre des enjeux"), doc.synthesis);
+  writeIssueSheet(
+    workbook.addWorksheet(labels.sheets.register, sheetOptions),
+    doc.synthesis,
+    labels,
+    rtl,
+  );
 
   if (doc.factors.length > 0) {
-    const factorSheet = workbook.addWorksheet("Facteurs externes");
+    const factorSheet = workbook.addWorksheet(labels.sheets.factors, sheetOptions);
     factorSheet.columns = [
-      { header: "Intitulé", key: "title", width: 32 },
-      { header: "Catégorie", key: "categoryLabel", width: 20 },
-      { header: "Description", key: "description", width: 40 },
-      { header: "Lien avec l'organisation", key: "relevance", width: 40 },
-      { header: "Sources", key: "publishers", width: 32 },
+      { header: labels.columns.title, key: "title", width: 32 },
+      { header: labels.columns.category, key: "categoryLabel", width: 20 },
+      { header: labels.columns.description, key: "description", width: 40 },
+      { header: labels.columns.relevance, key: "relevance", width: 40 },
+      { header: labels.columns.sources, key: "publishers", width: 32 },
     ];
     styleHeader(factorSheet, 1, 5);
     doc.factors.forEach((factor, index) => {
@@ -130,7 +147,7 @@ export function buildContextRegisterWorkbook(doc: ContextDocument): ExcelJS.Work
       row.getCell(3).value = factor.description;
       row.getCell(4).value = factor.relevance;
       row.getCell(5).value = factor.publishers.join(", ") || "—";
-      styleDataRow(factorSheet, index + 2, 5);
+      styleDataRow(factorSheet, index + 2, 5, rtl);
     });
   }
 

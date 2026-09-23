@@ -104,4 +104,28 @@ describe("regulatory watch workbook export", () => {
       ]),
     );
   });
+
+  it("writes the register in the project language, right to left for Arabic", async () => {
+    const entry = {
+      documentLabel: "Labour Code",
+      provisionIdentifier: "Article 24",
+      sourceText: "Article 24\nThe employer shall ensure the safety of workers.",
+      requirement: "Ensure the safety of workers",
+      result: "CONFORMING" as const,
+      evidence: [],
+      comment: null,
+      actions: [],
+    };
+    const english = new ExcelJS.Workbook();
+    await english.xlsx.load((await buildRegulatoryWatchWorkbook([entry], "en")) as never);
+    const englishSheet = english.worksheets[0]!;
+    expect(englishSheet.getCell("A1").value).toBe("List of regulatory and normative texts");
+    expect(englishSheet.getCell("C10").value).toBe("Compliant");
+
+    const arabic = new ExcelJS.Workbook();
+    await arabic.xlsx.load((await buildRegulatoryWatchWorkbook([entry], "ar")) as never);
+    const arabicSheet = arabic.worksheets[0]!;
+    expect(arabicSheet.getCell("A1").value).toBe("قائمة النصوص التنظيمية والمعيارية");
+    expect(arabicSheet.views[0]?.rightToLeft).toBe(true);
+  });
 });

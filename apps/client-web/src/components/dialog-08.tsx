@@ -1,11 +1,11 @@
-'use client';
+"use client";
 
-import { UserPlus } from 'lucide-react';
-import { useState } from 'react';
+import { UserPlus } from "lucide-react";
+import { useState } from "react";
 
-import { Avatar, AvatarFallback, AvatarImage } from '@qhse/ui/components/avatar';
-import { Badge } from '@qhse/ui/components/badge';
-import { Button } from '@qhse/ui/components/button';
+import { Avatar, AvatarFallback, AvatarImage } from "@qhse/ui/components/avatar";
+import { Badge } from "@qhse/ui/components/badge";
+import { Button } from "@qhse/ui/components/button";
 import {
   Dialog,
   DialogContent,
@@ -13,37 +13,37 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from '@qhse/ui/components/dialog';
-import { Input } from '@qhse/ui/components/input';
+} from "@qhse/ui/components/dialog";
+import { Input } from "@qhse/ui/components/input";
 
 const members = [
   {
-    name: 'Ephraim Duncan',
-    email: 'ephraim@documenso.com',
-    avatarUrl: 'https://blocks.so/avatar-01.png',
-    initials: 'ED',
-    status: 'member',
+    name: "Ephraim Duncan",
+    email: "ephraim@documenso.com",
+    avatarUrl: "https://blocks.so/avatar-01.png",
+    initials: "ED",
+    status: "member",
   },
   {
-    name: 'Lucas Smith',
-    email: 'lucas@documenso.com',
-    avatarUrl: 'https://blocks.so/avatar-03.png',
-    initials: 'LS',
-    status: 'member',
+    name: "Lucas Smith",
+    email: "lucas@documenso.com",
+    avatarUrl: "https://blocks.so/avatar-03.png",
+    initials: "LS",
+    status: "member",
   },
   {
-    name: 'Timur Ercan',
-    email: 'timur@documenso.com',
-    avatarUrl: 'https://blocks.so/avatar-02.jpg',
-    initials: 'TE',
-    status: 'member',
+    name: "Timur Ercan",
+    email: "timur@documenso.com",
+    avatarUrl: "https://blocks.so/avatar-02.jpg",
+    initials: "TE",
+    status: "member",
   },
   {
-    name: 'Catalin Pit',
-    email: 'catalin@documenso.com',
-    avatarUrl: 'https://blocks.so/avatar-04.jpg',
-    initials: 'CP',
-    status: 'member',
+    name: "Catalin Pit",
+    email: "catalin@documenso.com",
+    avatarUrl: "https://blocks.so/avatar-04.jpg",
+    initials: "CP",
+    status: "member",
   },
 ];
 
@@ -61,8 +61,8 @@ export default function Dialog07() {
             Invite members
           </DialogTitle>
           <DialogDescription className="text-pretty text-muted-foreground text-sm leading-6">
-            Add new team members to your workspace. Please consider your
-            organization&apos;s policies when adding external people.
+            Add new team members to your workspace. Please consider your organization&apos;s
+            policies when adding external people.
           </DialogDescription>
         </DialogHeader>
         <form>
@@ -86,23 +86,15 @@ export default function Dialog07() {
         </h4>
         <ul className="divide-y">
           {members.map((member) => (
-            <li
-              className="flex items-center justify-between py-2.5"
-              key={member.name}
-            >
+            <li className="flex items-center justify-between py-2.5" key={member.name}>
               <div className="flex items-center space-x-3">
                 <Avatar className="h-9 w-9">
                   <AvatarImage alt={member.name} src={member.avatarUrl} />
                   <AvatarFallback>{member.initials}</AvatarFallback>
                 </Avatar>
-                <span className="font-medium text-foreground">
-                  {member.name}
-                </span>
+                <span className="font-medium text-foreground">{member.name}</span>
               </div>
-              <Badge
-                className="bg-background font-medium text-xs"
-                variant="outline"
-              >
+              <Badge className="bg-background font-medium text-xs" variant="outline">
                 {member.status}
               </Badge>
             </li>

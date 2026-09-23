@@ -18,6 +18,7 @@ import type {
   SaveContextInternalInputs,
   UpsertContextInternalInput,
 } from "@qhse/contracts";
+import { toSupportedLanguage } from "@qhse/contracts";
 import { contextActivitySummary, contextScopeCountries } from "@qhse/ai";
 import { createPrismaClient, Prisma, type DatabaseClient } from "@qhse/database";
 
@@ -261,6 +262,7 @@ export class ContextsService {
         savedAnswer: existing?.answerText.trim() || null,
         history: input.history,
         message: input.message,
+        language: toSupportedLanguage(project.language),
       });
     } catch {
       throw new BadRequestException(
@@ -673,6 +675,7 @@ export class ContextsService {
     const factors = await this.latestExternalFactors(project.id);
 
     const document = buildContextDocument({
+      language: toSupportedLanguage(project.language),
       organizationName: project.organization.name,
       projectName: project.name,
       isoStandard: project.standardCode,

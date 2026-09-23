@@ -4,26 +4,21 @@
  * declarations, never AI-generated.
  */
 import { useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { CheckCircle2Icon, FileTextIcon, InfoIcon } from "lucide-react";
-import type { ContextInternalInput } from "@qhse/contracts";
-import { Badge } from "@qhse/ui/components/badge";
-import { Button } from "@qhse/ui/components/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@qhse/ui/components/card";
-import { Label } from "@qhse/ui/components/label";
+import type { ContextInternalInput, SupportedLanguage } from "@qhse/contracts";
 import { Textarea } from "@qhse/ui/components/textarea";
 import { cn } from "@qhse/ui/lib/utils";
 
 import { clientApi } from "../../app/client-api.js";
-import { notify } from "./context-ui.js";
+import { useFormat } from "../../app/format.js";
+import { i18n } from "../../app/i18n.js";
+import { AiBanner, GqButton, notify } from "./context-ui.js";
 import {
   INTERNAL_CONTEXT_SECTIONS,
+  questionLabel,
+  sectionHelper,
+  sectionTitle,
   type InternalContextSection,
 } from "./internal-context-questions.js";
 
@@ -49,21 +44,28 @@ function SectionCard({
   disabled: boolean;
   onChange: (questionKey: string, value: string) => void;
 }) {
+  const { t } = useTranslation("context");
+  const answered = section.questions.filter((question) =>
+    isAnswered(answers[question.questionKey]),
+  ).length;
   return (
-    <Card className="shadow-none">
-      <CardHeader>
-        <CardTitle className="text-base">{section.title}</CardTitle>
-        <CardDescription>{section.helper}</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-5">
+    <section className="gq-card">
+      <div className="gq-row">
+        <div>
+          <h3>{sectionTitle(t, section.key)}</h3>
+          <p className="gq-lead">{sectionHelper(t, section.key)}</p>
+        </div>
+        <span className={cn("gq-badge", answered === section.questions.length && "is-valid")}>
+          {answered} / {section.questions.length}
+        </span>
+      </div>
+      <div className="mt-2">
         {section.questions.map((question) => {
           const inputId = `internal-input-${question.questionKey}`;
           const missing = missingKeys.has(question.questionKey);
           return (
-            <div key={question.questionKey} className="space-y-2">
-              <Label htmlFor={inputId} className="text-sm font-normal text-foreground">
-                {question.label}
-              </Label>
+            <div key={question.questionKey} className="gq-question">
+              <label htmlFor={inputId}>{questionLabel(t, question.questionKey)}</label>
               <Textarea
                 id={inputId}
                 ref={(element) => registerField(question.questionKey, element)}
@@ -73,34 +75,36 @@ function SectionCard({
                 rows={3}
                 aria-invalid={missing || undefined}
                 className={cn(
-                  "min-h-[96px] resize-y",
-                  missing && "border-primary/50 ring-1 ring-primary/30",
+                  "min-h-[88px] resize-y text-[13px]",
+                  missing && "border-violet-400 ring-2 ring-violet-100",
                 )}
-                placeholder="Votre réponse, en vos propres mots…"
+                placeholder={t("internal.placeholder")}
               />
               {missing ? (
-                <p className="text-xs text-muted-foreground">
-                  Information à renseigner avant de continuer.
-                </p>
+                <p className="text-[11px] text-slate-500">{t("internal.missing")}</p>
               ) : null}
             </div>
           );
         })}
-      </CardContent>
-    </Card>
+      </div>
+    </section>
   );
 }
 
 export function InternalContextForm({
   projectId,
+  projectLanguage,
   existingInputs,
   onCompleted,
 }: {
   projectId: string;
+  /** Question labels are persisted in the project language: the AI reads them. */
+  projectLanguage: SupportedLanguage;
   existingInputs: ContextInternalInput[];
   onCompleted: () => void;
 }) {
   const queryClient = useQueryClient();
+  const { t } = useTranslation("context");
   const initialAnswers = useMemo(() => {
     const map: Record<string, string> = {};
     for (const input of existingInputs) map[input.questionKey] = input.answerText;
@@ -112,18 +116,20 @@ export function InternalContextForm({
   const fieldRefs = useRef(new Map<string, HTMLTextAreaElement>());
 
   const save = useMutation({
-    mutationFn: (status: "draft" | "completed") =>
-      clientApi.saveContextInternalInputs(projectId, {
+    mutationFn: (status: "draft" | "completed") => {
+      const projectT = i18n.getFixedT(projectLanguage, "context");
+      return clientApi.saveContextInternalInputs(projectId, {
         status,
         answers: INTERNAL_CONTEXT_SECTIONS.flatMap((section) =>
           section.questions.map((question) => ({
             sectionKey: question.sectionKey,
             questionKey: question.questionKey,
-            questionLabel: question.label,
+            questionLabel: questionLabel(projectT, question.questionKey),
             answerText: answers[question.questionKey] ?? "",
           })),
         ),
-      }),
+      });
+    },
     onSuccess: (rows) => {
       queryClient.setQueryData(["context-internal-inputs", projectId], rows);
     },
@@ -149,7 +155,7 @@ export function InternalContextForm({
       try {
         await save.mutateAsync("draft");
       } catch {
-        notify.error("Les informations n'ont pas pu être enregistrées. Réessayez.");
+        notify.error(t("internal.saveFailed"));
         return;
       }
       const firstMissing = missingQuestions[0];
@@ -161,33 +167,27 @@ export function InternalContextForm({
     try {
       await save.mutateAsync(status);
       if (status === "completed") onCompleted();
-      else notify.success("Brouillon enregistré");
+      else notify.success(t("internal.draftSaved"));
     } catch {
-      notify.error("Les informations n'ont pas pu être enregistrées. Réessayez.");
+      notify.error(t("internal.saveFailed"));
     }
   };
 
   return (
-    <div className="space-y-6">
-      <Card className="shadow-none">
-        <CardHeader>
-          <CardTitle className="text-lg">
-            Complétez le contexte interne de votre organisation
-          </CardTitle>
-          <CardDescription>
-            GetQhse connaît déjà votre activité, vos objectifs et votre contexte réglementaire.
-            Ajoutez maintenant les informations internes que seule votre organisation peut
-            connaître.
-          </CardDescription>
-          <p className="text-xs text-muted-foreground">
-            {answeredCount} / {TOTAL_QUESTIONS} informations renseignées
-          </p>
-        </CardHeader>
-      </Card>
+    <div className="space-y-4">
+      <AiBanner
+        title={t("internal.formTitle")}
+        description={t("internal.formBody")}
+        action={
+          <span className={cn("gq-badge", answeredCount === TOTAL_QUESTIONS && "is-valid")}>
+            {t("internal.answered", { answered: answeredCount, total: TOTAL_QUESTIONS })}
+          </span>
+        }
+      />
 
       {attemptedContinue && missingQuestions.length > 0 ? (
-        <p role="alert" className="text-sm text-muted-foreground">
-          Complétez les informations manquantes avant de continuer.
+        <p role="alert" className="text-[12.5px] text-slate-500">
+          {t("internal.completeMissing")}
         </p>
       ) : null}
 
@@ -205,17 +205,23 @@ export function InternalContextForm({
         />
       ))}
 
-      <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-        <Button
-          variant="outline"
-          disabled={save.isPending}
-          onClick={() => void handleSave("draft")}
-        >
-          Enregistrer comme brouillon
-        </Button>
-        <Button disabled={save.isPending} onClick={() => void handleSave("completed")}>
-          Continuer
-        </Button>
+      <div className="gq-footer">
+        <div>
+          <h4>{t("internal.readyTitle")}</h4>
+          <p>{t("internal.readyBody")}</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <GqButton disabled={save.isPending} onClick={() => void handleSave("draft")}>
+            {t("internal.saveDraft")}
+          </GqButton>
+          <GqButton
+            variant="primary"
+            disabled={save.isPending}
+            onClick={() => void handleSave("completed")}
+          >
+            {t("continue", { ns: "common" })}
+          </GqButton>
+        </div>
       </div>
     </div>
   );
@@ -224,10 +230,14 @@ export function InternalContextForm({
 export function InternalContextResults({
   inputs,
   onEdit,
+  onContinue,
 }: {
   inputs: ContextInternalInput[];
   onEdit: () => void;
+  onContinue: () => void;
 }) {
+  const { t } = useTranslation("context");
+  const format = useFormat();
   const byQuestion = new Map(inputs.map((input) => [input.questionKey, input]));
   const lastUpdate = inputs
     .map((input) => input.updatedAt)
@@ -235,85 +245,68 @@ export function InternalContextResults({
     .at(-1);
 
   return (
-    <div className="space-y-6">
-      <Card className="shadow-none">
-        <CardContent className="flex flex-col items-start gap-4 p-6 sm:flex-row sm:items-center">
-          <CheckCircle2Icon className="size-8 shrink-0 text-emerald-600" aria-hidden />
-          <div className="flex-1 space-y-1">
-            <p className="font-medium text-foreground">Contexte interne enregistré</p>
-            <p className="text-sm text-muted-foreground">
-              Voici vos réponses telles qu’enregistrées
-              {lastUpdate
-                ? ` (dernière mise à jour le ${new Date(lastUpdate).toLocaleDateString("fr-FR")})`
-                : ""}
-              .
-            </p>
-          </div>
-          <Button variant="outline" onClick={onEdit}>
-            Modifier les réponses
-          </Button>
-        </CardContent>
-      </Card>
+    <div className="space-y-4">
+      <AiBanner
+        title={t("internal.savedTitle")}
+        description={
+          lastUpdate
+            ? t("internal.savedBodyDated", { date: format.date(lastUpdate) })
+            : t("internal.savedBody")
+        }
+        action={<GqButton onClick={onEdit}>{t("internal.editAnswers")}</GqButton>}
+      />
 
-      <Card className="shadow-none">
-        <CardHeader>
-          <CardTitle className="text-lg">Résultats du contexte interne déclaré</CardTitle>
-          <CardDescription className="flex items-start gap-2">
-            <InfoIcon className="mt-0.5 size-4 shrink-0" aria-hidden />
-            <span>
-              Ces éléments sont vos déclarations internes. Ce ne sont pas encore les enjeux finaux :
-              ceux-ci seront produits à l’étape 3, après l’analyse externe.
-            </span>
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {INTERNAL_CONTEXT_SECTIONS.map((section) => (
-            <section key={section.key} className="space-y-3">
-              <h3 className="font-medium text-foreground">{section.title}</h3>
-              <dl className="space-y-3">
-                {section.questions.map((question) => {
-                  const record = byQuestion.get(question.questionKey);
-                  return (
-                    <div key={question.questionKey} className="rounded-lg border border-border p-4">
-                      <dt className="text-sm text-muted-foreground">{question.label}</dt>
-                      <dd className="mt-1 text-sm whitespace-pre-line text-foreground">
-                        {record?.answerText?.trim() || "Non renseigné"}
-                      </dd>
-                    </div>
-                  );
-                })}
-              </dl>
-            </section>
-          ))}
-        </CardContent>
-      </Card>
+      {INTERNAL_CONTEXT_SECTIONS.map((section) => (
+        <section key={section.key} className="gq-card">
+          <h3>{sectionTitle(t, section.key)}</h3>
+          <dl className="mt-2">
+            {section.questions.map((question) => (
+              <div key={question.questionKey} className="gq-question">
+                <dt className="text-[12px] text-slate-500">
+                  {questionLabel(t, question.questionKey)}
+                </dt>
+                <dd className="gq-answer m-0">
+                  {byQuestion.get(question.questionKey)?.answerText?.trim() ||
+                    t("internal.notProvided")}
+                </dd>
+              </div>
+            ))}
+          </dl>
+        </section>
+      ))}
+
+      <FooterContinue onContinue={onContinue} />
+    </div>
+  );
+}
+
+function FooterContinue({ onContinue }: { onContinue: () => void }) {
+  const { t } = useTranslation("context");
+  return (
+    <div className="gq-footer">
+      <div>
+        <h4>{t("internal.validatedTitle")}</h4>
+        <p>{t("internal.validatedBody")}</p>
+      </div>
+      <GqButton variant="primary" onClick={onContinue}>
+        {t("internal.toExternal")}
+      </GqButton>
     </div>
   );
 }
 
 /** Informational placeholder only — no upload behaviour yet. */
 export function SupportingDocumentsCard() {
+  const { t } = useTranslation("context");
   return (
-    <Card className="shadow-none">
-      <CardHeader>
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex items-start gap-3">
-            <FileTextIcon className="mt-0.5 size-5 shrink-0 text-muted-foreground" aria-hidden />
-            <div className="space-y-1.5">
-              <CardTitle className="text-base">
-                Vous disposez déjà d’informations complémentaires ?
-              </CardTitle>
-              <CardDescription>
-                Rapports d’activité, enquêtes de satisfaction, comptes-rendus de réunions ou autres
-                documents pourront enrichir l’analyse.
-              </CardDescription>
-            </div>
-          </div>
-          <Badge variant="secondary" className="shrink-0">
-            Ajout de documents bientôt disponible
-          </Badge>
+    <section className="gq-card mt-4">
+      <div className="gq-row">
+        <div>
+          <h3>{t("internal.documentsTitle")}</h3>
+          <p className="gq-lead">{t("internal.documentsBody")}</p>
         </div>
-      </CardHeader>
-    </Card>
+        <span className="gq-badge">{t("internal.documentsSoon")}</span>
+      </div>
+    </section>
   );
 }

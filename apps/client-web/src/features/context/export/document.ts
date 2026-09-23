@@ -7,18 +7,32 @@
  * only). Ported from the foundation's context/export/document.ts onto this
  * platform's ContextIssue/ContextExternalFactor contracts.
  */
-import type { ContextAnalysisMethod, ContextExternalFactor, ContextIssue } from "@qhse/contracts";
+import type {
+  ContextAnalysisMethod,
+  ContextExternalFactor,
+  ContextIssue,
+  SupportedLanguage,
+} from "@qhse/contracts";
 import {
-  HISTORICAL_METHOD_LABEL,
-  PESTEL_DIMENSIONS,
-  SWOT_QUADRANTS,
   analysisMethodLabel as domainMethodLabel,
+  historicalMethodLabel,
   pestelDimensionKey,
+  pestelDimensions,
+  swotQuadrants,
 } from "@qhse/domain/smq/context/method";
+import type { TFunction } from "i18next";
+
+import { formatters } from "../../../app/format.js";
+import { i18n } from "../../../app/i18n.js";
+
+/** A deliverable is written in the project language, whatever the interface language. */
+export function exportTranslator(language: SupportedLanguage): TFunction<"context"> {
+  return i18n.getFixedT(language, "context");
+}
 
 /** The domain labels speak "swot"/"pestel"; the API speaks "SWOT"/"PESTEL". */
-function analysisMethodLabel(method: ContextAnalysisMethod): string {
-  return domainMethodLabel(method.toLowerCase());
+function analysisMethodLabel(method: ContextAnalysisMethod, language: SupportedLanguage): string {
+  return domainMethodLabel(method.toLowerCase(), language);
 }
 
 export interface ContextDocumentIssue {
@@ -52,6 +66,8 @@ export interface ContextDocumentGroup {
 }
 
 export interface ContextDocument {
+  /** The project language every label and date of the document is written in. */
+  language: SupportedLanguage;
   title: string;
   organizationName: string;
   projectName: string;
@@ -77,79 +93,76 @@ export interface ContextDocument {
   };
 }
 
-const ORIGIN_LABELS: Record<string, string> = {
-  INTERNAL: "Contexte interne",
-  EXTERNAL: "Contexte externe",
-};
+const NATURES = ["force", "faiblesse", "opportunite", "menace"] as const;
 
-const NATURE_LABELS: Record<string, string> = {
-  force: "Force",
-  faiblesse: "Faiblesse",
-  opportunite: "Opportunité",
-  menace: "Menace",
-};
-
-const STATUS_LABELS: Record<string, string> = {
-  VALIDATED: "Retenu",
-  MODIFIED: "Retenu avec corrections",
-  NOT_RETAINED: "Non retenu",
-  PENDING: "À examiner",
-};
-
-function formatDate(value: string | null | undefined): string | null {
+function formatDate(value: string | null | undefined, language: SupportedLanguage): string | null {
   if (!value) return null;
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? null : date.toLocaleDateString("fr-FR");
+  return Number.isNaN(date.getTime()) ? null : formatters(language).date(date);
 }
 
-function toDocumentIssue(issue: ContextIssue): ContextDocumentIssue {
+function toDocumentIssue(issue: ContextIssue, t: TFunction<"context">): ContextDocumentIssue {
+  const nature = NATURES.find((value) => value === issue.nature);
   return {
     title: issue.title,
     description: issue.description ?? "—",
-    originLabel: ORIGIN_LABELS[issue.origin] ?? issue.origin,
-    natureLabel: (issue.nature ? NATURE_LABELS[issue.nature] : null) ?? issue.nature ?? "—",
+    originLabel: t(`export.origin.${issue.origin}`),
+    natureLabel: nature ? t(`issues.nature.${nature}`) : (issue.nature ?? "—"),
     categoryLabel: issue.categoryLabel || "—",
-    statusLabel: STATUS_LABELS[issue.reviewStatus] ?? issue.reviewStatus,
+    statusLabel: t(`export.status.${issue.reviewStatus}`),
     impactQuality: issue.impactQuality || "—",
     impactCustomer: issue.impactCustomerSatisfaction || "—",
     impactOverall: issue.impactOverall || "—",
-    priorityLabel: issue.selectedPriority ? "Prioritaire" : "—",
+    priorityLabel: issue.selectedPriority ? t("export.priority") : "—",
     addedManually: issue.sourceKind === "MANUAL",
     corrected: issue.reviewStatus === "MODIFIED" || issue.corrections.length > 0,
   };
 }
 
-function buildSwot(issues: ContextIssue[]): ContextDocumentGroup[] {
-  return SWOT_QUADRANTS.map((quadrant) => ({
-    label: quadrant.label,
-    helper: quadrant.helper,
-    issues: issues.filter((issue) => issue.nature === quadrant.key).map(toDocumentIssue),
-  })).filter((group) => group.issues.length > 0);
+function buildSwot(
+  issues: ContextIssue[],
+  language: SupportedLanguage,
+  t: TFunction<"context">,
+): ContextDocumentGroup[] {
+  return swotQuadrants(language)
+    .map((quadrant) => ({
+      label: quadrant.label,
+      helper: quadrant.helper,
+      issues: issues
+        .filter((issue) => issue.nature === quadrant.key)
+        .map((issue) => toDocumentIssue(issue, t)),
+    }))
+    .filter((group) => group.issues.length > 0);
 }
 
-function buildPestel(issues: ContextIssue[]): ContextDocumentGroup[] {
+function buildPestel(
+  issues: ContextIssue[],
+  language: SupportedLanguage,
+  t: TFunction<"context">,
+): ContextDocumentGroup[] {
   const external = issues.filter((issue) => issue.origin === "EXTERNAL");
   return [
-    ...PESTEL_DIMENSIONS.map((dimension) => ({
+    ...pestelDimensions(language).map((dimension) => ({
       label: dimension.label,
       helper: dimension.helper,
       issues: external
         .filter(
           (issue) => pestelDimensionKey(issue.categoryKey, issue.categoryLabel) === dimension.key,
         )
-        .map(toDocumentIssue),
+        .map((issue) => toDocumentIssue(issue, t)),
     })),
     {
-      label: "Autres dimensions",
-      helper: "Enjeux externes non rattachés à une dimension PESTEL.",
+      label: t("export.otherDimensions"),
+      helper: t("export.otherDimensionsHelp"),
       issues: external
         .filter((issue) => pestelDimensionKey(issue.categoryKey, issue.categoryLabel) === "autre")
-        .map(toDocumentIssue),
+        .map((issue) => toDocumentIssue(issue, t)),
     },
   ].filter((group) => group.issues.length > 0);
 }
 
 export function buildContextDocument(input: {
+  language: SupportedLanguage;
   organizationName: string;
   projectName: string;
   isoStandard: string;
@@ -160,6 +173,8 @@ export function buildContextDocument(input: {
   factors: ContextExternalFactor[];
   issues: ContextIssue[];
 }): ContextDocument {
+  const { language } = input;
+  const t = exportTranslator(language);
   const performed =
     input.methodsPerformed && input.methodsPerformed.length > 0
       ? input.methodsPerformed
@@ -179,34 +194,32 @@ export function buildContextDocument(input: {
     ],
   }));
 
-  const swot = performed.includes("SWOT") ? buildSwot(input.issues) : null;
-  const pestel = performed.includes("PESTEL") ? buildPestel(input.issues) : null;
+  const swot = performed.includes("SWOT") ? buildSwot(input.issues, language, t) : null;
+  const pestel = performed.includes("PESTEL") ? buildPestel(input.issues, language, t) : null;
 
   const retained = input.issues.filter(
     (issue) => issue.reviewStatus === "VALIDATED" || issue.reviewStatus === "MODIFIED",
   );
 
   return {
-    title: "Analyse des enjeux — contexte de l'organisation",
+    language,
+    title: t("export.title"),
     organizationName: input.organizationName,
     projectName: input.projectName,
     isoStandard: input.isoStandard,
-    generatedOn: new Date().toLocaleDateString("fr-FR"),
+    generatedOn: formatters(language).date(new Date()),
     methodLabel: input.methodExplicit
-      ? performed.map((method) => analysisMethodLabel(method)).join(" + ")
-      : `${analysisMethodLabel(input.method)} (par défaut)`,
-    methodSummary:
-      input.method === "PESTEL"
-        ? "Investigation externe structurée par dimension PESTEL ; la dimension légale reprend la veille réglementaire."
-        : "Synthèse globale du contexte interne et externe en Forces, Faiblesses, Opportunités et Menaces.",
-    analysisDate: formatDate(input.analysisDate),
+      ? performed.map((method) => analysisMethodLabel(method, language)).join(" + ")
+      : t("export.byDefault", { method: analysisMethodLabel(input.method, language) }),
+    methodSummary: input.method === "PESTEL" ? t("export.pestelSummary") : t("export.swotSummary"),
+    analysisDate: formatDate(input.analysisDate, language),
     internalIssues: input.issues
       .filter((issue) => issue.origin === "INTERNAL")
-      .map(toDocumentIssue),
+      .map((issue) => toDocumentIssue(issue, t)),
     factors,
     swot: swot && swot.length > 0 ? swot : null,
     pestel: pestel && pestel.length > 0 ? pestel : null,
-    synthesis: input.issues.map(toDocumentIssue),
+    synthesis: input.issues.map((issue) => toDocumentIssue(issue, t)),
     summary: {
       issues: input.issues.length,
       retained: retained.length,
@@ -220,7 +233,11 @@ export function buildContextDocument(input: {
   };
 }
 
-export const HISTORICAL_METHOD_NOTICE = `${HISTORICAL_METHOD_LABEL} : cette analyse a été réalisée avant l'enregistrement d'une méthode.`;
+export function historicalMethodNotice(language: SupportedLanguage): string {
+  return exportTranslator(language)("export.historicalNotice", {
+    label: historicalMethodLabel(language),
+  });
+}
 
 export function contextDocumentFileName(
   doc: ContextDocument,
@@ -229,10 +246,11 @@ export function contextDocumentFileName(
   const slug = doc.projectName
     .normalize("NFD")
     .replace(/[̀-ͯ]/g, "")
-    .replace(/[^a-zA-Z0-9]+/g, "-")
+    .replace(/[^\p{L}\p{N}]+/gu, "-")
     .replace(/^-+|-+$/g, "")
     .toLowerCase()
     .slice(0, 48);
   const stamp = new Date().toISOString().slice(0, 10);
-  return `analyse-enjeux-${slug || "projet"}-${stamp}.${extension}`;
+  const prefix = exportTranslator(doc.language)("export.fileName");
+  return `${prefix}-${slug || "project"}-${stamp}.${extension}`;
 }

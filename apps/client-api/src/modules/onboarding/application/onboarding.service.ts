@@ -60,7 +60,7 @@ export class OnboardingService {
       select: {
         role: true,
         organization: {
-          select: { id: true, name: true, slug: true, icon: true, countryCode: true },
+          select: { id: true, name: true, slug: true, icon: true },
         },
       },
     });
@@ -82,7 +82,6 @@ export class OnboardingService {
       organizationsCount: organizations.length,
       activeOrganization: {
         ...membership.organization,
-        countryCode: membership.organization.countryCode as "MA" | "FR" | "DZ" | "TN" | "SN" | "CI",
       },
       activeOrganizationProjectCount: projectCount,
       nextStep:

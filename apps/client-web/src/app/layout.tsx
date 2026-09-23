@@ -1,6 +1,7 @@
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@qhse/ui/components/sidebar";
 import { BellIcon, ChevronRightIcon, SearchIcon } from "lucide-react";
 import type { CSSProperties } from "react";
+import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import { Outlet, useMatch } from "react-router-dom";
 
@@ -10,13 +11,14 @@ import { useAuth } from "./auth.js";
 export function AppLayout() {
   const { activeOrganization, organizations, projects, user, logout, selectOrganization } =
     useAuth();
+  const { t } = useTranslation();
   const projectMatch = useMatch("/projects/:projectId/*");
   const activeProject = projects.find(
     (project) =>
       project.id === projectMatch?.params.projectId ||
       project.slug === projectMatch?.params.projectId,
   );
-  const displayName = user?.email.split("@")[0] ?? "Utilisateur";
+  const displayName = user?.email.split("@")[0] ?? t("userFallback");
 
   return (
     <SidebarProvider
@@ -55,7 +57,7 @@ export function AppLayout() {
             </Link>
             {activeProject && (
               <>
-                <ChevronRightIcon className="hidden size-4 shrink-0 text-slate-300 sm:block" />
+                <ChevronRightIcon className="hidden size-4 shrink-0 text-slate-300 sm:block rtl:rotate-180" />
                 <span className="truncate font-semibold text-slate-900">{activeProject.name}</span>
               </>
             )}
@@ -65,21 +67,21 @@ export function AppLayout() {
               </span>
             )}
           </div>
-          <div className="ml-auto flex items-center gap-2">
+          <div className="ms-auto flex items-center gap-2">
             <button
-              className="hidden h-9 w-52 items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 text-left text-xs text-slate-400 lg:flex"
+              className="hidden h-9 w-52 items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 text-start text-xs text-slate-400 lg:flex"
               type="button"
             >
-              <SearchIcon className="size-4" /> Rechercher…
-              <span className="ml-auto rounded border bg-white px-1.5 py-0.5 text-[10px]">⌘ K</span>
+              <SearchIcon className="size-4" /> {t("search")}
+              <span className="ms-auto rounded border bg-white px-1.5 py-0.5 text-[10px]">⌘ K</span>
             </button>
             <Link
               to="/notifications"
-              aria-label="Notifications"
+              aria-label={t("notifications")}
               className="relative grid size-9 place-items-center rounded-xl text-slate-500 hover:bg-slate-100 hover:text-slate-900"
             >
               <BellIcon className="size-4" />
-              <span className="absolute right-2 top-2 size-1.5 rounded-full bg-violet-600 ring-2 ring-white" />
+              <span className="absolute end-2 top-2 size-1.5 rounded-full bg-violet-600 ring-2 ring-white" />
             </Link>
           </div>
         </header>

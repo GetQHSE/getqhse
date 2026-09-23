@@ -1,4 +1,5 @@
 import type { PromptDefinition } from "../prompt-definition.js";
+import { inLanguage, outputLanguageRule, type OutputLanguage } from "./language.js";
 
 /**
  * Step 2 of "Analyse des enjeux" (ISO 9001 §4.1) — three bounded calls, same
@@ -18,11 +19,12 @@ export const CONTEXT_ISO_GUIDANCE = [
 export type ContextExternalPlanPromptInput = {
   digest: string;
   method: "SWOT" | "PESTEL";
+  language: OutputLanguage;
 };
 
 export const contextExternalPlanPrompt: PromptDefinition<ContextExternalPlanPromptInput> = {
   key: "context.external-plan",
-  version: 2,
+  version: 3,
   build: (input) => ({
     system: `Tu es le moteur de planification de l'analyse du contexte EXTERNE de GetQhse AI.
 Objectif : identifier les recherches à mener pour comprendre les facteurs externes susceptibles d'influencer réellement
@@ -35,7 +37,9 @@ Règles strictes :
 - La dimension légale/réglementaire est DÉJÀ traitée par le module de veille réglementaire : ne planifie aucune recherche juridique.
 - La dimension politique n'est retenue que si elle influence concrètement l'activité décrite (marchés publics, subventions, importations, stabilité opérationnelle).
 - Chaque requête doit être concrète, ancrée sur le secteur et le pays réels de l'organisation, et vérifiable sur le web.
-- Rédige en français ; les requêtes peuvent être dans la langue du pays concerné.
+- Rédige ${inLanguage(input.language)} ; les requêtes peuvent être dans la langue du pays concerné.
+- Le champ dimension reprend EXACTEMENT un nom de dimension français (ex. « Économique », « Légal ») quelle que soit la langue de sortie.
+${outputLanguageRule(input.language)}
 Réponds uniquement en JSON valide.`,
     context: [
       "CONTEXTE CANONIQUE DE L'ORGANISATION (seule source de faits) :",
@@ -65,12 +69,13 @@ Réponds uniquement en JSON valide.`,
 export type ContextExternalDiscoveryPromptInput = {
   digest: string;
   planEntries: { dimension: string; query: string; rationale: string }[];
+  language: OutputLanguage;
 };
 
 export const contextExternalDiscoveryPrompt: PromptDefinition<ContextExternalDiscoveryPromptInput> =
   {
     key: "context.external-discovery",
-    version: 2,
+    version: 3,
     build: (input) => ({
       system: `Tu es analyste de contexte externe pour un système de management de la qualité (ISO 9001, chapitre 4.1).
 Tu utilises la recherche web pour documenter des facteurs externes RÉELS et VÉRIFIABLES.
@@ -81,9 +86,10 @@ Règles absolues :
 - Si une information n'est pas vérifiable, écris explicitement « non vérifiable dans les sources consultées ».
 - N'aborde pas la dimension juridique/réglementaire : elle est traitée ailleurs.
 - Ne produis pas encore de risque, d'opportunité, de criticité ni de score : tu documentes des faits externes et leur lien concret avec l'organisation.
-- Rédige en français, un bloc par facteur externe, en précisant : dimension, intitulé, description factuelle,
+- Rédige ${inLanguage(input.language)}, un bloc par facteur externe, en précisant : dimension, intitulé, description factuelle,
   lien concret avec l'activité de l'organisation, influence possible sur les objectifs / la qualité / la satisfaction client,
   portée géographique, degré de solidité des preuves, et les URL consultées.
+${outputLanguageRule(input.language)}
 
 ${CONTEXT_ISO_GUIDANCE}`,
       context: [
@@ -106,12 +112,13 @@ export type ContextExternalStructurePromptInput = {
   digest: string;
   researchText: string;
   sources: { url: string; title: string | null }[];
+  language: OutputLanguage;
 };
 
 export const contextExternalStructurePrompt: PromptDefinition<ContextExternalStructurePromptInput> =
   {
     key: "context.external-structure",
-    version: 2,
+    version: 3,
     build: (input) => ({
       system: `Tu convertis un dossier de recherche de contexte externe en JSON strict pour GetQhse AI.
 Règles absolues :
@@ -121,9 +128,10 @@ Règles absolues :
 - orientation décrit le sens de l'influence potentielle : "favorable", "defavorable" ou "incertain". Ce n'est PAS encore un risque ni une opportunité formalisés.
 - evidenceStrength vaut "solide", "moderee" ou "faible" selon la qualité et la convergence des sources consultées.
 - confidence est une estimation interne entre 0 et 1 de la fiabilité de la documentation du facteur.
-- categoryKey est une clé courte en minuscules sans accent (ex. "economique", "technologique", "concurrentiel"), categoryLabel son libellé français lisible.
+- categoryKey est une clé courte en minuscules sans accent (ex. "economique", "technologique", "concurrentiel"), categoryLabel son libellé lisible rédigé ${inLanguage(input.language)}.
 - Ne produis ni score de criticité, ni probabilité, ni gravité.
-- Rédige tous les champs textuels en français.
+- Rédige tous les champs textuels ${inLanguage(input.language)}.
+${outputLanguageRule(input.language)}
 Réponds uniquement en JSON valide.`,
       context: [
         "CONTEXTE CANONIQUE DE L'ORGANISATION :",

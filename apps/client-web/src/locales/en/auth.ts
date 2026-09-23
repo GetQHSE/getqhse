@@ -1,0 +1,55 @@
+import type { Catalog } from "../types.js";
+import type fr from "../fr/auth.js";
+
+const auth: Catalog<typeof fr> = {
+  tagline: "Compliance intelligence",
+  heroBadge: "Built for your ISO and regulatory programmes",
+  heroTitle: "Compliance becomes a team effort, guided by AI.",
+  heroBody:
+    "Structure your project profiles, identify the applicable requirements and move forward with sourced answers.",
+  heroPoints: {
+    profile: "Guided project profile",
+    watch: "Contextual regulatory watch",
+    traceable: "Traceable and secure answers",
+  },
+  secureAccess: "Secure access and data isolated per organisation",
+  signUpEyebrow: "Start your journey",
+  loginEyebrow: "Welcome back",
+  signUpTitle: "Create your account",
+  loginTitle: "Sign in to your workspace",
+  signUpBody: "It only takes a few minutes to set up your organisation and your first project.",
+  loginBody: "Find your projects, your profile and your regulatory watch.",
+  fullName: "Full name",
+  fullNamePlaceholder: "First and last name",
+  email: "Email address",
+  emailPlaceholder: "name@company.com",
+  password: "Password",
+  passwordPlaceholder: "At least 8 characters",
+  invalidEmail: "Invalid address",
+  passwordTooShort: "The password must contain at least 8 characters",
+  signUp: "Sign up",
+  signIn: "Sign in",
+  haveAccount: "Already have an account? ",
+  noAccount: "No account yet? ",
+  createAccount: "Create an account",
+  signUpFailed: "Sign-up failed",
+  invalidCredentials: "Invalid credentials",
+  invitation: {
+    eyebrow: "Organisation invitation",
+    join: "Join {{organization}}",
+    loading: "Loading the invitation…",
+    invitedAs: "<strong>{{inviter}}</strong> invites you as {{role}}.",
+    recipient: "Recipient: {{email}}",
+    expiration: "Expires: {{date}}",
+    expired: "This invitation has expired.",
+    unavailable: "This invitation is unavailable.",
+    notFound: "Invitation not found.",
+    wrongAccount: "Sign in with the email address that received this invitation.",
+    invalid: "This invitation is invalid, has expired or has already been used.",
+    acceptFailed: "The invitation could not be accepted.",
+    accepting: "Accepting…",
+    accept: "Accept and join",
+  },
+};
+
+export default auth;

@@ -12,7 +12,7 @@ describe("RegulatoryWatchTestPage", () => {
 
     expect(screen.getByRole("heading", { name: "Veille réglementaire" })).toBeInTheDocument();
     expect(
-      screen.getByRole("tab", { name: /Liste des textes réglementaires et normatives/ }),
+      screen.getByRole("tab", { name: /Liste des textes réglementaires et normatifs/ }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("tab", { name: /Évaluation réglementaire et normative/ }),

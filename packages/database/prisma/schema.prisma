@@ -981,17 +981,16 @@ model Verification {
 }
 
 model Organization {
-  id          String   @id @default(uuid())
-  name        String
-  slug        String   @unique
-  logo        String?
-  icon        String?
-  metadata    String?
-  status      String   @default("active")
-  countryCode String   @default("MA") @map("country_code")
-  locale      String   @default("fr-MA")
-  timezone    String   @default("Africa/Casablanca")
-  createdAt   DateTime @default(now()) @map("created_at")
+  id        String   @id @default(uuid())
+  name      String
+  slug      String   @unique
+  logo      String?
+  icon      String?
+  metadata  String?
+  status    String   @default("active")
+  locale    String   @default("fr-MA")
+  timezone  String   @default("Africa/Casablanca")
+  createdAt DateTime @default(now()) @map("created_at")
 
   members                   Member[]
   invitations               Invitation[]
@@ -1078,7 +1077,10 @@ model Project {
   slug           String
   logoUrl        String?           @map("logo_url")
   entityType     ProjectEntityType @map("entity_type")
-  countryCode    String            @default("MA") @map("country_code")
+  /// Home country: the first of the project's operating countries.
+  countryCode    String            @map("country_code")
+  /// Output language of AI generations and deliverables (fr | en | ar); fixed at creation.
+  language       String            @default("fr")
   standardCode   String            @default("ISO_9001") @map("standard_code")
   description    String?
   status         ProjectStatus     @default(EMPTY)
@@ -1333,6 +1335,8 @@ model RegulatoryApplicabilityCandidate {
   sourceReference               String?                      @map("source_reference")
   sourceTitle                   String?                      @map("source_title")
   sourceUrl                     String?                      @map("source_url")
+  /// ISO 3166-1 alpha-2 country the text belongs to; null for ISO / international texts.
+  sourceCountryCode             String?                      @map("source_country_code")
   previousEntryId               String?                      @map("previous_entry_id")
   changeType                    RegulatoryChangeType         @default(ADDED) @map("change_type")
   changeSummary                 String?                      @map("change_summary")
@@ -1432,6 +1436,8 @@ model RegulatoryRegisterEntry {
   sourceReference               String?                      @map("source_reference")
   sourceTitle                   String?                      @map("source_title")
   sourceUrl                     String?                      @map("source_url")
+  /// ISO 3166-1 alpha-2 country the text belongs to; null for ISO / international texts.
+  sourceCountryCode             String?                      @map("source_country_code")
   previousEntryId               String?                      @map("previous_entry_id")
   changeType                    RegulatoryChangeType         @default(ADDED) @map("change_type")
   orderIndex                    Int                          @map("order_index")

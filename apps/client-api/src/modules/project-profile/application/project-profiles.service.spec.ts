@@ -88,6 +88,38 @@ describe("ProjectProfilesService authorization", () => {
     expect(exported).not.toHaveProperty("projectId");
   });
 
+  it("exports every operating country, home country first", async () => {
+    const service = new ProjectProfilesService(model, storage, database);
+    const buildProfile = vi.fn().mockResolvedValue({
+      project: { name: "Atlas", countryCode: "FR", standardCode: "ISO_9001" },
+      profile: { schemaVersion: 1 },
+      fields: [
+        {
+          key: "scope.operatingCountries",
+          status: "ANSWERED",
+          value: ["FR", "MA", "TN"],
+          notApplicableReason: null,
+        },
+      ],
+    });
+    (service as unknown as { buildProfile: typeof buildProfile }).buildProfile = buildProfile;
+
+    const exported = await service.exportPortable(
+      { organizationId: "org-1", userId: "user-1", role: "viewer" },
+      "project-1",
+    );
+
+    expect(exported.sourceProject).toMatchObject({
+      countryCode: "FR",
+      countryCodes: ["FR", "MA", "TN"],
+    });
+    expect(exported.fields).toContainEqual({
+      key: "scope.operatingCountries",
+      status: "ANSWERED",
+      value: ["FR", "MA", "TN"],
+    });
+  });
+
   it("rejects unsupported import schema versions before persistence", async () => {
     const service = new ProjectProfilesService(model, storage, database);
     await expect(

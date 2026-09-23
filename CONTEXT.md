@@ -35,3 +35,11 @@ _Avoid_: Organization knowledge, training data
 **Knowledge example**:
 An administrator-approved, sanitized example for one AI feature. Customer feedback or a confirmed human correction may provide its provenance, but does not influence AI until it becomes a knowledge example.
 _Avoid_: Customer record, training example
+
+**Project language**:
+The language, chosen once when a project is created (French, English or Arabic), in which everything the AI generates for that project and every deliverable exported from it is written. It never changes afterwards, and it is independent of the interface language of whoever is looking at the project.
+_Avoid_: Locale, UI language, output language setting
+
+**Interface language**:
+A user’s own choice of language for the platform’s screens, menus and messages, kept on their account. It never changes the language of AI-generated content or of a project’s deliverables.
+_Avoid_: Project language, locale

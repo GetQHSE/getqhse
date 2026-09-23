@@ -15,7 +15,10 @@ import {
   useSidebar,
 } from "@qhse/ui/components/sidebar";
 import { BellIcon, ChevronsUpDownIcon, LogOutIcon, UserIcon } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
+
+import { LanguageMenu } from "./language-switcher.js";
 
 export type SidebarUser = { name: string; email: string };
 
@@ -31,6 +34,7 @@ export function NavUser({
   onLogout: () => void | Promise<void>;
 }) {
   const { isMobile } = useSidebar();
+  const { t } = useTranslation();
   return (
     <SidebarMenu>
       <SidebarMenuItem>
@@ -45,25 +49,25 @@ export function NavUser({
                 {initials(user.name, user.email)}
               </AvatarFallback>
             </Avatar>
-            <div className="grid flex-1 text-left text-sm leading-tight">
+            <div className="grid flex-1 text-start text-sm leading-tight">
               <span className="truncate font-medium">{user.name}</span>
               <span className="truncate text-xs text-slate-500">{user.email}</span>
             </div>
-            <ChevronsUpDownIcon className="ml-auto size-4" />
+            <ChevronsUpDownIcon className="ms-auto size-4" />
           </DropdownMenuTrigger>
           <DropdownMenuContent
             className="w-fit"
-            side={isMobile ? "bottom" : "right"}
+            side={isMobile ? "bottom" : "inline-end"}
             align="end"
             sideOffset={4}
           >
             <DropdownMenuGroup>
               <DropdownMenuLabel className="p-0 font-normal">
-                <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
+                <div className="flex items-center gap-2 px-1 py-1.5 text-start text-sm">
                   <Avatar>
                     <AvatarFallback>{initials(user.name, user.email)}</AvatarFallback>
                   </Avatar>
-                  <div className="grid flex-1 text-left text-sm leading-tight">
+                  <div className="grid flex-1 text-start text-sm leading-tight">
                     <span className="truncate font-medium">{user.name}</span>
                     <span className="truncate text-xs">{user.email}</span>
                   </div>
@@ -74,17 +78,19 @@ export function NavUser({
             <DropdownMenuGroup>
               <DropdownMenuItem render={<Link to="/" />}>
                 <UserIcon />
-                Tableau de bord
+                {t("dashboard")}
               </DropdownMenuItem>
               <DropdownMenuItem render={<Link to="/notifications" />}>
                 <BellIcon />
-                Notifications
+                {t("notifications")}
               </DropdownMenuItem>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
+            <LanguageMenu />
+            <DropdownMenuSeparator />
             <DropdownMenuItem onClick={() => void onLogout()}>
               <LogOutIcon />
-              Se déconnecter
+              {t("logout")}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

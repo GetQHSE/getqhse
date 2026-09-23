@@ -10,6 +10,7 @@ import { INTERNAL_CONTEXT_SECTIONS } from "./internal-context-questions.js";
 
 vi.mock("../../app/client-api.js", () => ({
   clientApi: {
+    project: vi.fn(),
     regulatoryWatch: vi.fn(),
     contextSettings: vi.fn(),
     setContextMethod: vi.fn(),
@@ -87,6 +88,7 @@ afterEach(() => {
 });
 
 function stubEmptyModule(explicit = true) {
+  vi.mocked(clientApi.project).mockResolvedValue({ id: "project-1", language: "fr" } as never);
   vi.mocked(clientApi.contextSettings).mockResolvedValue({
     projectId: "project-1",
     analysisMethod: "SWOT",
@@ -112,7 +114,7 @@ const completedInputs = INTERNAL_CONTEXT_SECTIONS.flatMap((section) =>
     projectId: "project-1",
     sectionKey: question.sectionKey,
     questionKey: question.questionKey,
-    questionLabel: question.label,
+    questionLabel: question.questionKey,
     answerText: `Réponse ${index + 1}`,
     status: "completed",
     createdAt: "2026-09-01T00:00:00.000Z",
@@ -255,7 +257,7 @@ describe("ContextPage — gated on a published veille", () => {
     renderPage();
 
     await waitFor(() =>
-      expect(screen.getByText(/publiez d'abord votre veille réglementaire/i)).toBeInTheDocument(),
+      expect(screen.getByText(/publiez d.abord votre veille réglementaire/i)).toBeInTheDocument(),
     );
     expect(clientApi.contextSettings).not.toHaveBeenCalled();
     expect(screen.queryByText(/étapes de l’analyse/i)).not.toBeInTheDocument();
@@ -281,7 +283,7 @@ describe("ContextPage — gated on a published veille", () => {
 
     renderPage();
 
-    await waitFor(() => expect(screen.getByText(/en cours d'analyse/i)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText(/en cours d.analyse/i)).toBeInTheDocument());
   });
 
   it("opens the stepper once a register has been published", async () => {
@@ -296,7 +298,7 @@ describe("ContextPage — gated on a published veille", () => {
 
     await waitFor(() => expect(screen.getByText("1. Contexte interne")).toBeInTheDocument());
     expect(
-      screen.queryByText(/publiez d'abord votre veille réglementaire/i),
+      screen.queryByText(/publiez d.abord votre veille réglementaire/i),
     ).not.toBeInTheDocument();
   });
 });

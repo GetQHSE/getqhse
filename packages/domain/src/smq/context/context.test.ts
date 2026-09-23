@@ -5,7 +5,10 @@ import {
   DEFAULT_ANALYSIS_METHOD,
   HISTORICAL_METHOD_LABEL,
   PESTEL_DIMENSIONS,
+  PESTEL_DIMENSION_ENUM,
   analysisMethodLabel,
+  pestelDimensions,
+  swotQuadrants,
   isAnalysisMethod,
   pestelDimensionKey,
 } from "./method.js";
@@ -67,6 +70,20 @@ describe("canonical issue identity", () => {
     expect(canonicalKey(long).split("-")).toHaveLength(14);
   });
 
+  it("keeps Arabic words and ignores harakat, tatweel and letter variants", () => {
+    const key = canonicalKey("ارتفاع دوران الموظفين في الشركة");
+    expect(key).not.toBe("");
+    expect(key.split("-")).toContain("الموظفين");
+    expect(key.split("-")).not.toContain("في");
+    expect(canonicalKey("الْمُوَظَّفِين")).toBe(canonicalKey("الموظفين"));
+    expect(canonicalKey("المـــوظفين")).toBe(canonicalKey("الموظفين"));
+    expect(canonicalKey("إدارة الجودة")).toBe(canonicalKey("ادارة الجوده"));
+  });
+
+  it("keeps distinct Arabic concepts apart", () => {
+    expect(canonicalKey("نقص الكفاءات التقنية")).not.toBe(canonicalKey("ارتفاع تكاليف الطاقة"));
+  });
+
   it("ignores empty parts", () => {
     expect(canonicalKey("personnel", null, undefined, "  ")).toBe("personnel");
   });
@@ -98,5 +115,31 @@ describe("canonical issue identity", () => {
     expect(await factorFingerprint("project-1", "economique", key)).not.toBe(
       await factorFingerprint("project-1", "environnemental", key),
     );
+  });
+});
+
+describe("localized method labels", () => {
+  it("translates PESTEL and SWOT labels without changing their keys", () => {
+    const en = pestelDimensions("en");
+    const ar = pestelDimensions("ar");
+    expect(en.map((dimension) => dimension.key)).toEqual(PESTEL_DIMENSIONS.map((d) => d.key));
+    expect(en.find((dimension) => dimension.key === "legal")!.label).toBe("Legal");
+    expect(ar.find((dimension) => dimension.key === "legal")!.label).toBe("قانوني");
+    expect(swotQuadrants("en").map((quadrant) => quadrant.label)).toEqual([
+      "Strengths",
+      "Weaknesses",
+      "Opportunities",
+      "Threats",
+    ]);
+    expect(analysisMethodLabel(null, "en")).toBe("Legacy methodology");
+  });
+
+  it("keeps the French PESTEL labels as the stable AI enum", () => {
+    expect(PESTEL_DIMENSION_ENUM).toContain("Légal");
+  });
+
+  it("maps English and Arabic categories onto PESTEL dimensions", () => {
+    expect(pestelDimensionKey("regulatory_changes")).toBe("legal");
+    expect(pestelDimensionKey(null, "بيئي")).toBe("environnemental");
   });
 });

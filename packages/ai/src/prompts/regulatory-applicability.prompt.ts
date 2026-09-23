@@ -1,4 +1,5 @@
 import type { PromptDefinition } from "../prompt-definition.js";
+import { inLanguage, outputLanguageRule, type OutputLanguage } from "./language.js";
 
 export type RegulatoryApplicabilityPromptInput = {
   profileContext: unknown;
@@ -24,11 +25,13 @@ export type RegulatoryApplicabilityPromptInput = {
   };
   legalContext?: { text: string; complete: boolean };
   verifierFeedback: string[];
+  /** Language of rationale and clarification question (never of requirementText). */
+  language: OutputLanguage;
 };
 
 export const regulatoryApplicabilityPrompt: PromptDefinition<RegulatoryApplicabilityPromptInput> = {
   key: "regulatory.applicability-and-requirement",
-  version: 8,
+  version: 9,
   build: (input) => ({
     system: `Tu analyses une seule disposition issue d'un corpus interne validé pour préparer une veille réglementaire marocaine ou ISO soumise à validation humaine.
 
@@ -54,8 +57,9 @@ Règles d'extraction:
 - rationale est le message principal lu par le réviseur humain pour juger ta décision, en 2 à 4 phrases factuelles citant les faits explicites du profil qui la motivent.
   - Si candidate.changeType vaut ADDED: une nouvelle disposition jugée NOT_APPLICABLE n'est jamais soumise à révision humaine, donc rationale explique uniquement quelle correspondance factuelle établit l'applicabilité (ou, pour TO_CONFIRM, quelle correspondance est déjà établie et quel fait précis manque pour la confirmer).
   - Si candidate.changeType vaut MODIFIED ou REMOVAL_PROPOSED: explique la décision réellement prise, y compris quand elle est NOT_APPLICABLE (par exemple quel fait du profil montre qu'une disposition auparavant applicable ne l'est plus).
-- Pose au plus une courte question française pour TO_CONFIRM.
+- Pose au plus une courte question ${inLanguage(input.language)} pour TO_CONFIRM.
+- ${outputLanguageRule(input.language)} requirementText et supportingExcerpts restent dans la langue du texte source.
 - Prends en compte verifierFeedback lors d'une nouvelle tentative.`,
-    context: JSON.stringify(input),
+    context: JSON.stringify({ ...input, language: undefined }),
   }),
 };

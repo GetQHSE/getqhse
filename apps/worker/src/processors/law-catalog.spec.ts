@@ -113,6 +113,7 @@ describe("law catalog and context", () => {
       title: "Code du travail marocain",
       reason: "Le projet emploie des salariés.",
       sourceUrl: null,
+      countryCode: "MA",
       applicableRequirements: [],
     };
     const absent = {
@@ -120,6 +121,7 @@ describe("law catalog and context", () => {
       title: "Protection des données personnelles",
       reason: "Le projet traite des données.",
       sourceUrl: "https://adala.justice.gov.ma/example",
+      countryCode: "MA",
       applicableRequirements: [],
     };
     expect(resolveApplicableLaws(catalog, [stored, stored, absent])).toEqual({
@@ -134,6 +136,7 @@ describe("law catalog and context", () => {
       title: "Réglementation sécurité industrielle",
       reason: "Activité industrielle.",
       sourceUrl: null,
+      countryCode: "MA",
       applicableRequirements: [],
     };
     const catalog = ["law-1", "law-2"].map((documentId) => ({

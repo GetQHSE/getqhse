@@ -119,8 +119,7 @@ export function OrganizationDetailPage() {
                   <StatusBadge status={organization.status} />
                 </div>
                 <p className="mt-1 text-sm text-slate-500">
-                  {organization.slug} · {organization.countryCode} · Created{" "}
-                  {formatDate(organization.createdAt)}
+                  {organization.slug} · Created {formatDate(organization.createdAt)}
                 </p>
               </div>
             </div>
@@ -163,8 +162,7 @@ export function OrganizationDetailPage() {
                 <CardHeader>
                   <CardTitle className="text-base">Organization configuration</CardTitle>
                 </CardHeader>
-                <CardContent className="grid gap-5 text-sm sm:grid-cols-2 lg:grid-cols-4">
-                  <Detail label="Country" value={organization.countryCode} />
+                <CardContent className="grid gap-5 text-sm sm:grid-cols-2 lg:grid-cols-3">
                   <Detail label="Locale" value={organization.locale} />
                   <Detail label="Timezone" value={organization.timezone} />
                   <Detail label="Identifier" value={organization.id} mono />
@@ -177,10 +175,9 @@ export function OrganizationDetailPage() {
                 <CardContent className="flex items-start gap-3 text-sm text-slate-600">
                   <MapPinIcon className="mt-0.5 size-4 text-violet-600" />
                   <span>
-                    This organization operates in{" "}
-                    <strong className="text-slate-900">{organization.countryCode}</strong> using{" "}
+                    This organization uses{" "}
                     <strong className="text-slate-900">{organization.timezone}</strong> for
-                    scheduling and deadline calculations.
+                    scheduling and deadline calculations. Countries are set per project.
                   </span>
                 </CardContent>
               </Card>

@@ -3,104 +3,70 @@
  *
  * Keys are stable identifiers persisted in `context_internal_inputs`
  * (UNIQUE(project_id, question_key)). Labels are stored alongside answers so
- * a later methodology change never breaks traceability of existing rows.
+ * a later methodology change never breaks traceability of existing rows; they
+ * are stored in the project language (the AI reads them), while the form shows
+ * them in the interface language. Texts live in the `context:questions` catalog.
  */
+import type { TFunction } from "i18next";
+
+export type InternalContextSectionKey =
+  "culture_valeurs" | "ressources_competences" | "gouvernance_processus";
+
+export type InternalContextQuestionKey =
+  | "cv_climat_social"
+  | "cv_reaction_changement"
+  | "cv_valeurs"
+  | "rc_expertise"
+  | "rc_competences_manquantes"
+  | "rc_equipements"
+  | "rc_ressources_critiques"
+  | "gp_efficacite"
+  | "gp_communication"
+  | "gp_decisions"
+  | "gp_processus";
 
 export interface InternalContextQuestion {
-  sectionKey: string;
-  questionKey: string;
-  label: string;
+  sectionKey: InternalContextSectionKey;
+  questionKey: InternalContextQuestionKey;
 }
 
 export interface InternalContextSection {
-  key: string;
-  title: string;
-  helper: string;
+  key: InternalContextSectionKey;
   questions: InternalContextQuestion[];
 }
 
+const section = (
+  key: InternalContextSectionKey,
+  questionKeys: InternalContextQuestionKey[],
+): InternalContextSection => ({
+  key,
+  questions: questionKeys.map((questionKey) => ({ sectionKey: key, questionKey })),
+});
+
 export const INTERNAL_CONTEXT_SECTIONS: InternalContextSection[] = [
-  {
-    key: "culture_valeurs",
-    title: "Culture et valeurs",
-    helper: "Aidez GetQhse à comprendre le fonctionnement humain de votre organisation.",
-    questions: [
-      {
-        sectionKey: "culture_valeurs",
-        questionKey: "cv_climat_social",
-        label: "Comment décririez-vous le climat social au sein de votre organisation ?",
-      },
-      {
-        sectionKey: "culture_valeurs",
-        questionKey: "cv_reaction_changement",
-        label: "Comment vos équipes réagissent-elles généralement au changement ?",
-      },
-      {
-        sectionKey: "culture_valeurs",
-        questionKey: "cv_valeurs",
-        label:
-          "Quelles valeurs influencent réellement les comportements et les décisions au quotidien ?",
-      },
-    ],
-  },
-  {
-    key: "ressources_competences",
-    title: "Ressources et compétences",
-    helper:
-      "Décrivez les forces et les éventuelles limites des ressources nécessaires à votre activité.",
-    questions: [
-      {
-        sectionKey: "ressources_competences",
-        questionKey: "rc_expertise",
-        label:
-          "Comment évaluez-vous le niveau d’expertise et de maîtrise des savoir-faire de vos équipes ?",
-      },
-      {
-        sectionKey: "ressources_competences",
-        questionKey: "rc_competences_manquantes",
-        label:
-          "Disposez-vous des compétences nécessaires pour atteindre vos objectifs actuels ? Si non, lesquelles manquent ?",
-      },
-      {
-        sectionKey: "ressources_competences",
-        questionKey: "rc_equipements",
-        label:
-          "Vos équipements, outils, logiciels et autres ressources sont-ils adaptés et suffisamment disponibles ?",
-      },
-      {
-        sectionKey: "ressources_competences",
-        questionKey: "rc_ressources_critiques",
-        label: "Existe-t-il aujourd’hui des ressources critiques, limitées ou vieillissantes ?",
-      },
-    ],
-  },
-  {
-    key: "gouvernance_processus",
-    title: "Gouvernance et processus",
-    helper: "Aidez GetQhse à comprendre comment l’organisation fonctionne et prend ses décisions.",
-    questions: [
-      {
-        sectionKey: "gouvernance_processus",
-        questionKey: "gp_efficacite",
-        label: "Comment évaluez-vous l’efficacité de votre organisation interne ?",
-      },
-      {
-        sectionKey: "gouvernance_processus",
-        questionKey: "gp_communication",
-        label:
-          "La communication et la circulation de l’information entre les équipes sont-elles efficaces ?",
-      },
-      {
-        sectionKey: "gouvernance_processus",
-        questionKey: "gp_decisions",
-        label: "Comment les décisions importantes sont-elles prises dans l’organisation ?",
-      },
-      {
-        sectionKey: "gouvernance_processus",
-        questionKey: "gp_processus",
-        label:
-          "Existe-t-il des processus internes que vous considérez comme particulièrement efficaces ou, au contraire, fragiles ?",
-      },
-    ],
-  },
+  section("culture_valeurs", ["cv_climat_social", "cv_reaction_changement", "cv_valeurs"]),
+  section("ressources_competences", [
+    "rc_expertise",
+    "rc_competences_manquantes",
+    "rc_equipements",
+    "rc_ressources_critiques",
+  ]),
+  section("gouvernance_processus", [
+    "gp_efficacite",
+    "gp_communication",
+    "gp_decisions",
+    "gp_processus",
+  ]),
 ];
+
+export function sectionTitle(t: TFunction<"context">, key: InternalContextSectionKey): string {
+  return t(`questions.${key}.title`);
+}
+
+export function sectionHelper(t: TFunction<"context">, key: InternalContextSectionKey): string {
+  return t(`questions.${key}.helper`);
+}
+
+export function questionLabel(t: TFunction<"context">, key: InternalContextQuestionKey): string {
+  return t(`questions.${key}`);
+}

@@ -1,3 +1,4 @@
+import { countryName } from "@qhse/domain/countries";
 import { useChat } from "@ai-sdk/react";
 import type {
   ProjectProfile,
@@ -50,10 +51,16 @@ import {
   XIcon,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
+import type { TFunction } from "i18next";
+import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
+import { Streamdown } from "streamdown";
 
 import { clientApi } from "../../app/client-api.js";
 import { apiUrl } from "../../app/api-url.js";
+import { useFormat } from "../../app/format.js";
+import { currentLanguage, i18n } from "../../app/i18n.js";
+import type frProfile from "../../locales/fr/profile.js";
 
 type MessageAttachment = NonNullable<ProjectProfileMessage["attachments"]>[number];
 type ProfileMessageMetadata = {
@@ -89,84 +96,48 @@ type PendingAttachment = {
   status: "uploading" | "ready" | "error";
 };
 
-const sectionLabels = {
-  IDENTITY_ACTIVITY: "Identité & activité",
-  SCOPE_GEOGRAPHY: "Périmètre & géographie",
-  OPERATIONS_RESOURCES: "Opérations & ressources",
-  EXTERNAL_CONTEXT: "Contexte externe",
-  INTERESTED_PARTIES: "Parties intéressées",
-  STRATEGY_OBJECTIVES: "Stratégie & objectifs",
-} as const;
+const sections = [
+  "IDENTITY_ACTIVITY",
+  "SCOPE_GEOGRAPHY",
+  "OPERATIONS_RESOURCES",
+  "EXTERNAL_CONTEXT",
+  "INTERESTED_PARTIES",
+  "STRATEGY_OBJECTIVES",
+] as const;
 
-const fieldLabels: Partial<Record<ProfileFieldKey, string>> = {
-  "project.name": "Nom du projet",
-  "project.logoUrl": "Logo",
-  "organization.mission": "Mission",
-  "organization.offerings": "Produits et services",
-  "organization.offeringRanges": "Gammes proposées",
-  "market.primaryCustomerSegments": "Segments clients",
-  "organization.employeeCount": "Effectif",
-  "operations.keyProcesses": "Processus clés",
-  "scope.certificationScope": "Périmètre de certification",
-  "operations.externalProviders": "Prestataires externes",
-  "organization.afterSalesServices": "Service après-vente",
-  "scope.operatingReach": "Portée des activités",
-  "scope.operatingCountries": "Pays d’activité",
-  "organization.primarySector": "Secteur principal",
-  "regulatory.implementedFrameworks": "Référentiels appliqués",
-  "operations.orderToDeliveryFlow": "Flux commande-livraison",
-  "resources.keyResources": "Ressources clés",
-  "resources.criticalCompetencies": "Compétences critiques",
-  "operations.majorDifficulties": "Difficultés majeures",
-  "context.externalFactors": "Facteurs externes",
-  "regulatory.knownRequirements": "Exigences connues",
-  "context.sectorChallenges": "Défis du secteur",
-  "stakeholders.customerNeeds": "Besoins clients",
-  "stakeholders.otherParties": "Autres parties intéressées",
-  "stakeholders.expectations": "Attentes des parties",
-  "strategy.annualObjectives": "Objectifs annuels",
-  "strategy.values": "Valeurs",
-  "strategy.differentiators": "Facteurs différenciants",
-  "strategy.iso9001Motivation": "Motivation ISO 9001",
-  "context.marketChallenges": "Défis du marché",
-  "context.growthOpportunities": "Opportunités de croissance",
-  "regulatory.criticalRisks": "Risques réglementaires",
-  "operations.recurrentIssues": "Problèmes récurrents",
-};
+/** Suggested answers are sent to the AI, so they are phrased in the project language. */
+type QuickReply = keyof (typeof frProfile)["conversation"]["quickReplies"];
+type FieldLabel = keyof (typeof frProfile)["fields"];
 
-const quickReplies: Partial<Record<ProfileFieldKey, string[]>> = {
+const quickReplies: Partial<Record<ProfileFieldKey, QuickReply[]>> = {
   "scope.operatingReach": [
-    "Activités locales",
-    "Activités nationales",
-    "Activités internationales",
+    "operatingReach_local",
+    "operatingReach_national",
+    "operatingReach_international",
   ],
-  "organization.employeeCount": [
-    "Moins de 10 salariés",
-    "Entre 10 et 49 salariés",
-    "Entre 50 et 249 salariés",
-  ],
-  "operations.externalProviders": [
-    "Oui, nous sous-traitons certaines activités",
-    "Non, aucune activité sous-traitée",
-  ],
-  "organization.afterSalesServices": [
-    "Oui, nous avons un service après-vente",
-    "Non, cela ne s’applique pas",
-  ],
-  "regulatory.implementedFrameworks": [
-    "Oui, nous appliquons déjà des référentiels",
-    "Non, pas encore",
-  ],
+  "organization.employeeCount": ["employees_small", "employees_medium", "employees_large"],
+  "operations.externalProviders": ["providers_yes", "providers_no"],
+  "organization.afterSalesServices": ["afterSales_yes", "afterSales_no"],
+  "regulatory.implementedFrameworks": ["frameworks_yes", "frameworks_no"],
 };
 
-function labelForField(key: ProfileFieldKey): string {
-  return fieldLabels[key] ?? key.split(".").at(-1) ?? key;
+type ProfileT = TFunction<"profile">;
+
+/** Translator for text that belongs to the AI conversation (project language). */
+function conversationT(profile: ProjectProfile): ProfileT {
+  return i18n.getFixedT(profile.project.language, "profile");
 }
 
-function formatFieldValue(value: unknown): string {
-  if (value == null) return "Non renseigné";
+function labelForField(key: ProfileFieldKey, t: ProfileT): string {
+  return t(`fields.${key.replace(".", "_") as FieldLabel}`, {
+    defaultValue: key.split(".").at(-1) ?? key,
+  });
+}
+
+function formatFieldValue(value: unknown, t: ProfileT): string {
+  if (value == null) return t("value.notProvided");
   if (typeof value === "string" || typeof value === "number") return String(value);
-  if (typeof value === "boolean") return value ? "Oui" : "Non";
+  if (typeof value === "boolean") return value ? t("editorUi.yes") : t("editorUi.no");
   if (Array.isArray(value)) {
     const labels = value
       .slice(0, 3)
@@ -178,9 +149,7 @@ function formatFieldValue(value: unknown): string {
             : null,
       )
       .filter(Boolean);
-    return labels.length
-      ? labels.join(", ")
-      : `${value.length} élément${value.length > 1 ? "s" : ""}`;
+    return labels.length ? labels.join(", ") : t("value.items", { count: value.length });
   }
   if (typeof value === "object") {
     const record = value as Record<string, unknown>;
@@ -188,7 +157,7 @@ function formatFieldValue(value: unknown): string {
       if (typeof record[key] === "string") return record[key];
     }
   }
-  return "Information structurée";
+  return t("value.structuredShort");
 }
 
 function isAnswered(status: string): boolean {
@@ -247,16 +216,22 @@ function useDelayedIndicator(active: boolean, delayMs = 500): boolean {
   return visible;
 }
 
-function timeLabel(value?: string): string {
-  if (!value) return "maintenant";
-  return new Intl.DateTimeFormat("fr", { hour: "2-digit", minute: "2-digit" }).format(
-    new Date(value),
-  );
+function useTimeLabel() {
+  const { t } = useTranslation("profile");
+  const format = useFormat();
+  return (value?: string) =>
+    value ? format.date(value, { hour: "2-digit", minute: "2-digit" }) : t("chat.now");
 }
 
-function bytesLabel(bytes: number): string {
-  if (bytes < 1_000_000) return `${Math.max(1, Math.round(bytes / 1_000))} Ko`;
-  return `${(bytes / 1_000_000).toFixed(1)} Mo`;
+function useBytesLabel() {
+  const { t } = useTranslation("profile");
+  const format = useFormat();
+  return (bytes: number) =>
+    bytes < 1_000_000
+      ? t("chat.kilobytes", { value: format.number(Math.max(1, Math.round(bytes / 1_000))) })
+      : t("chat.megabytes", {
+          value: format.number(bytes / 1_000_000, { maximumFractionDigits: 1 }),
+        });
 }
 
 function digestToBase64(digest: ArrayBuffer): string {
@@ -279,10 +254,11 @@ function AiAvatar() {
 }
 
 function ToolResultCard({ part }: { part: RecordProfileToolPart }) {
+  const { t } = useTranslation("profile");
   if (part.state === "input-streaming" || part.state === "input-available") {
     return (
       <div className="mt-3 flex items-center gap-3 rounded-2xl border border-violet-100 bg-violet-50/60 px-4 py-3 text-sm text-violet-800">
-        <LoaderCircleIcon className="size-4 animate-spin" /> Vérification des informations…
+        <LoaderCircleIcon className="size-4 animate-spin" /> {t("chat.verifying")}
       </div>
     );
   }
@@ -290,7 +266,7 @@ function ToolResultCard({ part }: { part: RecordProfileToolPart }) {
     return (
       <div className="mt-3 flex items-start gap-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
         <AlertCircleIcon className="mt-0.5 size-4 shrink-0" />
-        <span>{part.errorText ?? "Les informations n’ont pas pu être enregistrées."}</span>
+        <span>{part.errorText ?? t("chat.saveFailed")}</span>
       </div>
     );
   }
@@ -305,8 +281,7 @@ function ToolResultCard({ part }: { part: RecordProfileToolPart }) {
           </span>
           <div className="min-w-0 flex-1">
             <p className="text-xs font-semibold text-emerald-800">
-              {accepted.length} information{accepted.length > 1 ? "s" : ""} enregistrée
-              {accepted.length > 1 ? "s" : ""}
+              {t("chat.recorded", { count: accepted.length })}
             </p>
             <div className="mt-2 flex flex-wrap gap-1.5">
               {accepted.map((key) => (
@@ -314,7 +289,7 @@ function ToolResultCard({ part }: { part: RecordProfileToolPart }) {
                   key={key}
                   className="rounded-full border border-emerald-200 bg-white px-2.5 py-1 text-[11px] font-medium text-slate-700"
                 >
-                  {labelForField(key)}
+                  {labelForField(key, t)}
                 </span>
               ))}
             </div>
@@ -326,7 +301,7 @@ function ToolResultCard({ part }: { part: RecordProfileToolPart }) {
       )}
       {part.output.rejectedAnswers.length > 0 && (
         <div className="border-t border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-900">
-          Une information nécessite une précision avant d’être enregistrée.
+          {t("chat.needsClarification")}
         </div>
       )}
     </div>
@@ -334,6 +309,9 @@ function ToolResultCard({ part }: { part: RecordProfileToolPart }) {
 }
 
 function ChatMessage({ message }: { message: ProfileUiMessage }) {
+  const { t } = useTranslation("profile");
+  const timeLabel = useTimeLabel();
+  const bytesLabel = useBytesLabel();
   const isUser = message.role === "user";
   const toolParts = message.parts.filter(
     (part): part is (typeof message.parts)[number] & RecordProfileToolPart =>
@@ -344,14 +322,14 @@ function ChatMessage({ message }: { message: ProfileUiMessage }) {
     toolParts.at(-1);
   return (
     <article
-      aria-label={isUser ? "Message de l’utilisateur" : "Message de l’assistant"}
+      aria-label={isUser ? t("chat.userMessage") : t("chat.assistantMessage")}
       className={cn("flex gap-3", isUser && "justify-end")}
     >
       {!isUser && <AiAvatar />}
       <div className="min-w-0 max-w-[min(44rem,90%)]">
         {!isUser && (
           <div className="mb-1.5 flex items-center gap-2">
-            <span className="text-sm font-semibold text-slate-900">Assistant QHSE</span>
+            <span className="text-sm font-semibold text-slate-900">{t("chat.assistant")}</span>
             <span className="text-[11px] text-slate-400">
               {timeLabel(message.metadata?.createdAt)}
             </span>
@@ -359,21 +337,27 @@ function ChatMessage({ message }: { message: ProfileUiMessage }) {
         )}
         <div
           className={cn(
-            isUser && "rounded-3xl rounded-br-lg bg-slate-900 px-4 py-3 text-white shadow-sm",
+            isUser && "rounded-3xl rounded-ee-lg bg-slate-900 px-4 py-3 text-white shadow-sm",
           )}
         >
           {message.parts.map((part, index) => {
             if (part.type === "text") {
-              return (
+              // User text is shown as typed; the assistant answers in Markdown
+              // (bold questions, lists), which must be rendered, not printed.
+              return isUser ? (
                 <p
                   key={`${message.id}-text-${index}`}
-                  className={cn(
-                    "whitespace-pre-wrap text-[15px] leading-6",
-                    isUser ? "text-white" : "text-slate-700",
-                  )}
+                  className="whitespace-pre-wrap text-[15px] leading-6 text-white"
                 >
                   {part.text}
                 </p>
+              ) : (
+                <Streamdown
+                  key={`${message.id}-text-${index}`}
+                  className="text-[15px] leading-6 text-slate-700 [&_li]:my-0.5 [&_ol]:my-2 [&_p]:my-2 [&_[data-streamdown=strong]]:text-slate-900 [&_ul]:my-2 [&>*:first-child]:mt-0 [&>*:last-child]:mb-0"
+                >
+                  {part.text}
+                </Streamdown>
               );
             }
             if (part.type === "tool-recordProfileAnswers") {
@@ -407,8 +391,8 @@ function ChatMessage({ message }: { message: ProfileUiMessage }) {
         </div>
         {isUser && (
           <div className="mt-1.5 flex items-center justify-end gap-1.5 text-[11px] text-slate-400">
-            <CheckCircle2Icon className="size-3" /> Envoyé ·{" "}
-            {timeLabel(message.metadata?.createdAt)}
+            <CheckCircle2Icon className="size-3" />{" "}
+            {t("chat.sent", { time: timeLabel(message.metadata?.createdAt) })}
           </div>
         )}
       </div>
@@ -428,61 +412,66 @@ function CurrentQuestionCard({
   profile: ProjectProfile;
   onSuggestion: (value: string) => void;
 }) {
+  const { t } = useTranslation("profile");
   const question = profile.nextQuestion;
   if (!question) {
     return (
-      <article className="flex gap-3" aria-label="Profil prêt à finaliser">
+      <article className="flex gap-3" aria-label={t("chat.readyToFinalize")}>
         <AiAvatar />
-        <div className="max-w-xl rounded-3xl rounded-tl-lg border border-emerald-200 bg-emerald-50 p-5">
+        <div className="max-w-xl rounded-3xl rounded-ss-lg border border-emerald-200 bg-emerald-50 p-5">
           <CheckCircle2Icon className="size-6 text-emerald-600" />
-          <h2 className="mt-3 text-lg font-semibold text-emerald-950">Votre profil est complet</h2>
-          <p className="mt-2 text-sm leading-6 text-emerald-900/70">
-            Relisez les informations collectées avant de finaliser cette version du profil.
-          </p>
+          <h2 className="mt-3 text-lg font-semibold text-emerald-950">{t("chat.complete")}</h2>
+          <p className="mt-2 text-sm leading-6 text-emerald-900/70">{t("chat.completeBody")}</p>
           <Link
             to={`/projects/${profile.project.slug}/profile`}
             className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-emerald-800"
           >
-            Vérifier le profil <ArrowRightIcon className="size-4" />
+            {t("chat.checkProfile")} <ArrowRightIcon className="size-4 rtl:rotate-180" />
           </Link>
         </div>
       </article>
     );
   }
   const questionNumber = profileQuestions.findIndex((item) => item.key === question.key) + 1;
-  const suggestions = quickReplies[question.key] ?? [];
+  const conversation = conversationT(profile);
+  const suggestions = (quickReplies[question.key] ?? []).map((key) =>
+    conversation(`conversation.quickReplies.${key}`),
+  );
   return (
-    <article className="flex gap-3" aria-label="Question actuelle">
+    <article className="flex gap-3" aria-label={t("chat.currentQuestion")}>
       <AiAvatar />
       <div className="min-w-0 max-w-[min(46rem,92%)] flex-1">
         <div className="mb-1.5 flex items-center gap-2">
-          <span className="text-sm font-semibold text-slate-900">Assistant QHSE</span>
+          <span className="text-sm font-semibold text-slate-900">{t("chat.assistant")}</span>
           <Badge className="border-violet-200 bg-violet-50 text-violet-700" variant="outline">
-            Question actuelle
+            {t("chat.currentQuestion")}
           </Badge>
         </div>
-        <div className="overflow-hidden rounded-3xl rounded-tl-lg border border-violet-200 bg-white shadow-[0_14px_40px_-28px_rgba(91,33,182,0.55)]">
+        <div className="overflow-hidden rounded-3xl rounded-ss-lg border border-violet-200 bg-white shadow-[0_14px_40px_-28px_rgba(91,33,182,0.55)]">
           <div className="flex items-center justify-between gap-3 border-b border-violet-100 bg-violet-50/70 px-5 py-3">
             <span className="text-xs font-semibold uppercase tracking-[0.11em] text-violet-700">
-              {sectionLabels[question.section]}
+              {t(`sections.${question.section}.label`)}
             </span>
             <span className="shrink-0 text-xs font-medium text-slate-500">
-              Question {questionNumber} sur {profileQuestions.length}
+              {t("chat.questionOf", { number: questionNumber, total: profileQuestions.length })}
             </span>
           </div>
           <div className="space-y-4 p-5">
-            <h2 className="text-[17px] font-semibold leading-7 text-slate-950">
+            <h2
+              className="text-[17px] font-semibold leading-7 text-slate-950"
+              lang={profile.project.language}
+            >
               {question.prompt}
             </h2>
             {question.regulatoryCritical && (
               <div className="flex items-start gap-2 rounded-xl bg-slate-50 px-3 py-2.5 text-xs leading-5 text-slate-600">
-                <CircleHelpIcon className="mt-0.5 size-3.5 shrink-0 text-blue-600" /> Cette réponse
-                aide à déterminer les exigences réglementaires applicables.
+                <CircleHelpIcon className="mt-0.5 size-3.5 shrink-0 text-blue-600" />{" "}
+                {t("chat.regulatoryHint")}
               </div>
             )}
             {suggestions.length > 0 && (
               <div>
-                <p className="mb-2 text-xs font-medium text-slate-500">Réponses rapides</p>
+                <p className="mb-2 text-xs font-medium text-slate-500">{t("chat.quickReplies")}</p>
                 <div className="flex flex-wrap gap-2">
                   {suggestions.map((suggestion) => (
                     <Button
@@ -491,7 +480,7 @@ function CurrentQuestionCard({
                       onClick={() => onSuggestion(suggestion)}
                       size="sm"
                       variant="outline"
-                      className="h-auto min-h-7 whitespace-normal rounded-full border-slate-200 bg-white px-3 py-1.5 text-left text-xs font-normal text-slate-700 hover:border-violet-300 hover:bg-violet-50 hover:text-violet-800"
+                      className="h-auto min-h-7 whitespace-normal rounded-full border-slate-200 bg-white px-3 py-1.5 text-start text-xs font-normal text-slate-700 hover:border-violet-300 hover:bg-violet-50 hover:text-violet-800"
                     >
                       {suggestion}
                     </Button>
@@ -507,11 +496,12 @@ function CurrentQuestionCard({
 }
 
 function ProfileDrawer({ profile }: { profile: ProjectProfile }) {
+  const { t } = useTranslation("profile");
   const answered = profile.fields.filter((field) => isAnswered(field.status));
   return (
     <Sheet>
       <SheetTrigger
-        aria-label="Voir les détails du profil"
+        aria-label={t("chat.viewDetailsAria")}
         render={
           <Button
             className="border-violet-200 bg-white text-violet-700 hover:bg-violet-50"
@@ -521,28 +511,29 @@ function ProfileDrawer({ profile }: { profile: ProjectProfile }) {
         }
       >
         <LayoutListIcon />
-        <span className="hidden sm:inline">Voir les détails</span>
-        <span className="sm:hidden">Détails</span>
+        <span className="hidden sm:inline">{t("chat.viewDetails")}</span>
+        <span className="sm:hidden">{t("chat.details")}</span>
       </SheetTrigger>
       <SheetContent className="w-[min(92vw,430px)]! sm:max-w-[430px]!">
-        <SheetHeader className="border-b border-slate-100 pr-14">
-          <SheetTitle className="text-lg font-semibold">Profil du projet</SheetTitle>
-          <SheetDescription>
-            Les informations sont mises à jour après chaque réponse validée.
-          </SheetDescription>
+        <SheetHeader className="border-b border-slate-100 pe-14">
+          <SheetTitle className="text-lg font-semibold">{t("chat.projectProfile")}</SheetTitle>
+          <SheetDescription>{t("chat.drawerHelp")}</SheetDescription>
         </SheetHeader>
         <ScrollArea className="min-h-0 flex-1">
           <div className="space-y-6 p-6">
             <section className="rounded-3xl bg-violet-50 p-5">
               <div className="flex items-end justify-between">
                 <div>
-                  <p className="text-xs font-medium text-violet-700">Progression globale</p>
+                  <p className="text-xs font-medium text-violet-700">{t("chat.overallProgress")}</p>
                   <p className="mt-1 text-3xl font-semibold text-violet-950">
                     {profile.completion.completenessPercent}%
                   </p>
                 </div>
                 <Badge className="bg-white text-violet-700" variant="secondary">
-                  {profile.completion.answeredRequired} sur {profile.completion.totalRequired}
+                  {t("chat.ofTotal", {
+                    answered: profile.completion.answeredRequired,
+                    total: profile.completion.totalRequired,
+                  })}
                 </Badge>
               </div>
               <Progress
@@ -550,16 +541,16 @@ function ProfileDrawer({ profile }: { profile: ProjectProfile }) {
                 value={profile.completion.completenessPercent}
               />
               <div className="mt-4 flex items-center justify-between border-t border-violet-100 pt-4 text-xs">
-                <span className="text-violet-700">Préparation réglementaire</span>
+                <span className="text-violet-700">{t("page.regulatoryReadiness")}</span>
                 <strong className="text-violet-950">
                   {profile.completion.regulatoryReadiness}%
                 </strong>
               </div>
             </section>
             <section>
-              <h2 className="text-sm font-semibold text-slate-950">Sections du profil</h2>
+              <h2 className="text-sm font-semibold text-slate-950">{t("chat.profileSections")}</h2>
               <div className="mt-3 divide-y divide-slate-100 rounded-2xl border border-slate-200 bg-white px-4">
-                {Object.entries(sectionLabels).map(([section, label], index) => {
+                {sections.map((section, index) => {
                   const questions = profileQuestions.filter(
                     (item) => item.section === section && item.required,
                   );
@@ -583,7 +574,9 @@ function ProfileDrawer({ profile }: { profile: ProjectProfile }) {
                       </span>
                       <div className="min-w-0 flex-1">
                         <div className="flex justify-between gap-3">
-                          <p className="truncate text-sm font-medium text-slate-800">{label}</p>
+                          <p className="truncate text-sm font-medium text-slate-800">
+                            {t(`sections.${section}.label`)}
+                          </p>
                           <span className="text-xs text-slate-400">
                             {count}/{questions.length}
                           </span>
@@ -593,7 +586,7 @@ function ProfileDrawer({ profile }: { profile: ProjectProfile }) {
                           value={percent}
                         />
                       </div>
-                      <ChevronRightIcon className="size-4 text-slate-300" />
+                      <ChevronRightIcon className="size-4 text-slate-300 rtl:rotate-180" />
                     </div>
                   );
                 })}
@@ -601,7 +594,9 @@ function ProfileDrawer({ profile }: { profile: ProjectProfile }) {
             </section>
             <section>
               <div className="flex items-center justify-between">
-                <h2 className="text-sm font-semibold text-slate-950">Informations enregistrées</h2>
+                <h2 className="text-sm font-semibold text-slate-950">
+                  {t("chat.recordedInformation")}
+                </h2>
                 <Badge variant="secondary">{answered.length}</Badge>
               </div>
               <div className="mt-3 space-y-2.5">
@@ -612,16 +607,20 @@ function ProfileDrawer({ profile }: { profile: ProjectProfile }) {
                   >
                     <CheckCircle2Icon className="size-4 shrink-0 text-emerald-600" />
                     <div className="min-w-0 flex-1">
-                      <p className="text-[11px] text-slate-500">{labelForField(field.key)}</p>
+                      <p className="text-[11px] text-slate-500">{labelForField(field.key, t)}</p>
                       <p className="truncate text-sm font-medium text-slate-900">
-                        {formatFieldValue(field.value)}
+                        {field.key === "scope.operatingCountries" && Array.isArray(field.value)
+                          ? field.value
+                              .map((code) => countryName(String(code), currentLanguage()))
+                              .join(", ")
+                          : formatFieldValue(field.value, t)}
                       </p>
                     </div>
                   </div>
                 ))}
                 {!answered.length && (
                   <p className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">
-                    Les réponses validées apparaîtront ici.
+                    {t("chat.recordedEmpty")}
                   </p>
                 )}
               </div>
@@ -633,7 +632,7 @@ function ProfileDrawer({ profile }: { profile: ProjectProfile }) {
             render={<Link to={`/projects/${profile.project.slug}/profile`} />}
             className="w-full"
           >
-            Ouvrir la page profil
+            {t("chat.openProfilePage")}
           </Button>
         </SheetFooter>
       </SheetContent>
@@ -652,6 +651,7 @@ function ProfileStatusBar({
   synchronizationFailed: boolean;
   onRetry: () => void;
 }) {
+  const { t } = useTranslation("profile");
   return (
     <div className="shrink-0 border-b border-slate-200 bg-[#fafafe] px-4 py-3 lg:px-8">
       <div className="mx-auto flex max-w-5xl items-center gap-3 sm:gap-4">
@@ -660,22 +660,25 @@ function ProfileStatusBar({
             {profile.completion.completenessPercent}%
           </span>
           <div className="min-w-0">
-            <p className="text-xs font-semibold text-slate-800">Profil du projet</p>
+            <p className="text-xs font-semibold text-slate-800">{t("chat.projectProfile")}</p>
             <p className="max-w-[45vw] truncate text-[11px] text-slate-500 sm:max-w-none">
-              {profile.project.name} · {profile.completion.answeredRequired} réponses sur{" "}
-              {profile.completion.totalRequired}
+              {t("chat.statusSummary", {
+                project: profile.project.name,
+                answered: profile.completion.answeredRequired,
+                total: profile.completion.totalRequired,
+              })}
             </p>
           </div>
         </div>
-        <div className="ml-auto flex shrink-0 items-center gap-2">
+        <div className="ms-auto flex shrink-0 items-center gap-2">
           {synchronizing && (
             <span
               role="status"
-              aria-label="Synchronisation en cours"
+              aria-label={t("chat.synchronizing")}
               className="flex items-center gap-1.5 text-[11px] text-slate-500"
             >
               <LoaderCircleIcon className="size-3.5 animate-spin text-violet-600" />
-              <span className="hidden sm:inline">Synchronisation…</span>
+              <span className="hidden sm:inline">{t("chat.synchronizingShort")}</span>
             </span>
           )}
           {synchronizationFailed && (
@@ -687,7 +690,7 @@ function ProfileStatusBar({
               onClick={onRetry}
             >
               <AlertCircleIcon className="size-3.5" />
-              <span className="hidden sm:inline">Actualiser</span>
+              <span className="hidden sm:inline">{t("chat.refresh")}</span>
             </Button>
           )}
           <ProfileDrawer profile={profile} />
@@ -698,19 +701,20 @@ function ProfileStatusBar({
 }
 
 function ConversationHistorySkeleton() {
+  const { t } = useTranslation("profile");
   return (
-    <div aria-label="Chargement de l’historique" role="status" className="space-y-7">
-      <span className="sr-only">Chargement de l’historique de conversation…</span>
+    <div aria-label={t("chat.loadingHistory")} role="status" className="space-y-7">
+      <span className="sr-only">{t("chat.loadingHistoryLong")}</span>
       <div className="flex animate-pulse gap-3">
         <div className="size-9 shrink-0 rounded-2xl bg-violet-100" />
-        <div className="w-full max-w-xl space-y-2 rounded-3xl rounded-tl-lg bg-slate-50 p-5">
+        <div className="w-full max-w-xl space-y-2 rounded-3xl rounded-ss-lg bg-slate-50 p-5">
           <div className="h-3 w-28 rounded-full bg-slate-200" />
           <div className="h-3 w-full rounded-full bg-slate-200" />
           <div className="h-3 w-4/5 rounded-full bg-slate-200" />
         </div>
       </div>
       <div className="flex animate-pulse justify-end gap-3">
-        <div className="h-16 w-full max-w-sm rounded-3xl rounded-br-lg bg-slate-100" />
+        <div className="h-16 w-full max-w-sm rounded-3xl rounded-ee-lg bg-slate-100" />
         <div className="size-8 shrink-0 rounded-full bg-blue-50" />
       </div>
     </div>
@@ -718,13 +722,14 @@ function ConversationHistorySkeleton() {
 }
 
 function ConversationPageSkeleton() {
+  const { t } = useTranslation("profile");
   return (
     <div
-      aria-label="Chargement de la conversation"
+      aria-label={t("chat.loadingConversation")}
       role="status"
       className="-m-6 flex h-[calc(100dvh-4rem)] min-h-[680px] flex-col overflow-hidden bg-white"
     >
-      <span className="sr-only">Chargement de la conversation…</span>
+      <span className="sr-only">{t("chat.loadingConversationLong")}</span>
       <div className="shrink-0 border-b border-slate-200 bg-[#fafafe] px-4 py-3 lg:px-8">
         <div className="mx-auto flex max-w-5xl animate-pulse items-center gap-3">
           <div className="size-9 rounded-2xl bg-violet-100" />
@@ -732,7 +737,7 @@ function ConversationPageSkeleton() {
             <div className="h-3 w-28 rounded-full bg-slate-200" />
             <div className="h-2.5 w-48 rounded-full bg-slate-100" />
           </div>
-          <div className="ml-auto h-8 w-28 rounded-xl bg-slate-100" />
+          <div className="ms-auto h-8 w-28 rounded-xl bg-slate-100" />
         </div>
       </div>
       <div className="min-h-0 flex-1 px-5 py-8 lg:px-10">
@@ -749,6 +754,8 @@ function ConversationPageSkeleton() {
 
 export function ProjectProfileChat({ projectIdOrSlug }: { projectIdOrSlug: string }) {
   const queryClient = useQueryClient();
+  const { t } = useTranslation("profile");
+  const bytesLabel = useBytesLabel();
   const profileQuery = useQuery({
     queryKey: ["project-profile", projectIdOrSlug],
     queryFn: () => clientApi.projectProfile(projectIdOrSlug),
@@ -776,7 +783,7 @@ export function ProjectProfileChat({ projectIdOrSlug }: { projectIdOrSlug: strin
         credentials: "include",
         prepareSendMessagesRequest: ({ messages, trigger, messageId, body }) => {
           const latestUser = [...messages].reverse().find((message) => message.role === "user");
-          if (!latestUser) throw new Error("Aucun message utilisateur à envoyer");
+          if (!latestUser) throw new Error(t("chat.noUserMessage"));
           return {
             body: {
               messages: [
@@ -790,7 +797,7 @@ export function ProjectProfileChat({ projectIdOrSlug }: { projectIdOrSlug: strin
               ],
               trigger,
               messageId: messageId ?? latestUser.id,
-              language: "fr",
+              // No language: the server answers in the project's own language.
               module: "PROFILE_COMPLETION",
               attachmentIds: [],
               ...body,
@@ -798,7 +805,7 @@ export function ProjectProfileChat({ projectIdOrSlug }: { projectIdOrSlug: strin
           };
         },
       }),
-    [projectIdOrSlug],
+    [projectIdOrSlug, t],
   );
 
   const { messages, setMessages, sendMessage, status, error, stop } = useChat<ProfileUiMessage>({
@@ -882,7 +889,7 @@ export function ProjectProfileChat({ projectIdOrSlug }: { projectIdOrSlug: strin
             ...(organizationId ? { "x-amz-meta-organizationid": organizationId } : {}),
           },
         });
-        if (!uploadResponse.ok) throw new Error("Le transfert du fichier a échoué");
+        if (!uploadResponse.ok) throw new Error(t("chat.uploadFailed"));
         await clientApi.completeFileUpload(created.file.id);
         if (purpose === "VOICE_NOTE") await clientApi.transcribeVoiceNote(created.file.id);
         setAttachments((current) =>
@@ -895,11 +902,11 @@ export function ProjectProfileChat({ projectIdOrSlug }: { projectIdOrSlug: strin
           current.map((item) => (item.localId === localId ? { ...item, status: "error" } : item)),
         );
         setComposerError(
-          uploadError instanceof Error ? uploadError.message : "Le fichier n’a pas pu être ajouté.",
+          uploadError instanceof Error ? uploadError.message : t("chat.attachFailed"),
         );
       }
     },
-    [profileQuery.data?.project.organizationId],
+    [profileQuery.data?.project.organizationId, t],
   );
 
   async function selectFiles(event: ChangeEvent<HTMLInputElement>) {
@@ -927,7 +934,11 @@ export function ProjectProfileChat({ projectIdOrSlug }: { projectIdOrSlug: strin
       };
       recorder.onstop = () => {
         const type = recorder.mimeType || "audio/webm";
-        const file = new File(audioChunksRef.current, `note-vocale-${Date.now()}.webm`, { type });
+        const file = new File(
+          audioChunksRef.current,
+          `${t("chat.voiceNoteName")}-${Date.now()}.webm`,
+          { type },
+        );
         audioStreamRef.current?.getTracks().forEach((track) => track.stop());
         void uploadFile(file, "VOICE_NOTE");
       };
@@ -935,7 +946,7 @@ export function ProjectProfileChat({ projectIdOrSlug }: { projectIdOrSlug: strin
       recorder.start();
       setRecording(true);
     } catch {
-      setComposerError("Autorisez l’accès au microphone pour enregistrer une note vocale.");
+      setComposerError(t("chat.microphone"));
     }
   }
 
@@ -943,8 +954,8 @@ export function ProjectProfileChat({ projectIdOrSlug }: { projectIdOrSlug: strin
     const readyAttachments = attachments.filter((item) => item.status === "ready" && item.id);
     const content =
       draft.trim() ||
-      (readyAttachments.length
-        ? "Veuillez analyser les fichiers joints et utiliser les informations explicites pour compléter mon profil."
+      (readyAttachments.length && profileQuery.data
+        ? conversationT(profileQuery.data)("conversation.analyseAttachments")
         : "");
     if (!content || attachments.some((item) => item.status === "uploading")) return;
     const messageAttachments: MessageAttachment[] = readyAttachments.map((item) => ({
@@ -978,7 +989,7 @@ export function ProjectProfileChat({ projectIdOrSlug }: { projectIdOrSlug: strin
     } catch {
       setDraft(previousDraft);
       setAttachments(previousAttachments);
-      setComposerError("Le message n’a pas pu être envoyé. Réessayez.");
+      setComposerError(t("chat.sendFailed"));
     }
   }
 
@@ -990,10 +1001,10 @@ export function ProjectProfileChat({ projectIdOrSlug }: { projectIdOrSlug: strin
   if (!profileQuery.data) {
     return (
       <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-red-800">
-        <h1 className="font-semibold">Le profil ne peut pas être chargé</h1>
-        <p className="mt-2 text-sm">Réessayez dans quelques instants.</p>
+        <h1 className="font-semibold">{t("page.loadFailed")}</h1>
+        <p className="mt-2 text-sm">{t("chat.tryLater")}</p>
         <Button type="button" variant="outline" className="mt-4" onClick={retrySynchronization}>
-          Réessayer
+          {t("retry", { ns: "common" })}
         </Button>
       </div>
     );
@@ -1017,12 +1028,12 @@ export function ProjectProfileChat({ projectIdOrSlug }: { projectIdOrSlug: strin
       />
       <section
         className="flex min-h-0 flex-1 flex-col bg-white"
-        aria-label="Conversation de profil"
+        aria-label={t("chat.conversation")}
       >
         <ScrollArea className="min-h-0 flex-1">
           <div className="mx-auto flex w-full max-w-5xl flex-col gap-7 px-5 py-8 lg:px-10">
             <div className="flex items-center gap-3 text-[11px] font-medium uppercase tracking-[0.12em] text-slate-400">
-              <span className="h-px flex-1 bg-slate-100" /> Conversation de profil{" "}
+              <span className="h-px flex-1 bg-slate-100" /> {t("chat.conversation")}{" "}
               <span className="h-px flex-1 bg-slate-100" />
             </div>
             {conversationQuery.error && (
@@ -1032,8 +1043,7 @@ export function ProjectProfileChat({ projectIdOrSlug }: { projectIdOrSlug: strin
               >
                 <div className="flex min-w-0 flex-1 items-center gap-2">
                   <AlertCircleIcon className="size-4 shrink-0" />
-                  L’historique n’a pas pu être synchronisé. La conversation affichée reste
-                  disponible.
+                  {t("chat.historyFailed")}
                 </div>
                 <Button
                   type="button"
@@ -1042,7 +1052,7 @@ export function ProjectProfileChat({ projectIdOrSlug }: { projectIdOrSlug: strin
                   className="border-amber-300 bg-white text-amber-800 hover:bg-amber-100"
                   onClick={() => void conversationQuery.refetch()}
                 >
-                  Réessayer
+                  {t("retry", { ns: "common" })}
                 </Button>
               </div>
             )}
@@ -1055,7 +1065,9 @@ export function ProjectProfileChat({ projectIdOrSlug }: { projectIdOrSlug: strin
                   parts: [
                     {
                       type: "text",
-                      text: `Bonjour, je vais vous aider à compléter le profil de ${profile.project.name}. Je poserai une question à la fois et j’enregistrerai uniquement les informations que vous confirmez.`,
+                      text: conversationT(profile)("conversation.welcome", {
+                        project: profile.project.name,
+                      }),
                     },
                   ],
                 }}
@@ -1068,8 +1080,8 @@ export function ProjectProfileChat({ projectIdOrSlug }: { projectIdOrSlug: strin
               <div className="flex items-center gap-3">
                 <AiAvatar />
                 <div className="flex items-center gap-2 rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-500">
-                  <LoaderCircleIcon className="size-4 animate-spin text-violet-600" /> L’assistant
-                  analyse votre réponse…
+                  <LoaderCircleIcon className="size-4 animate-spin text-violet-600" />{" "}
+                  {t("chat.analysing")}
                 </div>
               </div>
             )}
@@ -1105,14 +1117,14 @@ export function ProjectProfileChat({ projectIdOrSlug }: { projectIdOrSlug: strin
                       <AttachmentTitle>{attachment.name}</AttachmentTitle>
                       <AttachmentDescription>
                         {attachment.status === "uploading"
-                          ? "Téléversement…"
+                          ? t("chat.uploading")
                           : attachment.status === "error"
-                            ? "Échec du transfert"
-                            : `${bytesLabel(attachment.sizeBytes)} · prêt`}
+                            ? t("chat.transferFailed")
+                            : t("chat.ready", { size: bytesLabel(attachment.sizeBytes) })}
                       </AttachmentDescription>
                     </AttachmentContent>
                     <AttachmentAction
-                      aria-label={`Retirer ${attachment.name}`}
+                      aria-label={t("chat.removeAttachment", { name: attachment.name })}
                       onClick={() =>
                         setAttachments((current) =>
                           current.filter((item) => item.localId !== attachment.localId),
@@ -1128,12 +1140,10 @@ export function ProjectProfileChat({ projectIdOrSlug }: { projectIdOrSlug: strin
             {recording && (
               <div className="mb-2 flex items-center gap-3 rounded-2xl border border-rose-200 bg-rose-50 px-3 py-2">
                 <span className="size-2 animate-pulse rounded-full bg-rose-500" />
-                <span className="text-xs font-semibold text-rose-700">
-                  Enregistrement en cours…
-                </span>
+                <span className="text-xs font-semibold text-rose-700">{t("chat.recording")}</span>
                 <div className="h-px flex-1 bg-rose-200" />
                 <Button
-                  aria-label="Arrêter l’enregistrement"
+                  aria-label={t("chat.stopRecording")}
                   onClick={() => void toggleRecording()}
                   size="icon-sm"
                   variant="ghost"
@@ -1147,13 +1157,12 @@ export function ProjectProfileChat({ projectIdOrSlug }: { projectIdOrSlug: strin
                 role="alert"
                 className="mb-2 flex items-center gap-2 rounded-xl bg-red-50 px-3 py-2 text-xs text-red-700"
               >
-                <AlertCircleIcon className="size-4" />{" "}
-                {composerError ?? "La réponse n’a pas pu être générée. Vous pouvez réessayer."}
+                <AlertCircleIcon className="size-4" /> {composerError ?? t("chat.generationFailed")}
               </div>
             )}
             <div className="rounded-[22px] border border-slate-200 bg-slate-50 p-2 shadow-[0_12px_35px_-25px_rgba(15,23,42,0.45)] focus-within:border-violet-400 focus-within:ring-4 focus-within:ring-violet-100">
               <Textarea
-                aria-label="Votre réponse"
+                aria-label={t("chat.yourAnswer")}
                 className="min-h-14 border-0 bg-transparent px-2 py-1.5 text-[15px] shadow-none focus-visible:border-0 focus-visible:ring-0"
                 disabled={busy}
                 onChange={(event) => setDraft(event.target.value)}
@@ -1163,11 +1172,7 @@ export function ProjectProfileChat({ projectIdOrSlug }: { projectIdOrSlug: strin
                     void submit();
                   }
                 }}
-                placeholder={
-                  profile.nextQuestion
-                    ? "Écrivez votre réponse…"
-                    : "Posez une question sur votre profil…"
-                }
+                placeholder={profile.nextQuestion ? t("chat.writeAnswer") : t("chat.askQuestion")}
                 value={draft}
               />
               <div className="flex items-center justify-between gap-3">
@@ -1181,7 +1186,7 @@ export function ProjectProfileChat({ projectIdOrSlug }: { projectIdOrSlug: strin
                     onChange={(event) => void selectFiles(event)}
                   />
                   <Button
-                    aria-label="Ajouter un fichier"
+                    aria-label={t("chat.addFile")}
                     disabled={busy || attachments.length >= 10}
                     onClick={() => fileInput.current?.click()}
                     size="icon-sm"
@@ -1190,9 +1195,7 @@ export function ProjectProfileChat({ projectIdOrSlug }: { projectIdOrSlug: strin
                     <PaperclipIcon />
                   </Button>
                   <Button
-                    aria-label={
-                      recording ? "Arrêter l’enregistrement" : "Enregistrer un message vocal"
-                    }
+                    aria-label={recording ? t("chat.stopRecording") : t("chat.record")}
                     className={cn(recording && "bg-rose-100 text-rose-700")}
                     disabled={busy}
                     onClick={() => void toggleRecording()}
@@ -1201,13 +1204,13 @@ export function ProjectProfileChat({ projectIdOrSlug }: { projectIdOrSlug: strin
                   >
                     <MicIcon />
                   </Button>
-                  <span className="hidden pl-1 text-[11px] text-slate-400 sm:inline">
-                    PDF, Word, image ou audio
+                  <span className="hidden ps-1 text-[11px] text-slate-400 sm:inline">
+                    {t("chat.fileTypes")}
                   </span>
                 </div>
                 {busy ? (
                   <Button
-                    aria-label="Arrêter la réponse"
+                    aria-label={t("chat.stopAnswer")}
                     className="rounded-full"
                     onClick={stop}
                     size="icon"
@@ -1217,7 +1220,7 @@ export function ProjectProfileChat({ projectIdOrSlug }: { projectIdOrSlug: strin
                   </Button>
                 ) : (
                   <Button
-                    aria-label="Envoyer la réponse"
+                    aria-label={t("chat.send")}
                     className="rounded-full bg-violet-600 hover:bg-violet-700"
                     disabled={!canSend}
                     onClick={() => void submit()}
@@ -1228,9 +1231,7 @@ export function ProjectProfileChat({ projectIdOrSlug }: { projectIdOrSlug: strin
                 )}
               </div>
             </div>
-            <p className="mt-2 text-center text-[11px] text-slate-400">
-              L’IA peut se tromper. Vérifiez les informations avant de finaliser le profil.
-            </p>
+            <p className="mt-2 text-center text-[11px] text-slate-400">{t("chat.disclaimer")}</p>
           </div>
         </div>
       </section>

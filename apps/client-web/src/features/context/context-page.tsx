@@ -8,7 +8,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertCircleIcon, LoaderCircleIcon, ScaleIcon } from "lucide-react";
-import type { ContextAnalysisRunSummary, ContextExternalRunSummary } from "@qhse/contracts";
+import { useTranslation } from "react-i18next";
+import type {
+  ContextAnalysisRunSummary,
+  ContextExternalRunSummary,
+  SupportedLanguage,
+} from "@qhse/contracts";
 import { Badge } from "@qhse/ui/components/badge";
 import { Button } from "@qhse/ui/components/button";
 import { Skeleton } from "@qhse/ui/components/skeleton";
@@ -32,8 +37,7 @@ import {
 } from "./context-step-issues.js";
 import { AnalysisStepper, notify } from "./context-ui.js";
 import { buildContextDocument } from "./export/document.js";
-
-const METHOD_REQUIRED_MESSAGE = "Choisissez d’abord la méthode d’analyse SWOT ou PESTEL.";
+import "./context.css";
 
 export function ContextPage() {
   const { projectId } = useParams<{ projectId: string }>();
@@ -46,16 +50,21 @@ export function ContextPage() {
 }
 
 function ContextGate({ projectId }: { projectId: string }) {
+  const { t } = useTranslation("context");
+  const projectQuery = useQuery({
+    queryKey: ["client", "project", projectId],
+    queryFn: () => clientApi.project(projectId),
+  });
   const watchQuery = useQuery({
     queryKey: ["regulatory-watch", projectId],
     queryFn: () => clientApi.regulatoryWatch(projectId),
   });
 
-  if (watchQuery.isLoading) {
+  if (watchQuery.isLoading || projectQuery.isLoading) {
     return (
       <div className="flex items-center gap-2 py-16 text-sm text-slate-500">
         <LoaderCircleIcon className="size-4 animate-spin" aria-hidden="true" />
-        Chargement de l'analyse des enjeux…
+        {t("gate.loading")}
       </div>
     );
   }
@@ -63,44 +72,49 @@ function ContextGate({ projectId }: { projectId: string }) {
     return (
       <div className="flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
         <AlertCircleIcon className="size-4" aria-hidden="true" />
-        Impossible de charger la veille réglementaire.
+        {t("gate.watchFailed")}
       </div>
     );
   }
   if (watchQuery.data.currentBaseline == null) {
     return <IncompleteWatchState projectId={projectId} status={watchQuery.data.status} />;
   }
-  return <AnalysisPage projectId={projectId} />;
+  return (
+    <AnalysisPage projectId={projectId} projectLanguage={projectQuery.data?.language ?? "fr"} />
+  );
 }
 
-const WATCH_STATUS_LABELS: Record<string, string> = {
-  NOT_STARTED: "pas encore lancée",
-  ANALYZING: "en cours d'analyse",
-  AWAITING_CLARIFICATION: "en attente de précisions",
-  REVIEW_REQUIRED: "en attente de votre validation",
-  STALE: "à revérifier",
-  FAILED: "en échec",
-};
+const WATCH_STATUSES = [
+  "NOT_STARTED",
+  "ANALYZING",
+  "AWAITING_CLARIFICATION",
+  "REVIEW_REQUIRED",
+  "STALE",
+  "FAILED",
+] as const;
 
 /** The légal dimension reuses the published veille, so the module waits for one. */
 function IncompleteWatchState({ projectId, status }: { projectId: string; status: string }) {
+  const { t } = useTranslation("context");
+  const statusLabel = (WATCH_STATUSES as readonly string[]).includes(status)
+    ? t(`gate.watchStatus.${status as (typeof WATCH_STATUSES)[number]}`)
+    : status;
   return (
     <div className="mx-auto max-w-2xl py-16 text-center">
       <span className="mx-auto grid size-16 place-items-center rounded-3xl border border-violet-200 bg-violet-50 text-violet-600">
         <ScaleIcon className="size-7" aria-hidden="true" />
       </span>
       <Badge className="mt-6" variant="outline">
-        Étape préalable · Veille réglementaire
+        {t("gate.prerequisite")}
       </Badge>
       <h1 className="mt-5 text-2xl font-semibold tracking-tight text-slate-950">
-        Publiez d'abord votre veille réglementaire
+        {t("gate.publishFirst")}
       </h1>
       <p className="mt-3 text-sm leading-6 text-slate-500">
-        L'analyse des enjeux réutilise votre registre réglementaire publié pour la dimension légale
-        — elle ne la recherche jamais elle-même. Veille : {WATCH_STATUS_LABELS[status] ?? status}.
+        {t("gate.publishFirstBody", { status: statusLabel })}
       </p>
       <Button className="mt-6" render={<Link to={`/projects/${projectId}/regulatory-watch`} />}>
-        <ScaleIcon className="size-4" aria-hidden="true" /> Ouvrir la veille réglementaire
+        <ScaleIcon className="size-4" aria-hidden="true" /> {t("gate.openWatch")}
       </Button>
     </div>
   );
@@ -135,8 +149,15 @@ function useLaunchedRun<T extends { id: string; status: string; errorMessage: st
   };
 }
 
-function AnalysisPage({ projectId }: { projectId: string }) {
+function AnalysisPage({
+  projectId,
+  projectLanguage,
+}: {
+  projectId: string;
+  projectLanguage: SupportedLanguage;
+}) {
   const queryClient = useQueryClient();
+  const { t } = useTranslation("context");
   const pollWhileActive = (query: { state: { data?: { status: string }[] | undefined } }) =>
     isActive(query.state.data?.[0]) ? 3_000 : false;
 
@@ -192,9 +213,9 @@ function AnalysisPage({ projectId }: { projectId: string }) {
     useMemo(
       () => (run: ContextExternalRunSummary) => {
         void queryClient.invalidateQueries({ queryKey: ["context-external-factors", projectId] });
-        notify.success(`Analyse externe terminée : ${run.factorsCount} facteur(s) documenté(s).`);
+        notify.success(t("page.externalDone", { count: run.factorsCount }));
       },
-      [projectId, queryClient],
+      [projectId, queryClient, t],
     ),
   );
   const synthesis = useLaunchedRun<ContextAnalysisRunSummary>(
@@ -202,9 +223,9 @@ function AnalysisPage({ projectId }: { projectId: string }) {
     useMemo(
       () => (run: ContextAnalysisRunSummary) => {
         void queryClient.invalidateQueries({ queryKey: ["context-issues", projectId] });
-        notify.success(`Synthèse terminée : ${run.issuesCount} enjeu(x) identifié(s).`);
+        notify.success(t("page.synthesisDone", { count: run.issuesCount }));
       },
-      [projectId, queryClient],
+      [projectId, queryClient, t],
     ),
   );
 
@@ -235,16 +256,16 @@ function AnalysisPage({ projectId }: { projectId: string }) {
         correctionReason: input.reason,
       }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["context-issues", projectId] }),
-    onError: () => notify.error("Votre revue n’a pas pu être enregistrée. Réessayez."),
+    onError: () => notify.error(t("page.reviewFailed")),
   });
 
   const externalRunning = launchExternal.isPending || external.isRunning;
   const synthesisRunning = launchSynthesis.isPending || synthesis.isRunning;
   const externalError = launchExternal.isError
-    ? "L’analyse externe n’a pas pu être lancée. Vérifiez votre accès au projet puis réessayez."
+    ? t("page.externalLaunchFailed")
     : external.errorMessage;
   const synthesisError = launchSynthesis.isError
-    ? "La synthèse n’a pas pu être lancée. Vérifiez votre accès au projet puis réessayez."
+    ? t("page.synthesisLaunchFailed")
     : synthesis.errorMessage;
 
   /* ------------------------------- steps ------------------------------- */
@@ -275,17 +296,23 @@ function AnalysisPage({ projectId }: { projectId: string }) {
   const scope = scopeQuery.data;
   const scopeRows = scope
     ? [
-        { label: "Projet", value: scope.projectName },
-        { label: "Organisation", value: scope.organizationName || "—" },
-        { label: "Référentiel", value: scope.isoStandard },
-        { label: "Secteur / activité", value: scope.activity ?? "—" },
+        { label: t("page.scope.project"), value: scope.projectName },
+        { label: t("page.scope.organization"), value: scope.organizationName || "—" },
+        { label: t("page.scope.standard"), value: scope.isoStandard },
+        { label: t("page.scope.activity"), value: scope.activity ?? "—" },
         {
-          label: "Pays identifiés",
-          value: scope.countries.join(", ") || "Non renseigné dans le profil validé",
+          label: t("page.scope.countries"),
+          value: scope.countries.join(", ") || t("page.scope.noCountries"),
         },
         {
-          label: "Contexte interne",
-          value: internalCompleted ? "Validé (étape 1)" : "À compléter",
+          label: t("page.scope.internal"),
+          value: internalCompleted
+            ? t("page.scope.internalValidated")
+            : t("page.scope.internalTodo"),
+        },
+        {
+          label: t("page.scope.language"),
+          value: t(`projectLanguage.${projectLanguage}`, { ns: "common" }),
         },
       ]
     : [];
@@ -293,6 +320,7 @@ function AnalysisPage({ projectId }: { projectId: string }) {
   const exportDocument = useMemo(() => {
     if (!scope) return null;
     return buildContextDocument({
+      language: projectLanguage,
       organizationName: scope.organizationName || "—",
       projectName: scope.projectName,
       isoStandard: scope.isoStandard,
@@ -302,21 +330,24 @@ function AnalysisPage({ projectId }: { projectId: string }) {
       factors,
       issues,
     });
-  }, [scope, displayedMethod, displayedMethodExplicit, latestCompletedRun, factors, issues]);
+  }, [
+    scope,
+    projectLanguage,
+    displayedMethod,
+    displayedMethodExplicit,
+    latestCompletedRun,
+    factors,
+    issues,
+  ]);
 
   return (
-    <div className="mx-auto max-w-5xl py-8">
-      <header>
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-          Analyse des enjeux
-        </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Identifiez et évaluez les facteurs internes et externes qui peuvent influencer la
-          performance de votre organisation.
-        </p>
+    <div className="gq-analysis mx-auto max-w-5xl py-8">
+      <header className="gq-hero">
+        <h2>{t("page.title")}</h2>
+        <p>{t("page.subtitle")}</p>
       </header>
 
-      <div className="mt-6 space-y-6">
+      <div>
         <AnalysisStepper
           activeStep={step}
           completedSteps={completedSteps}
@@ -332,18 +363,15 @@ function AnalysisPage({ projectId }: { projectId: string }) {
         ) : step === 1 ? (
           <>
             {showInternalSuccess ? (
-              <>
-                <InternalContextResults
-                  inputs={savedInputs}
-                  onEdit={() => setEditingInternal(true)}
-                />
-                <div className="flex justify-end">
-                  <Button onClick={() => setStep(2)}>Continuer vers l’analyse externe</Button>
-                </div>
-              </>
+              <InternalContextResults
+                inputs={savedInputs}
+                onEdit={() => setEditingInternal(true)}
+                onContinue={() => setStep(2)}
+              />
             ) : (
               <InternalContextForm
                 projectId={projectId}
+                projectLanguage={projectLanguage}
                 existingInputs={savedInputs}
                 onCompleted={() => {
                   setEditingInternal(false);
@@ -363,10 +391,10 @@ function AnalysisPage({ projectId }: { projectId: string }) {
               canLaunch={step1Done && methodChosen}
               blockedReason={
                 !methodChosen
-                  ? METHOD_REQUIRED_MESSAGE
+                  ? t("page.methodRequired")
                   : step1Done
                     ? null
-                    : "Complétez et validez le contexte interne (étape 1) avant de lancer l’analyse externe."
+                    : t("page.internalFirst")
               }
               isRunning={externalRunning}
               errorMessage={externalRunning ? null : externalError}
@@ -388,10 +416,10 @@ function AnalysisPage({ projectId }: { projectId: string }) {
               canLaunch={step1Done && step2Done && methodChosen}
               blockedReason={
                 !methodChosen
-                  ? METHOD_REQUIRED_MESSAGE
+                  ? t("page.methodRequired")
                   : step2Done
                     ? null
-                    : "Lancez d’abord l’analyse externe (étape 2) : la synthèse s’appuie sur des facteurs réellement documentés."
+                    : t("page.externalFirst")
               }
               isRunning={synthesisRunning}
               errorMessage={synthesisRunning ? null : synthesisError}
@@ -404,10 +432,6 @@ function AnalysisPage({ projectId }: { projectId: string }) {
           </>
         ) : (
           <>
-            <div className="flex flex-wrap items-center justify-end gap-3">
-              <ManualIssueDialog projectId={projectId} />
-            </div>
-
             <IssuesValidationPanel
               issues={issues}
               metrics={metrics}
@@ -417,6 +441,9 @@ function AnalysisPage({ projectId }: { projectId: string }) {
               }
               methodologyVersion={latestCompletedRun?.methodologyVersion ?? null}
               onReview={(input) => review.mutate(input)}
+              headerAction={
+                <ManualIssueDialog projectId={projectId} projectLanguage={projectLanguage} />
+              }
             />
 
             <ContextVisualSummary

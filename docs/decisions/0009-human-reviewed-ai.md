@@ -3,19 +3,18 @@
 **Status:** Accepted
 
 AI providers implement local ports and return unknown data. Zod validates structured results,
-citations are restricted to supplied evidence/clauses, and decisions that affect compliance require a
-human-review flag. Deterministic rules compute compliance scores; language models do not.
+citations are restricted to supplied evidence/clauses, and decisions that affect compliance record
+whether they came from a person or the system. Deterministic rules compute compliance scores;
+language models do not.
 
-## Amendment: optional system applicability decisions
+## Amendment: automatic applicability and publication
 
-A deployment may set `REGULATORY_AUTO_APPLICABLE=true`, which records every regulatory candidate as
-`APPLICABLE` with `decisionSource: SYSTEM` instead of asking a person to decide law by law. The
-review screen is hidden with `VITE_REGULATORY_AUTO_APPLICABLE`.
+Regulatory discovery now records system applicability decisions and publishes the resulting register
+without a candidate-by-candidate review screen. The decision is recorded as `SYSTEM`, never inferred
+from an absent decision. A candidate ruled out by the analysis remains `NOT_APPLICABLE`; an ingested
+provision without a verified requirement cannot be published as applicable. A discovered law can be
+published at law level while its article wording and source remain visibly subject to verification.
 
-The decision is recorded, never absent. Consumers distinguish a system decision from a human one,
-and an absent decision must still never read as applicable. Two guarantees are unchanged: a
-candidate the analysis positively ruled out stays `NOT_APPLICABLE`, and publishing still refuses an
-applicable provision whose requirement has not been approved, so `SOURCE_REVIEW_REQUIRED` continues
-to require a person.
-
-The flag is off by default; human review remains the default posture of the platform.
+Automatic publication is the default. Deployments can explicitly set both
+`REGULATORY_AUTO_APPLICABLE=false` and `VITE_REGULATORY_AUTO_APPLICABLE=false` to retain the manual
+review workflow. Manual decisions and the analysis-quality review remain available in that mode.

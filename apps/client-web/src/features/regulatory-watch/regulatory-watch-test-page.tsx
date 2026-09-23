@@ -53,22 +53,31 @@ import {
   SparklesIcon,
   TargetIcon,
 } from "lucide-react";
+import type { TFunction } from "i18next";
 import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import { BrandLogo } from "@qhse/ui/components/brand-logo";
 
-type DocumentStatus = "Validé" | "À confirmer";
-type EvaluationStatus = "Conforme" | "Partiel" | "Non conforme" | "À évaluer";
+/** Stable keys: labels come from the `regulatory` catalog at render time. */
+type DocumentStatus = "APPLICABLE" | "VALIDATED" | "TO_CONFIRM";
+export type EvaluationStatus = "CONFORMING" | "PARTIAL" | "NON_CONFORMING" | "NOT_ASSESSED";
+type DocumentKind = "REGULATION" | "STANDARD";
+
+type RegulatoryT = TFunction<"regulatory">;
 
 export type RegulatoryDocument = {
   id: string;
-  kind: "Réglementation" | "Norme";
+  kind: DocumentKind;
   reference: string;
   title: string;
   jurisdiction: string;
   provisions: string;
   requirements: number;
   source: string;
+  sourceUrl?: string | null;
+  requirementText?: string | null;
+  sourceNeedsReview?: boolean;
   status: DocumentStatus;
   reason: string;
 };
@@ -147,66 +156,66 @@ export type RegulatoryEvaluation = {
 const documents: RegulatoryDocument[] = [
   {
     id: "doc-1",
-    kind: "Réglementation",
+    kind: "REGULATION",
     reference: "Loi n° 65-99",
     title: "Code du travail",
     jurisdiction: "Maroc",
     provisions: "Articles 24, 281, 287 et 288",
     requirements: 11,
     source: "Secrétariat général du gouvernement",
-    status: "Validé",
+    status: "VALIDATED",
     reason:
       "Applicable en raison de la présence de salariés, d’activités de production et d’équipements de travail sur le site de Casablanca.",
   },
   {
     id: "doc-2",
-    kind: "Norme",
+    kind: "STANDARD",
     reference: "ISO 9001:2015",
     title: "Systèmes de management de la qualité",
     jurisdiction: "International",
     provisions: "Clauses 4.4, 7.1.5, 8.5, 9.1 et 10.2",
     requirements: 9,
     source: "Organisation internationale de normalisation",
-    status: "Validé",
+    status: "VALIDATED",
     reason:
       "La certification ISO 9001 fait partie des objectifs déclarés du projet et couvre les activités de fabrication et de prestation sur site client.",
   },
   {
     id: "doc-3",
-    kind: "Réglementation",
+    kind: "REGULATION",
     reference: "Loi n° 28-00",
     title: "Gestion des déchets et leur élimination",
     jurisdiction: "Maroc",
     provisions: "Articles 19, 20, 22 et 24",
     requirements: 7,
     source: "Bulletin officiel du Royaume du Maroc",
-    status: "Validé",
+    status: "VALIDATED",
     reason:
       "Les opérations de découpe, soudage et peinture génèrent des déchets métalliques, des emballages souillés et des résidus de produits chimiques.",
   },
   {
     id: "doc-4",
-    kind: "Norme",
+    kind: "STANDARD",
     reference: "ISO 45001:2018",
     title: "Management de la santé et de la sécurité au travail",
     jurisdiction: "International",
     provisions: "Clauses 6.1.2, 7.2, 8.1 et 10.2",
     requirements: 6,
     source: "Organisation internationale de normalisation",
-    status: "Validé",
+    status: "VALIDATED",
     reason:
       "Les risques liés au travail des métaux, à la manutention et aux interventions chez les clients rendent ces exigences pertinentes.",
   },
   {
     id: "doc-5",
-    kind: "Réglementation",
+    kind: "REGULATION",
     reference: "Texte environnemental sectoriel",
     title: "Rejets et émissions des activités industrielles",
     jurisdiction: "Maroc",
     provisions: "Périmètre à préciser",
     requirements: 3,
     source: "Source officielle à confirmer",
-    status: "À confirmer",
+    status: "TO_CONFIRM",
     reason:
       "L’applicabilité dépend de la nature des produits de peinture utilisés et des seuils de rejet réels du site.",
   },
@@ -219,7 +228,7 @@ const evaluations: RegulatoryEvaluation[] = [
     provision: "Article 281",
     requirement:
       "Maintenir les locaux de travail dans un état assurant la santé et la sécurité des salariés.",
-    status: "Conforme",
+    status: "CONFORMING",
     evidence: "Inspection mensuelle SST · juillet 2026",
     action: "Aucune action requise",
     owner: "Responsable HSE",
@@ -236,7 +245,7 @@ const evaluations: RegulatoryEvaluation[] = [
     provision: "Clause 7.1.5",
     requirement:
       "Identifier, vérifier et étalonner les ressources de surveillance et de mesure nécessaires.",
-    status: "Partiel",
+    status: "PARTIAL",
     evidence: "Registre métrologie 2026",
     action: "Compléter l’identification des instruments de l’atelier pliage",
     owner: "Responsable qualité",
@@ -253,7 +262,7 @@ const evaluations: RegulatoryEvaluation[] = [
     provision: "Article 20",
     requirement:
       "Assurer la collecte et la gestion des déchets dans des conditions évitant les risques pour la santé et l’environnement.",
-    status: "Non conforme",
+    status: "NON_CONFORMING",
     evidence: "Photos zone déchets · août 2026",
     action: "Créer une zone de rétention et formaliser le tri des déchets souillés",
     owner: "Responsable production",
@@ -270,7 +279,7 @@ const evaluations: RegulatoryEvaluation[] = [
     provision: "Clause 8.5.1",
     requirement:
       "Réaliser la production et la prestation de service dans des conditions maîtrisées.",
-    status: "Conforme",
+    status: "CONFORMING",
     evidence: "Instructions de soudage et fiches de contrôle",
     action: "Maintenir la revue annuelle des instructions",
     owner: "Responsable qualité",
@@ -287,7 +296,7 @@ const evaluations: RegulatoryEvaluation[] = [
     provision: "Clause 8.1.2",
     requirement:
       "Éliminer les dangers et réduire les risques pour la santé et la sécurité au travail.",
-    status: "À évaluer",
+    status: "NOT_ASSESSED",
     evidence: "Aucune preuve liée",
     action: "Évaluation à réaliser",
     owner: "Non attribué",
@@ -304,11 +313,22 @@ const evaluations: RegulatoryEvaluation[] = [
  *  column for column, so what a reviewer reads on screen is what lands in the file. The exigence
  *  column and the chevron are structural and stay pinned; everything else can be hidden through the
  *  "Colonnes" picker. */
+type EvaluationColumnId =
+  | "status"
+  | "evidence"
+  | "action"
+  | "owner"
+  | "resources"
+  | "dueDate"
+  | "completedDate"
+  | "effectivenessCriteria"
+  | "effectiveness"
+  | "comment";
+
 type EvaluationColumn = {
-  id: string;
-  label: string;
+  id: EvaluationColumnId;
   className?: string;
-  cell: (evaluation: RegulatoryEvaluation) => React.ReactNode;
+  cell: (evaluation: RegulatoryEvaluation, t: RegulatoryT) => React.ReactNode;
 };
 
 function textCell(value: string | undefined): React.ReactNode {
@@ -318,84 +338,61 @@ function textCell(value: string | undefined): React.ReactNode {
 const optionalEvaluationColumns: EvaluationColumn[] = [
   {
     id: "status",
-    label: "Conformité",
     className: "whitespace-nowrap",
-    cell: (evaluation) => (
+    cell: (evaluation, t) => (
       <>
         <EvaluationBadge status={evaluation.status} />
         {evaluation.aiStatus === "RUNNING" && (
-          <p className="mt-1 text-[10px] font-medium text-violet-700">Analyse IA en cours…</p>
+          <p className="mt-1 text-[10px] font-medium text-violet-700">{t("lists.aiRunning")}</p>
         )}
       </>
     ),
   },
-  {
-    id: "evidence",
-    label: "Preuve",
-    className: "max-w-52",
-    cell: (evaluation) => textCell(evaluation.evidence),
-  },
+  { id: "evidence", className: "max-w-52", cell: (evaluation) => textCell(evaluation.evidence) },
   {
     id: "action",
-    label: "Action",
     className: "max-w-64",
-    cell: (evaluation) => (
+    cell: (evaluation, t) => (
       <>
         {textCell(evaluation.action)}
         {(evaluation.additionalActionCount ?? 0) > 0 && (
           <span className="mt-1 block text-[10px] font-medium text-violet-700">
-            +{evaluation.additionalActionCount} autre
-            {evaluation.additionalActionCount === 1 ? "" : "s"} action
-            {evaluation.additionalActionCount === 1 ? "" : "s"}
+            {t("lists.otherActions", { count: evaluation.additionalActionCount ?? 0 })}
           </span>
         )}
       </>
     ),
   },
-  { id: "owner", label: "Responsable", cell: (evaluation) => textCell(evaluation.owner) },
-  {
-    id: "resources",
-    label: "Ressources",
-    className: "max-w-48",
-    cell: (evaluation) => textCell(evaluation.resources),
-  },
+  { id: "owner", cell: (evaluation) => textCell(evaluation.owner) },
+  { id: "resources", className: "max-w-48", cell: (evaluation) => textCell(evaluation.resources) },
   {
     id: "dueDate",
-    label: "Date prévue",
     className: "whitespace-nowrap",
     cell: (evaluation) => textCell(evaluation.dueDate),
   },
   {
     id: "completedDate",
-    label: "Date réelle",
     className: "whitespace-nowrap",
     cell: (evaluation) => textCell(evaluation.completedDate),
   },
   {
     id: "effectivenessCriteria",
-    label: "Critères d’efficacité",
     className: "max-w-56",
     cell: (evaluation) => textCell(evaluation.effectivenessCriteria),
   },
   {
     id: "effectiveness",
-    label: "Action efficace",
     className: "whitespace-nowrap",
     cell: (evaluation) => textCell(evaluation.effectiveness),
   },
-  {
-    id: "comment",
-    label: "Commentaire",
-    className: "max-w-64",
-    cell: (evaluation) => textCell(evaluation.comment),
-  },
+  { id: "comment", className: "max-w-64", cell: (evaluation) => textCell(evaluation.comment) },
 ];
 
 const evaluationStatusStyles: Record<EvaluationStatus, string> = {
-  Conforme: "border-emerald-200 bg-emerald-50 text-emerald-700",
-  Partiel: "border-amber-200 bg-amber-50 text-amber-800",
-  "Non conforme": "border-rose-200 bg-rose-50 text-rose-700",
-  "À évaluer": "border-slate-200 bg-slate-100 text-slate-600",
+  CONFORMING: "border-emerald-200 bg-emerald-50 text-emerald-700",
+  PARTIAL: "border-amber-200 bg-amber-50 text-amber-800",
+  NON_CONFORMING: "border-rose-200 bg-rose-50 text-rose-700",
+  NOT_ASSESSED: "border-slate-200 bg-slate-100 text-slate-600",
 };
 
 export function MetricCard({
@@ -427,22 +424,24 @@ export function MetricCard({
   );
 }
 
-function EvaluationBadge({ status }: { status: EvaluationStatus }) {
+export function EvaluationBadge({ status }: { status: EvaluationStatus }) {
+  const { t } = useTranslation("regulatory");
   return (
     <Badge className={cn("h-6 border px-2.5", evaluationStatusStyles[status])} variant="outline">
-      {status}
+      {t(`evaluationStatus.${status}`)}
     </Badge>
   );
 }
 
 function DocumentBadge({ status }: { status: DocumentStatus }) {
-  return status === "Validé" ? (
+  const { t } = useTranslation("regulatory");
+  return status === "VALIDATED" || status === "APPLICABLE" ? (
     <Badge className="h-6 border border-emerald-200 bg-emerald-50 px-2.5 text-emerald-700">
-      <CheckCircle2Icon /> Validé
+      <CheckCircle2Icon /> {t(`documentStatus.${status}`)}
     </Badge>
   ) : (
     <Badge className="h-6 border border-amber-200 bg-amber-50 px-2.5 text-amber-800">
-      <CircleAlertIcon /> À confirmer
+      <CircleAlertIcon /> {t("documentStatus.TO_CONFIRM")}
     </Badge>
   );
 }
@@ -454,17 +453,18 @@ export function DocumentList({
   onOpen: (document: RegulatoryDocument) => void;
   items?: RegulatoryDocument[];
 }) {
+  const { t } = useTranslation("regulatory");
   const [query, setQuery] = useState("");
-  const [family, setFamily] = useState<"Tous" | RegulatoryDocument["kind"]>("Tous");
+  const [family, setFamily] = useState<"ALL" | DocumentKind>("ALL");
   const filteredDocuments = useMemo(() => {
-    const normalizedQuery = query.trim().toLocaleLowerCase("fr");
+    const normalizedQuery = query.trim().toLocaleLowerCase();
     return items.filter((document) => {
-      const matchesFamily = family === "Tous" || document.kind === family;
+      const matchesFamily = family === "ALL" || document.kind === family;
       const matchesQuery =
         normalizedQuery.length === 0 ||
         [document.reference, document.title, document.provisions]
           .join(" ")
-          .toLocaleLowerCase("fr")
+          .toLocaleLowerCase()
           .includes(normalizedQuery);
       return matchesFamily && matchesQuery;
     });
@@ -475,26 +475,22 @@ export function DocumentList({
       <div className="border-b border-slate-100 px-4 py-5 sm:px-6">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <h2 className="text-base font-semibold text-slate-950">
-              Liste des textes réglementaires et normatives
-            </h2>
-            <p className="mt-1 text-xs leading-5 text-slate-500">
-              Périmètre proposé par l’IA, puis validé par un responsable du projet.
-            </p>
+            <h2 className="text-base font-semibold text-slate-950">{t("lists.documentsTitle")}</h2>
+            <p className="mt-1 text-xs leading-5 text-slate-500">{t("lists.documentsBody")}</p>
           </div>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
             <label className="relative min-w-0 sm:w-72">
-              <SearchIcon className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
+              <SearchIcon className="pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
               <Input
-                aria-label="Rechercher un texte"
-                className="h-10 rounded-xl border-slate-200 bg-slate-50 pl-9"
+                aria-label={t("lists.searchText")}
+                className="h-10 rounded-xl border-slate-200 bg-slate-50 ps-9"
                 onChange={(event) => setQuery(event.target.value)}
-                placeholder="Référence, titre ou article…"
+                placeholder={t("lists.searchPlaceholder")}
                 value={query}
               />
             </label>
             <div className="flex rounded-xl border border-slate-200 bg-slate-50 p-1">
-              {(["Tous", "Réglementation", "Norme"] as const).map((item) => (
+              {(["ALL", "REGULATION", "STANDARD"] as const).map((item) => (
                 <button
                   className={cn(
                     "h-8 flex-1 rounded-lg px-3 text-xs font-medium transition sm:flex-none",
@@ -506,7 +502,7 @@ export function DocumentList({
                   onClick={() => setFamily(item)}
                   type="button"
                 >
-                  {item}
+                  {item === "ALL" ? t("lists.all") : t(`documentKind.${item}`)}
                 </button>
               ))}
             </div>
@@ -519,19 +515,19 @@ export function DocumentList({
           <TableHeader className="bg-slate-50/80">
             <TableRow className="hover:bg-slate-50/80">
               <TableHead className="h-11 px-6 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-                Texte / norme
+                {t("lists.textStandard")}
               </TableHead>
               <TableHead className="h-11 px-4 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-                Articles applicables
+                {t("lists.articles")}
               </TableHead>
               <TableHead className="h-11 px-4 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-                Exigences
+                {t("lists.requirements")}
               </TableHead>
               <TableHead className="h-11 px-4 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-                Statut
+                {t("lists.status")}
               </TableHead>
               <TableHead className="w-16 px-6">
-                <span className="sr-only">Actions</span>
+                <span className="sr-only">{t("lists.actions")}</span>
               </TableHead>
             </TableRow>
           </TableHeader>
@@ -547,12 +543,12 @@ export function DocumentList({
                     <span
                       className={cn(
                         "mt-0.5 grid size-9 shrink-0 place-items-center rounded-xl",
-                        document.kind === "Norme"
+                        document.kind === "STANDARD"
                           ? "bg-violet-50 text-violet-700"
                           : "bg-blue-50 text-blue-700",
                       )}
                     >
-                      {document.kind === "Norme" ? (
+                      {document.kind === "STANDARD" ? (
                         <BookOpenCheckIcon className="size-4" />
                       ) : (
                         <FileTextIcon className="size-4" />
@@ -562,7 +558,7 @@ export function DocumentList({
                       <p className="font-semibold text-slate-950">{document.reference}</p>
                       <p className="mt-1 text-xs leading-5 text-slate-500">{document.title}</p>
                       <p className="mt-1.5 text-[11px] text-slate-400">
-                        {document.kind} · {document.jurisdiction}
+                        {t(`documentKind.${document.kind}`)} · {document.jurisdiction}
                       </p>
                     </div>
                   </div>
@@ -578,9 +574,13 @@ export function DocumentList({
                 <TableCell className="px-4 py-5">
                   <DocumentBadge status={document.status} />
                 </TableCell>
-                <TableCell className="px-6 py-5 text-right">
-                  <Button aria-label={`Voir ${document.reference}`} size="icon-sm" variant="ghost">
-                    <ChevronRightIcon className="text-slate-400 group-hover:text-violet-700" />
+                <TableCell className="px-6 py-5 text-end">
+                  <Button
+                    aria-label={t("lists.view", { reference: document.reference })}
+                    size="icon-sm"
+                    variant="ghost"
+                  >
+                    <ChevronRightIcon className="text-slate-400 group-hover:text-violet-700 rtl:rotate-180" />
                   </Button>
                 </TableCell>
               </TableRow>
@@ -592,14 +592,14 @@ export function DocumentList({
       <div className="divide-y divide-slate-100 lg:hidden">
         {filteredDocuments.map((document) => (
           <button
-            className="w-full p-4 text-left transition hover:bg-slate-50 sm:p-5"
+            className="w-full p-4 text-start transition hover:bg-slate-50 sm:p-5"
             key={document.id}
             onClick={() => onOpen(document)}
             type="button"
           >
             <div className="flex items-start gap-3">
               <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-violet-50 text-violet-700">
-                {document.kind === "Norme" ? <BookOpenCheckIcon /> : <FileTextIcon />}
+                {document.kind === "STANDARD" ? <BookOpenCheckIcon /> : <FileTextIcon />}
               </span>
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center justify-between gap-2">
@@ -609,7 +609,7 @@ export function DocumentList({
                 <p className="mt-1 text-xs leading-5 text-slate-500">{document.title}</p>
                 <p className="mt-3 text-xs leading-5 text-slate-700">{document.provisions}</p>
                 <p className="mt-2 text-[11px] font-medium text-violet-700">
-                  {document.requirements} exigences identifiées
+                  {t("lists.requirementsIdentified", { count: document.requirements })}
                 </p>
               </div>
             </div>
@@ -620,20 +620,17 @@ export function DocumentList({
       {filteredDocuments.length === 0 && (
         <div className="px-6 py-16 text-center">
           <SearchIcon className="mx-auto size-6 text-slate-300" />
-          <p className="mt-3 text-sm font-medium text-slate-700">Aucun texte trouvé</p>
-          <p className="mt-1 text-xs text-slate-400">
-            Essayez une autre référence ou un autre filtre.
-          </p>
+          <p className="mt-3 text-sm font-medium text-slate-700">{t("lists.noText")}</p>
+          <p className="mt-1 text-xs text-slate-400">{t("lists.noTextHint")}</p>
         </div>
       )}
 
       <footer className="flex flex-col gap-2 border-t border-slate-100 bg-slate-50/60 px-4 py-3 text-[11px] text-slate-500 sm:flex-row sm:items-center sm:justify-between sm:px-6">
         <span>
-          {filteredDocuments.length} textes affichés sur {items.length}
+          {t("lists.textsShown", { shown: filteredDocuments.length, total: items.length })}
         </span>
         <span className="flex items-center gap-1.5">
-          <ShieldCheckIcon className="size-3.5 text-emerald-600" /> Sources et versions conservées
-          pour chaque citation
+          <ShieldCheckIcon className="size-3.5 text-emerald-600" /> {t("lists.sourcesKept")}
         </span>
       </footer>
     </section>
@@ -667,7 +664,8 @@ export function EvaluationList({
   };
   aiActive?: boolean;
 }) {
-  const [status, setStatus] = useState<"Toutes" | EvaluationStatus>("Toutes");
+  const { t } = useTranslation("regulatory");
+  const [status, setStatus] = useState<"ALL" | EvaluationStatus>("ALL");
   // Every export column is visible by default — the register is meant to match the XLSX file — and
   // the picker only ever takes columns away.
   const [hiddenColumns, setHiddenColumns] = useState<ReadonlySet<string>>(() => new Set());
@@ -675,7 +673,7 @@ export function EvaluationList({
     (column) => !hiddenColumns.has(column.id),
   );
   const filteredEvaluations = items.filter(
-    (evaluation) => status === "Toutes" || evaluation.status === status,
+    (evaluation) => status === "ALL" || evaluation.status === status,
   );
   const progressPercent =
     summary.total === 0 ? 0 : Math.round((summary.evaluated / summary.total) * 100);
@@ -685,19 +683,17 @@ export function EvaluationList({
   // The headline used to be a fixed "Évaluation en cours", which kept claiming work was running
   // long after the pass had finished.
   const phase = aiActive
-    ? "Évaluation IA en cours"
+    ? t("lists.phaseAi")
     : summary.total > 0 && summary.evaluated === summary.total
-      ? "Évaluation terminée"
-      : "Évaluation en cours";
-  const hint = aiActive
-    ? "L’IA compare chaque exigence au profil du projet et renseigne le résultat et le plan d’action."
-    : "Relisez les résultats, ajustez ce qui doit l’être, liez les preuves et suivez l’efficacité des actions.";
+      ? t("lists.phaseDone")
+      : t("lists.phaseRunning");
+  const hint = aiActive ? t("lists.hintAi") : t("lists.hintReview");
 
   return (
     <div className="space-y-4">
       <section className="overflow-hidden rounded-3xl bg-[#0b1020] p-5 text-white shadow-sm sm:p-6">
         <div className="relative grid gap-5 lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-center">
-          <div className="absolute -right-20 -top-24 size-72 rounded-full bg-violet-600/25 blur-3xl" />
+          <div className="absolute -end-20 -top-24 size-72 rounded-full bg-violet-600/25 blur-3xl" />
           <div className="relative">
             <span className="inline-flex items-center gap-2 text-xs font-semibold text-violet-300">
               {aiActive ? (
@@ -708,13 +704,13 @@ export function EvaluationList({
               {phase}
             </span>
             <h2 className="mt-2 text-xl font-semibold tracking-tight sm:text-2xl">
-              {summary.evaluated} exigences évaluées sur {summary.total}
+              {t("lists.evaluated", { evaluated: summary.evaluated, total: summary.total })}
             </h2>
             <p className="mt-2 max-w-2xl text-xs leading-5 text-slate-400 sm:text-sm">{hint}</p>
           </div>
           <div className="relative rounded-2xl border border-white/10 bg-white/5 p-4">
             <div className="flex items-center justify-between text-xs">
-              <span className="text-slate-300">Avancement global</span>
+              <span className="text-slate-300">{t("lists.overallProgress")}</span>
               <span className="font-semibold tabular-nums text-white">{progressPercent} %</span>
             </div>
             <Progress
@@ -722,13 +718,13 @@ export function EvaluationList({
               value={progressPercent}
             />
             <div className="mt-3 flex justify-between text-[10px] text-slate-400">
-              <span>{summary.conforming} conformes</span>
-              <span>{summary.partial} partielles</span>
-              <span>{summary.nonConforming} non conformes</span>
+              <span>{t("lists.conforming", { count: summary.conforming })}</span>
+              <span>{t("lists.partial", { count: summary.partial })}</span>
+              <span>{t("lists.nonConforming", { count: summary.nonConforming })}</span>
             </div>
             <div className="mt-4 border-t border-white/10 pt-3">
               <div className="flex items-center justify-between text-xs">
-                <span className="text-slate-300">Pré-évaluation IA</span>
+                <span className="text-slate-300">{t("lists.aiPreassessment")}</span>
                 <span className="font-semibold tabular-nums text-white">{aiPercent} %</span>
               </div>
               <Progress
@@ -736,7 +732,7 @@ export function EvaluationList({
                 value={aiPercent}
               />
               <p className="mt-3 text-[10px] text-slate-400">
-                {aiAssessed} analysées · {humanValidated} confirmées par un responsable
+                {t("lists.aiCounts", { ai: aiAssessed, confirmed: humanValidated })}
               </p>
             </div>
           </div>
@@ -747,17 +743,13 @@ export function EvaluationList({
         <div className="border-b border-slate-100 px-4 py-5 sm:px-6">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <h2 className="text-base font-semibold text-slate-950">
-                Évaluation réglementaire et normative
-              </h2>
-              <p className="mt-1 text-xs leading-5 text-slate-500">
-                Une ligne par exigence, avec les mêmes colonnes que l’export Excel.
-              </p>
+              <h2 className="text-base font-semibold text-slate-950">{t("data.evaluationTab")}</h2>
+              <p className="mt-1 text-xs leading-5 text-slate-500">{t("lists.evaluationBody")}</p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <div className="flex max-w-full items-center gap-1 overflow-x-auto rounded-xl border border-slate-200 bg-slate-50 p-1">
-                <FilterIcon className="ml-2 size-3.5 shrink-0 text-slate-400" />
-                {(["Toutes", "Conforme", "Partiel", "Non conforme", "À évaluer"] as const).map(
+                <FilterIcon className="ms-2 size-3.5 shrink-0 text-slate-400" />
+                {(["ALL", "CONFORMING", "PARTIAL", "NON_CONFORMING", "NOT_ASSESSED"] as const).map(
                   (item) => (
                     <button
                       className={cn(
@@ -770,7 +762,7 @@ export function EvaluationList({
                       onClick={() => setStatus(item)}
                       type="button"
                     >
-                      {item}
+                      {item === "ALL" ? t("lists.allEvaluations") : t(`evaluationStatus.${item}`)}
                     </button>
                   ),
                 )}
@@ -779,7 +771,7 @@ export function EvaluationList({
                 <DropdownMenuTrigger
                   render={<Button className="h-10 rounded-xl bg-white" variant="outline" />}
                 >
-                  <Columns3Icon /> Colonnes
+                  <Columns3Icon /> {t("lists.columnsButton")}
                   {hiddenColumns.size > 0 && (
                     <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-600">
                       {visibleColumns.length}/{optionalEvaluationColumns.length}
@@ -789,7 +781,7 @@ export function EvaluationList({
                 <DropdownMenuContent align="end" className="w-60">
                   <DropdownMenuGroup>
                     <DropdownMenuLabel className="text-xs text-slate-500">
-                      Colonnes affichées
+                      {t("lists.columnsShown")}
                     </DropdownMenuLabel>
                   </DropdownMenuGroup>
                   <DropdownMenuSeparator />
@@ -807,7 +799,7 @@ export function EvaluationList({
                         })
                       }
                     >
-                      {column.label}
+                      {t(`lists.columns.${column.id}`)}
                     </DropdownMenuCheckboxItem>
                   ))}
                 </DropdownMenuContent>
@@ -820,19 +812,19 @@ export function EvaluationList({
           <Table className="min-w-max">
             <TableHeader className="bg-slate-50/80">
               <TableRow className="hover:bg-slate-50/80">
-                <TableHead className="h-11 min-w-72 pl-6 pr-3 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
-                  Texte / exigence applicable
+                <TableHead className="h-11 min-w-72 ps-6 pe-3 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+                  {t("lists.textRequirement")}
                 </TableHead>
                 {visibleColumns.map((column) => (
                   <TableHead
                     className="h-11 px-3 text-[10px] font-semibold uppercase tracking-wider text-slate-500"
                     key={column.id}
                   >
-                    {column.label}
+                    {t(`lists.columns.${column.id}`)}
                   </TableHead>
                 ))}
                 <TableHead className="w-14 px-5">
-                  <span className="sr-only">Détails</span>
+                  <span className="sr-only">{t("lists.details")}</span>
                 </TableHead>
               </TableRow>
             </TableHeader>
@@ -843,7 +835,7 @@ export function EvaluationList({
                   key={evaluation.id}
                   onClick={() => onOpen(evaluation)}
                 >
-                  <TableCell className="min-w-72 max-w-md whitespace-normal py-4 pl-6 pr-3">
+                  <TableCell className="min-w-72 max-w-md whitespace-normal py-4 ps-6 pe-3">
                     <p className="text-[11px] font-semibold text-violet-700">
                       {evaluation.source} · {evaluation.provision}
                     </p>
@@ -859,11 +851,11 @@ export function EvaluationList({
                       )}
                       key={column.id}
                     >
-                      {column.cell(evaluation)}
+                      {column.cell(evaluation, t)}
                     </TableCell>
                   ))}
-                  <TableCell className="px-5 py-4 text-right">
-                    <ChevronRightIcon className="size-4 text-slate-300 group-hover:text-violet-700" />
+                  <TableCell className="px-5 py-4 text-end">
+                    <ChevronRightIcon className="size-4 text-slate-300 group-hover:text-violet-700 rtl:rotate-180" />
                   </TableCell>
                 </TableRow>
               ))}
@@ -874,7 +866,7 @@ export function EvaluationList({
         <div className="divide-y divide-slate-100 xl:hidden">
           {filteredEvaluations.map((evaluation) => (
             <button
-              className="w-full p-4 text-left transition hover:bg-slate-50 sm:p-5"
+              className="w-full p-4 text-start transition hover:bg-slate-50 sm:p-5"
               key={evaluation.id}
               onClick={() => onOpen(evaluation)}
               type="button"
@@ -888,15 +880,18 @@ export function EvaluationList({
               <p className="mt-3 text-sm leading-6 text-slate-800">{evaluation.requirement}</p>
               <div className="mt-4 grid gap-3 rounded-2xl bg-slate-50 p-3 text-xs sm:grid-cols-2">
                 {[
-                  { label: "Preuve", value: evaluation.evidence },
-                  { label: "Action", value: evaluation.action },
-                  { label: "Responsable", value: evaluation.owner },
-                  { label: "Ressources", value: evaluation.resources },
-                  { label: "Date prévue", value: evaluation.dueDate },
-                  { label: "Date réelle", value: evaluation.completedDate },
-                  { label: "Critères d’efficacité", value: evaluation.effectivenessCriteria },
-                  { label: "Action efficace", value: evaluation.effectiveness },
-                  { label: "Commentaire", value: evaluation.comment },
+                  { label: t("lists.columns.evidence"), value: evaluation.evidence },
+                  { label: t("lists.columns.action"), value: evaluation.action },
+                  { label: t("lists.columns.owner"), value: evaluation.owner },
+                  { label: t("lists.columns.resources"), value: evaluation.resources },
+                  { label: t("lists.columns.dueDate"), value: evaluation.dueDate },
+                  { label: t("lists.columns.completedDate"), value: evaluation.completedDate },
+                  {
+                    label: t("lists.columns.effectivenessCriteria"),
+                    value: evaluation.effectivenessCriteria,
+                  },
+                  { label: t("lists.columns.effectiveness"), value: evaluation.effectiveness },
+                  { label: t("lists.columns.comment"), value: evaluation.comment },
                 ].map((field) => (
                   <div key={field.label}>
                     <p className="text-[10px] uppercase tracking-wider text-slate-400">
@@ -913,9 +908,12 @@ export function EvaluationList({
         </div>
 
         <footer className="flex items-center justify-between border-t border-slate-100 bg-slate-50/60 px-4 py-3 text-[11px] text-slate-500 sm:px-6">
-          <span>{filteredEvaluations.length} exigences affichées</span>
+          <span>{t("lists.requirementsShown", { count: filteredEvaluations.length })}</span>
           <span>
-            {visibleColumns.length + 1} colonnes sur {optionalEvaluationColumns.length + 1}
+            {t("lists.columnsCount", {
+              shown: visibleColumns.length + 1,
+              total: optionalEvaluationColumns.length + 1,
+            })}
           </span>
         </footer>
       </section>
@@ -932,16 +930,17 @@ export function DetailSheet({
   evaluation: RegulatoryEvaluation | null;
   onOpenChange: (open: boolean) => void;
 }) {
+  const { t } = useTranslation("regulatory");
   const open = Boolean(document || evaluation);
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="w-[min(96vw,600px)]! sm:max-w-[600px]!">
         {document && (
           <>
-            <SheetHeader className="border-b border-slate-100 pr-16">
+            <SheetHeader className="border-b border-slate-100 pe-16">
               <div className="mb-2 flex items-center gap-2">
                 <Badge className="bg-violet-50 text-violet-700" variant="secondary">
-                  {document.kind}
+                  {t(`documentKind.${document.kind}`)}
                 </Badge>
                 <DocumentBadge status={document.status} />
               </div>
@@ -952,40 +951,61 @@ export function DetailSheet({
               <div className="space-y-6">
                 <section className="rounded-2xl border border-violet-100 bg-violet-50/70 p-4">
                   <div className="flex items-center gap-2 text-xs font-semibold text-violet-800">
-                    <BotIcon className="size-4" /> Pourquoi ce texte est proposé
+                    <BotIcon className="size-4" /> {t("lists.whyProposed")}
                   </div>
                   <p className="mt-2 text-sm leading-6 text-violet-950/80">{document.reason}</p>
                 </section>
                 <section>
                   <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-                    Articles applicables
+                    {t("lists.articles")}
                   </h3>
                   <p className="mt-2 text-sm font-medium leading-6 text-slate-800">
                     {document.provisions}
                   </p>
+                  {document.requirementText && (
+                    <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-slate-700">
+                      {document.requirementText}
+                    </p>
+                  )}
+                  {document.sourceNeedsReview && (
+                    <p className="mt-2 text-xs text-amber-700">{t("lists.verifyOfficial")}</p>
+                  )}
                 </section>
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div className="rounded-2xl border border-slate-200 p-4">
-                    <p className="text-[11px] text-slate-400">Périmètre</p>
+                    <p className="text-[11px] text-slate-400">{t("lists.scope")}</p>
                     <p className="mt-1 text-sm font-medium">{document.jurisdiction}</p>
                   </div>
                   <div className="rounded-2xl border border-slate-200 p-4">
-                    <p className="text-[11px] text-slate-400">Exigences extraites</p>
-                    <p className="mt-1 text-sm font-medium">{document.requirements} exigences</p>
+                    <p className="text-[11px] text-slate-400">{t("lists.extractedRequirements")}</p>
+                    <p className="mt-1 text-sm font-medium">
+                      {t("lists.requirementsCount", { count: document.requirements })}
+                    </p>
                   </div>
                 </div>
                 <section className="rounded-2xl border border-slate-200 p-4">
                   <div className="flex items-start gap-3">
                     <LinkIcon className="mt-0.5 size-4 shrink-0 text-slate-400" />
                     <div>
-                      <p className="text-xs font-semibold text-slate-800">Source officielle</p>
+                      <p className="text-xs font-semibold text-slate-800">
+                        {t("lists.officialSource")}
+                      </p>
                       <p className="mt-1 text-xs leading-5 text-slate-500">{document.source}</p>
-                      <button
-                        className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-violet-700"
-                        type="button"
-                      >
-                        Consulter la source <ArrowUpRightIcon className="size-3" />
-                      </button>
+                      {document.sourceUrl ? (
+                        <a
+                          className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-violet-700 underline underline-offset-2"
+                          href={document.sourceUrl}
+                          rel="noreferrer"
+                          target="_blank"
+                        >
+                          {t("lists.viewSource")}{" "}
+                          <ArrowUpRightIcon className="size-3 rtl:-scale-x-100" />
+                        </a>
+                      ) : document.sourceNeedsReview ? (
+                        <p className="mt-2 text-xs text-amber-700">
+                          {t("lists.sourceLinkToConfirm")}
+                        </p>
+                      ) : null}
                     </div>
                   </div>
                 </section>
@@ -993,10 +1013,10 @@ export function DetailSheet({
             </div>
             <SheetFooter className="border-t border-slate-100 bg-slate-50">
               <Button className="h-10 rounded-xl bg-slate-950 hover:bg-slate-800">
-                Ouvrir les exigences
+                {t("lists.openRequirements")}
               </Button>
               <Button className="h-10 rounded-xl" variant="outline">
-                Modifier l’applicabilité
+                {t("lists.editApplicability")}
               </Button>
             </SheetFooter>
           </>
@@ -1004,7 +1024,7 @@ export function DetailSheet({
 
         {evaluation && (
           <>
-            <SheetHeader className="border-b border-slate-100 pr-16">
+            <SheetHeader className="border-b border-slate-100 pe-16">
               <div className="mb-2 flex items-center gap-2">
                 <EvaluationBadge status={evaluation.status} />
               </div>
@@ -1015,14 +1035,14 @@ export function DetailSheet({
               <div className="space-y-5">
                 <section>
                   <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-                    Exigence applicable
+                    {t("sheet.requirement")}
                   </p>
                   <p className="mt-2 text-sm leading-6 text-slate-800">{evaluation.requirement}</p>
                 </section>
                 {evaluation.officialSourceText && (
                   <section className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                     <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-                      Traçabilité — texte officiel
+                      {t("sheet.traceability")}
                     </p>
                     {evaluation.citation && (
                       <p className="mt-2 text-xs font-semibold text-slate-700">
@@ -1036,31 +1056,31 @@ export function DetailSheet({
                 )}
                 <section className="rounded-2xl border border-emerald-100 bg-emerald-50/60 p-4">
                   <div className="flex items-center gap-2 text-xs font-semibold text-emerald-800">
-                    <FileCheck2Icon className="size-4" /> Preuve associée
+                    <FileCheck2Icon className="size-4" /> {t("lists.linkedEvidence")}
                   </div>
                   <p className="mt-2 text-sm text-emerald-950/80">{evaluation.evidence}</p>
                   <Button className="mt-3 bg-white" size="sm" variant="outline">
-                    Voir la preuve
+                    {t("lists.viewEvidence")}
                   </Button>
                 </section>
                 <section className="rounded-2xl border border-slate-200 p-4">
                   <div className="flex items-center gap-2 text-xs font-semibold text-slate-800">
-                    <TargetIcon className="size-4 text-violet-600" /> Plan d’action
+                    <TargetIcon className="size-4 text-violet-600" /> {t("sheet.actionPlan")}
                   </div>
                   <p className="mt-2 text-sm leading-6 text-slate-700">{evaluation.action}</p>
                   <div className="mt-4 grid grid-cols-2 gap-3 border-t border-slate-100 pt-4 text-xs">
                     <div>
-                      <p className="text-slate-400">Responsable</p>
+                      <p className="text-slate-400">{t("sheet.owner")}</p>
                       <p className="mt-1 font-medium text-slate-700">{evaluation.owner}</p>
                     </div>
                     <div>
-                      <p className="text-slate-400">Date prévue</p>
+                      <p className="text-slate-400">{t("sheet.dueDate")}</p>
                       <p className="mt-1 font-medium text-slate-700">{evaluation.dueDate}</p>
                     </div>
                   </div>
                 </section>
                 <section className="rounded-2xl border border-slate-200 p-4">
-                  <p className="text-[11px] text-slate-400">Critère d’efficacité</p>
+                  <p className="text-[11px] text-slate-400">{t("lists.criterion")}</p>
                   <p className="mt-1 text-sm font-medium text-slate-800">
                     {evaluation.effectiveness}
                   </p>
@@ -1069,10 +1089,10 @@ export function DetailSheet({
             </div>
             <SheetFooter className="border-t border-slate-100 bg-slate-50">
               <Button className="h-10 rounded-xl bg-slate-950 hover:bg-slate-800">
-                Modifier l’évaluation
+                {t("lists.editEvaluation")}
               </Button>
               <Button className="h-10 rounded-xl" variant="outline">
-                Ajouter une preuve
+                {t("lists.addEvidence")}
               </Button>
             </SheetFooter>
           </>
@@ -1083,6 +1103,7 @@ export function DetailSheet({
 }
 
 export function RegulatoryWatchTestPage() {
+  const { t } = useTranslation("regulatory");
   const [selectedDocument, setSelectedDocument] = useState<RegulatoryDocument | null>(null);
   const [selectedEvaluation, setSelectedEvaluation] = useState<RegulatoryEvaluation | null>(null);
   const [analysisState, setAnalysisState] = useState<"idle" | "done">("idle");
@@ -1100,13 +1121,13 @@ export function RegulatoryWatchTestPage() {
           </div>
           <span className="hidden h-5 w-px bg-slate-200 sm:block" />
           <Badge className="hidden bg-violet-50 text-violet-700 sm:inline-flex" variant="secondary">
-            Prototype veille
+            {t("prototype.badge")}
           </Badge>
           <a
-            className="ml-auto inline-flex items-center gap-2 text-xs font-medium text-slate-500 transition hover:text-slate-950"
+            className="ms-auto inline-flex items-center gap-2 text-xs font-medium text-slate-500 transition hover:text-slate-950"
             href="/"
           >
-            <ArrowLeftIcon className="size-3.5" /> Retour au tableau de bord
+            <ArrowLeftIcon className="size-3.5 rtl:rotate-180" /> {t("prototype.back")}
           </a>
         </div>
       </header>
@@ -1114,11 +1135,10 @@ export function RegulatoryWatchTestPage() {
       <main className="mx-auto w-full max-w-[1540px] px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
         <div className="rounded-3xl border border-amber-200 bg-amber-50/80 px-4 py-3 text-xs leading-5 text-amber-900 sm:flex sm:items-center sm:justify-between sm:gap-4">
           <span className="flex items-start gap-2">
-            <CircleAlertIcon className="mt-0.5 size-4 shrink-0" /> Données de démonstration : les
-            références et conclusions doivent être validées avant utilisation réglementaire.
+            <CircleAlertIcon className="mt-0.5 size-4 shrink-0" /> {t("prototype.demoData")}
           </span>
           <span className="mt-1 block shrink-0 font-semibold sm:mt-0">
-            Environnement public de test
+            {t("prototype.publicTest")}
           </span>
         </div>
 
@@ -1126,15 +1146,14 @@ export function RegulatoryWatchTestPage() {
           <div>
             <div className="flex items-center gap-2 text-xs font-medium text-slate-400">
               <span>Atlas Industrie</span>
-              <ChevronRightIcon className="size-3.5" />
-              <span className="text-slate-600">Veille réglementaire</span>
+              <ChevronRightIcon className="size-3.5 rtl:rotate-180" />
+              <span className="text-slate-600">{t("data.title")}</span>
             </div>
             <h1 className="mt-3 text-3xl font-semibold tracking-[-0.035em] text-slate-950 sm:text-4xl">
-              Veille réglementaire
+              {t("data.title")}
             </h1>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
-              Le référentiel applicable et son évaluation, construits à partir du profil validé du
-              projet.
+              {t("prototype.subtitle")}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -1144,14 +1163,14 @@ export function RegulatoryWatchTestPage() {
               variant="outline"
             >
               <RefreshCwIcon className={cn(analysisState === "done" && "text-emerald-600")} />
-              {analysisState === "done" ? "Analyse actualisée" : "Actualiser l’analyse"}
+              {analysisState === "done" ? t("prototype.refreshed") : t("data.refresh")}
             </Button>
             <Button
               className="h-10 rounded-xl bg-slate-950 px-4 text-white hover:bg-slate-800"
               onClick={() => setExportReady(true)}
             >
               {exportReady ? <CheckCircle2Icon /> : <DownloadIcon />}
-              {exportReady ? "Export préparé" : "Exporter en Excel"}
+              {exportReady ? t("prototype.exportReady") : t("data.export")}
             </Button>
           </div>
         </div>
@@ -1159,30 +1178,30 @@ export function RegulatoryWatchTestPage() {
         <section className="mt-7 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <MetricCard
             icon={FileTextIcon}
-            label="Textes applicables"
+            label={t("data.applicableTexts")}
             value="5"
-            detail="4 validés · 1 à confirmer"
+            detail={t("prototype.textsDetail")}
             tone="bg-blue-50 text-blue-700"
           />
           <MetricCard
             icon={ListChecksIcon}
-            label="Exigences identifiées"
+            label={t("data.identifiedRequirements")}
             value="36"
-            detail="Issues de 17 provisions"
+            detail={t("prototype.requirementsDetail")}
             tone="bg-violet-50 text-violet-700"
           />
           <MetricCard
             icon={CheckCircle2Icon}
-            label="Taux de conformité"
+            label={t("data.complianceRate")}
             value="72 %"
-            detail="26 exigences évaluées"
+            detail={t("prototype.complianceDetail")}
             tone="bg-emerald-50 text-emerald-700"
           />
           <MetricCard
             icon={CalendarClockIcon}
-            label="Actions ouvertes"
+            label={t("data.openActions")}
             value="4"
-            detail="1 échéance prioritaire"
+            detail={t("prototype.actionsDetail")}
             tone="bg-rose-50 text-rose-700"
           />
         </section>
@@ -1193,11 +1212,9 @@ export function RegulatoryWatchTestPage() {
               <ShieldCheckIcon className="size-4" />
             </span>
             <div>
-              <p className="text-sm font-semibold text-emerald-950">
-                Référentiel basé sur le profil validé
-              </p>
+              <p className="text-sm font-semibold text-emerald-950">{t("data.basedOnProfile")}</p>
               <p className="mt-0.5 text-xs leading-5 text-emerald-800/70">
-                Profil révision 4 · Analyse terminée le 10 août 2026 · Référentiel publié
+                {t("prototype.traceabilityInfo")}
               </p>
             </div>
           </div>
@@ -1205,7 +1222,8 @@ export function RegulatoryWatchTestPage() {
             className="inline-flex shrink-0 items-center gap-1 text-xs font-semibold text-emerald-800"
             type="button"
           >
-            Voir la traçabilité <ArrowUpRightIcon className="size-3.5" />
+            {t("prototype.viewTraceability")}{" "}
+            <ArrowUpRightIcon className="size-3.5 rtl:-scale-x-100" />
           </button>
         </section>
 
@@ -1216,8 +1234,8 @@ export function RegulatoryWatchTestPage() {
                 className="h-auto min-h-11 whitespace-normal rounded-xl px-2 py-2 text-center leading-4 data-active:bg-slate-950 data-active:text-white sm:px-5"
                 value="documents"
               >
-                <FileTextIcon /> Liste des textes réglementaires et normatives
-                <span className="ml-1 rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-600 data-[active=true]:bg-white/10">
+                <FileTextIcon /> {t("lists.documentsTitle")}
+                <span className="ms-1 rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-600 data-[active=true]:bg-white/10">
                   5
                 </span>
               </TabsTrigger>
@@ -1225,8 +1243,8 @@ export function RegulatoryWatchTestPage() {
                 className="h-auto min-h-11 whitespace-normal rounded-xl px-2 py-2 text-center leading-4 data-active:bg-slate-950 data-active:text-white sm:px-5"
                 value="evaluation"
               >
-                <ListChecksIcon /> Évaluation réglementaire et normative
-                <span className="ml-1 rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-600">
+                <ListChecksIcon /> {t("data.evaluationTab")}
+                <span className="ms-1 rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-600">
                   36
                 </span>
               </TabsTrigger>
@@ -1252,15 +1270,15 @@ export function RegulatoryWatchTestPage() {
 
         <div className="mt-6 flex flex-col gap-3 border-t border-slate-200 pt-5 text-[11px] text-slate-400 sm:flex-row sm:items-center sm:justify-between">
           <span className="flex items-center gap-1.5">
-            <Clock3Icon className="size-3.5" /> Dernière synchronisation : aujourd’hui à 14:32
+            <Clock3Icon className="size-3.5" /> {t("prototype.lastSync")}
           </span>
-          <span>Les contenus normatifs restent liés à leur révision et à leur page source.</span>
+          <span>{t("prototype.revisionsKept")}</span>
         </div>
       </main>
 
       <div className="sr-only" aria-live="polite">
-        {analysisState === "done" ? "Analyse actualisée" : ""}
-        {exportReady ? "Export Excel préparé" : ""}
+        {analysisState === "done" ? t("prototype.refreshed") : ""}
+        {exportReady ? t("prototype.exportReadyAnnounce") : ""}
       </div>
 
       <DetailSheet

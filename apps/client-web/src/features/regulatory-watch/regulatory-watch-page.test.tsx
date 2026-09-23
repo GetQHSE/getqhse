@@ -7,6 +7,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { clientApi } from "../../app/client-api.js";
 import { DataPage, RegulatoryWatchPage } from "./regulatory-watch-page.js";
 
+vi.mock("../../app/feature-flags.js", () => ({ AUTO_APPLICABLE: false }));
+
 vi.mock("../../app/client-api.js", () => ({
   clientApi: {
     projectProfile: vi.fn(),
@@ -17,6 +19,7 @@ vi.mock("../../app/client-api.js", () => ({
     decideRegulatoryCandidate: vi.fn(),
     decideRegulatoryCandidates: vi.fn(),
     publishRegulatoryBaseline: vi.fn(),
+    publishRegulatoryBaselineAutomatically: vi.fn(),
     startRegulatoryEvaluation: vi.fn(),
     updateRegulatoryEvaluation: vi.fn(),
     addRegulatoryAction: vi.fn(),
@@ -371,7 +374,7 @@ describe("RegulatoryWatchPage", () => {
       await screen.findByRole("heading", { name: "Voici ce que l’IA a découvert" }),
     ).toBeInTheDocument();
     expect(screen.getByText("Loi 12-03")).toBeInTheDocument();
-    await user.click(screen.getByRole("radio", { name: "0 étoiles" }));
+    await user.click(screen.getByRole("radio", { name: "0 étoile" }));
     await user.type(
       screen.getByRole("textbox", { name: /Qu’est-ce qui est juste/ }),
       "Il manque plusieurs textes applicables.",
@@ -384,6 +387,52 @@ describe("RegulatoryWatchPage", () => {
         rating: 0,
         comment: "Il manque plusieurs textes applicables.",
       }),
+    );
+  });
+
+  it("shows full article-level discoveries and their official sources without a nested scroller", async () => {
+    vi.mocked(clientApi.regulatoryWatch).mockResolvedValue({
+      ...notStartedWatch,
+      status: "REVIEW_REQUIRED",
+      currentAnalysis: {
+        ...analysis,
+        status: "READY_FOR_REVIEW",
+        review: null,
+        candidates: [
+          {
+            id: "candidate-article-1",
+            source: {
+              type: "DISCOVERED_LAW",
+              referenceNumber: "Loi n° 65-99",
+              documentTitle: "Code du travail",
+              provisionIdentifier: null,
+              citationLabel: "Loi n° 65-99 — Code du travail",
+              url: "https://adala.justice.gov.ma/code-du-travail",
+            },
+            rationale:
+              "Applicable à l’organisation du travail et à la prévention des risques professionnels dans les ateliers de l’entreprise.",
+            requirement: {
+              text: "Article 24 : L’employeur doit prendre toutes les mesures nécessaires afin de préserver la sécurité, la santé et la dignité des salariés.",
+              status: "SOURCE_REVIEW_REQUIRED",
+              supportingExcerpts: [],
+              issues: [],
+              source: "AI",
+              editedAt: null,
+            },
+          },
+        ],
+      },
+    } as never);
+
+    renderPage();
+
+    const discoveries = await screen.findByRole("list", { name: "Textes découverts" });
+    expect(discoveries).not.toHaveClass("max-h-72", "overflow-y-auto");
+    expect(screen.getByText("Article 24", { exact: false })).toBeInTheDocument();
+    expect(screen.getByText(/préserver la sécurité, la santé et la dignité/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Consulter la source officielle" })).toHaveAttribute(
+      "href",
+      "https://adala.justice.gov.ma/code-du-travail",
     );
   });
 
@@ -428,6 +477,48 @@ describe("RegulatoryWatchPage", () => {
     await user.click(screen.getByRole("tab", { name: /Évaluation réglementaire et normative/ }));
     expect(screen.getAllByText(/7\.1\.5/).length).toBeGreaterThan(0);
     expect(screen.getAllByText("Partiel").length).toBeGreaterThan(0);
+  });
+
+  it("keeps discovered-law articles and their source visible in the published register", async () => {
+    const existingEntry = activeWatch.currentBaseline.entries[0]!;
+    vi.mocked(clientApi.regulatoryWatch).mockResolvedValue({
+      ...activeWatch,
+      currentBaseline: {
+        ...activeWatch.currentBaseline,
+        entries: [
+          {
+            ...existingEntry,
+            requirement: {
+              ...existingEntry.requirement,
+              text: "Article 24 : Préserver la santé et la sécurité des salariés.",
+            },
+            source: {
+              ...existingEntry.source,
+              type: "DISCOVERED_LAW",
+              url: "https://adala.justice.gov.ma/code-du-travail",
+              documentTitle: "Code du travail",
+              referenceNumber: "Loi n° 65-99",
+              revisionId: null,
+              provisionIdentifier: null,
+              provisionType: null,
+              citationLabel: "Loi n° 65-99 — Code du travail",
+            },
+          },
+        ],
+      },
+    } as never);
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: "Voir Loi n° 65-99" }));
+    expect(
+      screen.getByText("Article 24 : Préserver la santé et la sécurité des salariés."),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/Ces exigences doivent être vérifiées/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Consulter la source/ })).toHaveAttribute(
+      "href",
+      "https://adala.justice.gov.ma/code-du-travail",
+    );
   });
 
   it("shows and validates an AI conformity recommendation", async () => {

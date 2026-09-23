@@ -111,7 +111,7 @@ export class ContextAnalysisProcessor extends WorkerHost {
       });
     };
 
-    const { project, method, digest, internalCompleted } = await loadContextMaterial(
+    const { project, method, digest, internalCompleted, language } = await loadContextMaterial(
       this.database,
       run.projectId,
     );
@@ -173,7 +173,12 @@ export class ContextAnalysisProcessor extends WorkerHost {
     const model = contextSynthesisModel();
 
     try {
-      const prompt = contextSynthesisPrompt.build({ digest, externalMaterial, method });
+      const prompt = contextSynthesisPrompt.build({
+        digest,
+        externalMaterial,
+        method,
+        language,
+      });
       await acquireModelTokens(
         `${provider}:${model}`,
         conservativeInputTokens(prompt) + 6_000,

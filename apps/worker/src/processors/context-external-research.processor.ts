@@ -10,7 +10,7 @@ import {
 } from "@qhse/ai";
 import type { LanguageProvider } from "@qhse/config";
 import { createPrismaClient, type DatabaseClient } from "@qhse/database";
-import { smqContext } from "@qhse/domain";
+import { smqContext, webSearchLocationFor } from "@qhse/domain";
 import { createLogger } from "@qhse/observability";
 import { Output, generateText } from "ai";
 import type { Job } from "bullmq";
@@ -21,7 +21,7 @@ import { loadContextMaterial } from "./context-material.js";
 import { acquireModelTokens } from "./regulatory-rate-limiter.js";
 import { conservativeInputTokens, positiveNumber } from "./regulatory-model-cost.js";
 
-const { canonicalKey, factorFingerprint, PESTEL_DIMENSIONS } = smqContext;
+const { canonicalKey, factorFingerprint, pestelDimensionKey } = smqContext;
 
 /**
  * Step 2 of "Analyse des enjeux" (ISO 9001 §4.1) — external context research.
@@ -78,16 +78,15 @@ function clamp01(value: unknown): number | null {
 
 /**
  * The légal dimension is excluded by deterministic code, not by trusting the
- * model's own excludedDimensions list: it matches smqContext.PESTEL_DIMENSIONS,
- * where "légal" is the one dimension flagged reusesRegulatory. A model that
+ * model's own excludedDimensions list: it maps each dimension through
+ * smqContext.pestelDimensionKey, which recognises the légal dimension in
+ * French, English and Arabic wording alike. A model that
  * forgets to exclude it, or names it slightly differently in
  * excludedDimensions, never gets a second chance to leak a legal search past
  * this filter.
  */
 export function excludeLegalDimension<T extends { dimension: string }>(entries: T[]): T[] {
-  const legalDimension = PESTEL_DIMENSIONS.find((dimension) => dimension.reusesRegulatory);
-  if (!legalDimension) return entries;
-  return entries.filter((entry) => entry.dimension !== legalDimension.label);
+  return entries.filter((entry) => pestelDimensionKey(null, entry.dimension) !== "legal");
 }
 
 /** A factor with no citation among the sources actually returned by the
@@ -202,7 +201,11 @@ export class ContextExternalResearchProcessor extends WorkerHost {
 
     try {
       // ---------------- 1. plan (no browsing, no factor invented)
-      const planPrompt = contextExternalPlanPrompt.build({ digest, method });
+      const planPrompt = contextExternalPlanPrompt.build({
+        digest,
+        method,
+        language: material.language,
+      });
       await acquireModelTokens(
         `${provider}:${model}`,
         conservativeInputTokens(planPrompt) + 1_000,
@@ -233,8 +236,9 @@ export class ContextExternalResearchProcessor extends WorkerHost {
       const discoveryPrompt = contextExternalDiscoveryPrompt.build({
         digest,
         planEntries: entries,
+        language: material.language,
       });
-      const search = providerWebSearch(provider);
+      const search = providerWebSearch(provider, webSearchLocationFor(material.countries));
       await acquireModelTokens(
         `${provider}:${model}`,
         conservativeInputTokens(discoveryPrompt) + 4_000,
@@ -266,6 +270,7 @@ export class ContextExternalResearchProcessor extends WorkerHost {
         digest,
         researchText: discoveryResult.text,
         sources: [...citedUrls].map(([url, citation]) => ({ url, title: citation.title })),
+        language: material.language,
       });
       await acquireModelTokens(
         `${provider}:${model}`,

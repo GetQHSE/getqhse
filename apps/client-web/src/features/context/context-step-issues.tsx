@@ -1,24 +1,18 @@
 /**
  * Steps 3 and 4 — synthèse des enjeux, validation, vue SWOT/PESTEL and
- * export, same layout and wording as the foundation's IssuesSynthesisPanel /
- * IssuesValidationPanel / ContextIssueCard / ManualIssueDialog /
- * ContextVisualSummary / ContextExportCard.
+ * export. Same behaviour and wording as the foundation's panels, rendered in
+ * the demo template's visual language (issue cards, SWOT matrix, PESTEL grid).
  */
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import {
-  ClipboardCheckIcon,
-  FileDownIcon,
-  FileTextIcon,
-  LayersIcon,
-  PlusIcon,
-  ScaleIcon,
-} from "lucide-react";
+import { FileDownIcon, FileTextIcon, PlusIcon } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import type {
   ContextAnalysisMethod,
   ContextAnalysisRunSummary,
   ContextIssue,
   ContextIssueReviewStatus,
+  SupportedLanguage,
 } from "@qhse/contracts";
 import {
   evidenceSourceLabel,
@@ -26,25 +20,11 @@ import {
   hasAnalysisCorrection,
 } from "@qhse/domain/smq/context/labels";
 import {
-  PESTEL_DIMENSIONS,
-  SWOT_QUADRANTS,
   analysisMethodLabel,
   pestelDimensionKey,
+  pestelDimensions,
+  swotQuadrants,
 } from "@qhse/domain/smq/context/method";
-import { Badge } from "@qhse/ui/components/badge";
-import { Button } from "@qhse/ui/components/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@qhse/ui/components/card";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@qhse/ui/components/collapsible";
 import {
   Dialog,
   DialogContent,
@@ -52,7 +32,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@qhse/ui/components/dialog";
 import { Input } from "@qhse/ui/components/input";
 import { Label } from "@qhse/ui/components/label";
@@ -61,12 +40,17 @@ import { Textarea } from "@qhse/ui/components/textarea";
 import { cn } from "@qhse/ui/lib/utils";
 
 import { clientApi } from "../../app/client-api.js";
+import { useFormat } from "../../app/format.js";
+import { currentLanguage, i18n } from "../../app/i18n.js";
 import {
+  AiBanner,
   ContextRunHistory,
   EmptyState,
   ErrorState,
-  Field,
+  FooterCard,
+  GqButton,
   ProcessingState,
+  ResultsHead,
   notify,
 } from "./context-ui.js";
 import type { ContextDocument } from "./export/document.js";
@@ -83,22 +67,18 @@ export interface ReviewIssueInput {
   reason: string;
 }
 
-const NATURE_LABELS: Record<string, string> = {
-  force: "Force",
-  faiblesse: "Faiblesse",
-  opportunite: "Opportunité",
-  menace: "Menace",
-};
+const NATURES = ["force", "faiblesse", "opportunite", "menace"] as const;
 
-const REVIEW_LABELS: Record<ContextIssueReviewStatus, string> = {
-  PENDING: "À valider",
-  VALIDATED: "Validé",
-  MODIFIED: "Modifié par un expert",
-  NOT_RETAINED: "Non retenu",
-};
+function isNature(value: string | null | undefined): value is Nature {
+  return (NATURES as readonly string[]).includes(value ?? "");
+}
 
-const SCORE_HELPER =
-  "Les scores représentent l’impact estimé par GetQhse à partir des informations et preuves disponibles. Ils ne constituent pas un système de notation ISO officiel.";
+const NATURE_TONES: Record<string, string> = {
+  force: "is-strength",
+  faiblesse: "is-weak",
+  opportunite: "is-opportunity",
+  menace: "is-threat",
+};
 
 export function computeIssueMetrics(issues: ContextIssue[]) {
   return {
@@ -119,6 +99,10 @@ export function computeIssueMetrics(issues: ContextIssue[]) {
   };
 }
 
+function isRetained(issue: ContextIssue): boolean {
+  return issue.reviewStatus === "VALIDATED" || issue.reviewStatus === "MODIFIED";
+}
+
 /* --------------------------------- issue card -------------------------------- */
 
 export function ContextIssueCard({
@@ -132,6 +116,12 @@ export function ContextIssueCard({
   isReviewing?: boolean;
   onReview?: (input: ReviewIssueInput) => void;
 }) {
+  const { t } = useTranslation("context");
+  const format = useFormat();
+  const language = currentLanguage();
+  const natureLabel = (value: string | null | undefined) =>
+    isNature(value) ? t(`issues.nature.${value}`) : (value ?? t("issues.issue"));
+  const [detailsOpen, setDetailsOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [title, setTitle] = useState(issue.title);
   const [description, setDescription] = useState(issue.description ?? "");
@@ -141,10 +131,14 @@ export function ContextIssueCard({
   const [rejectReason, setRejectReason] = useState("");
 
   const scores = issue.scores;
-  const auditEvents = useMemo(() => groupCorrections(issue.corrections), [issue.corrections]);
+  const auditEvents = useMemo(
+    () => groupCorrections(issue.corrections, language),
+    [issue.corrections, language],
+  );
   const humanEdited = issue.humanOverride || hasAnalysisCorrection(issue.corrections);
   const isValidated = issue.reviewStatus === "VALIDATED";
   const isNotRetained = issue.reviewStatus === "NOT_RETAINED";
+  const firstEvidence = issue.evidence.find((item) => item.excerpt);
 
   const submitEdit = () => {
     if (!onReview || reason.trim().length < 5) return;
@@ -174,217 +168,225 @@ export function ContextIssueCard({
   };
 
   return (
-    <Card className="shadow-none">
-      <CardHeader className="space-y-2">
-        <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="secondary">
-            {issue.origin === "INTERNAL" ? "Enjeu interne" : "Enjeu externe"}
-          </Badge>
-          {issue.nature ? (
-            <Badge variant="outline">{NATURE_LABELS[issue.nature] ?? issue.nature}</Badge>
-          ) : null}
-          {issue.categoryLabel ? <Badge variant="outline">{issue.categoryLabel}</Badge> : null}
-          <Badge variant="outline">{REVIEW_LABELS[issue.reviewStatus]}</Badge>
-          {issue.selectedPriority && !isNotRetained ? <Badge>Prioritaire</Badge> : null}
-          {issue.comparisonStatus === "recurrent" ? (
-            <Badge variant="outline">Récurrent</Badge>
-          ) : null}
-        </div>
-        <CardTitle className="text-base">{issue.title}</CardTitle>
-        {issue.description ? <CardDescription>{issue.description}</CardDescription> : null}
-      </CardHeader>
-
-      <CardContent className="space-y-4 text-sm">
-        <div className="space-y-1">
-          <dl className="grid gap-3 sm:grid-cols-4">
-            <Field label="Objectifs">{scores.influenceObjectives ?? "—"} / 5</Field>
-            <Field label="Qualité">{scores.influenceQuality ?? "—"} / 5</Field>
-            <Field label="Satisfaction client">{scores.influenceCustomer ?? "—"} / 5</Field>
-            <Field label="Influence globale">{scores.overall ?? "—"} / 5</Field>
-          </dl>
-          <p className="text-xs text-muted-foreground">{SCORE_HELPER}</p>
-        </div>
-
-        {issue.impactOverall ? (
-          <div>
-            <p className="text-xs text-muted-foreground">Impact global identifié</p>
-            <p>{issue.impactOverall}</p>
-          </div>
+    <article
+      className={cn(
+        "gq-issue-card",
+        showReviewActions && isRetained(issue) && "is-validated",
+        isNotRetained && "is-dimmed",
+      )}
+    >
+      <div className="gq-issue-tags">
+        <span className={cn("gq-type", issue.nature ? NATURE_TONES[issue.nature] : undefined)}>
+          {natureLabel(issue.nature)}
+        </span>
+        <span className="gq-tag">
+          {issue.origin === "INTERNAL" ? t("issues.internalIssue") : t("issues.externalIssue")}
+        </span>
+        {issue.categoryLabel ? <span className="gq-tag">{issue.categoryLabel}</span> : null}
+        <span className={cn("gq-tag", isRetained(issue) && "text-violet-700")}>
+          {t(`issues.review.${issue.reviewStatus}`)}
+        </span>
+        {issue.selectedPriority && !isNotRetained ? (
+          <span className="gq-badge is-strong">{t("issues.priority")}</span>
         ) : null}
+        {issue.comparisonStatus === "recurrent" ? (
+          <span className="gq-tag">{t("issues.recurrent")}</span>
+        ) : null}
+        {issue.sourceKind === "MANUAL" ? (
+          <span className="gq-tag">{t("issues.addedByYou")}</span>
+        ) : null}
+      </div>
 
-        <Collapsible>
-          <CollapsibleTrigger render={<Button variant="ghost" size="sm" className="px-0" />}>
-            Voir le raisonnement et les preuves
-          </CollapsibleTrigger>
-          <CollapsibleContent className="space-y-4 pt-3">
-            {issue.aiReasoning ? (
-              <section className="space-y-1">
-                <p className="text-xs font-medium text-foreground">Raisonnement de l’analyse</p>
-                <p className="text-xs text-muted-foreground">{issue.aiReasoning}</p>
-              </section>
-            ) : null}
+      <h4>{issue.title}</h4>
+      {issue.description ? <p>{issue.description}</p> : null}
 
-            {issue.evidence.length > 0 ? (
-              <section className="space-y-1">
-                <p className="text-xs font-medium text-foreground">
-                  Preuves rattachées ({issue.evidence.length})
-                </p>
-                <ul className="space-y-1">
-                  {issue.evidence.map((item) => (
-                    <li key={item.id} className="text-xs text-muted-foreground">
-                      <span className="text-foreground">
-                        {item.originKind === "USER"
-                          ? "Information ajoutée par l’utilisateur"
-                          : evidenceSourceLabel(item.sourceType)}
-                      </span>
-                      {item.excerpt ? ` — « ${item.excerpt} »` : ""}
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            ) : null}
+      <div className="gq-scores" title={t("issues.scoreHelper")}>
+        {(
+          [
+            [t("external.objectives"), scores.influenceObjectives],
+            [t("external.quality"), scores.influenceQuality],
+            [t("external.customer"), scores.influenceCustomer],
+            [t("issues.overall"), scores.overall],
+          ] as const
+        ).map(([label, value]) => (
+          <div key={label} className="gq-score">
+            <small>{label}</small>
+            <strong>{value ?? "—"}</strong>
+            <small className="inline"> / 5</small>
+          </div>
+        ))}
+      </div>
 
-            {humanEdited ? (
-              <section className="space-y-1 rounded-md border border-border/70 bg-muted/30 p-3">
-                <p className="text-xs font-medium text-foreground">
-                  Conclusion initiale de l’analyse (conservée)
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {issue.aiTitle}
-                  {issue.aiNature ? ` · ${NATURE_LABELS[issue.aiNature] ?? issue.aiNature}` : ""}
-                </p>
-                {issue.aiDescription ? (
-                  <p className="text-xs text-muted-foreground">{issue.aiDescription}</p>
-                ) : null}
-                <p className="text-xs text-muted-foreground">
-                  {isValidated
-                    ? "Analyse modifiée par un expert avant validation. L’intitulé, la description et la nature affichés plus haut sont la valeur retenue par l’expert."
-                    : "L’intitulé, la description et la nature affichés plus haut sont la valeur retenue par l’expert."}
-                </p>
-              </section>
-            ) : null}
+      {firstEvidence ? (
+        <div className="gq-evidence">
+          {t("issues.factUsed", { excerpt: firstEvidence.excerpt })}
+        </div>
+      ) : null}
 
-            {auditEvents.length > 0 ? (
-              <section className="space-y-2">
-                <p className="text-xs font-medium text-foreground">
-                  Historique des décisions ({auditEvents.length})
-                </p>
-                <ul className="space-y-2">
-                  {auditEvents.map((event) => (
-                    <li key={event.id} className="text-xs text-muted-foreground">
-                      <span className="text-foreground">{event.label}</span> ·{" "}
-                      {new Date(event.createdAt).toLocaleString("fr-FR")}
-                      {event.details.length > 0 ? (
-                        <span> · {event.details.join(" · ")}</span>
-                      ) : null}
-                      {event.reason ? <div>Motif : {event.reason}</div> : null}
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            ) : null}
-          </CollapsibleContent>
-        </Collapsible>
+      <div>
+        <GqButton
+          variant="ghost"
+          size="sm"
+          className="mt-2 -ms-2"
+          aria-expanded={detailsOpen}
+          onClick={() => setDetailsOpen((open) => !open)}
+        >
+          {detailsOpen ? t("issues.hideReasoning") : t("issues.showReasoning")}
+        </GqButton>
+      </div>
 
-        {showReviewActions && onReview ? (
-          <div className="flex flex-wrap items-center gap-2 border-t border-border pt-4">
-            {isNotRetained ? (
-              <>
-                <span className="text-xs text-muted-foreground">
-                  Enjeu non retenu — décision conservée dans l’historique.
+      {detailsOpen ? (
+        <div className="gq-details">
+          {issue.impactOverall ? (
+            <div>
+              <strong>{t("issues.overallImpact")}</strong>
+              {issue.impactOverall}
+            </div>
+          ) : null}
+          {issue.aiReasoning ? (
+            <div>
+              <strong>{t("issues.reasoning")}</strong>
+              {issue.aiReasoning}
+            </div>
+          ) : null}
+          {issue.evidence.length > 0 ? (
+            <div>
+              <strong>{t("issues.evidence", { count: issue.evidence.length })}</strong>
+              <ul className="m-0 list-none space-y-1 p-0">
+                {issue.evidence.map((item) => (
+                  <li key={item.id}>
+                    <span className="text-slate-900">
+                      {item.originKind === "USER"
+                        ? t("issues.userEvidence")
+                        : evidenceSourceLabel(item.sourceType, language)}
+                    </span>
+                    {item.excerpt ? ` — « ${item.excerpt} »` : ""}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+          {humanEdited ? (
+            <div className="gq-origin-box">
+              <strong>{t("issues.initialConclusion")}</strong>
+              {issue.aiTitle}
+              {issue.aiNature ? ` · ${natureLabel(issue.aiNature)}` : ""}
+              {issue.aiDescription ? <div className="mt-1">{issue.aiDescription}</div> : null}
+              <div className="mt-1">
+                {isValidated ? t("issues.expertBeforeValidation") : t("issues.expertValues")}
+              </div>
+            </div>
+          ) : null}
+          {auditEvents.length > 0 ? (
+            <div>
+              <strong>{t("issues.decisions", { count: auditEvents.length })}</strong>
+              <ul className="m-0 list-none space-y-1.5 p-0">
+                {auditEvents.map((event) => (
+                  <li key={event.id}>
+                    <span className="text-slate-900">{event.label}</span> ·{" "}
+                    {format.dateTime(event.createdAt)}
+                    {event.details.length > 0 ? <span> · {event.details.join(" · ")}</span> : null}
+                    {event.reason ? (
+                      <div>{t("issues.reason", { reason: event.reason })}</div>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+          <p className="m-0 text-[11px] text-slate-400">{t("issues.scoreHelper")}</p>
+        </div>
+      ) : null}
+
+      {showReviewActions && onReview ? (
+        <div className="gq-issue-actions">
+          {isNotRetained ? (
+            <>
+              <GqButton
+                size="sm"
+                disabled={isReviewing}
+                onClick={() =>
+                  onReview({
+                    issueId: issue.id,
+                    reviewStatus: "PENDING",
+                    reason: t("issues.reasons.reinstated"),
+                  })
+                }
+              >
+                {t("issues.reinstate")}
+              </GqButton>
+              <GqButton
+                size="sm"
+                variant="ghost"
+                disabled={isReviewing}
+                onClick={() => setEditOpen(true)}
+              >
+                {t("issues.editAnalysis")}
+              </GqButton>
+            </>
+          ) : (
+            <>
+              <GqButton size="sm" disabled={isReviewing} onClick={() => setEditOpen(true)}>
+                {t("issues.editAnalysis")}
+              </GqButton>
+              <GqButton
+                size="sm"
+                disabled={isReviewing}
+                onClick={() =>
+                  onReview({
+                    issueId: issue.id,
+                    selectedPriority: !issue.selectedPriority,
+                    reason: issue.selectedPriority
+                      ? t("issues.reasons.priorityRemoved")
+                      : t("issues.reasons.priorityAdded"),
+                  })
+                }
+              >
+                {issue.selectedPriority ? t("issues.removePriority") : t("issues.markPriority")}
+              </GqButton>
+              <GqButton
+                size="sm"
+                variant="ghost"
+                disabled={isReviewing}
+                onClick={() => setRejectOpen(true)}
+              >
+                {t("issues.reject")}
+              </GqButton>
+              {isValidated ? (
+                <span className="gq-badge is-valid ms-auto self-center">
+                  {t("issues.validatedBadge")}
                 </span>
-                <Button
+              ) : (
+                <GqButton
                   size="sm"
-                  variant="outline"
+                  variant="primary"
+                  className="ms-auto"
                   disabled={isReviewing}
                   onClick={() =>
                     onReview({
                       issueId: issue.id,
-                      reviewStatus: "PENDING",
-                      reason: "Enjeu réintégré à la revue humaine.",
+                      reviewStatus: "VALIDATED",
+                      reason: t("issues.reasons.validated"),
                     })
                   }
                 >
-                  Réintégrer l’enjeu
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  disabled={isReviewing}
-                  onClick={() => setEditOpen(true)}
-                >
-                  Modifier l’analyse
-                </Button>
-              </>
-            ) : (
-              <>
-                {isValidated ? (
-                  <span className="text-xs font-medium text-foreground">Enjeu validé</span>
-                ) : (
-                  <Button
-                    size="sm"
-                    disabled={isReviewing}
-                    onClick={() =>
-                      onReview({
-                        issueId: issue.id,
-                        reviewStatus: "VALIDATED",
-                        reason: "Enjeu validé par la revue humaine.",
-                      })
-                    }
-                  >
-                    Valider cet enjeu
-                  </Button>
-                )}
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={isReviewing}
-                  onClick={() =>
-                    onReview({
-                      issueId: issue.id,
-                      selectedPriority: !issue.selectedPriority,
-                      reason: issue.selectedPriority
-                        ? "Enjeu retiré des priorités par la revue humaine."
-                        : "Enjeu retenu comme prioritaire par la revue humaine.",
-                    })
-                  }
-                >
-                  {issue.selectedPriority ? "Retirer des priorités" : "Marquer prioritaire"}
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={isReviewing}
-                  onClick={() => setEditOpen(true)}
-                >
-                  Modifier l’analyse
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  disabled={isReviewing}
-                  onClick={() => setRejectOpen(true)}
-                >
-                  Ne pas retenir
-                </Button>
-              </>
-            )}
-          </div>
-        ) : null}
-      </CardContent>
+                  {t("issues.validate")}
+                </GqButton>
+              )}
+            </>
+          )}
+        </div>
+      ) : null}
 
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
-        <DialogContent>
+        <DialogContent className="gq-analysis">
           <DialogHeader>
-            <DialogTitle>Modifier l’analyse de cet enjeu</DialogTitle>
-            <DialogDescription>
-              La conclusion initiale reste conservée et votre correction est enregistrée dans
-              l’historique, avec son motif.
-            </DialogDescription>
+            <DialogTitle>{t("issues.editTitle")}</DialogTitle>
+            <DialogDescription>{t("issues.editBody")}</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor={`title-${issue.id}`}>Intitulé</Label>
+              <Label htmlFor={`title-${issue.id}`}>{t("issues.fieldTitle")}</Label>
               <Input
                 id={`title-${issue.id}`}
                 value={title}
@@ -392,7 +394,7 @@ export function ContextIssueCard({
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor={`description-${issue.id}`}>Description</Label>
+              <Label htmlFor={`description-${issue.id}`}>{t("issues.fieldDescription")}</Label>
               <Textarea
                 id={`description-${issue.id}`}
                 rows={4}
@@ -401,82 +403,103 @@ export function ContextIssueCard({
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor={`nature-${issue.id}`}>Nature</Label>
+              <Label htmlFor={`nature-${issue.id}`}>{t("issues.fieldNature")}</Label>
               <NativeSelect
                 id={`nature-${issue.id}`}
                 className="w-full"
                 value={nature}
                 onChange={(event) => setNature(event.target.value)}
               >
-                <NativeSelectOption value="force">Force</NativeSelectOption>
-                <NativeSelectOption value="faiblesse">Faiblesse</NativeSelectOption>
-                <NativeSelectOption value="opportunite">Opportunité</NativeSelectOption>
-                <NativeSelectOption value="menace">Menace</NativeSelectOption>
+                {NATURES.map((value) => (
+                  <NativeSelectOption key={value} value={value}>
+                    {t(`issues.nature.${value}`)}
+                  </NativeSelectOption>
+                ))}
               </NativeSelect>
             </div>
             <div className="space-y-2">
-              <Label htmlFor={`reason-${issue.id}`}>Motif de la correction</Label>
+              <Label htmlFor={`reason-${issue.id}`}>{t("issues.fieldReason")}</Label>
               <Textarea
                 id={`reason-${issue.id}`}
                 rows={3}
                 value={reason}
                 onChange={(event) => setReason(event.target.value)}
-                placeholder="Expliquez pourquoi cette analyse doit être corrigée."
+                placeholder={t("issues.reasonPlaceholder")}
               />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setEditOpen(false)}>
-              Annuler
-            </Button>
-            <Button disabled={reason.trim().length < 5 || isReviewing} onClick={submitEdit}>
-              Enregistrer la correction
-            </Button>
+            <GqButton onClick={() => setEditOpen(false)}>{t("cancel", { ns: "common" })}</GqButton>
+            <GqButton
+              variant="primary"
+              disabled={reason.trim().length < 5 || isReviewing}
+              onClick={submitEdit}
+            >
+              {t("issues.saveCorrection")}
+            </GqButton>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       <Dialog open={rejectOpen} onOpenChange={setRejectOpen}>
-        <DialogContent>
+        <DialogContent className="gq-analysis">
           <DialogHeader>
-            <DialogTitle>Ne pas retenir cet enjeu</DialogTitle>
-            <DialogDescription>
-              L’enjeu reste conservé dans l’historique de l’analyse : il est simplement écarté de la
-              liste retenue, avec votre motif.
-            </DialogDescription>
+            <DialogTitle>{t("issues.rejectTitle")}</DialogTitle>
+            <DialogDescription>{t("issues.rejectBody")}</DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
-            <Label htmlFor={`reject-${issue.id}`}>Motif</Label>
+            <Label htmlFor={`reject-${issue.id}`}>{t("issues.rejectReason")}</Label>
             <Textarea
               id={`reject-${issue.id}`}
               rows={3}
               value={rejectReason}
               onChange={(event) => setRejectReason(event.target.value)}
-              placeholder="Pourquoi cet enjeu n’est-il pas retenu ?"
+              placeholder={t("issues.rejectPlaceholder")}
             />
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setRejectOpen(false)}>
-              Annuler
-            </Button>
-            <Button disabled={rejectReason.trim().length < 5 || isReviewing} onClick={submitReject}>
-              Confirmer
-            </Button>
+            <GqButton onClick={() => setRejectOpen(false)}>
+              {t("cancel", { ns: "common" })}
+            </GqButton>
+            <GqButton
+              variant="primary"
+              disabled={rejectReason.trim().length < 5 || isReviewing}
+              onClick={submitReject}
+            >
+              {t("confirm", { ns: "common" })}
+            </GqButton>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </Card>
+    </article>
   );
 }
 
 /* ---------------------------------- step 3 ---------------------------------- */
 
-const NATURE_GROUPS: { key: string; label: string; helper: string }[] = [
-  { key: "force", label: "Forces", helper: "Contexte interne favorable" },
-  { key: "faiblesse", label: "Faiblesses", helper: "Contexte interne à renforcer" },
-  { key: "opportunite", label: "Opportunités", helper: "Contexte externe favorable" },
-  { key: "menace", label: "Menaces", helper: "Contexte externe défavorable" },
-];
+function IssueGroup({
+  label,
+  helper,
+  issues,
+}: {
+  label: string;
+  helper?: string;
+  issues: ContextIssue[];
+}) {
+  return (
+    <div className="mt-5">
+      <h4 className="mb-0.5 text-[13px] font-semibold text-slate-900">
+        {label} <span className="font-normal text-slate-400">· {issues.length}</span>
+      </h4>
+      {helper ? <p className="mb-2.5 text-[11.5px] text-slate-400">{helper}</p> : null}
+      <div className="gq-issue-grid">
+        {issues.map((issue) => (
+          <ContextIssueCard key={issue.id} issue={issue} />
+        ))}
+      </div>
+    </div>
+  );
+}
 
 export function IssuesSynthesisPanel({
   issues,
@@ -497,52 +520,42 @@ export function IssuesSynthesisPanel({
   onLaunch: () => void;
   onContinue: () => void;
 }) {
+  const { t } = useTranslation("context");
+  const natureGroups = swotQuadrants(currentLanguage());
   const hasIssues = issues.length > 0;
-  const others = issues.filter(
-    (issue) => !NATURE_GROUPS.some((group) => group.key === issue.nature),
-  );
+  const others = issues.filter((issue) => !isNature(issue.nature));
+  const internalCount = issues.filter((issue) => issue.origin === "INTERNAL").length;
 
   return (
-    <div className="space-y-6">
-      <Card className="shadow-none">
-        <CardHeader>
-          <CardTitle className="text-lg">Synthèse des enjeux</CardTitle>
-          <CardDescription>
-            GetQhse croise votre contexte interne déclaré, votre profil validé, les facteurs
-            externes documentés et votre contexte réglementaire établi pour identifier vos enjeux.
-            Chaque enjeu est rattaché aux éléments qui le justifient ; rien n’est ajouté hors de ce
-            matériel.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {blockedReason ? <p className="text-sm text-muted-foreground">{blockedReason}</p> : null}
-          <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-            {hasIssues ? (
-              <Button variant="outline" onClick={onContinue} disabled={isRunning}>
-                Continuer vers la validation
-              </Button>
-            ) : null}
-            <Button type="button" disabled={!canLaunch || isRunning} onClick={onLaunch}>
-              {isRunning
-                ? "Synthèse en cours…"
-                : hasIssues
-                  ? "Relancer la synthèse"
-                  : "Lancer la synthèse des enjeux"}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+    <div className="space-y-4">
+      <AiBanner
+        title={t("issues.synthesisTitle")}
+        description={t("issues.synthesisBody")}
+        action={
+          <GqButton variant="primary" disabled={!canLaunch || isRunning} onClick={onLaunch}>
+            {isRunning
+              ? t("issues.synthesisRunning")
+              : hasIssues
+                ? t("issues.rerunSynthesis")
+                : t("issues.runSynthesis")}
+          </GqButton>
+        }
+      >
+        {blockedReason ? (
+          <p className="mt-4 text-[12.5px] text-slate-500">{blockedReason}</p>
+        ) : null}
+      </AiBanner>
 
       {isRunning ? (
         <ProcessingState
-          title="Synthèse des enjeux en cours…"
-          description="Croisement du contexte interne, des facteurs externes et du contexte réglementaire établi. Cette étape peut prendre plusieurs minutes."
+          title={t("issues.synthesisRunningTitle")}
+          description={t("issues.synthesisRunningBody")}
         />
       ) : null}
 
       {errorMessage ? (
         <ErrorState
-          title="La synthèse n’a pas abouti"
+          title={t("issues.synthesisFailed")}
           description={errorMessage}
           onRetry={canLaunch ? onLaunch : undefined}
         />
@@ -550,49 +563,64 @@ export function IssuesSynthesisPanel({
 
       {!hasIssues && !isRunning && !errorMessage ? (
         <EmptyState
-          icon={LayersIcon}
-          title="Aucun enjeu n’a encore été identifié."
-          description="Lancez la synthèse : les enjeux internes et externes seront proposés avec leur justification, puis soumis à votre validation."
+          title={t("issues.synthesisEmptyTitle")}
+          description={t("issues.synthesisEmptyBody")}
         />
       ) : null}
 
-      {hasIssues
-        ? NATURE_GROUPS.map((group) => {
+      {hasIssues ? (
+        <section className="gq-section">
+          <ResultsHead
+            label={t("issues.synthesisTitle")}
+            title={t("issues.identified")}
+            description={t("issues.identifiedBody", {
+              total: issues.length,
+              internal: internalCount,
+              external: issues.length - internalCount,
+            })}
+            badge={<span className="gq-badge is-valid">{t("external.done")}</span>}
+          />
+          {natureGroups.map((group) => {
             const items = issues.filter((issue) => issue.nature === group.key);
-            if (items.length === 0) return null;
-            return (
-              <section key={group.key} className="space-y-3">
-                <div>
-                  <h2 className="text-sm font-medium text-foreground">
-                    {group.label} · {items.length}
-                  </h2>
-                  <p className="text-xs text-muted-foreground">{group.helper}</p>
-                </div>
-                {items.map((issue) => (
-                  <ContextIssueCard key={issue.id} issue={issue} />
-                ))}
-              </section>
-            );
-          })
-        : null}
-
-      {hasIssues && others.length > 0 ? (
-        <section className="space-y-3">
-          <h2 className="text-sm font-medium text-foreground">Autres enjeux · {others.length}</h2>
-          {others.map((issue) => (
-            <ContextIssueCard key={issue.id} issue={issue} />
-          ))}
+            return items.length > 0 ? (
+              <IssueGroup
+                key={group.key}
+                label={group.label}
+                helper={group.helper}
+                issues={items}
+              />
+            ) : null;
+          })}
+          {others.length > 0 ? (
+            <IssueGroup label={t("issues.groups.others")} issues={others} />
+          ) : null}
         </section>
       ) : null}
 
+      {hasIssues ? (
+        <FooterCard
+          title={t("issues.synthesisReady")}
+          description={t("issues.synthesisReadyBody")}
+          action={
+            <GqButton variant="primary" onClick={onContinue} disabled={isRunning}>
+              {t("issues.toValidation")}
+            </GqButton>
+          }
+        />
+      ) : null}
+
       <ContextRunHistory
-        title="Historique des synthèses"
+        title={t("issues.synthesisHistory")}
         runs={runs.map((run) => ({
           id: run.id,
           status: run.status,
           createdAt: run.createdAt,
           errorMessage: run.errorMessage,
-          detail: `${run.issuesCount} enjeu(x) · ${run.internalCount} interne(s) · ${run.externalCount} externe(s)`,
+          detail: t("issues.synthesisHistoryDetail", {
+            total: run.issuesCount,
+            internal: run.internalCount,
+            external: run.externalCount,
+          }),
         }))}
       />
     </div>
@@ -603,18 +631,14 @@ export function IssuesSynthesisPanel({
 
 type Filter = "pending" | "retained" | "not_retained" | "all";
 
-const FILTERS: { key: Filter; label: string }[] = [
-  { key: "pending", label: "À valider" },
-  { key: "retained", label: "Retenus" },
-  { key: "not_retained", label: "Non retenus" },
-  { key: "all", label: "Tous" },
-];
+const FILTERS: Filter[] = ["pending", "retained", "not_retained", "all"];
 
-const DESTINATION_LABELS: Record<ContextIssueReviewStatus, string> = {
-  VALIDATED: "Retenus",
-  MODIFIED: "Retenus",
-  NOT_RETAINED: "Non retenus",
-  PENDING: "À valider",
+/** The filter tab an issue lands in once reviewed. */
+const DESTINATION: Record<ContextIssueReviewStatus, Filter> = {
+  VALIDATED: "retained",
+  MODIFIED: "retained",
+  NOT_RETAINED: "not_retained",
+  PENDING: "pending",
 };
 
 export function IssuesValidationPanel({
@@ -624,6 +648,7 @@ export function IssuesValidationPanel({
   onReview,
   analysisDate,
   methodologyVersion,
+  headerAction,
 }: {
   issues: ContextIssue[];
   metrics: ReturnType<typeof computeIssueMetrics>;
@@ -631,24 +656,25 @@ export function IssuesValidationPanel({
   onReview: (input: ReviewIssueInput) => void;
   analysisDate: string | null;
   methodologyVersion: string | null;
+  headerAction?: ReactNode;
 }) {
+  const { t } = useTranslation("context");
+  const format = useFormat();
   const [filter, setFilter] = useState<Filter>("pending");
 
   const filtered = issues.filter((issue) => {
     if (filter === "all") return true;
     if (filter === "pending") return issue.reviewStatus === "PENDING";
     if (filter === "not_retained") return issue.reviewStatus === "NOT_RETAINED";
-    return issue.reviewStatus === "VALIDATED" || issue.reviewStatus === "MODIFIED";
+    return isRetained(issue);
   });
 
   const handleReview = (input: ReviewIssueInput) => {
     onReview(input);
     if (input.reviewStatus && filter !== "all") {
-      const destination = DESTINATION_LABELS[input.reviewStatus];
-      if (destination !== FILTERS.find((item) => item.key === filter)?.label) {
-        notify.success(
-          `Modification enregistrée. L’enjeu est maintenant visible dans « ${destination} ».`,
-        );
+      const destination = DESTINATION[input.reviewStatus];
+      if (destination !== filter) {
+        notify.success(t("issues.movedTo", { destination: t(`issues.filters.${destination}`) }));
       }
     }
   };
@@ -656,89 +682,91 @@ export function IssuesValidationPanel({
   if (issues.length === 0) {
     return (
       <EmptyState
-        icon={ClipboardCheckIcon}
-        title="Aucun enjeu à valider pour l’instant."
-        description="Lancez d’abord la synthèse des enjeux (étape 3)."
+        title={t("issues.validationEmptyTitle")}
+        description={t("issues.validationEmptyBody")}
       />
     );
   }
 
   const retained = metrics.total - metrics.notRetained;
+  const counters: [string, number][] = [
+    [t("issues.counters.total"), metrics.total],
+    [t("issues.counters.pending"), metrics.pending],
+    [t("issues.counters.validated"), metrics.validated],
+    [t("issues.counters.modified"), metrics.modified],
+    [t("issues.counters.notRetained"), metrics.notRetained],
+    [t("issues.counters.priority"), metrics.priority],
+  ];
 
   return (
-    <div className="space-y-6">
-      <Card className="shadow-none">
-        <CardHeader>
-          <CardTitle className="text-lg">Validation des enjeux</CardTitle>
-          <CardDescription>
-            Vous restez décideur : validez, corrigez, priorisez ou écartez chaque enjeu. Chaque
-            décision est enregistrée avec son motif, et la conclusion initiale de l’analyse est
-            toujours conservée.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <dl className="grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
-            <Field label="Enjeux">{metrics.total}</Field>
-            <Field label="À valider">{metrics.pending}</Field>
-            <Field label="Validés">{metrics.validated}</Field>
-            <Field label="Corrigés">{metrics.modified}</Field>
-            <Field label="Non retenus">{metrics.notRetained}</Field>
-            <Field label="Prioritaires">{metrics.priority}</Field>
-          </dl>
-          <p className="text-xs text-muted-foreground">
-            « Corrigés » compte les enjeux dont l’analyse a été modifiée par un expert, même s’ils
-            ont ensuite été validés. Ces compteurs décrivent des dimensions différentes et ne
-            s’additionnent pas.
-          </p>
-
-          <div className="flex flex-wrap gap-2">
-            {FILTERS.map((item) => (
-              <Button
-                key={item.key}
-                type="button"
-                size="sm"
-                variant={filter === item.key ? "default" : "outline"}
-                className={cn(filter === item.key && "pointer-events-none")}
-                onClick={() => setFilter(item.key)}
-              >
-                {item.label}
-              </Button>
-            ))}
-          </div>
-
-          {metrics.pending === 0 ? (
-            <div className="space-y-1 rounded-md border border-border/70 bg-muted/30 p-4">
-              <p className="text-sm font-medium text-foreground">Analyse des enjeux validée</p>
-              <p className="text-xs text-muted-foreground">
-                Revue humaine terminée : {retained} enjeu(x) retenu(s) · {metrics.notRetained} non
-                retenu(s) · {metrics.priority} prioritaire(s)
-                {analysisDate
-                  ? ` · analyse du ${new Date(analysisDate).toLocaleDateString("fr-FR")}`
-                  : ""}
-                {methodologyVersion ? ` · méthodologie ${methodologyVersion}` : ""}.
-              </p>
-              <p className="text-xs text-muted-foreground">
-                Cela signifie uniquement que votre revue de cette analyse du contexte est terminée :
-                il ne s’agit ni d’une certification, ni d’une conformité ISO, ni d’une validation
-                juridique.
-              </p>
+    <div className="space-y-4">
+      <AiBanner
+        title={t("issues.validationTitle")}
+        description={t("issues.validationBody")}
+        action={headerAction}
+      >
+        <div className="gq-metrics">
+          {counters.map(([label, value]) => (
+            <div key={label} className="gq-metric">
+              <small>{label}</small>
+              <strong>{value}</strong>
             </div>
-          ) : null}
-        </CardContent>
-      </Card>
+          ))}
+        </div>
+        <p className="mt-3 text-[11px] text-slate-400">{t("issues.countersNote")}</p>
+      </AiBanner>
+
+      <nav className="gq-tabs !my-0" aria-label={t("issues.filterNav")}>
+        {FILTERS.map((item) => (
+          <button
+            key={item}
+            type="button"
+            className={cn("gq-tab", filter === item && "is-active")}
+            aria-pressed={filter === item}
+            onClick={() => setFilter(item)}
+          >
+            {t(`issues.filters.${item}`)}
+          </button>
+        ))}
+      </nav>
 
       {filtered.length === 0 ? (
-        <p className="text-sm text-muted-foreground">Aucun enjeu dans cette sélection.</p>
+        <p className="text-[12.5px] text-slate-500">{t("issues.noneInSelection")}</p>
       ) : (
-        filtered.map((issue) => (
-          <ContextIssueCard
-            key={issue.id}
-            issue={issue}
-            showReviewActions
-            isReviewing={isReviewing}
-            onReview={handleReview}
-          />
-        ))
+        <div className="gq-issue-grid">
+          {filtered.map((issue) => (
+            <ContextIssueCard
+              key={issue.id}
+              issue={issue}
+              showReviewActions
+              isReviewing={isReviewing}
+              onReview={handleReview}
+            />
+          ))}
+        </div>
+      )}
+
+      {metrics.pending === 0 ? (
+        <FooterCard
+          title={t("issues.validatedTitle")}
+          description={t("issues.validatedBody", {
+            retained,
+            notRetained: metrics.notRetained,
+            priority: metrics.priority,
+            date: analysisDate ? t("issues.analysisOf", { date: format.date(analysisDate) }) : "",
+            methodology: methodologyVersion
+              ? t("issues.methodology", { version: methodologyVersion })
+              : "",
+          })}
+        />
+      ) : (
+        <FooterCard
+          title={t("issues.reviewed", {
+            reviewed: metrics.total - metrics.pending,
+            total: metrics.total,
+          })}
+          description={t("issues.reviewedBody")}
+        />
       )}
     </div>
   );
@@ -748,8 +776,16 @@ export function IssuesValidationPanel({
  * Manual addition of an issue by a member: saved as added by the
  * organisation (never as an AI conclusion) and retained.
  */
-export function ManualIssueDialog({ projectId }: { projectId: string }) {
+export function ManualIssueDialog({
+  projectId,
+  projectLanguage,
+}: {
+  projectId: string;
+  /** The default category is stored in the register, so in the project language. */
+  projectLanguage: SupportedLanguage;
+}) {
   const queryClient = useQueryClient();
+  const { t } = useTranslation("context");
   const [open, setOpen] = useState(false);
   const [origin, setOrigin] = useState<"INTERNAL" | "EXTERNAL">("INTERNAL");
   const [nature, setNature] = useState<Nature>("force");
@@ -757,41 +793,6 @@ export function ManualIssueDialog({ projectId }: { projectId: string }) {
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState("");
   const [error, setError] = useState<string | null>(null);
-
-  const create = useMutation({
-    mutationFn: () =>
-      clientApi.createManualContextIssue(projectId, {
-        origin,
-        nature,
-        title: title.trim(),
-        description: description.trim(),
-        categoryKey: "ajout_manuel",
-        categoryLabel: category.trim() || "Ajout manuel",
-      }),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["context-issues", projectId] });
-      notify.success("Enjeu ajouté et retenu.");
-      setOpen(false);
-      reset();
-    },
-    onError: (mutationError) =>
-      setError(
-        mutationError instanceof Error
-          ? mutationError.message
-          : "L’enjeu n’a pas pu être ajouté. Réessayez.",
-      ),
-  });
-
-  const natureOptions: { value: Nature; label: string }[] =
-    origin === "INTERNAL"
-      ? [
-          { value: "force", label: "Force" },
-          { value: "faiblesse", label: "Faiblesse" },
-        ]
-      : [
-          { value: "opportunite", label: "Opportunité" },
-          { value: "menace", label: "Menace" },
-        ];
 
   const reset = () => {
     setOrigin("INTERNAL");
@@ -802,128 +803,173 @@ export function ManualIssueDialog({ projectId }: { projectId: string }) {
     setError(null);
   };
 
+  const create = useMutation({
+    mutationFn: () =>
+      clientApi.createManualContextIssue(projectId, {
+        origin,
+        nature,
+        title: title.trim(),
+        description: description.trim(),
+        categoryKey: "ajout_manuel",
+        categoryLabel:
+          category.trim() || i18n.getFixedT(projectLanguage, "context")("export.manualCategory"),
+      }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["context-issues", projectId] });
+      notify.success(t("issues.manual.added"));
+      setOpen(false);
+      reset();
+    },
+    onError: (mutationError) =>
+      setError(
+        mutationError instanceof Error ? mutationError.message : t("issues.manual.addFailed"),
+      ),
+  });
+
+  const natureOptions: Nature[] =
+    origin === "INTERNAL" ? ["force", "faiblesse"] : ["opportunite", "menace"];
+
   const submit = () => {
     setError(null);
     if (title.trim().length < 3) {
-      setError("Indiquez un intitulé d’au moins 3 caractères.");
+      setError(t("issues.manual.titleTooShort"));
       return;
     }
     if (description.trim().length < 3) {
-      setError("Décrivez l’enjeu en quelques mots.");
+      setError(t("issues.manual.describe"));
       return;
     }
     create.mutate();
   };
 
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(next) => {
-        setOpen(next);
-        if (!next) reset();
-      }}
-    >
-      <DialogTrigger render={<Button variant="outline" />}>
-        <PlusIcon className="mr-2 size-4" aria-hidden />
-        Ajouter un enjeu
-      </DialogTrigger>
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle>Ajouter un enjeu</DialogTitle>
-          <DialogDescription>
-            Cet enjeu sera enregistré comme ajouté par vous, avec votre nom et la date, et sera
-            retenu pour la suite de l’analyse.
-          </DialogDescription>
-        </DialogHeader>
+    <>
+      <GqButton onClick={() => setOpen(true)}>
+        <PlusIcon className="size-4" aria-hidden />
+        {t("issues.manual.add")}
+      </GqButton>
+      <Dialog
+        open={open}
+        onOpenChange={(next) => {
+          setOpen(next);
+          if (!next) reset();
+        }}
+      >
+        <DialogContent className="gq-analysis max-h-[90vh] overflow-y-auto sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{t("issues.manual.add")}</DialogTitle>
+            <DialogDescription>{t("issues.manual.body")}</DialogDescription>
+          </DialogHeader>
 
-        <div className="space-y-4">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="manual-issue-origin">Origine</Label>
-              <NativeSelect
-                id="manual-issue-origin"
-                className="w-full"
-                value={origin}
-                onChange={(event) => {
-                  const value = event.target.value as "INTERNAL" | "EXTERNAL";
-                  setOrigin(value);
-                  setNature(value === "INTERNAL" ? "force" : "opportunite");
-                }}
-              >
-                <NativeSelectOption value="INTERNAL">Contexte interne</NativeSelectOption>
-                <NativeSelectOption value="EXTERNAL">Contexte externe</NativeSelectOption>
-              </NativeSelect>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="manual-issue-nature">Nature</Label>
-              <NativeSelect
-                id="manual-issue-nature"
-                className="w-full"
-                value={nature}
-                onChange={(event) => setNature(event.target.value as Nature)}
-              >
-                {natureOptions.map((option) => (
-                  <NativeSelectOption key={option.value} value={option.value}>
-                    {option.label}
+          <div className="space-y-4">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="manual-issue-origin">{t("issues.manual.origin")}</Label>
+                <NativeSelect
+                  id="manual-issue-origin"
+                  className="w-full"
+                  value={origin}
+                  onChange={(event) => {
+                    const value = event.target.value as "INTERNAL" | "EXTERNAL";
+                    setOrigin(value);
+                    setNature(value === "INTERNAL" ? "force" : "opportunite");
+                  }}
+                >
+                  <NativeSelectOption value="INTERNAL">
+                    {t("issues.manual.internal")}
                   </NativeSelectOption>
-                ))}
-              </NativeSelect>
+                  <NativeSelectOption value="EXTERNAL">
+                    {t("issues.manual.external")}
+                  </NativeSelectOption>
+                </NativeSelect>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="manual-issue-nature">{t("issues.fieldNature")}</Label>
+                <NativeSelect
+                  id="manual-issue-nature"
+                  className="w-full"
+                  value={nature}
+                  onChange={(event) => setNature(event.target.value as Nature)}
+                >
+                  {natureOptions.map((option) => (
+                    <NativeSelectOption key={option} value={option}>
+                      {t(`issues.nature.${option}`)}
+                    </NativeSelectOption>
+                  ))}
+                </NativeSelect>
+              </div>
             </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="manual-issue-title">{t("issues.manual.title")}</Label>
+              <Input
+                id="manual-issue-title"
+                value={title}
+                maxLength={240}
+                onChange={(event) => setTitle(event.target.value)}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="manual-issue-description">{t("issues.fieldDescription")}</Label>
+              <Textarea
+                id="manual-issue-description"
+                rows={4}
+                value={description}
+                maxLength={4000}
+                onChange={(event) => setDescription(event.target.value)}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="manual-issue-category">{t("issues.manual.category")}</Label>
+              <Input
+                id="manual-issue-category"
+                value={category}
+                maxLength={160}
+                placeholder={t("issues.manual.categoryPlaceholder")}
+                onChange={(event) => setCategory(event.target.value)}
+              />
+            </div>
+
+            {error ? (
+              <p role="alert" className="text-sm text-destructive">
+                {error}
+              </p>
+            ) : null}
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="manual-issue-title">Intitulé de l’enjeu</Label>
-            <Input
-              id="manual-issue-title"
-              value={title}
-              maxLength={240}
-              onChange={(event) => setTitle(event.target.value)}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="manual-issue-description">Description</Label>
-            <Textarea
-              id="manual-issue-description"
-              rows={4}
-              value={description}
-              maxLength={4000}
-              onChange={(event) => setDescription(event.target.value)}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="manual-issue-category">Catégorie (facultatif)</Label>
-            <Input
-              id="manual-issue-category"
-              value={category}
-              maxLength={160}
-              placeholder="Par exemple : compétences, marché, logistique"
-              onChange={(event) => setCategory(event.target.value)}
-            />
-          </div>
-
-          {error ? (
-            <p role="alert" className="text-sm text-destructive">
-              {error}
-            </p>
-          ) : null}
-        </div>
-
-        <DialogFooter>
-          <Button variant="ghost" onClick={() => setOpen(false)} disabled={create.isPending}>
-            Annuler
-          </Button>
-          <Button onClick={submit} disabled={create.isPending}>
-            {create.isPending ? "Enregistrement…" : "Ajouter l’enjeu"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+          <DialogFooter>
+            <GqButton variant="ghost" onClick={() => setOpen(false)} disabled={create.isPending}>
+              {t("cancel", { ns: "common" })}
+            </GqButton>
+            <GqButton variant="primary" onClick={submit} disabled={create.isPending}>
+              {create.isPending ? t("saving", { ns: "common" }) : t("issues.manual.submit")}
+            </GqButton>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
 /* ------------------------------ SWOT / PESTEL view ----------------------------- */
+
+const SWOT_TONES: Record<Nature, string> = {
+  force: "gq-swot-force",
+  faiblesse: "gq-swot-weakness",
+  opportunite: "gq-swot-opportunity",
+  menace: "gq-swot-threat",
+};
+
+const PESTEL_ICONS: Record<string, string> = {
+  politique: "◌",
+  economique: "↗",
+  social: "◎",
+  technologique: "⌁",
+  environnemental: "♧",
+  legal: "§",
+};
 
 /**
  * Built from EFFECTIVE values only (human corrections applied), excluding
@@ -938,64 +984,65 @@ export function ContextVisualSummary({
   method: ContextAnalysisMethod;
   methodExplicit: boolean;
 }) {
-  const retained = issues.filter(
-    (issue) => issue.reviewStatus === "VALIDATED" || issue.reviewStatus === "MODIFIED",
-  );
+  const { t } = useTranslation("context");
+  const retained = issues.filter(isRetained);
   if (retained.length === 0) return null;
-  const label = analysisMethodLabel(method.toLowerCase());
+  const label = analysisMethodLabel(method.toLowerCase(), currentLanguage());
+  const isPestel = method === "PESTEL";
 
   return (
-    <Card className="shadow-none">
-      <CardHeader>
-        <div className="flex flex-wrap items-center gap-3">
-          <CardTitle className="text-lg">
-            {method === "PESTEL" ? "Vue PESTEL" : "Matrice SWOT"}
-          </CardTitle>
-          <Badge variant="secondary">{methodExplicit ? label : `${label} (par défaut)`}</Badge>
-          <Badge variant="outline">Référence ISO 9001:2015 — §4.1</Badge>
+    <section className="gq-section">
+      <ResultsHead
+        label={isPestel ? t("issues.view.pestelLabel") : t("issues.view.swotLabel")}
+        title={isPestel ? t("issues.view.pestelTitle") : t("issues.view.swotTitle")}
+        description={t("issues.view.body")}
+        badge={
+          <span className="gq-badge is-valid">
+            ✓ {methodExplicit ? label : t("method.byDefault", { method: label })}
+          </span>
+        }
+      />
+      {isPestel ? <PestelGrid issues={retained} /> : <SwotMatrix issues={retained} />}
+    </section>
+  );
+}
+
+function IssueItems({ issues, empty }: { issues: ContextIssue[]; empty: string }) {
+  const { t } = useTranslation("context");
+  if (issues.length === 0) return <p className="gq-item-empty">{empty}</p>;
+  return (
+    <>
+      {issues.map((issue) => (
+        <div key={issue.id} className="gq-item">
+          <strong>
+            {issue.title}
+            {issue.sourceKind === "MANUAL" ? (
+              <span className="gq-tag ms-2 align-middle">{t("issues.addedByYou")}</span>
+            ) : null}
+          </strong>
+          {issue.description ? <span>{issue.description}</span> : null}
         </div>
-        <CardDescription>
-          Construite à partir des enjeux retenus et de leurs valeurs effectives (vos corrections
-          incluses).
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        {method === "PESTEL" ? <PestelGrid issues={retained} /> : <SwotMatrix issues={retained} />}
-      </CardContent>
-    </Card>
+      ))}
+    </>
   );
 }
 
 function SwotMatrix({ issues }: { issues: ContextIssue[] }) {
+  const { t } = useTranslation("context");
   return (
-    <div className="grid gap-4 sm:grid-cols-2">
-      {SWOT_QUADRANTS.map((quadrant) => {
+    <div className="gq-swot">
+      {swotQuadrants(currentLanguage()).map((quadrant) => {
         const rows = issues.filter((issue) => issue.nature === quadrant.key);
         return (
-          <section key={quadrant.key} className="rounded-lg border border-border p-4">
-            <header className="mb-2">
-              <h3 className="font-medium text-foreground">
-                {quadrant.label}{" "}
-                <span className="text-sm text-muted-foreground">({rows.length})</span>
-              </h3>
-              <p className="text-sm text-muted-foreground">{quadrant.helper}</p>
-            </header>
-            {rows.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Aucun enjeu retenu.</p>
-            ) : (
-              <ul className="space-y-2">
-                {rows.map((issue) => (
-                  <li key={issue.id} className="text-sm text-foreground">
-                    <span className="font-medium">{issue.title}</span>
-                    {issue.sourceKind === "MANUAL" ? (
-                      <Badge variant="outline" className="ml-2">
-                        Ajouté par vous
-                      </Badge>
-                    ) : null}
-                  </li>
-                ))}
-              </ul>
-            )}
+          <section key={quadrant.key} className={cn("gq-quadrant", SWOT_TONES[quadrant.key])}>
+            <div className="gq-quadrant-head">
+              <div>
+                <h4>{quadrant.label}</h4>
+                <small>{t(`issues.view.swotSub.${quadrant.key}`)}</small>
+              </div>
+              <span className="gq-badge">{rows.length}</span>
+            </div>
+            <IssueItems issues={rows} empty={t("issues.view.noRetained")} />
           </section>
         );
       })}
@@ -1004,80 +1051,59 @@ function SwotMatrix({ issues }: { issues: ContextIssue[] }) {
 }
 
 function PestelGrid({ issues }: { issues: ContextIssue[] }) {
+  const { t } = useTranslation("context");
   const internal = issues.filter((issue) => issue.origin === "INTERNAL");
   const external = issues.filter((issue) => issue.origin === "EXTERNAL");
 
   return (
-    <div className="space-y-4">
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {PESTEL_DIMENSIONS.map((dimension) => {
+    <>
+      <div className="gq-pestel">
+        {pestelDimensions(currentLanguage()).map((dimension) => {
           const rows = external.filter(
             (issue) => pestelDimensionKey(issue.categoryKey, issue.categoryLabel) === dimension.key,
           );
           return (
-            <section key={dimension.key} className="rounded-lg border border-border p-4">
-              <header className="mb-2">
-                <h3 className="flex items-center gap-2 font-medium text-foreground">
-                  {dimension.reusesRegulatory ? (
-                    <ScaleIcon className="size-4 text-muted-foreground" aria-hidden />
-                  ) : null}
-                  {dimension.label}{" "}
-                  <span className="text-sm text-muted-foreground">({rows.length})</span>
-                </h3>
-                <p className="text-sm text-muted-foreground">{dimension.helper}</p>
-              </header>
-              {rows.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Aucun enjeu retenu.</p>
-              ) : (
-                <ul className="space-y-2">
-                  {rows.map((issue) => (
-                    <li key={issue.id} className="text-sm text-foreground">
-                      <span className="font-medium">{issue.title}</span>
-                      <span className="ml-2 text-sm text-muted-foreground">
-                        {issue.nature === "opportunite" ? "Opportunité" : "Menace"}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              )}
+            <section key={dimension.key} className="gq-dimension">
+              <div className="gq-dimension-head">
+                <span className="gq-dimension-icon" aria-hidden>
+                  {PESTEL_ICONS[dimension.key] ?? "•"}
+                </span>
+                <h4>{dimension.label}</h4>
+                <span className="gq-badge ms-auto">{rows.length}</span>
+              </div>
+              <IssueItems issues={rows} empty={dimension.helper} />
             </section>
           );
         })}
       </div>
 
-      <section className="rounded-lg border border-border p-4">
-        <h3 className="font-medium text-foreground">
-          Contexte interne{" "}
-          <span className="text-sm text-muted-foreground">({internal.length})</span>
-        </h3>
-        <p className="text-sm text-muted-foreground">
-          Le contexte interne fait partie du contexte de l’organisation selon l’ISO : il est
-          conservé même avec la méthode PESTEL.
-        </p>
-        {internal.length === 0 ? (
-          <p className="mt-2 text-sm text-muted-foreground">Aucun enjeu interne retenu.</p>
-        ) : (
-          <ul className="mt-2 space-y-2">
-            {internal.map((issue) => (
-              <li key={issue.id} className="text-sm text-foreground">
-                <span className="font-medium">{issue.title}</span>
-                <span className="ml-2 text-sm text-muted-foreground">
-                  {issue.nature === "force" ? "Force" : "Faiblesse"}
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
+      <section className="gq-quadrant mt-3.5">
+        <div className="gq-quadrant-head">
+          <div>
+            <h4>{t("issues.view.internal")}</h4>
+            <small>{t("issues.view.internalPestel")}</small>
+          </div>
+          <span className="gq-badge">{internal.length}</span>
+        </div>
+        <IssueItems issues={internal} empty={t("issues.view.noInternal")} />
       </section>
-    </div>
+    </>
   );
 }
 
 /* ---------------------------------- export ---------------------------------- */
 
+/** French writes language names in lower case mid-sentence; English and Arabic do not. */
+function languageInSentence(name: string): string {
+  return currentLanguage() === "fr" ? name.toLocaleLowerCase("fr") : name;
+}
+
 /** Word and PDF exports, both built from one shared snapshot. */
 export function ContextExportCard({ document }: { document: ContextDocument | null }) {
+  const { t } = useTranslation("context");
   const [busy, setBusy] = useState<"docx" | "pdf" | null>(null);
+  // jsPDF's built-in fonts have no Arabic glyphs; Word renders Arabic natively.
+  const pdfAvailable = document?.language !== "ar";
 
   const run = async (format: "docx" | "pdf") => {
     if (!document || busy) return;
@@ -1091,40 +1117,46 @@ export function ContextExportCard({ document }: { document: ContextDocument | nu
         await downloadContextPdf(document);
       }
     } catch {
-      notify.error("Le document n’a pas pu être généré. Réessayez.");
+      notify.error(t("issues.exportCard.failed"));
     } finally {
       setBusy(null);
     }
   };
 
   return (
-    <Card className="shadow-none">
-      <CardHeader>
-        <CardTitle className="text-lg">Exporter l’analyse des enjeux</CardTitle>
-        <CardDescription>
-          Le document reprend votre contexte interne déclaré, les facteurs externes et leurs
-          sources, les enjeux et vos décisions. Les deux formats contiennent exactement les mêmes
-          données.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="flex flex-wrap gap-3">
-        <Button
-          variant="outline"
-          disabled={!document || busy !== null}
-          onClick={() => void run("docx")}
-        >
-          <FileTextIcon className="mr-2 size-4" aria-hidden />
-          {busy === "docx" ? "Génération…" : "Word (.docx)"}
-        </Button>
-        <Button
-          variant="outline"
-          disabled={!document || busy !== null}
-          onClick={() => void run("pdf")}
-        >
-          <FileDownIcon className="mr-2 size-4" aria-hidden />
-          {busy === "pdf" ? "Génération…" : "PDF"}
-        </Button>
-      </CardContent>
-    </Card>
+    <FooterCard
+      title={t("issues.exportCard.title")}
+      description={
+        <>
+          {t("issues.exportCard.body")}{" "}
+          {document
+            ? t("issues.exportCard.language", {
+                language: languageInSentence(
+                  t(`projectLanguage.${document.language}`, { ns: "common" }),
+                ),
+              })
+            : null}
+          {pdfAvailable ? null : (
+            <span className="mt-1 block">{t("issues.exportCard.pdfArabicUnavailable")}</span>
+          )}
+        </>
+      }
+      action={
+        <div className="flex flex-wrap gap-2">
+          <GqButton disabled={!document || busy !== null} onClick={() => void run("docx")}>
+            <FileTextIcon className="size-4" aria-hidden />
+            {busy === "docx" ? t("issues.exportCard.generating") : "Word (.docx)"}
+          </GqButton>
+          <GqButton
+            variant="primary"
+            disabled={!document || !pdfAvailable || busy !== null}
+            onClick={() => void run("pdf")}
+          >
+            <FileDownIcon className="size-4" aria-hidden />
+            {busy === "pdf" ? t("issues.exportCard.generating") : "PDF"}
+          </GqButton>
+        </div>
+      }
+    />
   );
 }

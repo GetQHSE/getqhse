@@ -16,6 +16,16 @@ describe("excludeLegalDimension", () => {
     expect(entries.map((entry) => entry.dimension)).toEqual(["Politique", "Économique"]);
   });
 
+  it("recognises the légal dimension whatever the output language", () => {
+    const entries = excludeLegalDimension([
+      { dimension: "Legal" },
+      { dimension: "Réglementaire" },
+      { dimension: "قانوني" },
+      { dimension: "Economic" },
+    ]);
+    expect(entries.map((entry) => entry.dimension)).toEqual(["Economic"]);
+  });
+
   it("leaves a SWOT-style plan with no légal entry untouched", () => {
     const entries = excludeLegalDimension([
       { dimension: "Concurrentiel" },

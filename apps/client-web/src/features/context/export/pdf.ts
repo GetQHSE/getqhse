@@ -2,6 +2,7 @@
 
 import {
   contextDocumentFileName,
+  exportTranslator,
   type ContextDocument,
   type ContextDocumentGroup,
   type ContextDocumentIssue,
@@ -10,7 +11,12 @@ import { downloadBlob } from "./download.js";
 
 const NAVY = [31, 58, 95] as const;
 
+/**
+ * jsPDF's built-in Helvetica covers Latin scripts only, so the PDF is offered for
+ * French and English projects; Arabic projects export to Word.
+ */
 export async function buildContextPdfBlob(doc: ContextDocument): Promise<Blob> {
+  const t = exportTranslator(doc.language);
   const { jsPDF } = await import("jspdf");
   const autoTable = (await import("jspdf-autotable")).default;
 
@@ -29,12 +35,12 @@ export async function buildContextPdfBlob(doc: ContextDocument): Promise<Blob> {
   pdf.text(
     [
       `GetQhse — ${doc.organizationName} · ${doc.projectName}`,
-      `Référentiel : ${doc.isoStandard}   |   Document généré le ${doc.generatedOn}`,
-      `Méthode : ${doc.methodLabel}`,
+      t("export.standardGenerated", { standard: doc.isoStandard, generated: doc.generatedOn }),
+      t("export.methodShort", { method: doc.methodLabel }),
       doc.methodSummary,
-      `Date de l’analyse : ${doc.analysisDate ?? "—"}`,
-      `Enjeux : ${doc.summary.issues}   |   Retenus : ${doc.summary.retained}   |   Non retenus : ${doc.summary.notRetained}   |   À examiner : ${doc.summary.pending}`,
-      `Corrigés : ${doc.summary.corrected}   |   Ajoutés manuellement : ${doc.summary.manual}   |   Facteurs externes : ${doc.summary.factors}`,
+      t("export.analysisDate", { value: doc.analysisDate ?? "—" }),
+      t("export.summaryIssues", doc.summary),
+      t("export.summaryOther", doc.summary),
     ].join("\n"),
     margin,
     70,
@@ -84,22 +90,29 @@ export async function buildContextPdfBlob(doc: ContextDocument): Promise<Blob> {
 
   const issueTable = (issues: ContextDocumentIssue[]) =>
     table(
-      [["Enjeu", "Description", "Nature / catégorie", "Évaluation / statut"]],
+      [
+        [
+          t("export.columns.issue"),
+          t("export.columns.description"),
+          t("export.columns.natureCategory"),
+          t("export.columns.assessment"),
+        ],
+      ],
       issues.map((issue) => [
         [
           issue.title,
-          issue.addedManually ? "Ajouté par vous" : "",
-          issue.corrected ? "Corrigé" : "",
+          issue.addedManually ? t("export.addedByYou") : "",
+          issue.corrected ? t("export.corrected") : "",
         ]
           .filter(Boolean)
           .join("\n"),
         issue.description,
         `${issue.natureLabel}\n${issue.categoryLabel}`,
         [
-          `Statut : ${issue.statusLabel}`,
-          `Qualité : ${issue.impactQuality}`,
-          `Client : ${issue.impactCustomer}`,
-          `Globale : ${issue.impactOverall}`,
+          t("export.statusLine", { value: issue.statusLabel }),
+          t("export.qualityShort", { value: issue.impactQuality }),
+          t("export.customerShort", { value: issue.impactCustomer }),
+          t("export.overallShort", { value: issue.impactOverall }),
         ].join("\n"),
       ]),
       { 0: usable * 0.24, 1: usable * 0.36, 2: usable * 0.18, 3: usable * 0.22 },
@@ -113,16 +126,23 @@ export async function buildContextPdfBlob(doc: ContextDocument): Promise<Blob> {
     }
   };
 
-  heading("1. Contexte interne — enjeux retenus");
-  if (doc.internalIssues.length === 0) note("Aucun enjeu interne identifié.");
+  heading(t("export.sectionInternal"));
+  if (doc.internalIssues.length === 0) note(t("export.noInternal"));
   else issueTable(doc.internalIssues);
 
-  heading("2. Analyse externe");
+  heading(t("export.sectionExternal"));
   if (doc.factors.length === 0) {
-    note("Aucun facteur externe documenté.");
+    note(t("export.noFactors"));
   } else {
     table(
-      [["Facteur", "Description", "Pertinence", "Organismes cités"]],
+      [
+        [
+          t("export.columns.factor"),
+          t("export.columns.description"),
+          t("export.columns.relevance"),
+          t("export.columns.publishers"),
+        ],
+      ],
       doc.factors.map((factor) => [
         `${factor.title}\n${factor.categoryLabel}`,
         factor.description,
@@ -135,16 +155,16 @@ export async function buildContextPdfBlob(doc: ContextDocument): Promise<Blob> {
 
   let index = 3;
   if (doc.swot) {
-    groupSection(`${index}. Analyse SWOT`, doc.swot);
+    groupSection(t("export.sectionSwot", { index }), doc.swot);
     index += 1;
   }
   if (doc.pestel) {
-    groupSection(`${index}. Analyse PESTEL`, doc.pestel);
+    groupSection(t("export.sectionPestel", { index }), doc.pestel);
     index += 1;
   }
 
-  heading(`${index}. Synthèse des enjeux`);
-  if (doc.synthesis.length === 0) note("Aucun enjeu enregistré.");
+  heading(t("export.sectionSynthesis", { index }));
+  if (doc.synthesis.length === 0) note(t("export.noIssues"));
   else issueTable(doc.synthesis);
 
   return pdf.output("blob");

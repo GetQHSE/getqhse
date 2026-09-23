@@ -11,7 +11,8 @@ export class CreateProjectDto implements CreateProject {
   name!: string;
   logoUrl?: string | null;
   entityType!: CreateProject["entityType"];
-  countryCode!: CreateProject["countryCode"];
+  countryCodes!: CreateProject["countryCodes"];
+  language!: CreateProject["language"];
   activities!: CreateProject["activities"];
   description?: string | null;
 }

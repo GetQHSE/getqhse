@@ -88,6 +88,7 @@ function factor(overrides: Partial<ContextExternalFactor> = {}): ContextExternal
 describe("buildContextDocument", () => {
   it("groups issues into SWOT quadrants only when SWOT was actually performed", () => {
     const doc = buildContextDocument({
+      language: "fr",
       organizationName: "Org",
       projectName: "Usine Nord",
       isoStandard: "ISO_9001",
@@ -104,6 +105,7 @@ describe("buildContextDocument", () => {
 
   it("groups external issues by PESTEL dimension, and never creates a légal group", () => {
     const doc = buildContextDocument({
+      language: "fr",
       organizationName: "Org",
       projectName: "Usine Nord",
       isoStandard: "ISO_9001",
@@ -128,6 +130,7 @@ describe("buildContextDocument", () => {
 
   it("exposes only publisher names for a factor's sources, never the raw URL", () => {
     const doc = buildContextDocument({
+      language: "fr",
       organizationName: "Org",
       projectName: "Usine Nord",
       isoStandard: "ISO_9001",
@@ -141,8 +144,27 @@ describe("buildContextDocument", () => {
     expect(JSON.stringify(doc.factors[0])).not.toContain("https://");
   });
 
+  it("writes the register in the project language", () => {
+    const doc = buildContextDocument({
+      language: "en",
+      organizationName: "Org",
+      projectName: "North Plant",
+      isoStandard: "ISO_9001",
+      method: "SWOT",
+      methodExplicit: false,
+      analysisDate: null,
+      factors: [],
+      issues: [issue({ id: "1", reviewStatus: "VALIDATED" })],
+    });
+    expect(doc.title).toBe("Context analysis — context of the organisation");
+    expect(doc.methodLabel).toContain("(default)");
+    expect(doc.synthesis[0]!.statusLabel).toBe("Retained");
+    expect(contextDocumentFileName(doc, "xlsx")).toMatch(/^context-analysis-north-plant-/);
+  });
+
   it("labels a non-explicit method choice as a default, not a decision", () => {
     const doc = buildContextDocument({
+      language: "fr",
       organizationName: "Org",
       projectName: "Usine Nord",
       isoStandard: "ISO_9001",
@@ -157,6 +179,7 @@ describe("buildContextDocument", () => {
 
   it("summarizes review status counts without conflating pending with retained", () => {
     const doc = buildContextDocument({
+      language: "fr",
       organizationName: "Org",
       projectName: "Usine Nord",
       isoStandard: "ISO_9001",
@@ -184,6 +207,7 @@ describe("buildContextDocument", () => {
 describe("contextDocumentFileName", () => {
   it("slugifies the project name and appends today's date", () => {
     const doc = buildContextDocument({
+      language: "fr",
       organizationName: "Org",
       projectName: "Usine du Nord — Site Principal",
       isoStandard: "ISO_9001",

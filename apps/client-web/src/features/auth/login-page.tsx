@@ -1,7 +1,10 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate } from "react-router-dom";
 
 import { authClient } from "../../app/auth.js";
+import { clientApi } from "../../app/client-api.js";
+import { currentLanguage } from "../../app/i18n.js";
 import { Login, type LoginFormValues } from "../../components/login.js";
 
 function destinationFromState(state: unknown): string {
@@ -13,6 +16,7 @@ export function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const isSignUp = location.pathname === "/sign-up";
+  const { t } = useTranslation("auth");
   const [error, setError] = useState<string>();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -28,8 +32,12 @@ export function LoginPage() {
           })
         : await authClient.signIn.email({ email: input.email, password: input.password });
       if (result.error) {
-        setError(isSignUp ? "Inscription impossible" : "Identifiants invalides");
+        setError(isSignUp ? t("signUpFailed") : t("invalidCredentials"));
         return;
+      }
+      // A new account starts in the language chosen on the sign-up screen.
+      if (isSignUp) {
+        await clientApi.updatePreferences({ locale: currentLanguage() }).catch(() => undefined);
       }
       const destination = destinationFromState(location.state);
       await navigate(isSignUp && destination === "/" ? "/onboarding/organization" : destination, {

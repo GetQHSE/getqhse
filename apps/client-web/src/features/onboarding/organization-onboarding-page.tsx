@@ -29,47 +29,51 @@ import {
   WarehouseIcon,
   WrenchIcon,
 } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useForm } from "react-hook-form";
 import { useNavigate } from "react-router-dom";
 import { z } from "zod";
 
 import { authClient } from "../../app/auth.js";
+import { currentLanguage } from "../../app/i18n.js";
 import { OnboardingShell } from "./onboarding-shell.js";
 
 const iconOptions = [
-  { value: "building", label: "Entreprise", icon: Building2Icon },
-  { value: "briefcase", label: "Cabinet", icon: BriefcaseBusinessIcon },
-  { value: "layers", label: "Groupe", icon: Layers3Icon },
-  { value: "folder", label: "Portefeuille", icon: FolderKanbanIcon },
-  { value: "shield", label: "Conformité", icon: ShieldCheckIcon },
-  { value: "factory", label: "Usine", icon: FactoryIcon },
-  { value: "warehouse", label: "Entrepôt", icon: WarehouseIcon },
-  { value: "hard-hat", label: "Chantier", icon: HardHatIcon },
-  { value: "truck", label: "Logistique", icon: TruckIcon },
-  { value: "wrench", label: "Maintenance", icon: WrenchIcon },
-  { value: "flask", label: "Laboratoire", icon: FlaskConicalIcon },
-  { value: "leaf", label: "Environnement", icon: LeafIcon },
-  { value: "recycle", label: "Recyclage", icon: RecycleIcon },
-  { value: "heart-pulse", label: "Santé", icon: HeartPulseIcon },
-  { value: "graduation-cap", label: "Éducation", icon: GraduationCapIcon },
-  { value: "landmark", label: "Institution", icon: LandmarkIcon },
-  { value: "handshake", label: "Partenariat", icon: HandshakeIcon },
-  { value: "store", label: "Commerce", icon: StoreIcon },
-  { value: "users", label: "Équipe", icon: UsersRoundIcon },
-  { value: "clipboard-check", label: "Audit", icon: ClipboardCheckIcon },
-  { value: "target", label: "Objectifs", icon: TargetIcon },
-  { value: "globe", label: "International", icon: GlobeIcon },
-  { value: "rocket", label: "Startup", icon: RocketIcon },
-  { value: "sparkles", label: "Autre", icon: SparklesIcon },
+  { value: "building", icon: Building2Icon },
+  { value: "briefcase", icon: BriefcaseBusinessIcon },
+  { value: "layers", icon: Layers3Icon },
+  { value: "folder", icon: FolderKanbanIcon },
+  { value: "shield", icon: ShieldCheckIcon },
+  { value: "factory", icon: FactoryIcon },
+  { value: "warehouse", icon: WarehouseIcon },
+  { value: "hard-hat", icon: HardHatIcon },
+  { value: "truck", icon: TruckIcon },
+  { value: "wrench", icon: WrenchIcon },
+  { value: "flask", icon: FlaskConicalIcon },
+  { value: "leaf", icon: LeafIcon },
+  { value: "recycle", icon: RecycleIcon },
+  { value: "heart-pulse", icon: HeartPulseIcon },
+  { value: "graduation-cap", icon: GraduationCapIcon },
+  { value: "landmark", icon: LandmarkIcon },
+  { value: "handshake", icon: HandshakeIcon },
+  { value: "store", icon: StoreIcon },
+  { value: "users", icon: UsersRoundIcon },
+  { value: "clipboard-check", icon: ClipboardCheckIcon },
+  { value: "target", icon: TargetIcon },
+  { value: "globe", icon: GlobeIcon },
+  { value: "rocket", icon: RocketIcon },
+  { value: "sparkles", icon: SparklesIcon },
 ] as const;
 const icons = iconOptions.map((option) => option.value) as [string, ...string[]];
-const schema = z.object({
-  name: z.string().trim().min(2, "Le nom de l’espace est requis").max(160),
-  icon: z.enum(icons),
-  countryCode: z.enum(["MA", "FR", "DZ", "TN", "SN", "CI"]),
-});
-type FormValues = z.infer<typeof schema>;
+function organizationSchema(nameRequired: string) {
+  return z.object({
+    name: z.string().trim().min(2, nameRequired).max(160),
+    icon: z.enum(icons),
+  });
+}
+type FormValues = z.infer<ReturnType<typeof organizationSchema>>;
+type IconValue = (typeof iconOptions)[number]["value"];
 
 function slugify(value: string): string {
   return (
@@ -86,9 +90,15 @@ export function OrganizationOnboardingPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [iconPickerOpen, setIconPickerOpen] = useState(false);
+  const { t, i18n } = useTranslation("onboarding");
+  const schema = useMemo(
+    () => organizationSchema(t("organization.nameRequired")),
+    [t, i18n.language],
+  );
+  const iconLabel = (value: string) => t(`organization.icons.${value as IconValue}`);
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
-    defaultValues: { icon: "building", countryCode: "MA" },
+    defaultValues: { icon: "building" },
   });
   const selectedIcon = form.watch("icon");
   const SelectedIcon =
@@ -100,18 +110,19 @@ export function OrganizationOnboardingPage() {
       name: values.name.trim(),
       slug: `${baseSlug}-${crypto.randomUUID().slice(0, 6)}`,
       icon: values.icon,
-      countryCode: values.countryCode,
       status: "active",
-      locale: "fr-MA",
+      locale: currentLanguage(),
       timezone: "Africa/Casablanca",
     });
     if (result.error || !result.data) {
-      form.setError("root", { message: result.error?.message ?? "Création impossible" });
+      form.setError("root", { message: result.error?.message ?? t("organization.createFailed") });
       return;
     }
     const active = await authClient.organization.setActive({ organizationId: result.data.id });
     if (active.error) {
-      form.setError("root", { message: active.error.message ?? "Activation impossible" });
+      form.setError("root", {
+        message: active.error.message ?? t("organization.activationFailed"),
+      });
       return;
     }
     await queryClient.invalidateQueries();
@@ -121,22 +132,18 @@ export function OrganizationOnboardingPage() {
   return (
     <OnboardingShell
       currentStep={2}
-      eyebrow="Étape 2 sur 3 · Organisation"
-      title="Créez votre espace de travail"
-      description="Une organisation rassemble vos collaborateurs et vos projets. Vous pourrez en créer d’autres et passer de l’une à l’autre à tout moment."
+      eyebrow={t("organization.eyebrow")}
+      title={t("organization.title")}
+      description={t("organization.description")}
       aside={
         <aside className="h-fit rounded-2xl border border-violet-100 bg-violet-50/70 p-5">
           <span className="grid size-9 place-items-center rounded-xl bg-violet-600 text-white">
             <Building2Icon className="size-4" />
           </span>
-          <h2 className="mt-4 font-semibold">Pourquoi une organisation ?</h2>
-          <p className="mt-2 text-sm leading-6 text-slate-600">
-            Elle définit votre équipe, vos droits d’accès et le périmètre partagé entre plusieurs
-            projets.
-          </p>
+          <h2 className="mt-4 font-semibold">{t("organization.whyTitle")}</h2>
+          <p className="mt-2 text-sm leading-6 text-slate-600">{t("organization.whyBody")}</p>
           <div className="mt-5 border-t border-violet-100 pt-4 text-xs leading-5 text-slate-500">
-            Exemple : « Groupe Atlas » peut contenir les projets « Usine Casablanca » et « Siège
-            Rabat ».
+            {t("organization.example")}
           </div>
         </aside>
       }
@@ -147,17 +154,15 @@ export function OrganizationOnboardingPage() {
       >
         <label className="block">
           <span className="mb-2 block text-sm font-semibold text-slate-800">
-            Nom de l’organisation
+            {t("organization.name")}
           </span>
           <input
             className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50/70 px-3 text-sm outline-none transition focus:border-violet-400 focus:bg-white focus:ring-4 focus:ring-violet-100"
-            placeholder="Ex. Groupe Atlas"
+            placeholder={t("organization.namePlaceholder")}
             autoFocus
             {...form.register("name")}
           />
-          <span className="mt-2 block text-xs text-slate-500">
-            Utilisez le nom reconnu par votre équipe. Vous pourrez le modifier plus tard.
-          </span>
+          <span className="mt-2 block text-xs text-slate-500">{t("organization.nameHelp")}</span>
           {form.formState.errors.name && (
             <span className="mt-1 block text-sm text-red-700">
               {form.formState.errors.name.message}
@@ -166,7 +171,9 @@ export function OrganizationOnboardingPage() {
         </label>
 
         <div>
-          <span className="mb-2 block text-sm font-semibold text-slate-800">Icône de l’espace</span>
+          <span className="mb-2 block text-sm font-semibold text-slate-800">
+            {t("organization.icon")}
+          </span>
           <Popover open={iconPickerOpen} onOpenChange={setIconPickerOpen}>
             <PopoverTrigger
               render={
@@ -180,9 +187,10 @@ export function OrganizationOnboardingPage() {
               <span className="grid size-6 shrink-0 place-items-center rounded-lg bg-violet-100 text-violet-700">
                 <SelectedIcon className="size-3.5" />
               </span>
-              {iconOptions.find((option) => option.value === selectedIcon)?.label ??
-                "Choisir une icône"}
-              <ChevronDownIcon className="ml-auto size-4 text-slate-400" />
+              {iconOptions.some((option) => option.value === selectedIcon)
+                ? iconLabel(selectedIcon)
+                : t("organization.chooseIcon")}
+              <ChevronDownIcon className="ms-auto size-4 text-slate-400" />
             </PopoverTrigger>
             <PopoverContent align="start" className="w-72">
               <div className="grid grid-cols-6 gap-1.5">
@@ -193,8 +201,8 @@ export function OrganizationOnboardingPage() {
                     <button
                       key={option.value}
                       type="button"
-                      aria-label={option.label}
-                      title={option.label}
+                      aria-label={iconLabel(option.value)}
+                      title={iconLabel(option.value)}
                       className={`grid size-9 place-items-center rounded-xl border transition ${
                         isSelected
                           ? "border-violet-500 bg-violet-50 text-violet-700 ring-2 ring-violet-100"
@@ -224,7 +232,7 @@ export function OrganizationOnboardingPage() {
           disabled={form.formState.isSubmitting}
           className="h-11 w-full bg-violet-600 hover:bg-violet-700"
         >
-          {form.formState.isSubmitting ? "Création…" : "Créer et continuer"}
+          {form.formState.isSubmitting ? t("organization.creating") : t("organization.submit")}
         </Button>
       </form>
     </OnboardingShell>

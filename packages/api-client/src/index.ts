@@ -359,6 +359,17 @@ export class QhseApiClient {
     );
   }
 
+  publishRegulatoryBaselineAutomatically(
+    projectIdOrSlug: string,
+    input: PublishRegulatoryBaseline,
+  ): Promise<RegulatoryWatch> {
+    return this.#request(
+      `/v1/projects/${encodeURIComponent(projectIdOrSlug)}/regulatory-watch/baselines/automatic`,
+      regulatoryWatchSchema,
+      { method: "POST", body: JSON.stringify(publishRegulatoryBaselineSchema.parse(input)) },
+    );
+  }
+
   startRegulatoryEvaluation(projectIdOrSlug: string): Promise<RegulatoryEvaluationJob> {
     return this.#request(
       `/v1/projects/${encodeURIComponent(projectIdOrSlug)}/regulatory-watch/evaluation-runs`,
