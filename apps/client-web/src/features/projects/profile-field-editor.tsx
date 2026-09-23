@@ -1,144 +1,158 @@
 import type { ProfileFieldKey } from "@qhse/profile";
 import { Button } from "@qhse/ui/components/button";
 import { PlusIcon, Trash2Icon } from "lucide-react";
+import { useTranslation } from "react-i18next";
+
+import { CountryMultiSelect } from "../../components/country-multi-select.js";
+import type fr from "../../locales/fr/profile.js";
+
+/** Labels are keys of the `profile:editor` catalog, translated at render time. */
+type Label = keyof (typeof fr)["editor"];
 
 type TextEditor = {
   kind: "text";
-  label: string;
+  label: Label;
   multiline?: boolean;
   optional?: boolean;
   inputType?: "text" | "url" | "date";
-  placeholder?: string;
+  placeholder?: Label | "https://…";
 };
-type NumberEditor = { kind: "number"; label: string; optional?: boolean };
-type BooleanEditor = { kind: "boolean"; label: string };
+type NumberEditor = { kind: "number"; label: Label; optional?: boolean };
+type BooleanEditor = { kind: "boolean"; label: Label };
 type EnumEditor = {
   kind: "enum";
-  label: string;
+  label: Label;
   optional?: boolean;
-  options: Array<{ value: string; label: string }>;
+  options: Array<{ value: string; label: Label }>;
 };
 type ArrayEditor = {
   kind: "array";
-  label: string;
+  label: Label;
   item: EditorSchema;
   minimumItems?: number;
-  addLabel?: string;
+  addLabel?: Label;
+  /** Renders "Add <item>" from the item's own label. */
+  addNamed?: Label;
 };
 type ObjectEditor = {
   kind: "object";
-  label?: string;
+  label?: Label;
   fields: Record<string, EditorSchema>;
 };
+/** ISO country codes, picked from the country list (max 5). */
+type CountriesEditor = { kind: "countries"; label: Label };
 export type EditorSchema =
-  TextEditor | NumberEditor | BooleanEditor | EnumEditor | ArrayEditor | ObjectEditor;
+  | TextEditor
+  | NumberEditor
+  | BooleanEditor
+  | EnumEditor
+  | ArrayEditor
+  | ObjectEditor
+  | CountriesEditor;
 
-const text = (label: string, options: Omit<TextEditor, "kind" | "label"> = {}): TextEditor => ({
+const text = (label: Label, options: Omit<TextEditor, "kind" | "label"> = {}): TextEditor => ({
   kind: "text",
   label,
   ...options,
 });
-const list = (label: string, itemLabel: string): ArrayEditor => ({
+const list = (label: Label, itemLabel: Label): ArrayEditor => ({
   kind: "array",
   label,
   item: text(itemLabel),
   minimumItems: 1,
-  addLabel: `Ajouter ${itemLabel.toLowerCase()}`,
+  addNamed: itemLabel,
 });
-const yesNoList = (label: string, booleanLabel: string, itemLabel: string): ObjectEditor => ({
+const yesNoList = (label: Label, booleanLabel: Label, itemLabel: Label): ObjectEditor => ({
   kind: "object",
   label,
   fields: {
     has: { kind: "boolean", label: booleanLabel },
-    items: { kind: "array", label: "Détails", item: text(itemLabel), addLabel: "Ajouter" },
+    items: { kind: "array", label: "details", item: text(itemLabel), addLabel: "add" },
   },
 });
-const option = (value: string, label: string) => ({ value, label });
+const option = (value: string, label: Label) => ({ value, label });
 
 export const profileEditorSchemas: Record<ProfileFieldKey, EditorSchema> = {
-  "project.name": text("Nom du projet", { placeholder: "Nom officiel de l’entité" }),
-  "project.logoUrl": text("URL du logo", { inputType: "url", placeholder: "https://…" }),
-  "organization.mission": text("Mission principale", { multiline: true }),
+  "project.name": text("projectName", { placeholder: "projectNamePlaceholder" }),
+  "project.logoUrl": text("logoUrl", { inputType: "url", placeholder: "https://…" }),
+  "organization.mission": text("mission", { multiline: true }),
   "organization.offerings": {
     kind: "array",
-    label: "Produits et services",
+    label: "offerings",
     minimumItems: 1,
-    addLabel: "Ajouter un produit ou service",
+    addLabel: "addOffering",
     item: {
       kind: "object",
       fields: {
-        name: text("Nom"),
+        name: text("name"),
         type: {
           kind: "enum",
-          label: "Type",
-          options: [option("PRODUCT", "Produit"), option("SERVICE", "Service")],
+          label: "type",
+          options: [option("PRODUCT", "product"), option("SERVICE", "service")],
         },
-        range: text("Gamme", { optional: true }),
-        description: text("Description", { multiline: true, optional: true }),
+        range: text("range", { optional: true }),
+        description: text("description", { multiline: true, optional: true }),
       },
     },
   },
   "organization.offeringRanges": {
     kind: "object",
     fields: {
-      hasMultiple: { kind: "boolean", label: "Plusieurs gammes" },
+      hasMultiple: { kind: "boolean", label: "hasMultipleRanges" },
       ranges: {
         kind: "array",
-        label: "Gammes",
-        item: text("Nom de la gamme"),
-        addLabel: "Ajouter une gamme",
+        label: "ranges",
+        item: text("rangeName"),
+        addLabel: "addRange",
       },
     },
   },
-  "market.primaryCustomerSegments": list("Segments clients", "Segment client"),
-  "organization.employeeCount": { kind: "number", label: "Nombre de salariés" },
+  "market.primaryCustomerSegments": list("customerSegments", "customerSegment"),
+  "organization.employeeCount": { kind: "number", label: "employeeCount" },
   "operations.keyProcesses": {
     kind: "array",
-    label: "Processus clés",
+    label: "keyProcesses",
     minimumItems: 1,
-    addLabel: "Ajouter un processus",
+    addLabel: "addProcess",
     item: {
       kind: "object",
       fields: {
-        name: text("Nom du processus"),
-        description: text("Description", { multiline: true, optional: true }),
+        name: text("processName"),
+        description: text("description", { multiline: true, optional: true }),
         classification: {
           kind: "enum",
-          label: "Classification",
+          label: "classification",
           optional: true,
           options: [
-            option("MANAGEMENT", "Management"),
-            option("CORE", "Réalisation"),
-            option("SUPPORT", "Support"),
+            option("MANAGEMENT", "management"),
+            option("CORE", "core"),
+            option("SUPPORT", "support"),
           ],
         },
       },
     },
   },
-  "scope.certificationScope": text("Périmètre de certification", { multiline: true }),
+  "scope.certificationScope": text("certificationScope", { multiline: true }),
   "operations.externalProviders": {
     kind: "object",
     fields: {
-      usesExternalProviders: { kind: "boolean", label: "Recours à des prestataires externes" },
+      usesExternalProviders: { kind: "boolean", label: "usesExternalProviders" },
       providers: {
         kind: "array",
-        label: "Prestataires",
-        addLabel: "Ajouter un prestataire",
+        label: "providers",
+        addLabel: "addProvider",
         item: {
           kind: "object",
           fields: {
-            name: text("Nom", { optional: true }),
+            name: text("name", { optional: true }),
             category: {
               kind: "enum",
-              label: "Catégorie",
-              options: [
-                option("SUPPLIER", "Fournisseur"),
-                option("SUBCONTRACTOR", "Sous-traitant"),
-              ],
+              label: "category",
+              options: [option("SUPPLIER", "supplier"), option("SUBCONTRACTOR", "subcontractor")],
             },
-            suppliedProductOrService: text("Produit ou service fourni"),
-            outsourcedProcess: text("Processus externalisé", { optional: true }),
-            critical: { kind: "boolean", label: "Prestataire critique" },
+            suppliedProductOrService: text("suppliedProductOrService"),
+            outsourcedProcess: text("outsourcedProcess", { optional: true }),
+            critical: { kind: "boolean", label: "criticalProvider" },
           },
         },
       },
@@ -147,16 +161,16 @@ export const profileEditorSchemas: Record<ProfileFieldKey, EditorSchema> = {
   "organization.afterSalesServices": {
     kind: "object",
     fields: {
-      hasAfterSalesServices: { kind: "boolean", label: "Service après-vente ou maintenance" },
+      hasAfterSalesServices: { kind: "boolean", label: "hasAfterSales" },
       services: {
         kind: "array",
-        label: "Services",
-        addLabel: "Ajouter un service",
+        label: "services",
+        addLabel: "addService",
         item: {
           kind: "object",
           fields: {
-            name: text("Nom du service"),
-            description: text("Description", { multiline: true, optional: true }),
+            name: text("serviceName"),
+            description: text("description", { multiline: true, optional: true }),
           },
         },
       },
@@ -164,242 +178,232 @@ export const profileEditorSchemas: Record<ProfileFieldKey, EditorSchema> = {
   },
   "scope.operatingReach": {
     kind: "enum",
-    label: "Portée des activités",
+    label: "operatingReach",
     options: [
-      option("LOCAL", "Locale"),
-      option("NATIONAL", "Nationale"),
-      option("INTERNATIONAL", "Internationale"),
+      option("LOCAL", "local"),
+      option("NATIONAL", "national"),
+      option("INTERNATIONAL", "international"),
     ],
   },
-  "scope.operatingCountries": {
-    kind: "array",
-    label: "Pays d’activité",
-    minimumItems: 1,
-    addLabel: "Ajouter un pays",
-    item: text("Code pays", { placeholder: "MA" }),
-  },
+  "scope.operatingCountries": { kind: "countries", label: "operatingCountries" },
   "organization.primarySector": {
     kind: "object",
     fields: {
-      label: text("Secteur d’activité"),
-      code: text("Code sectoriel", { optional: true }),
+      label: text("sector"),
+      code: text("sectorCode", { optional: true }),
     },
   },
   "regulatory.implementedFrameworks": {
     kind: "object",
     fields: {
-      hasImplementedFrameworks: { kind: "boolean", label: "Des référentiels sont déjà appliqués" },
+      hasImplementedFrameworks: { kind: "boolean", label: "hasFrameworks" },
       frameworks: {
         kind: "array",
-        label: "Référentiels",
-        addLabel: "Ajouter un référentiel",
+        label: "frameworks",
+        addLabel: "addFramework",
         item: {
           kind: "object",
           fields: {
             type: {
               kind: "enum",
-              label: "Type",
+              label: "type",
               options: [
-                option("STANDARD", "Norme"),
-                option("REGULATION", "Réglementation"),
-                option("CERTIFICATION", "Certification"),
-                option("OTHER", "Autre"),
+                option("STANDARD", "standard"),
+                option("REGULATION", "regulation"),
+                option("CERTIFICATION", "certification"),
+                option("OTHER", "other"),
               ],
             },
-            reference: text("Référence", { optional: true }),
-            name: text("Nom"),
+            reference: text("reference", { optional: true }),
+            name: text("name"),
             status: {
               kind: "enum",
-              label: "Statut",
+              label: "status",
               options: [
-                option("IMPLEMENTED", "Appliqué"),
-                option("PARTIAL", "Partiellement appliqué"),
-                option("PLANNED", "Planifié"),
-                option("UNKNOWN", "À confirmer"),
+                option("IMPLEMENTED", "implemented"),
+                option("PARTIAL", "partial"),
+                option("PLANNED", "planned"),
+                option("UNKNOWN", "unknown"),
               ],
             },
-            scope: text("Périmètre", { multiline: true, optional: true }),
+            scope: text("scope", { multiline: true, optional: true }),
           },
         },
       },
     },
   },
-  "operations.orderToDeliveryFlow": text("Déroulement commande-livraison", { multiline: true }),
+  "operations.orderToDeliveryFlow": text("orderToDelivery", { multiline: true }),
   "resources.keyResources": {
     kind: "array",
-    label: "Ressources clés",
+    label: "keyResources",
     minimumItems: 1,
-    addLabel: "Ajouter une ressource",
+    addLabel: "addResource",
     item: {
       kind: "object",
       fields: {
         category: {
           kind: "enum",
-          label: "Catégorie",
+          label: "category",
           options: [
-            option("HUMAN", "Humaine"),
-            option("EQUIPMENT", "Équipement"),
-            option("SOFTWARE", "Logiciel"),
-            option("INFRASTRUCTURE", "Infrastructure"),
-            option("SUPPLIER", "Fournisseur"),
-            option("OTHER", "Autre"),
+            option("HUMAN", "human"),
+            option("EQUIPMENT", "equipment"),
+            option("SOFTWARE", "software"),
+            option("INFRASTRUCTURE", "infrastructure"),
+            option("SUPPLIER", "supplier"),
+            option("OTHER", "other"),
           ],
         },
-        name: text("Nom"),
-        critical: { kind: "boolean", label: "Ressource critique" },
+        name: text("name"),
+        critical: { kind: "boolean", label: "criticalResource" },
       },
     },
   },
-  "resources.criticalCompetencies": list("Compétences critiques", "Compétence"),
+  "resources.criticalCompetencies": list("criticalCompetencies", "competency"),
   "operations.majorDifficulties": {
-    ...yesNoList(
-      "Difficultés majeures",
-      "Des difficultés majeures ont été rencontrées",
-      "Difficulté",
-    ),
+    ...yesNoList("majorDifficulties", "hasDifficulties", "difficulty"),
     fields: {
-      has: { kind: "boolean", label: "Des difficultés majeures ont été rencontrées" },
+      has: { kind: "boolean", label: "hasDifficulties" },
       items: {
         kind: "array",
-        label: "Difficultés",
-        item: text("Difficulté"),
-        addLabel: "Ajouter une difficulté",
+        label: "difficulties",
+        item: text("difficulty"),
+        addLabel: "addDifficulty",
       },
     },
   },
   "context.externalFactors": {
     kind: "array",
-    label: "Facteurs externes",
+    label: "externalFactors",
     minimumItems: 1,
-    addLabel: "Ajouter un facteur",
+    addLabel: "addFactor",
     item: {
       kind: "object",
       fields: {
         category: {
           kind: "enum",
-          label: "Catégorie",
+          label: "category",
           options: [
-            option("LEGAL", "Légal"),
-            option("ECONOMIC", "Économique"),
-            option("COMPETITION", "Concurrence"),
-            option("TECHNOLOGY", "Technologie"),
-            option("ENVIRONMENT", "Environnement"),
-            option("SOCIAL", "Social"),
-            option("OTHER", "Autre"),
+            option("LEGAL", "legal"),
+            option("ECONOMIC", "economic"),
+            option("COMPETITION", "competition"),
+            option("TECHNOLOGY", "technology"),
+            option("ENVIRONMENT", "environment"),
+            option("SOCIAL", "social"),
+            option("OTHER", "other"),
           ],
         },
-        description: text("Description", { multiline: true }),
+        description: text("description", { multiline: true }),
       },
     },
   },
   "regulatory.knownRequirements": {
     kind: "object",
     fields: {
-      hasKnownRequirements: { kind: "boolean", label: "Des exigences sont déjà connues" },
+      hasKnownRequirements: { kind: "boolean", label: "hasKnownRequirements" },
       requirements: {
         kind: "array",
-        label: "Exigences",
-        addLabel: "Ajouter une exigence",
+        label: "requirements",
+        addLabel: "addRequirement",
         item: {
           kind: "object",
           fields: {
-            name: text("Nom"),
-            reference: text("Référence", { optional: true }),
-            description: text("Description", { multiline: true, optional: true }),
+            name: text("name"),
+            reference: text("reference", { optional: true }),
+            description: text("description", { multiline: true, optional: true }),
           },
         },
       },
     },
   },
-  "context.sectorChallenges": list("Défis du secteur", "Défi"),
+  "context.sectorChallenges": list("sectorChallenges", "challenge"),
   "stakeholders.customerNeeds": {
     kind: "array",
-    label: "Clients et besoins",
+    label: "customerNeeds",
     minimumItems: 1,
-    addLabel: "Ajouter un type de client",
+    addLabel: "addCustomerType",
     item: {
       kind: "object",
       fields: {
-        customerType: text("Type de client"),
-        needs: list("Besoins", "Besoin"),
+        customerType: text("customerType"),
+        needs: list("needs", "need"),
       },
     },
   },
   "stakeholders.otherParties": {
     kind: "array",
-    label: "Parties intéressées",
+    label: "interestedParties",
     minimumItems: 1,
-    addLabel: "Ajouter une partie",
+    addLabel: "addParty",
     item: {
       kind: "object",
       fields: {
         category: {
           kind: "enum",
-          label: "Catégorie",
+          label: "category",
           options: [
-            option("EMPLOYEE", "Salarié"),
-            option("SUPPLIER", "Fournisseur"),
-            option("SUBCONTRACTOR", "Sous-traitant"),
-            option("AUTHORITY", "Autorité"),
-            option("BANK", "Banque"),
-            option("PARTNER", "Partenaire"),
-            option("OWNER", "Propriétaire"),
-            option("COMMUNITY", "Communauté"),
-            option("OTHER", "Autre"),
+            option("EMPLOYEE", "employee"),
+            option("SUPPLIER", "supplier"),
+            option("SUBCONTRACTOR", "subcontractor"),
+            option("AUTHORITY", "authority"),
+            option("BANK", "bank"),
+            option("PARTNER", "partner"),
+            option("OWNER", "owner"),
+            option("COMMUNITY", "community"),
+            option("OTHER", "other"),
           ],
         },
-        name: text("Nom", { optional: true }),
+        name: text("name", { optional: true }),
       },
     },
   },
   "stakeholders.expectations": {
     kind: "array",
-    label: "Attentes des parties",
+    label: "partyExpectations",
     minimumItems: 1,
-    addLabel: "Ajouter une partie",
+    addLabel: "addParty",
     item: {
       kind: "object",
       fields: {
-        party: text("Partie intéressée"),
-        expectations: list("Attentes", "Attente"),
+        party: text("party"),
+        expectations: list("expectations", "expectation"),
       },
     },
   },
   "strategy.annualObjectives": {
     kind: "array",
-    label: "Objectifs annuels",
+    label: "annualObjectives",
     minimumItems: 1,
-    addLabel: "Ajouter un objectif",
+    addLabel: "addObjective",
     item: {
       kind: "object",
       fields: {
-        description: text("Objectif", { multiline: true }),
-        target: text("Cible", { optional: true }),
-        dueDate: text("Échéance", { inputType: "date", optional: true }),
-        owner: text("Responsable", { optional: true }),
+        description: text("objective", { multiline: true }),
+        target: text("target", { optional: true }),
+        dueDate: text("dueDate", { inputType: "date", optional: true }),
+        owner: text("responsible", { optional: true }),
       },
     },
   },
-  "strategy.values": list("Valeurs", "Valeur"),
-  "strategy.differentiators": list("Facteurs différenciants", "Facteur"),
-  "strategy.iso9001Motivation": text("Motivation ISO 9001", { multiline: true }),
-  "context.marketChallenges": list("Défis du marché", "Défi"),
-  "context.growthOpportunities": list("Opportunités de croissance", "Opportunité"),
-  "regulatory.criticalRisks": list("Risques réglementaires critiques", "Risque"),
+  "strategy.values": list("values", "value"),
+  "strategy.differentiators": list("differentiators", "factor"),
+  "strategy.iso9001Motivation": text("iso9001Motivation", { multiline: true }),
+  "context.marketChallenges": list("marketChallenges", "challenge"),
+  "context.growthOpportunities": list("growthOpportunities", "opportunity"),
+  "regulatory.criticalRisks": list("criticalRisks", "risk"),
   "operations.recurrentIssues": {
     kind: "object",
     fields: {
-      hasRecurrentIssues: { kind: "boolean", label: "Des incidents récurrents existent" },
+      hasRecurrentIssues: { kind: "boolean", label: "hasRecurrentIssues" },
       issues: {
         kind: "array",
-        label: "Incidents ou non-conformités",
-        addLabel: "Ajouter un incident",
+        label: "recurrentIssues",
+        addLabel: "addIssue",
         item: {
           kind: "object",
           fields: {
-            description: text("Description", { multiline: true }),
-            frequency: text("Fréquence", { optional: true }),
-            impact: text("Impact", { multiline: true, optional: true }),
+            description: text("description", { multiline: true }),
+            frequency: text("frequency", { optional: true }),
+            impact: text("impact", { multiline: true, optional: true }),
           },
         },
       },
@@ -423,6 +427,7 @@ export function initialEditorValue(schema: EditorSchema, value: unknown): unknow
     }
     return value;
   }
+  if (schema.kind === "countries") return [];
   if (schema.kind === "text" || schema.kind === "number") return "";
   if (schema.kind === "boolean") return false;
   if (schema.kind === "enum") return schema.optional ? "" : (schema.options[0]?.value ?? "");
@@ -446,6 +451,9 @@ export function cleanEditorValue(schema: EditorSchema, value: unknown): unknown 
     return Number(value);
   }
   if (schema.kind === "boolean") return Boolean(value);
+  if (schema.kind === "countries") {
+    return (Array.isArray(value) ? value : []).map((code) => String(code).toUpperCase());
+  }
   if (schema.kind === "enum") {
     const cleaned = String(value ?? "");
     return schema.optional && !cleaned ? undefined : cleaned;
@@ -472,29 +480,49 @@ export function ProfileFieldEditor({
   onChange: (value: unknown) => void;
   path?: string;
 }) {
+  const { t, i18n } = useTranslation("profile");
+  const label = (key: Label) => t(`editor.${key}`);
+  if (schema.kind === "countries") {
+    return (
+      <div>
+        <span className="mb-2 block text-sm font-medium text-slate-700">{label(schema.label)}</span>
+        <CountryMultiSelect
+          label={label(schema.label)}
+          value={Array.isArray(value) ? value.map(String) : []}
+          onChange={onChange}
+        />
+      </div>
+    );
+  }
   if (schema.kind === "text") {
+    const placeholder =
+      schema.placeholder === undefined || schema.placeholder === "https://…"
+        ? schema.placeholder
+        : label(schema.placeholder);
     const classes =
       "w-full rounded-xl border border-slate-200 bg-slate-50/70 px-3 text-sm outline-none transition focus:border-violet-400 focus:bg-white focus:ring-4 focus:ring-violet-100";
     return (
       <label className="block">
         <span className="mb-2 block text-sm font-medium text-slate-700">
-          {schema.label}
-          {schema.optional && <span className="font-normal text-slate-400"> · facultatif</span>}
+          {label(schema.label)}
+          {schema.optional && (
+            <span className="font-normal text-slate-400">{t("editorUi.optional")}</span>
+          )}
         </span>
         {schema.multiline ? (
           <textarea
-            aria-label={schema.label}
+            aria-label={label(schema.label)}
             className={`${classes} min-h-24 py-2.5`}
-            placeholder={schema.placeholder}
+            placeholder={placeholder}
             value={String(value ?? "")}
             onChange={(event) => onChange(event.target.value)}
           />
         ) : (
           <input
-            aria-label={schema.label}
+            aria-label={label(schema.label)}
             className={`${classes} h-10`}
             type={schema.inputType ?? "text"}
-            placeholder={schema.placeholder}
+            placeholder={placeholder}
             value={String(value ?? "")}
             onChange={(event) => onChange(event.target.value)}
           />
@@ -505,9 +533,9 @@ export function ProfileFieldEditor({
   if (schema.kind === "number") {
     return (
       <label className="block">
-        <span className="mb-2 block text-sm font-medium text-slate-700">{schema.label}</span>
+        <span className="mb-2 block text-sm font-medium text-slate-700">{label(schema.label)}</span>
         <input
-          aria-label={schema.label}
+          aria-label={label(schema.label)}
           className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50/70 px-3 text-sm outline-none focus:border-violet-400 focus:ring-4 focus:ring-violet-100"
           type="number"
           min={0}
@@ -521,21 +549,21 @@ export function ProfileFieldEditor({
     const checked = Boolean(value);
     return (
       <div>
-        <p className="mb-2 text-sm font-medium text-slate-700">{schema.label}</p>
+        <p className="mb-2 text-sm font-medium text-slate-700">{label(schema.label)}</p>
         <div className="grid grid-cols-2 gap-2">
           <button
             type="button"
             onClick={() => onChange(true)}
             className={`rounded-xl border px-3 py-2 text-sm font-medium ${checked ? "border-violet-400 bg-violet-50 text-violet-800" : "border-slate-200 text-slate-500"}`}
           >
-            Oui
+            {t("editorUi.yes")}
           </button>
           <button
             type="button"
             onClick={() => onChange(false)}
             className={`rounded-xl border px-3 py-2 text-sm font-medium ${!checked ? "border-violet-400 bg-violet-50 text-violet-800" : "border-slate-200 text-slate-500"}`}
           >
-            Non
+            {t("editorUi.no")}
           </button>
         </div>
       </div>
@@ -544,17 +572,17 @@ export function ProfileFieldEditor({
   if (schema.kind === "enum") {
     return (
       <label className="block">
-        <span className="mb-2 block text-sm font-medium text-slate-700">{schema.label}</span>
+        <span className="mb-2 block text-sm font-medium text-slate-700">{label(schema.label)}</span>
         <select
-          aria-label={schema.label}
+          aria-label={label(schema.label)}
           className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50/70 px-3 text-sm outline-none focus:border-violet-400 focus:ring-4 focus:ring-violet-100"
           value={String(value ?? "")}
           onChange={(event) => onChange(event.target.value)}
         >
-          {schema.optional && <option value="">Non renseigné</option>}
+          {schema.optional && <option value="">{t("editorUi.notProvided")}</option>}
           {schema.options.map((item) => (
             <option key={item.value} value={item.value}>
-              {item.label}
+              {label(item.label)}
             </option>
           ))}
         </select>
@@ -566,7 +594,9 @@ export function ProfileFieldEditor({
     return (
       <fieldset className="space-y-4">
         {schema.label && (
-          <legend className="mb-3 text-sm font-semibold text-slate-900">{schema.label}</legend>
+          <legend className="mb-3 text-sm font-semibold text-slate-900">
+            {label(schema.label)}
+          </legend>
         )}
         {Object.entries(schema.fields).map(([key, child]) => (
           <ProfileFieldEditor
@@ -584,7 +614,7 @@ export function ProfileFieldEditor({
   const scalar = schema.item.kind !== "object" && schema.item.kind !== "array";
   return (
     <fieldset>
-      <legend className="mb-3 text-sm font-semibold text-slate-900">{schema.label}</legend>
+      <legend className="mb-3 text-sm font-semibold text-slate-900">{label(schema.label)}</legend>
       <div className="space-y-3">
         {items.map((item, index) => (
           <div
@@ -608,11 +638,11 @@ export function ProfileFieldEditor({
               />
             </div>
             <Button
-              aria-label={`Supprimer l’élément ${index + 1}`}
+              aria-label={t("editorUi.removeItem", { index: index + 1 })}
               type="button"
               size="icon-sm"
               variant="ghost"
-              className={scalar ? "mb-1 text-slate-400" : "absolute right-2 top-2 text-slate-400"}
+              className={scalar ? "mb-1 text-slate-400" : "absolute end-2 top-2 text-slate-400"}
               onClick={() => onChange(items.filter((_, itemIndex) => itemIndex !== index))}
             >
               <Trash2Icon />
@@ -621,7 +651,7 @@ export function ProfileFieldEditor({
         ))}
         {!items.length && (
           <p className="rounded-xl border border-dashed border-slate-200 px-3 py-4 text-center text-xs text-slate-500">
-            Aucun élément ajouté.
+            {t("editorUi.noItems")}
           </p>
         )}
       </div>
@@ -632,7 +662,14 @@ export function ProfileFieldEditor({
         className="mt-3"
         onClick={() => onChange([...items, initialEditorValue(schema.item, null)])}
       >
-        <PlusIcon className="size-4" /> {schema.addLabel ?? "Ajouter un élément"}
+        <PlusIcon className="size-4" />{" "}
+        {schema.addLabel
+          ? label(schema.addLabel)
+          : schema.addNamed
+            ? t("editorUi.addNamed", {
+                item: label(schema.addNamed).toLocaleLowerCase(i18n.language),
+              })
+            : t("editorUi.addItem")}
       </Button>
     </fieldset>
   );

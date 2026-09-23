@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import {
   apiErrorSchema,
+  applyContextIssueOverrideSchema,
+  createManualContextIssueSchema,
   createAiKnowledgeExampleSchema,
   createRegulatoryActionSchema,
   createSiteSchema,
@@ -206,5 +208,69 @@ describe("regulatory action and evidence patches", () => {
       message: "note is required",
     });
     expect(regulatoryEvidencePayloadIssue({ kind: "LINK", url: "https://x.test" })).toBeNull();
+  });
+});
+
+describe("manual context issue creation", () => {
+  it("accepts an internal issue only as force or faiblesse", () => {
+    expect(
+      createManualContextIssueSchema.safeParse({
+        origin: "INTERNAL",
+        nature: "force",
+        title: "Turnover élevé",
+        description: "Le taux de rotation du personnel dépasse la moyenne du secteur.",
+      }).success,
+    ).toBe(true);
+    expect(
+      createManualContextIssueSchema.safeParse({
+        origin: "INTERNAL",
+        nature: "opportunite",
+        title: "Turnover élevé",
+        description: "Le taux de rotation du personnel dépasse la moyenne du secteur.",
+      }).success,
+    ).toBe(false);
+  });
+
+  it("accepts an external issue only as opportunite or menace", () => {
+    expect(
+      createManualContextIssueSchema.safeParse({
+        origin: "EXTERNAL",
+        nature: "menace",
+        title: "Nouveau concurrent régional",
+        description: "Un acteur régional a ouvert une filiale à proximité.",
+      }).success,
+    ).toBe(true);
+    expect(
+      createManualContextIssueSchema.safeParse({
+        origin: "EXTERNAL",
+        nature: "faiblesse",
+        title: "Nouveau concurrent régional",
+        description: "Un acteur régional a ouvert une filiale à proximité.",
+      }).success,
+    ).toBe(false);
+  });
+
+  it("defaults the manual category so it is never presented as an AI conclusion", () => {
+    const parsed = createManualContextIssueSchema.parse({
+      origin: "EXTERNAL",
+      nature: "opportunite",
+      title: "Nouveau marché export",
+      description: "Un accord commercial ouvre un nouveau débouché export.",
+    });
+    expect(parsed.categoryKey).toBe("ajout_manuel");
+    expect(parsed.categoryLabel).toBe("Ajout manuel");
+  });
+});
+
+describe("context issue override", () => {
+  it("accepts a partial patch, every field independently optional", () => {
+    expect(applyContextIssueOverrideSchema.safeParse({}).success).toBe(true);
+    expect(applyContextIssueOverrideSchema.safeParse({ reviewStatus: "VALIDATED" }).success).toBe(
+      true,
+    );
+  });
+
+  it("rejects a nature outside the fixed vocabulary", () => {
+    expect(applyContextIssueOverrideSchema.safeParse({ nature: "inconnu" }).success).toBe(false);
   });
 });

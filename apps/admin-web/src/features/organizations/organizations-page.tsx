@@ -22,14 +22,12 @@ import { formatNumber, initials, Metric, StatusBadge } from "./organization-ui.j
 type Response = {
   items: OrganizationSummary[];
   pagination: PageInfo;
-  filters: { countries: string[] };
 };
 
 export function OrganizationsPage() {
   const [result, setResult] = useState<Response | null>(null);
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("");
-  const [countryCode, setCountryCode] = useState("");
   const [page, setPage] = useState(1);
   const [error, setError] = useState<string | null>(null);
 
@@ -37,21 +35,20 @@ export function OrganizationsPage() {
     const query = new URLSearchParams({ page: String(page), pageSize: "25" });
     if (search) query.set("search", search);
     if (status) query.set("status", status);
-    if (countryCode) query.set("countryCode", countryCode);
     try {
       setError(null);
       setResult(await adminApi<Response>(`/v1/organizations?${query}`));
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Unable to load organizations");
     }
-  }, [countryCode, page, search, status]);
+  }, [page, search, status]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => void load(), 250);
     return () => window.clearTimeout(timer);
   }, [load]);
 
-  useEffect(() => setPage(1), [search, status, countryCode]);
+  useEffect(() => setPage(1), [search, status]);
 
   const totals = result?.items.reduce(
     (sum, item) => ({
@@ -125,18 +122,6 @@ export function OrganizationsPage() {
               <NativeSelectOption value="active">Active</NativeSelectOption>
               <NativeSelectOption value="suspended">Suspended</NativeSelectOption>
             </NativeSelect>
-            <NativeSelect
-              aria-label="Organization country"
-              value={countryCode}
-              onChange={(event) => setCountryCode(event.target.value)}
-            >
-              <NativeSelectOption value="">All countries</NativeSelectOption>
-              {result?.filters.countries.map((country) => (
-                <NativeSelectOption key={country} value={country}>
-                  {country}
-                </NativeSelectOption>
-              ))}
-            </NativeSelect>
           </div>
         </CardHeader>
         <CardContent className="p-0">
@@ -157,7 +142,7 @@ export function OrganizationsPage() {
                 <TableRow>
                   <TableHead>Organization</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead>Region</TableHead>
+                  <TableHead>Timezone</TableHead>
                   <TableHead>Projects</TableHead>
                   <TableHead>Members</TableHead>
                   <TableHead>AI calls</TableHead>
@@ -187,8 +172,7 @@ export function OrganizationsPage() {
                       <StatusBadge status={organization.status} />
                     </TableCell>
                     <TableCell>
-                      <span className="font-medium">{organization.countryCode}</span>
-                      <span className="block text-xs text-slate-500">{organization.timezone}</span>
+                      <span className="text-sm text-slate-600">{organization.timezone}</span>
                     </TableCell>
                     <TableCell>{formatNumber(organization._count.projects)}</TableCell>
                     <TableCell>{formatNumber(organization._count.members)}</TableCell>

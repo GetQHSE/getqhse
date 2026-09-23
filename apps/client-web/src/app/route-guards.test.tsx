@@ -86,7 +86,6 @@ describe("authenticated route loading", () => {
           name: "Atlas",
           slug: "atlas",
           icon: null,
-          countryCode: "MA",
         },
         activeOrganizationProjectCount: 0,
         nextStep: "WAIT_FOR_PROJECT",

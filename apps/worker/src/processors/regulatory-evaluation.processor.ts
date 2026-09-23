@@ -4,10 +4,12 @@ import {
   languageModel,
   llmSettings,
   regulatoryConformityPrompt,
+  snapshotLanguage,
 } from "@qhse/ai";
 import type { LanguageProvider } from "@qhse/config";
 import { jobEnvelopeSchema, type JobEnvelope } from "@qhse/contracts";
 import { Prisma, createPrismaClient, type DatabaseClient } from "@qhse/database";
+import { projectCountryCodes } from "@qhse/domain";
 import { createLogger } from "@qhse/observability";
 import { Output, generateText } from "ai";
 import type { Job } from "bullmq";
@@ -341,7 +343,8 @@ export class RegulatoryEvaluationProcessor extends WorkerHost {
           profileContext: baseline.profileSnapshot.data,
           requirement: { document: documentLabel, text: requirementText },
         }),
-        jurisdiction: "MA",
+        // Examples are tagged with the project's home country (first of its countries).
+        jurisdiction: projectCountryCodes(baseline.profileSnapshot.data)[0] ?? "",
         language: "fr",
         limit: 5,
       });
@@ -375,6 +378,7 @@ export class RegulatoryEvaluationProcessor extends WorkerHost {
         })),
         knowledgeExamples,
         currentDate: new Date().toISOString().slice(0, 10),
+        language: snapshotLanguage(baseline.profileSnapshot.data),
       };
       const prompt = regulatoryConformityPrompt.build(promptInput);
 

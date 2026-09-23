@@ -18,9 +18,6 @@ export class OrganizationsService {
   async list(input: ListOrganizationsInput) {
     const where: Prisma.OrganizationWhereInput = {
       ...(input.status ? { status: input.status } : {}),
-      ...(input.countryCode
-        ? { countryCode: { equals: input.countryCode.toUpperCase(), mode: "insensitive" } }
-        : {}),
       ...(input.search
         ? {
             OR: [
@@ -30,7 +27,7 @@ export class OrganizationsService {
           }
         : {}),
     };
-    const [items, total, countries] = await Promise.all([
+    const [items, total] = await Promise.all([
       this.auth.database.organization.findMany({
         where,
         orderBy: [{ createdAt: "desc" }, { name: "asc" }],
@@ -42,7 +39,6 @@ export class OrganizationsService {
           slug: true,
           logo: true,
           status: true,
-          countryCode: true,
           locale: true,
           timezone: true,
           createdAt: true,
@@ -50,17 +46,11 @@ export class OrganizationsService {
         },
       }),
       this.auth.database.organization.count({ where }),
-      this.auth.database.organization.groupBy({
-        by: ["countryCode"],
-        orderBy: { countryCode: "asc" },
-        _count: { _all: true },
-      }),
     ]);
 
     return {
       items,
       pagination: pageInfo(total, input.page, input.pageSize),
-      filters: { countries: countries.map(({ countryCode }) => countryCode) },
     };
   }
 
@@ -74,7 +64,6 @@ export class OrganizationsService {
         logo: true,
         icon: true,
         status: true,
-        countryCode: true,
         locale: true,
         timezone: true,
         createdAt: true,

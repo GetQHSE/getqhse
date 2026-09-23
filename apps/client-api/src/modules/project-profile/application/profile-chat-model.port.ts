@@ -1,3 +1,4 @@
+import type { SupportedLanguage } from "@qhse/contracts";
 import type { ProfileFieldKey, ProfileToolAnswer } from "@qhse/profile";
 import type { ServerResponse } from "node:http";
 
@@ -10,7 +11,7 @@ export type ProfileChatToolResult = {
 };
 
 export type ProfileChatModelInput = {
-  language: "fr" | "ar";
+  language: SupportedLanguage;
   userMessage: string;
   currentQuestion: { key: ProfileFieldKey; prompt: string } | null;
   profileRevision: number;

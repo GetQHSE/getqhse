@@ -1,0 +1,55 @@
+import type { Catalog } from "../types.js";
+import type fr from "../fr/auth.js";
+
+const auth: Catalog<typeof fr> = {
+  tagline: "ذكاء المطابقة",
+  heroBadge: "مصمَّم لمساعيكم في معايير ISO والمتطلبات التنظيمية",
+  heroTitle: "تصبح المطابقة عملاً جماعيًا يوجّهه الذكاء الاصطناعي.",
+  heroBody:
+    "نظّموا الملف التعريفي لمشاريعكم، وحدّدوا المتطلبات المطبّقة، وتقدّموا بإجابات موثّقة المصادر.",
+  heroPoints: {
+    profile: "ملف تعريفي موجَّه للمشروع",
+    watch: "يقظة تنظيمية مكيَّفة مع سياقكم",
+    traceable: "إجابات قابلة للتتبّع وآمنة",
+  },
+  secureAccess: "وصول آمن وبيانات معزولة لكل مؤسسة",
+  signUpEyebrow: "ابدأوا مسيرتكم",
+  loginEyebrow: "سعداء بعودتكم",
+  signUpTitle: "أنشئوا حسابكم",
+  loginTitle: "سجّلوا الدخول إلى مساحتكم",
+  signUpBody: "تكفي بضع دقائق لإعداد مؤسستكم ومشروعكم الأول.",
+  loginBody: "اعثروا على مشاريعكم وملفكم التعريفي ويقظتكم التنظيمية.",
+  fullName: "الاسم الكامل",
+  fullNamePlaceholder: "الاسم واللقب",
+  email: "البريد الإلكتروني",
+  emailPlaceholder: "name@company.com",
+  password: "كلمة المرور",
+  passwordPlaceholder: "8 أحرف على الأقل",
+  invalidEmail: "عنوان غير صالح",
+  passwordTooShort: "يجب أن تحتوي كلمة المرور على 8 أحرف على الأقل",
+  signUp: "إنشاء حساب",
+  signIn: "تسجيل الدخول",
+  haveAccount: "لديكم حساب بالفعل؟ ",
+  noAccount: "ليس لديكم حساب بعد؟ ",
+  createAccount: "إنشاء حساب",
+  signUpFailed: "تعذّر إنشاء الحساب",
+  invalidCredentials: "بيانات الدخول غير صحيحة",
+  invitation: {
+    eyebrow: "دعوة للانضمام إلى مؤسسة",
+    join: "الانضمام إلى {{organization}}",
+    loading: "جارٍ تحميل الدعوة…",
+    invitedAs: "يدعوكم <strong>{{inviter}}</strong> بصفة {{role}}.",
+    recipient: "المستلم: {{email}}",
+    expiration: "تاريخ الانتهاء: {{date}}",
+    expired: "انتهت صلاحية هذه الدعوة.",
+    unavailable: "هذه الدعوة غير متاحة.",
+    notFound: "الدعوة غير موجودة.",
+    wrongAccount: "سجّلوا الدخول بالبريد الإلكتروني الذي تلقّى هذه الدعوة.",
+    invalid: "هذه الدعوة غير صالحة أو منتهية الصلاحية أو سبق استخدامها.",
+    acceptFailed: "تعذّر قبول الدعوة.",
+    accepting: "جارٍ القبول…",
+    accept: "القبول والانضمام",
+  },
+};
+
+export default auth;

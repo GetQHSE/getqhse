@@ -14,6 +14,8 @@ import {
   invitationPreviewSchema,
   organizationTeamSchema,
   updateMembershipStatusSchema,
+  updateUserPreferencesSchema,
+  userPreferencesSchema,
   type CreateFileUpload,
   type FileTranscription,
   type FileUploadResponse,
@@ -27,6 +29,7 @@ import {
   type InvitationPreview,
   type OrganizationTeam,
   type UpdateMembershipStatus,
+  type UserPreferences,
 } from "@qhse/contracts";
 import {
   apiRequest,
@@ -49,6 +52,13 @@ async function request<T>(
 }
 
 export const clientApi = {
+  preferences: (): Promise<UserPreferences> =>
+    request("/api/auth-context/preferences", (value) => userPreferencesSchema.parse(value)),
+  updatePreferences: (input: UserPreferences): Promise<UserPreferences> =>
+    request("/api/auth-context/preferences", (value) => userPreferencesSchema.parse(value), {
+      method: "PATCH",
+      body: JSON.stringify(updateUserPreferencesSchema.parse(input)),
+    }),
   invitationPreview: (id: string): Promise<InvitationPreview> =>
     request(`/v1/organization-invitations/${encodeURIComponent(id)}/preview`, (value) =>
       invitationPreviewSchema.parse(value),
@@ -135,6 +145,10 @@ export const clientApi = {
     idOrSlug: string,
     input: Parameters<QhseApiClient["publishRegulatoryBaseline"]>[1],
   ) => qhseApi.publishRegulatoryBaseline(idOrSlug, input),
+  publishRegulatoryBaselineAutomatically: (
+    idOrSlug: string,
+    input: Parameters<QhseApiClient["publishRegulatoryBaselineAutomatically"]>[1],
+  ) => qhseApi.publishRegulatoryBaselineAutomatically(idOrSlug, input),
   startRegulatoryEvaluation: (idOrSlug: string) => qhseApi.startRegulatoryEvaluation(idOrSlug),
   updateRegulatoryEvaluation: (
     idOrSlug: string,
@@ -164,6 +178,47 @@ export const clientApi = {
   deleteRegulatoryEvidence: (idOrSlug: string, evidenceId: string) =>
     qhseApi.deleteRegulatoryEvidence(idOrSlug, evidenceId),
   exportRegulatoryWatch: (idOrSlug: string) => qhseApi.exportRegulatoryWatch(idOrSlug),
+
+  // SMQ Contexte (§4.1)
+  contextSettings: (idOrSlug: string) => qhseApi.getContextSettings(idOrSlug),
+  setContextMethod: (idOrSlug: string, input: Parameters<QhseApiClient["setContextMethod"]>[1]) =>
+    qhseApi.setContextMethod(idOrSlug, input),
+  contextInternalInputs: (idOrSlug: string) => qhseApi.listContextInternalInputs(idOrSlug),
+  upsertContextInternalInput: (
+    idOrSlug: string,
+    input: Parameters<QhseApiClient["upsertContextInternalInput"]>[1],
+  ) => qhseApi.upsertContextInternalInput(idOrSlug, input),
+  saveContextInternalInputs: (
+    idOrSlug: string,
+    input: Parameters<QhseApiClient["saveContextInternalInputs"]>[1],
+  ) => qhseApi.saveContextInternalInputs(idOrSlug, input),
+  contextScope: (idOrSlug: string) => qhseApi.getContextScope(idOrSlug),
+  contextExternalFactors: (idOrSlug: string) => qhseApi.listContextExternalFactors(idOrSlug),
+  contextExternalRuns: (idOrSlug: string) => qhseApi.listContextExternalRuns(idOrSlug),
+  triggerContextExternalResearch: (idOrSlug: string) =>
+    qhseApi.triggerContextExternalResearch(idOrSlug),
+  contextAnalysisRuns: (idOrSlug: string) => qhseApi.listContextAnalysisRuns(idOrSlug),
+  triggerContextSynthesis: (idOrSlug: string) => qhseApi.triggerContextSynthesis(idOrSlug),
+  contextIssues: (idOrSlug: string) => qhseApi.listContextIssues(idOrSlug),
+  createManualContextIssue: (
+    idOrSlug: string,
+    input: Parameters<QhseApiClient["createManualContextIssue"]>[1],
+  ) => qhseApi.createManualContextIssue(idOrSlug, input),
+  applyContextIssueOverride: (
+    idOrSlug: string,
+    issueId: string,
+    input: Parameters<QhseApiClient["applyContextIssueOverride"]>[2],
+  ) => qhseApi.applyContextIssueOverride(idOrSlug, issueId, input),
+  addContextIssueEvidence: (
+    idOrSlug: string,
+    issueId: string,
+    input: Parameters<QhseApiClient["addContextIssueEvidence"]>[2],
+  ) => qhseApi.addContextIssueEvidence(idOrSlug, issueId, input),
+  exportContextRegister: (idOrSlug: string) => qhseApi.exportContextRegister(idOrSlug),
+  assistContextAnswer: (
+    idOrSlug: string,
+    input: Parameters<QhseApiClient["assistContextAnswer"]>[1],
+  ) => qhseApi.assistContextAnswer(idOrSlug, input),
   createFileUpload: (input: CreateFileUpload): Promise<FileUploadResponse> =>
     request("/v1/files/uploads", (value) => fileUploadResponseSchema.parse(value), {
       method: "POST",

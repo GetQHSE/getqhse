@@ -19,7 +19,6 @@ function harness(projectCount: number, role = "owner") {
           name: "Acme",
           slug: "acme",
           icon: "building",
-          countryCode: "MA",
         },
       }),
     },

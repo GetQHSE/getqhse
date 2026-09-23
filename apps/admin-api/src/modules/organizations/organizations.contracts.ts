@@ -30,7 +30,6 @@ export const listOrganizationsSchema = z
   .object({
     search: optionalTrimmed(200),
     status: z.enum(organizationStatuses).optional(),
-    countryCode: optionalTrimmed(2),
     ...pagination,
   })
   .strict();

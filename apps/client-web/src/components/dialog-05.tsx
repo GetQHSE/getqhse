@@ -1,7 +1,7 @@
-'use client';
+"use client";
 
-import { EyeIcon, EyeOffIcon } from 'lucide-react';
-import { type FormEvent, useState } from 'react';
+import { EyeIcon, EyeOffIcon } from "lucide-react";
+import { type FormEvent, useState } from "react";
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -11,10 +11,10 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
   AlertDialogTrigger,
-} from '@qhse/ui/components/alert-dialog';
-import { Button } from '@qhse/ui/components/button';
-import { Input } from '@qhse/ui/components/input';
-import { Label } from '@qhse/ui/components/label';
+} from "@qhse/ui/components/alert-dialog";
+import { Button } from "@qhse/ui/components/button";
+import { Input } from "@qhse/ui/components/input";
+import { Label } from "@qhse/ui/components/label";
 
 export default function Dialog05() {
   const [isOpen, setIsOpen] = useState(true);
@@ -33,12 +33,10 @@ export default function Dialog05() {
       </AlertDialogTrigger>
       <AlertDialogContent className="sm:max-w-md">
         <AlertDialogHeader>
-          <AlertDialogTitle className="text-balance">
-            Delete workspace
-          </AlertDialogTitle>
+          <AlertDialogTitle className="text-balance">Delete workspace</AlertDialogTitle>
           <AlertDialogDescription className="text-pretty">
-            All workspace data will be permanently deleted. There is no coming
-            back after you press delete.
+            All workspace data will be permanently deleted. There is no coming back after you press
+            delete.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <form onSubmit={handleSubmit}>
@@ -53,11 +51,11 @@ export default function Dialog05() {
                 name="delete-workspace"
                 placeholder="Password"
                 required
-                type={isVisible ? 'text' : 'password'}
+                type={isVisible ? "text" : "password"}
               />
               <button
                 aria-controls="delete-workspace"
-                aria-label={isVisible ? 'Hide password' : 'Show password'}
+                aria-label={isVisible ? "Hide password" : "Show password"}
                 aria-pressed={isVisible}
                 className="absolute inset-y-0 end-0 flex h-full w-9 items-center justify-center rounded-e-md"
                 onClick={toggleVisibility}

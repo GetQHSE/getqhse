@@ -17,10 +17,13 @@ import type {
   ProjectProfile,
   ProjectProfileChatRequest,
   ProjectProfileStreamRequest,
+  SupportedLanguage,
   UpdateProjectProfile,
 } from "@qhse/contracts";
+import { toSupportedLanguage } from "@qhse/contracts";
 import { llmSettings } from "@qhse/ai";
 import { createPrismaClient, Prisma, type DatabaseClient } from "@qhse/database";
+import { projectCountryCodes } from "@qhse/domain";
 import {
   PROFILE_SCHEMA_VERSION,
   calculateProfileCompletion,
@@ -51,7 +54,7 @@ type ApplyAnswerOptions = {
   source: ProfileFieldSource;
   sourceMessageId?: string | undefined;
   changeReason?: string | undefined;
-  language?: "fr" | "ar" | undefined;
+  language?: SupportedLanguage | undefined;
   finalize?: {
     data: Prisma.InputJsonValue;
     contentHash: string;
@@ -77,6 +80,7 @@ function toProjectContract(project: {
   logoUrl: string | null;
   entityType: string;
   countryCode: string;
+  language: string;
   standardCode: string;
   description: string | null;
   status: string;
@@ -87,7 +91,8 @@ function toProjectContract(project: {
   return {
     ...project,
     entityType: project.entityType as Project["entityType"],
-    countryCode: project.countryCode as Project["countryCode"],
+    countryCode: project.countryCode,
+    language: toSupportedLanguage(project.language),
     standardCode: "ISO_9001",
     status: project.status as Project["status"],
     createdAt: project.createdAt.toISOString(),
@@ -182,10 +187,12 @@ export class ProjectProfilesService {
   private async buildProfile(
     tenant: TenantContext,
     projectIdOrSlug: string,
-    language: "fr" | "ar" = "fr",
+    requestedLanguage?: SupportedLanguage,
   ): Promise<ProjectProfile> {
     await this.initializeProfile(tenant, projectIdOrSlug);
     const project = await this.findProject(tenant, projectIdOrSlug);
+    // Questions are asked in the project's language unless a caller insists.
+    const language = requestedLanguage ?? toSupportedLanguage(project.language);
     const profile = project.profile!;
     const persistedByKey = new Map(profile.fields.map((field) => [field.key, field]));
     const fields = profileFieldKeys.map((key) => {
@@ -371,6 +378,18 @@ export class ProjectProfilesService {
             data: { name: answer.value.trim() },
           });
         }
+        if (
+          answer.key === "scope.operatingCountries" &&
+          answer.status === "ANSWERED" &&
+          Array.isArray(answer.value) &&
+          typeof answer.value[0] === "string"
+        ) {
+          // The home country follows the profile: the first operating country.
+          await tx.project.update({
+            where: { id: project.id },
+            data: { countryCode: answer.value[0].toUpperCase() },
+          });
+        }
         if (answer.key === "project.logoUrl") {
           await tx.project.update({
             where: { id: project.id },
@@ -463,6 +482,11 @@ export class ProjectProfilesService {
       sourceProject: {
         name: profile.project.name,
         countryCode: profile.project.countryCode,
+        countryCodes: projectCountryCodes(
+          Object.fromEntries(fields.map((field) => [field.key, field.value])),
+          profile.project.countryCode,
+        ).slice(0, 5),
+        language: profile.project.language,
         standardCode: "ISO_9001",
       },
       fields,
@@ -495,6 +519,16 @@ export class ProjectProfilesService {
       ...(field.status === "ANSWERED" ? { value: field.value } : {}),
       ...(field.notApplicableReason ? { notApplicableReason: field.notApplicableReason } : {}),
     }));
+    // Older files carry the countries only in the header: import them as the
+    // profile's operating countries so the veille still sees every country.
+    const headerCountries = input.document.sourceProject.countryCodes;
+    if (headerCountries?.length && !answers.some((a) => a.key === "scope.operatingCountries")) {
+      answers.push({
+        key: "scope.operatingCountries",
+        status: "ANSWERED",
+        value: headerCountries,
+      });
+    }
     const importedByKey = new Map(answers.map((answer) => [answer.key, answer]));
     const mergedFields = current.fields.map((field) => {
       const imported = importedByKey.get(field.key);
@@ -563,7 +597,7 @@ export class ProjectProfilesService {
     return {
       id: conversation.id,
       status: conversation.status,
-      language: conversation.language as "fr" | "ar",
+      language: toSupportedLanguage(conversation.language),
       currentQuestionKey: conversation.currentQuestionKey as ProfileFieldKey | null,
       messages: conversation.messages.map((message) => ({
         id: message.id,
@@ -606,7 +640,7 @@ export class ProjectProfilesService {
       data: {
         profileId: profile.profile.id,
         createdById: tenant.userId,
-        language: request.language,
+        language: profile.project.language,
         currentQuestionKey: profile.nextQuestion?.key ?? null,
       },
     });
@@ -615,7 +649,7 @@ export class ProjectProfilesService {
   async chat(tenant: TenantContext, projectIdOrSlug: string, request: ProjectProfileChatRequest) {
     this.assertEditable(tenant);
     this.assertProfileModule(request.module);
-    let profile = await this.buildProfile(tenant, projectIdOrSlug, request.language);
+    let profile = await this.buildProfile(tenant, projectIdOrSlug);
     const conversation = await this.getOrCreateConversation(tenant, profile, request);
     if (request.messageId) {
       const previous = await this.database.projectProfileMessage.findFirst({
@@ -688,7 +722,7 @@ export class ProjectProfilesService {
 
     try {
       const result = await this.chatModel.runTurn({
-        language: request.language,
+        language: profile.project.language,
         userMessage: turnContext.modelMessage,
         currentQuestion: profile.nextQuestion
           ? { key: profile.nextQuestion.key, prompt: profile.nextQuestion.prompt }
@@ -721,7 +755,7 @@ export class ProjectProfilesService {
             profile = await this.applyAnswers(tenant, projectId, valid, {
               source: "USER_CHAT",
               sourceMessageId: userMessage.id,
-              language: request.language,
+              language: profile.project.language,
             });
           }
           return {
@@ -735,7 +769,7 @@ export class ProjectProfilesService {
           };
         },
       });
-      profile = await this.buildProfile(tenant, projectId, request.language);
+      profile = await this.buildProfile(tenant, projectId, profile.project.language);
       const fallback = profile.nextQuestion
         ? `Merci. ${profile.nextQuestion.prompt}`
         : "Merci. Votre profil est prêt à être vérifié et finalisé.";
@@ -822,12 +856,11 @@ export class ProjectProfilesService {
       .join("\n");
     if (!latestUser || !message) throw new BadRequestException("A user text message is required");
     const clientMessageId = request.messageId ?? latestUser.id;
-    let profile = await this.buildProfile(tenant, projectIdOrSlug, request.language);
+    let profile = await this.buildProfile(tenant, projectIdOrSlug);
     const conversation = await this.getOrCreateConversation(tenant, profile, {
       message,
       messageId: clientMessageId,
       conversationId: request.conversationId,
-      language: request.language,
       module: request.module,
       attachmentIds: request.attachmentIds,
     });
@@ -881,7 +914,7 @@ export class ProjectProfilesService {
     const startedAt = Date.now();
 
     return this.chatModel.streamTurn({
-      language: request.language,
+      language: profile.project.language,
       userMessage: turnContext.modelMessage,
       currentQuestion: profile.nextQuestion
         ? { key: profile.nextQuestion.key, prompt: profile.nextQuestion.prompt }
@@ -915,7 +948,7 @@ export class ProjectProfilesService {
           profile = await this.applyAnswers(tenant, profile.project.id, valid, {
             source: "USER_CHAT",
             sourceMessageId: userMessage.id,
-            language: request.language,
+            language: profile.project.language,
           });
         }
         return {
@@ -929,7 +962,7 @@ export class ProjectProfilesService {
         };
       },
       onComplete: async (result) => {
-        profile = await this.buildProfile(tenant, profile.project.id, request.language);
+        profile = await this.buildProfile(tenant, profile.project.id, profile.project.language);
         const fallback = profile.nextQuestion
           ? `Merci. ${profile.nextQuestion.prompt}`
           : "Merci. Votre profil est prêt à être vérifié et finalisé.";

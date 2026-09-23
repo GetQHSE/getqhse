@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import { Check } from 'lucide-react';
-import { useState } from 'react';
-import { Button } from '@qhse/ui/components/button';
+import { Check } from "lucide-react";
+import { useState } from "react";
+import { Button } from "@qhse/ui/components/button";
 import {
   Dialog,
   DialogClose,
@@ -12,16 +12,14 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from '@qhse/ui/components/dialog';
+} from "@qhse/ui/components/dialog";
 
 export default function Dialog04() {
   const [open, setOpen] = useState(true);
 
   return (
     <Dialog onOpenChange={setOpen} open={open}>
-      <DialogTrigger render={<Button variant="outline" />}>
-        Show Dialog
-      </DialogTrigger>
+      <DialogTrigger render={<Button variant="outline" />}>Show Dialog</DialogTrigger>
 
       <DialogContent className="flex flex-col items-center sm:max-w-sm">
         <div className="flex justify-center">
@@ -31,23 +29,16 @@ export default function Dialog04() {
         </div>
 
         <DialogHeader className="gap-0 text-center">
-          <DialogTitle className="text-balance text-center">
-            Payment successful
-          </DialogTitle>
+          <DialogTitle className="text-balance text-center">Payment successful</DialogTitle>
           <DialogDescription className="mx-auto mt-2 text-pretty text-center sm:max-w-[90%]">
-            Lorem ipsum dolor sit amet consectetur adipisicing elit. Consequatur
-            amet labore.
+            Lorem ipsum dolor sit amet consectetur adipisicing elit. Consequatur amet labore.
           </DialogDescription>
         </DialogHeader>
         <DialogFooter className="flex w-full flex-col gap-2 sm:flex-row sm:gap-3">
-          <DialogClose
-            render={<Button className="w-full sm:w-1/2" variant="default" />}
-          >
+          <DialogClose render={<Button className="w-full sm:w-1/2" variant="default" />}>
             Deactivate
           </DialogClose>
-          <DialogClose
-            render={<Button className="w-full sm:w-1/2" variant="outline" />}
-          >
+          <DialogClose render={<Button className="w-full sm:w-1/2" variant="outline" />}>
             Cancel
           </DialogClose>
         </DialogFooter>

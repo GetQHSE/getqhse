@@ -8,6 +8,7 @@ import type { OnboardingStatus, Project } from "@qhse/contracts";
 import { apiRequest } from "@qhse/api-client";
 
 import { clientApi, clientHttp } from "./client-api.js";
+import { i18n, rememberLanguage } from "./i18n.js";
 
 import { API_BASE_URL } from "./api-url.js";
 
@@ -20,7 +21,6 @@ export const authClient = createAuthClient({
         organization: {
           additionalFields: {
             status: { type: ["active", "suspended", "archived"] },
-            countryCode: { type: "string" },
             locale: { type: "string" },
             timezone: { type: "string" },
             icon: { type: "string" },
@@ -80,6 +80,19 @@ export function AuthProvider({ children }: PropsWithChildren) {
     enabled: Boolean(session.data?.user && activeOrganizationQuery.data?.id),
     queryFn: clientApi.projects,
   });
+  // The account's interface language wins over the browser's once signed in.
+  const preferencesQuery = useQuery({
+    queryKey: ["auth", "preferences", session.data?.user.id],
+    enabled: Boolean(session.data?.user),
+    queryFn: clientApi.preferences,
+    staleTime: Infinity,
+  });
+  const accountLanguage = preferencesQuery.data?.locale;
+  useEffect(() => {
+    if (!accountLanguage) return;
+    rememberLanguage(accountLanguage);
+    if (i18n.language !== accountLanguage) void i18n.changeLanguage(accountLanguage);
+  }, [accountLanguage]);
   const organizations = useMemo(() => activeMemberships.data ?? [], [activeMemberships.data]);
   const activeOrganization =
     activeOrganizationQuery.data &&
@@ -140,6 +153,11 @@ export function AuthProvider({ children }: PropsWithChildren) {
     },
   };
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+}
+
+/** For components also rendered outside the provider (e.g. the language selector on login). */
+export function useOptionalAuth(): AuthContextValue | null {
+  return useContext(AuthContext);
 }
 
 export function useAuth(): AuthContextValue {

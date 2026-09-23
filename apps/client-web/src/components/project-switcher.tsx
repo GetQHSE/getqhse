@@ -14,6 +14,7 @@ import {
   useSidebar,
 } from "@qhse/ui/components/sidebar";
 import { CheckIcon, ChevronsUpDownIcon, FolderKanbanIcon, PlusIcon } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { Link, useNavigate } from "react-router-dom";
 
 export type SidebarProject = { id: string; name: string; slug: string };
@@ -26,6 +27,7 @@ export function ProjectSwitcher({
   activeProject?: SidebarProject | undefined;
 }) {
   const { isMobile } = useSidebar();
+  const { t } = useTranslation();
   const navigate = useNavigate();
 
   return (
@@ -43,23 +45,23 @@ export function ProjectSwitcher({
             <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-violet-500/20 text-violet-300">
               <FolderKanbanIcon className="size-4" />
             </div>
-            <div className="grid flex-1 text-left text-sm leading-tight">
+            <div className="grid flex-1 text-start text-sm leading-tight">
               <span className="truncate font-medium">
-                {activeProject?.name ?? "Choisir un projet"}
+                {activeProject?.name ?? t("nav.chooseProject")}
               </span>
-              <span className="truncate text-xs text-slate-400">Espace projet</span>
+              <span className="truncate text-xs text-slate-400">{t("nav.projectSpace")}</span>
             </div>
-            <ChevronsUpDownIcon className="ml-auto size-4 text-slate-500" />
+            <ChevronsUpDownIcon className="ms-auto size-4 text-slate-500" />
           </DropdownMenuTrigger>
           <DropdownMenuContent
             className="w-64"
             align="start"
-            side={isMobile ? "bottom" : "right"}
+            side={isMobile ? "bottom" : "inline-end"}
             sideOffset={8}
           >
             <DropdownMenuGroup>
               <DropdownMenuLabel className="text-xs text-muted-foreground">
-                Projets
+                {t("nav.projects")}
               </DropdownMenuLabel>
               {projects.map((project) => (
                 <DropdownMenuItem
@@ -82,7 +84,7 @@ export function ProjectSwitcher({
               <div className="grid size-7 place-items-center rounded-lg border">
                 <PlusIcon className="size-3.5" />
               </div>
-              <span className="font-medium">Nouveau projet</span>
+              <span className="font-medium">{t("nav.newProject")}</span>
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

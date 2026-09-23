@@ -1,5 +1,10 @@
 import { Injectable, Optional } from "@nestjs/common";
-import type { CreateProject, PaginationQuery, Project } from "@qhse/contracts";
+import {
+  toSupportedLanguage,
+  type CreateProject,
+  type PaginationQuery,
+  type Project,
+} from "@qhse/contracts";
 import { createPrismaClient, type DatabaseClient } from "@qhse/database";
 
 import { ProjectRepository } from "../domain/project.repository.js";
@@ -28,6 +33,7 @@ function toContract(project: {
   logoUrl: string | null;
   entityType: string;
   countryCode: string;
+  language: string;
   standardCode: string;
   description: string | null;
   status: string;
@@ -38,7 +44,8 @@ function toContract(project: {
   return {
     ...project,
     entityType: project.entityType as Project["entityType"],
-    countryCode: project.countryCode as Project["countryCode"],
+    countryCode: project.countryCode,
+    language: toSupportedLanguage(project.language),
     standardCode: "ISO_9001",
     status: project.status as Project["status"],
     createdAt: project.createdAt.toISOString(),
@@ -117,12 +124,30 @@ export class PrismaProjectRepository extends ProjectRepository {
           slug,
           logoUrl: input.logoUrl ?? null,
           entityType: input.entityType,
-          countryCode: input.countryCode,
+          // The first selected country is the project's home country.
+          countryCode: input.countryCodes[0]!,
+          // Fixed for the project's lifetime: there is no update path.
+          language: input.language,
           standardCode: "ISO_9001",
           description: input.description?.trim() || null,
           status: "EMPTY",
           activities: { create: activities },
-          profile: { create: {} },
+          // All selected countries go straight into the profile; its later
+          // seeding skips fields that already exist.
+          profile: {
+            create: {
+              fields: {
+                create: [
+                  {
+                    key: "scope.operatingCountries",
+                    value: input.countryCodes,
+                    status: "ANSWERED",
+                    source: "ONBOARDING",
+                  },
+                ],
+              },
+            },
+          },
         },
         include: { activities: { orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }] } },
       });

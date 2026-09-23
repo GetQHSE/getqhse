@@ -53,7 +53,6 @@ describe("OrganizationsService", () => {
     await service.list({
       search: "Atlas",
       status: "active",
-      countryCode: undefined,
       page: 2,
       pageSize: 25,
     });

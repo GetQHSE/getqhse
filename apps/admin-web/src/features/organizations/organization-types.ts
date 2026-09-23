@@ -6,7 +6,6 @@ export type OrganizationSummary = {
   slug: string;
   logo: string | null;
   status: string;
-  countryCode: string;
   locale: string;
   timezone: string;
   createdAt: string;

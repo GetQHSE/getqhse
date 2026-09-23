@@ -1,5 +1,5 @@
+import { countryName } from "@qhse/domain/countries";
 import {
-  regulatoryAnalysisErrorMessages,
   regulatoryAnalysisErrorCodeSchema,
   staleAiEvaluationMs,
   type ProjectProfile,
@@ -47,10 +47,15 @@ import {
   Trash2Icon,
   XIcon,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import type { TFunction } from "i18next";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Link, useParams } from "react-router-dom";
 
+import { AUTO_APPLICABLE } from "../../app/feature-flags.js";
 import { clientApi } from "../../app/client-api.js";
+import { formatters, useFormat, type Formatters } from "../../app/format.js";
+import { currentLanguage, i18n } from "../../app/i18n.js";
 import {
   DetailSheet,
   DocumentList,
@@ -61,6 +66,8 @@ import {
   type RegulatoryEvaluation,
   type RegulatoryEvidenceItem,
 } from "./regulatory-watch-test-page.js";
+
+type RegulatoryT = TFunction<"regulatory">;
 
 const activeAnalysisStatuses = new Set(["QUEUED", "RUNNING"]);
 
@@ -76,21 +83,23 @@ function aiEvaluationActive(watch: RegulatoryWatch | undefined): boolean {
   const lastActivity = Math.max(...rows.map((row) => Date.parse(row.updatedAt)));
   return Number.isFinite(lastActivity) && Date.now() - lastActivity < staleAiEvaluationMs;
 }
-const analysisPhaseLabels: Record<string, string> = {
-  queued: "Préparation de l’analyse",
-  planning: "Lecture du profil",
-  retrieval: "Préparation de la recherche réglementaire",
-  "law-discovery": "Identification des textes applicables au projet",
-  "source-resolution": "Recherche des textes dans la plateforme",
-  classification: "Analyse de l’applicabilité",
-  classification_drafting: "Rédaction d’une exigence applicable",
-  classification_verifying: "Vérification indépendante de l’exigence",
-  classification_retrying: "Correction de l’exigence après vérification",
-  finalizing: "Préparation de la revue",
-};
+/** Worker phase identifiers mapped to their `regulatory:phases` catalog key. */
+const analysisPhaseKeys = {
+  queued: "queued",
+  planning: "planning",
+  retrieval: "retrieval",
+  "law-discovery": "lawDiscovery",
+  "source-resolution": "sourceResolution",
+  classification: "classification",
+  classification_drafting: "classificationDrafting",
+  classification_verifying: "classificationVerifying",
+  classification_retrying: "classificationRetrying",
+  finalizing: "finalizing",
+} as const;
 
-function analysisPhaseLabel(phase: string | null | undefined): string {
-  return analysisPhaseLabels[phase ?? "queued"] ?? "Analyse des exigences applicables";
+function analysisPhaseLabel(t: RegulatoryT, phase: string | null | undefined): string {
+  const key = analysisPhaseKeys[(phase ?? "queued") as keyof typeof analysisPhaseKeys];
+  return t(`phases.${key ?? "default"}`);
 }
 
 /**
@@ -107,11 +116,11 @@ const administrativeErrorCodes = new Set([
   "LLM_PROVIDER_MISSING",
 ]);
 
-/** Translates a persisted `errorCode` into customer-facing French copy. */
+/** Translates a persisted `errorCode` into customer-facing copy in the interface language. */
 export function analysisErrorMessage(code: string | null | undefined): string {
+  const t = i18n.getFixedT(currentLanguage(), "regulatory");
   const parsed = regulatoryAnalysisErrorCodeSchema.safeParse(code);
-  if (!parsed.success) return regulatoryAnalysisErrorMessages.ANALYSIS_FAILED;
-  return regulatoryAnalysisErrorMessages[parsed.data];
+  return t(`errors.${parsed.success ? parsed.data : "ANALYSIS_FAILED"}`);
 }
 
 export function analysisIsRetryable(code: string | null | undefined): boolean {
@@ -150,57 +159,41 @@ function useDelayedVisibility(active: boolean, delay = 500): boolean {
   return visible;
 }
 
-function formatDate(value: string | null | undefined): string {
+function formatDate(format: Formatters, value: string | null | undefined): string {
   if (!value) return "—";
-  return new Intl.DateTimeFormat("fr-FR", {
+  return format.date(new Date(`${value.slice(0, 10)}T12:00:00.000Z`), {
     day: "numeric",
     month: "short",
     year: "numeric",
-  }).format(new Date(`${value.slice(0, 10)}T12:00:00.000Z`));
+  });
 }
 
-/** Same vocabulary as the XLSX "Action efficace oui/non" column
+const actionStatuses = ["OPEN", "IN_PROGRESS", "DONE", "VERIFIED"] as const;
+
+/** Display strings are resolved here, in the interface language; statuses stay keys. The
+ *  effectiveness vocabulary matches the XLSX "Action efficace oui/non" column
  *  (`regulatory-watch-exporter.ts`), so the table and the file never disagree. */
-const effectivenessLabels = {
-  PENDING: "À vérifier",
-  EFFECTIVE: "Oui",
-  INEFFECTIVE: "Non",
-} as const;
-
-const evidenceKindLabels = {
-  DOCUMENT: "Document",
-  PHOTO: "Photo",
-  NOTE: "Note",
-  LINK: "Lien",
-} as const;
-
-const actionStatusLabels = {
-  OPEN: "Ouverte",
-  IN_PROGRESS: "En cours",
-  DONE: "Réalisée",
-  VERIFIED: "Vérifiée",
-} as const;
-
-function mapEvaluationStatus(
-  result: "CONFORMING" | "PARTIAL" | "NON_CONFORMING" | "NOT_ASSESSED",
-): RegulatoryEvaluation["status"] {
-  const labels = {
-    CONFORMING: "Conforme",
-    PARTIAL: "Partiel",
-    NON_CONFORMING: "Non conforme",
-    NOT_ASSESSED: "À évaluer",
-  } as const;
-  return labels[result];
-}
-
-export function regulatoryViewData(watch: RegulatoryWatch) {
+export function regulatoryViewData(
+  watch: RegulatoryWatch,
+  t: RegulatoryT = i18n.getFixedT(currentLanguage(), "regulatory"),
+  format: Formatters = formatters(currentLanguage()),
+) {
+  const language = currentLanguage();
   const entries = watch.currentBaseline?.entries ?? [];
   const groupedDocuments = new Map<string, RegulatoryDocument>();
 
   for (const entry of entries) {
     const key = entry.source.revisionId ?? entry.id;
+    const requirementText = entry.requirement?.text ?? null;
+    const articleReferences = requirementText
+      ? [...requirementText.matchAll(/^((?:Article|Art\.)\s+[^:\n]+|\d+(?:\.\d+)+)\s*:/gimu)].map(
+          (match) => match[1]!,
+        )
+      : [];
     const provision =
-      entry.source.provisionIdentifier ?? entry.source.provisionType ?? "Texte complet";
+      entry.source.provisionIdentifier ??
+      (articleReferences.length ? [...new Set(articleReferences)].join(" · ") : null) ??
+      (entry.source.type === "DISCOVERED_LAW" ? t("view.articleToConfirm") : t("view.fullText"));
     const existing = groupedDocuments.get(key);
     if (existing) {
       existing.requirements += 1;
@@ -211,15 +204,19 @@ export function regulatoryViewData(watch: RegulatoryWatch) {
     }
     groupedDocuments.set(key, {
       id: key,
-      kind: entry.source.documentFamily === "standard" ? "Norme" : "Réglementation",
+      kind: entry.source.documentFamily === "standard" ? "STANDARD" : "REGULATION",
       reference: entry.source.referenceNumber ?? entry.source.documentTitle,
       title: entry.source.documentTitle,
-      jurisdiction:
-        entry.source.countryCode === "MA" ? "Maroc" : entry.source.jurisdiction || "International",
+      jurisdiction: entry.source.countryCode
+        ? countryName(entry.source.countryCode, language)
+        : entry.source.jurisdiction || t("view.international"),
       provisions: provision,
       requirements: 1,
       source: entry.source.citationLabel,
-      status: "Validé",
+      sourceUrl: entry.source.url,
+      requirementText,
+      sourceNeedsReview: entry.source.type === "DISCOVERED_LAW",
+      status: "APPLICABLE",
       reason: entry.applicabilityRationale,
     });
   }
@@ -231,25 +228,26 @@ export function regulatoryViewData(watch: RegulatoryWatch) {
     // The XLSX joins every preuve into one cell; the table now does the same instead of showing
     // only the first one.
     const evidenceLabels = evidenceItems.map(
-      (item) => item.label ?? item.note ?? item.url ?? "Preuve",
+      (item) => item.label ?? item.note ?? item.url ?? t("view.evidenceFallback"),
     );
     return {
       id: entry.evaluation.id,
       revision: entry.evaluation.revision,
       result: entry.evaluation.result,
       source: entry.source.referenceNumber ?? entry.source.documentTitle,
-      provision: entry.source.provisionIdentifier ?? entry.source.provisionType ?? "Texte complet",
-      requirement: entry.requirement?.text ?? "Exigence à régénérer",
+      provision:
+        entry.source.provisionIdentifier ?? entry.source.provisionType ?? t("view.fullText"),
+      requirement: entry.requirement?.text ?? t("view.requirementToRegenerate"),
       citation: entry.source.citationLabel,
-      officialSourceText: entry.source.excerpt ?? "Source officielle à rattacher",
-      status: mapEvaluationStatus(entry.evaluation.result),
-      evidence: evidenceLabels.length ? evidenceLabels.join(" · ") : "Aucune preuve liée",
-      action: action?.title ?? "Aucune action définie",
-      owner: action?.assigneeName ?? "Non attribué",
-      dueDate: formatDate(action?.dueDate),
-      effectiveness: effectivenessLabels[action?.effectiveness ?? "PENDING"],
+      officialSourceText: entry.source.excerpt ?? t("view.sourceToAttach"),
+      status: entry.evaluation.result,
+      evidence: evidenceLabels.length ? evidenceLabels.join(" · ") : t("view.noEvidence"),
+      action: action?.title ?? t("view.noAction"),
+      owner: action?.assigneeName ?? t("view.unassigned"),
+      dueDate: formatDate(format, action?.dueDate),
+      effectiveness: t(`effectiveness.${action?.effectiveness ?? "PENDING"}`),
       resources: action?.resources ?? "—",
-      completedDate: formatDate(action?.completedDate),
+      completedDate: formatDate(format, action?.completedDate),
       effectivenessCriteria: action?.effectivenessCriteria ?? "—",
       comment: [entry.evaluation.comment, action?.comment].filter(Boolean).join("\n") || "—",
       evaluationComment: entry.evaluation.comment,
@@ -278,7 +276,7 @@ export function regulatoryViewData(watch: RegulatoryWatch) {
         : null,
       additionalActionCount: Math.max(0, entry.evaluation.actions.length - 1),
       aiStatus: ai?.status ?? "PENDING",
-      aiSuggestedStatus: ai?.suggestedResult ? mapEvaluationStatus(ai.suggestedResult) : undefined,
+      aiSuggestedStatus: ai?.suggestedResult ?? undefined,
       aiSuggestedResult: ai?.suggestedResult ?? null,
       aiRationale: ai?.rationale ?? null,
       aiConfidence: ai?.confidence ?? null,
@@ -289,13 +287,13 @@ export function regulatoryViewData(watch: RegulatoryWatch) {
     };
   });
 
-  const evaluated = evaluationItems.filter((item) => item.status !== "À évaluer").length;
+  const evaluated = evaluationItems.filter((item) => item.status !== "NOT_ASSESSED").length;
   // The conformity pass writes the result itself, so "assessed" and "confirmed by a person" are
   // different numbers and the register reports both.
   const humanValidated = entries.filter((entry) => entry.evaluation.evaluatedAt !== null).length;
-  const conforming = evaluationItems.filter((item) => item.status === "Conforme").length;
-  const partial = evaluationItems.filter((item) => item.status === "Partiel").length;
-  const nonConforming = evaluationItems.filter((item) => item.status === "Non conforme").length;
+  const conforming = evaluationItems.filter((item) => item.status === "CONFORMING").length;
+  const partial = evaluationItems.filter((item) => item.status === "PARTIAL").length;
+  const nonConforming = evaluationItems.filter((item) => item.status === "NON_CONFORMING").length;
   const aiAssessed = evaluationItems.filter((item) => item.aiStatus === "COMPLETED").length;
   const openActions = entries
     .flatMap((entry) => entry.evaluation.actions)
@@ -319,11 +317,9 @@ export function regulatoryViewData(watch: RegulatoryWatch) {
 }
 
 function PageSkeleton() {
+  const { t } = useTranslation("regulatory");
   return (
-    <section
-      aria-label="Chargement de la veille réglementaire"
-      className="mx-auto w-full max-w-[1440px] space-y-5"
-    >
+    <section aria-label={t("states.loading")} className="mx-auto w-full max-w-[1440px] space-y-5">
       <div className="space-y-3">
         <Skeleton className="h-4 w-40" />
         <Skeleton className="h-10 w-80 max-w-full" />
@@ -343,82 +339,63 @@ function PageSkeleton() {
 
 function StateShell({
   children,
-  tone = "dark",
+  tone = "plain",
 }: {
   children: React.ReactNode;
-  tone?: "dark" | "light";
+  tone?: "plain" | "light";
 }) {
+  // "plain" is the simple centred layout shared with Analyse des enjeux: no
+  // card, content sits directly on the page background.
   return (
     <section
       className={cn(
-        "relative mx-auto min-h-[620px] w-full max-w-[1180px] overflow-hidden rounded-[32px] border p-6 sm:p-10 lg:p-14",
-        tone === "dark"
-          ? "border-slate-800 bg-[#090d18] text-white"
-          : "border-slate-200 bg-white text-slate-950",
+        "relative mx-auto w-full max-w-[1180px] text-slate-950",
+        tone === "light" &&
+          "min-h-[620px] overflow-hidden rounded-[32px] border border-slate-200 bg-white p-6 sm:p-10 lg:p-14",
       )}
     >
-      {tone === "dark" && (
-        <>
-          <div className="absolute -right-24 -top-24 size-96 rounded-full bg-violet-600/20 blur-3xl" />
-          <div className="absolute -bottom-32 left-1/4 size-80 rounded-full bg-blue-500/10 blur-3xl" />
-        </>
-      )}
-      <div className="relative">{children}</div>
+      {children}
     </section>
   );
 }
 
+function StateIcon({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="mx-auto grid size-16 place-items-center rounded-3xl border border-violet-200 bg-violet-50 text-violet-600">
+      {children}
+    </span>
+  );
+}
+
 function IncompleteProfileState({ profile }: { profile: ProjectProfile }) {
+  const { t } = useTranslation("regulatory");
   return (
     <StateShell>
-      <div className="mx-auto flex max-w-3xl flex-col items-center py-8 text-center sm:py-14">
-        <span className="grid size-16 place-items-center rounded-3xl border border-violet-400/20 bg-violet-400/10 text-violet-300">
-          <BotIcon className="size-7" />
-        </span>
-        <Badge className="mt-6 border-white/10 bg-white/10 text-slate-200" variant="outline">
-          Étape 1 sur 2 · Profil du projet
+      <div className="mx-auto flex max-w-2xl flex-col items-center py-16 text-center">
+        <StateIcon>
+          <BotIcon className="size-7" aria-hidden="true" />
+        </StateIcon>
+        <Badge className="mt-6" variant="outline">
+          {t("states.profileStep")}
         </Badge>
-        <h1 className="mt-5 text-3xl font-semibold tracking-tight sm:text-4xl">
-          Complétez d’abord le profil de {profile.project.name}
+        <h1 className="mt-5 text-2xl font-semibold tracking-tight text-slate-950">
+          {t("states.completeProfile", { project: profile.project.name })}
         </h1>
-        <p className="mt-4 max-w-2xl text-sm leading-6 text-slate-400">
-          La veille utilise vos activités, implantations, effectifs, procédés et risques pour
-          identifier uniquement les textes réellement applicables.
-        </p>
-        <div className="mt-8 w-full max-w-xl rounded-3xl border border-white/10 bg-white/5 p-5 text-left">
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-slate-300">Préparation réglementaire</span>
-            <span className="font-semibold text-white">
-              {profile.completion.regulatoryReadiness}%
-            </span>
-          </div>
-          <Progress
-            className="mt-4 [&_[data-slot=progress-indicator]]:bg-violet-500 [&_[data-slot=progress-track]]:bg-white/10"
-            value={profile.completion.regulatoryReadiness}
-          />
-          <div className="mt-4 flex flex-wrap justify-between gap-2 text-xs text-slate-500">
-            <span>
-              {profile.completion.answeredRegulatory} réponses critiques sur{" "}
-              {profile.completion.totalRegulatory}
-            </span>
-            <span>{profile.completion.missingRegulatoryKeys.length} informations restantes</span>
-          </div>
-        </div>
-        <div className="mt-8 flex flex-col gap-2 sm:flex-row">
+        <p className="mt-3 text-sm leading-6 text-slate-500">{t("states.completeProfileBody")}</p>
+        <div className="mt-6 flex flex-col gap-2 sm:flex-row">
           <Button
             nativeButton={false}
-            className="h-11 rounded-xl bg-violet-600 px-5 hover:bg-violet-500"
             render={<Link to={`/projects/${profile.project.slug}/chat`} />}
           >
-            <MessageSquareTextIcon /> Continuer avec l’assistant <ArrowRightIcon />
+            <MessageSquareTextIcon aria-hidden="true" /> {t("states.continueAssistant")}{" "}
+            <ArrowRightIcon aria-hidden="true" className="rtl:rotate-180" />
           </Button>
           <Button
             nativeButton={false}
-            className="h-11 border-white/15 bg-white/5 text-white hover:bg-white/10"
             variant="outline"
             render={<Link to={`/projects/${profile.project.slug}/profile`} />}
           >
-            Ouvrir le profil
+            {t("states.openProfile")}
           </Button>
         </div>
       </div>
@@ -437,50 +414,50 @@ function ReadyState({
   error: string | undefined;
   onStart: () => void;
 }) {
+  const { t } = useTranslation("regulatory");
   return (
     <StateShell>
-      <div className="mx-auto max-w-4xl py-4 sm:py-10">
+      <div className="mx-auto max-w-3xl py-16">
         <div className="text-center">
-          <span className="mx-auto grid size-16 place-items-center rounded-3xl border border-emerald-400/20 bg-emerald-400/10 text-emerald-300">
-            <ShieldCheckIcon className="size-7" />
+          <span className="mx-auto grid size-16 place-items-center rounded-3xl border border-emerald-200 bg-emerald-50 text-emerald-600">
+            <ShieldCheckIcon className="size-7" aria-hidden="true" />
           </span>
           <Badge
-            className="mt-6 border-emerald-400/20 bg-emerald-400/10 text-emerald-300"
+            className="mt-6 border-emerald-200 bg-emerald-50 text-emerald-700"
             variant="outline"
           >
-            <CheckIcon /> Profil finalisé
+            <CheckIcon /> {t("states.profileFinalized")}
           </Badge>
-          <h1 className="mt-5 text-3xl font-semibold tracking-tight sm:text-4xl">
-            Tout est prêt pour construire votre veille
+          <h1 className="mt-5 text-2xl font-semibold tracking-tight text-slate-950">
+            {t("states.readyTitle")}
           </h1>
-          <p className="mx-auto mt-4 max-w-2xl text-sm leading-6 text-slate-400">
-            L’assistant va analyser le profil de {profile.project.name}, interroger le fonds
-            documentaire et préparer une proposition que vous validerez avant publication.
+          <p className="mx-auto mt-3 max-w-2xl text-sm leading-6 text-slate-500">
+            {t("states.readyBody", { project: profile.project.name })}
           </p>
         </div>
-        <div className="mt-10 grid gap-3 md:grid-cols-3">
+        <div className="mt-8 grid gap-3 md:grid-cols-3">
           {[
             {
               icon: SearchCheckIcon,
-              title: "Recherche ciblée",
-              text: "Textes marocains et normes ISO liés au périmètre.",
+              title: t("states.stepSearch"),
+              text: t("states.stepSearchBody"),
             },
             {
               icon: SparklesIcon,
-              title: "Analyse d’applicabilité",
-              text: "Chaque exigence est reliée aux faits du profil.",
+              title: t("states.stepApplicability"),
+              text: t("states.stepApplicabilityBody"),
             },
             {
               icon: FileCheck2Icon,
-              title: "Validation humaine",
-              text: "Aucun référentiel n’est publié sans votre revue.",
+              title: t("states.stepHuman"),
+              text: t("states.stepHumanBody"),
             },
           ].map((step, index) => (
-            <article className="rounded-2xl border border-white/10 bg-white/5 p-5" key={step.title}>
-              <span className="grid size-9 place-items-center rounded-xl bg-white/10 text-violet-300">
-                <step.icon className="size-4" />
+            <article className="rounded-2xl border border-slate-200 bg-white p-5" key={step.title}>
+              <span className="grid size-9 place-items-center rounded-xl bg-violet-50 text-violet-600">
+                <step.icon className="size-4" aria-hidden="true" />
               </span>
-              <p className="mt-4 text-sm font-semibold">
+              <p className="mt-4 text-sm font-semibold text-slate-950">
                 {index + 1}. {step.title}
               </p>
               <p className="mt-2 text-xs leading-5 text-slate-500">{step.text}</p>
@@ -490,23 +467,17 @@ function ReadyState({
         {error && (
           <p
             role="alert"
-            className="mt-5 rounded-2xl border border-rose-400/20 bg-rose-400/10 px-4 py-3 text-sm text-rose-200"
+            className="mt-5 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700"
           >
             {error}
           </p>
         )}
         <div className="mt-8 text-center">
-          <Button
-            className="h-12 rounded-xl bg-violet-600 px-6 text-base hover:bg-violet-500"
-            disabled={pending}
-            onClick={onStart}
-          >
+          <Button disabled={pending} onClick={onStart}>
             {pending ? <LoaderCircleIcon className="animate-spin" /> : <ScaleIcon />}{" "}
-            {pending ? "Démarrage…" : "Démarrer la veille réglementaire"}
+            {pending ? t("states.starting") : t("states.start")}
           </Button>
-          <p className="mt-3 text-[11px] text-slate-500">
-            L’analyse se déroule en arrière-plan. Vous pourrez quitter cette page.
-          </p>
+          <p className="mt-3 text-[11px] text-slate-500">{t("states.backgroundHint")}</p>
         </div>
       </div>
     </StateShell>
@@ -514,36 +485,36 @@ function ReadyState({
 }
 
 function ProcessingState({ watch }: { watch: RegulatoryWatch }) {
+  const { t } = useTranslation("regulatory");
   const analysis = watch.currentAnalysis;
   const progress = analysis?.progressPercent ?? 5;
   return (
     <StateShell>
       <div className="mx-auto flex max-w-2xl flex-col items-center py-16 text-center">
-        <span className="relative grid size-20 place-items-center rounded-full border border-violet-400/20 bg-violet-400/10 text-violet-300">
-          <LoaderCircleIcon className="size-8 animate-spin" />
-          <span className="absolute inset-[-9px] rounded-full border border-violet-400/10" />
-        </span>
-        <Badge className="mt-8 border-white/10 bg-white/10 text-slate-300" variant="outline">
-          Analyse en cours
+        <StateIcon>
+          <LoaderCircleIcon className="size-7 animate-spin" aria-hidden="true" />
+        </StateIcon>
+        <Badge className="mt-6" variant="outline">
+          {t("states.analysisRunning")}
         </Badge>
-        <h1 className="mt-5 text-3xl font-semibold tracking-tight">
-          Nous préparons votre référentiel
+        <h1 className="mt-5 text-2xl font-semibold tracking-tight text-slate-950">
+          {t("states.preparing")}
         </h1>
-        <p className="mt-3 text-sm leading-6 text-slate-400">
-          {analysisPhaseLabel(analysis?.phase)}
+        <p className="mt-3 text-sm leading-6 text-slate-500">
+          {analysisPhaseLabel(t, analysis?.phase)}
         </p>
-        <div className="mt-8 w-full rounded-3xl border border-white/10 bg-white/5 p-5 text-left">
+        <div className="mt-6 w-full max-w-md text-start">
           <div className="flex items-center justify-between text-xs">
-            <span className="text-slate-400">Progression</span>
-            <span className="font-semibold text-white">{progress}%</span>
+            <span className="text-slate-500">{t("states.progress")}</span>
+            <span className="font-semibold text-slate-950">{progress}%</span>
           </div>
           <Progress
-            className="mt-3 [&_[data-slot=progress-indicator]]:bg-violet-500 [&_[data-slot=progress-track]]:bg-white/10"
+            className="mt-2 [&_[data-slot=progress-indicator]]:bg-violet-600 [&_[data-slot=progress-track]]:bg-slate-200"
             value={progress}
           />
         </div>
         <p className="mt-5 flex items-center gap-2 text-xs text-slate-500">
-          <Clock3Icon className="size-3.5" /> Cette page se met à jour automatiquement.
+          <Clock3Icon className="size-3.5" aria-hidden="true" /> {t("states.autoRefresh")}
         </p>
       </div>
     </StateShell>
@@ -561,6 +532,7 @@ function ClarificationState({
   error: string | undefined;
   onSubmit: (answers: Array<{ key: string; answer: string }>) => void;
 }) {
+  const { t } = useTranslation("regulatory");
   const questions = (watch.currentAnalysis?.clarifications ?? []).filter(
     (item) => item.answer == null,
   );
@@ -574,18 +546,18 @@ function ClarificationState({
           <CircleAlertIcon className="size-5" />
         </span>
         <Badge className="mt-5 border-amber-200 bg-amber-50 text-amber-800" variant="outline">
-          Précision nécessaire
+          {t("states.clarificationNeeded")}
         </Badge>
         <h1 className="mt-4 text-3xl font-semibold tracking-tight">
-          L’analyse a besoin de votre aide
+          {t("states.clarificationTitle")}
         </h1>
-        <p className="mt-3 text-sm leading-6 text-slate-500">
-          Quelques réponses permettront de décider correctement si certains textes sont applicables.
-        </p>
+        <p className="mt-3 text-sm leading-6 text-slate-500">{t("states.clarificationBody")}</p>
         <div className="mt-7 space-y-4">
           {questions.map((item, index) => (
             <label className="block rounded-2xl border border-slate-200 p-4" key={item.key}>
-              <span className="text-xs font-semibold text-slate-400">Question {index + 1}</span>
+              <span className="text-xs font-semibold text-slate-400">
+                {t("states.question", { number: index + 1 })}
+              </span>
               <span className="mt-1 block text-sm font-medium leading-6 text-slate-800">
                 {item.question}
               </span>
@@ -594,7 +566,7 @@ function ClarificationState({
                 onChange={(event) =>
                   setAnswers((current) => ({ ...current, [item.key]: event.target.value }))
                 }
-                placeholder="Votre réponse…"
+                placeholder={t("states.answerPlaceholder")}
                 value={answers[item.key] ?? ""}
               />
             </label>
@@ -614,8 +586,12 @@ function ClarificationState({
             )
           }
         >
-          {pending ? <LoaderCircleIcon className="animate-spin" /> : <ArrowRightIcon />} Reprendre
-          l’analyse
+          {pending ? (
+            <LoaderCircleIcon className="animate-spin" />
+          ) : (
+            <ArrowRightIcon className="rtl:rotate-180" />
+          )}{" "}
+          {t("states.resume")}
         </Button>
       </div>
     </StateShell>
@@ -623,19 +599,16 @@ function ClarificationState({
 }
 
 export function SourceRequired({ watch }: { watch: RegulatoryWatch }) {
+  const { t } = useTranslation("regulatory");
   const leads = watch.currentAnalysis?.sourceRequired ?? [];
   if (!leads.length) return null;
   return (
     <aside
       className="my-5 rounded-xl border border-amber-200 bg-amber-50 p-5"
-      aria-label="Sources à obtenir"
+      aria-label={t("states.sourcesToGet")}
     >
-      <h2 className="font-semibold text-amber-950">Source requise</h2>
-      <p className="mt-2 text-sm text-amber-900">
-        L’IA estime que ces textes peuvent s’appliquer au projet, mais leur contenu n’est pas dans
-        la plateforme. Ajoutez leur source officielle pour analyser leurs articles et confirmer les
-        exigences.
-      </p>
+      <h2 className="font-semibold text-amber-950">{t("states.sourceRequired")}</h2>
+      <p className="mt-2 text-sm text-amber-900">{t("states.sourceRequiredBody")}</p>
       <ul className="mt-3 space-y-3">
         {leads.map((lead) => (
           <li key={`${lead.reference}:${lead.title}`}>
@@ -650,7 +623,7 @@ export function SourceRequired({ watch }: { watch: RegulatoryWatch }) {
                 rel="noreferrer"
                 target="_blank"
               >
-                Consulter la source web repérée
+                {t("states.viewWebSource")}
               </a>
             )}
           </li>
@@ -673,20 +646,55 @@ function AnalysisReviewState({
   onSubmit: (rating: number, comment: string | null) => void;
   onSkip: () => void;
 }) {
+  const { t } = useTranslation("regulatory");
   const [rating, setRating] = useState<number | null>(null);
   const [comment, setComment] = useState("");
   const discoveries = useMemo(() => {
-    const grouped = new Map<string, { reference: string; title: string; reason: string }>();
+    const grouped = new Map<
+      string,
+      {
+        reference: string;
+        title: string;
+        reasons: string[];
+        requirements: Array<{ reference: string | null; text: string }>;
+        sourceUrl: string | null;
+        citationLabel: string;
+        sourceType: RegulatoryCandidate["source"]["type"];
+      }
+    >();
     for (const candidate of watch.currentAnalysis?.candidates ?? []) {
       const reference = candidate.source.referenceNumber ?? candidate.source.documentTitle;
       const key = `${reference}:${candidate.source.documentTitle}`;
-      if (!grouped.has(key)) {
-        grouped.set(key, {
-          reference,
-          title: candidate.source.documentTitle,
-          reason: candidate.rationale,
+      const existing = grouped.get(key);
+      const discovery = existing ?? {
+        reference,
+        title: candidate.source.documentTitle,
+        reasons: [],
+        requirements: [],
+        sourceUrl: candidate.source.url ?? null,
+        citationLabel:
+          candidate.source.citationLabel ?? `${reference} — ${candidate.source.documentTitle}`,
+        sourceType: candidate.source.type ?? "DISCOVERED_LAW",
+      };
+      if (!discovery.reasons.includes(candidate.rationale)) {
+        discovery.reasons.push(candidate.rationale);
+      }
+      const requirementText = candidate.requirement?.text;
+      if (
+        requirementText &&
+        !discovery.requirements.some(
+          (requirement) =>
+            requirement.reference === candidate.source.provisionIdentifier &&
+            requirement.text === requirementText,
+        )
+      ) {
+        discovery.requirements.push({
+          reference: candidate.source.provisionIdentifier ?? null,
+          text: requirementText,
         });
       }
+      discovery.sourceUrl ??= candidate.source.url ?? null;
+      grouped.set(key, discovery);
     }
     return [...grouped.values()];
   }, [watch.currentAnalysis?.candidates]);
@@ -696,51 +704,97 @@ function AnalysisReviewState({
       <SourceRequired watch={watch} />
       <div className="mx-auto max-w-3xl py-8">
         <Badge className="border-violet-200 bg-violet-50 text-violet-700" variant="outline">
-          <SparklesIcon /> Analyse terminée
+          <SparklesIcon /> {t("discovery.done")}
         </Badge>
-        <h1 className="mt-4 text-3xl font-semibold tracking-tight">
-          Voici ce que l’IA a découvert
-        </h1>
-        <p className="mt-3 text-sm leading-6 text-slate-500">
-          Votre avis enrichira les exemples utilisés lors des prochaines recherches de textes. Vous
-          pourrez ensuite valider chaque changement avant publication.
-        </p>
+        <h1 className="mt-4 text-3xl font-semibold tracking-tight">{t("discovery.title")}</h1>
+        <p className="mt-3 text-sm leading-6 text-slate-500">{t("discovery.body")}</p>
 
-        <div className="mt-7 max-h-72 space-y-3 overflow-y-auto rounded-2xl border border-slate-200 bg-slate-50 p-3">
+        <ul
+          aria-label={t("discovery.texts")}
+          className="mt-7 space-y-3 rounded-2xl border border-slate-200 bg-slate-50 p-3"
+        >
           {discoveries.map((discovery) => (
-            <article
-              className="rounded-xl border border-slate-200 bg-white p-4"
-              key={`${discovery.reference}:${discovery.title}`}
-            >
-              <p className="text-xs font-semibold text-violet-700">{discovery.reference}</p>
-              {discovery.title !== discovery.reference && (
-                <p className="mt-1 text-sm font-medium text-slate-900">{discovery.title}</p>
-              )}
-              <p className="mt-2 line-clamp-3 text-xs leading-5 text-slate-600">
-                {discovery.reason}
-              </p>
-            </article>
+            <li key={`${discovery.reference}:${discovery.title}`}>
+              <article className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
+                <p className="text-xs font-semibold text-violet-700">{discovery.reference}</p>
+                {discovery.title !== discovery.reference && (
+                  <h2 className="mt-1 text-sm font-semibold text-slate-900">{discovery.title}</h2>
+                )}
+
+                <div className="mt-3">
+                  <p className="text-xs font-semibold text-slate-700">{t("discovery.why")}</p>
+                  {discovery.reasons.map((reason) => (
+                    <p className="mt-1 text-sm leading-6 text-slate-600" key={reason}>
+                      {reason}
+                    </p>
+                  ))}
+                </div>
+
+                <div className="mt-4 rounded-lg border border-violet-100 bg-violet-50/60 p-3">
+                  <p className="text-xs font-semibold text-violet-900">
+                    {t("discovery.requirements")}
+                  </p>
+                  {discovery.requirements.length ? (
+                    <div className="mt-2 space-y-3">
+                      {discovery.requirements.map((requirement, index) => (
+                        <div key={`${requirement.reference ?? "requirement"}:${index}`}>
+                          {requirement.reference && (
+                            <p className="text-xs font-semibold text-violet-700">
+                              {requirement.reference}
+                            </p>
+                          )}
+                          <p className="whitespace-pre-wrap text-sm leading-6 text-slate-700">
+                            {requirement.text}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="mt-1 text-xs italic leading-5 text-slate-500">
+                      {t("discovery.noArticle")}
+                    </p>
+                  )}
+                </div>
+
+                <div className="mt-4 border-t border-slate-100 pt-3">
+                  {discovery.sourceUrl ? (
+                    <a
+                      className="text-xs font-semibold text-violet-700 underline underline-offset-2 hover:text-violet-900"
+                      href={discovery.sourceUrl}
+                      rel="noreferrer"
+                      target="_blank"
+                    >
+                      {t("discovery.officialSource")}
+                    </a>
+                  ) : discovery.sourceType === "PLATFORM_PROVISION" ? (
+                    <p className="text-xs text-slate-500">
+                      {t("discovery.platformSource", { citation: discovery.citationLabel })}
+                    </p>
+                  ) : (
+                    <p className="text-xs italic text-slate-400">
+                      {t("discovery.sourceToConfirm")}
+                    </p>
+                  )}
+                </div>
+              </article>
+            </li>
           ))}
           {!discoveries.length && (
-            <p className="p-5 text-center text-sm text-slate-500">
-              Aucun texte n’a été identifié dans cette analyse.
-            </p>
+            <li className="p-5 text-center text-sm text-slate-500">{t("discovery.none")}</li>
           )}
-        </div>
+        </ul>
 
         <fieldset className="mt-7">
-          <legend className="text-sm font-semibold text-slate-900">
-            Quelle est la qualité de cette découverte ?
-          </legend>
+          <legend className="text-sm font-semibold text-slate-900">{t("discovery.quality")}</legend>
           <div
             className="mt-3 flex flex-wrap gap-2"
             role="radiogroup"
-            aria-label="Note de l’analyse"
+            aria-label={t("discovery.rating")}
           >
             {[0, 1, 2, 3, 4, 5].map((value) => (
               <button
                 aria-checked={rating === value}
-                aria-label={`${value} étoile${value === 1 ? "" : "s"}`}
+                aria-label={t("discovery.stars", { count: value })}
                 className={cn(
                   "flex h-11 min-w-14 items-center justify-center gap-1 rounded-xl border px-3 text-sm font-semibold transition-colors",
                   rating === value
@@ -758,19 +812,17 @@ function AnalysisReviewState({
               </button>
             ))}
           </div>
-          <p className="mt-2 text-xs text-slate-400">
-            0 = inutilisable · 3 = partiellement juste · 5 = très précis
-          </p>
+          <p className="mt-2 text-xs text-slate-400">{t("discovery.scale")}</p>
         </fieldset>
 
         <label className="mt-6 block text-sm font-semibold text-slate-900">
-          Qu’est-ce qui est juste, manquant ou incorrect ?{" "}
-          <span className="font-normal text-slate-400">(facultatif)</span>
+          {t("discovery.commentLabel")}{" "}
+          <span className="font-normal text-slate-400">{t("discovery.optional")}</span>
           <Textarea
             className="mt-2 min-h-28 rounded-xl border-slate-200 bg-white"
             maxLength={4000}
             onChange={(event) => setComment(event.target.value)}
-            placeholder="Ex. : il manque la loi sur les établissements classés…"
+            placeholder={t("discovery.commentPlaceholder")}
             value={comment}
           />
         </label>
@@ -781,15 +833,19 @@ function AnalysisReviewState({
         )}
         <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-5">
           <Button disabled={pending} onClick={onSkip} variant="ghost">
-            Passer cette étape
+            {t("discovery.skip")}
           </Button>
           <Button
             className="h-11 rounded-xl bg-violet-600 px-5 hover:bg-violet-500"
             disabled={rating === null || pending}
             onClick={() => rating !== null && onSubmit(rating, trimmedOrNull(comment))}
           >
-            {pending ? <LoaderCircleIcon className="animate-spin" /> : <ArrowRightIcon />}
-            Envoyer mon avis et continuer
+            {pending ? (
+              <LoaderCircleIcon className="animate-spin" />
+            ) : (
+              <ArrowRightIcon className="rtl:rotate-180" />
+            )}
+            {t("discovery.submit")}
           </Button>
         </div>
       </div>
@@ -822,18 +878,14 @@ function ReviewState({
   onPublish: () => void;
   onRerun: () => void;
 }) {
+  const { t } = useTranslation("regulatory");
   const candidates = watch.currentAnalysis?.candidates ?? [];
   const partial = watch.currentAnalysis?.status === "PARTIAL";
-  const groups = [
-    { value: "ADDED", label: "Ajouts" },
-    { value: "MODIFIED", label: "Modifications" },
-    { value: "REMOVAL_PROPOSED", label: "Retraits proposés" },
-    { value: "UNCHANGED", label: "Inchangés" },
-  ] as const;
+  const groups = ["ADDED", "MODIFIED", "REMOVAL_PROPOSED", "UNCHANGED"] as const;
   const firstPopulated = groups.find((group) =>
-    candidates.some((candidate) => candidate.changeType === group.value),
-  )?.value;
-  const [selectedGroup, setSelectedGroup] = useState<(typeof groups)[number]["value"]>(
+    candidates.some((candidate) => candidate.changeType === group),
+  );
+  const [selectedGroup, setSelectedGroup] = useState<(typeof groups)[number]>(
     firstPopulated ?? "ADDED",
   );
   const pending = pendingAiDecisions(candidates);
@@ -849,22 +901,23 @@ function ReviewState({
       <div className="mx-auto max-w-4xl py-3">
         <SourceRequired watch={watch} />
         <Badge className="border-violet-200 bg-violet-50 text-violet-700" variant="outline">
-          <SparklesIcon /> {partial ? "Résultats partiels" : "Proposition prête"}
+          <SparklesIcon /> {partial ? t("review.partial") : t("review.ready")}
         </Badge>
         <div className="mt-4 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <h1 className="text-3xl font-semibold tracking-tight">
-              Validez uniquement les changements
+              {AUTO_APPLICABLE ? t("review.checkTitle") : t("review.validateTitle")}
             </h1>
             <p className="mt-2 text-sm leading-6 text-slate-500">
-              Les dispositions inchangées sont conservées automatiquement. Chaque ajout,
-              modification ou retrait reste soumis à votre validation.
+              {AUTO_APPLICABLE ? t("review.autoBody") : t("review.manualBody")}
             </p>
           </div>
           <div className="flex shrink-0 flex-col gap-2 sm:items-end">
-            <span className="text-xs font-semibold text-slate-500">
-              {remaining} décision{remaining === 1 ? "" : "s"} restante{remaining === 1 ? "" : "s"}
-            </span>
+            {!AUTO_APPLICABLE && (
+              <span className="text-xs font-semibold text-slate-500">
+                {t("review.remaining", { count: remaining })}
+              </span>
+            )}
             {remaining > 0 && (
               <>
                 <Button
@@ -874,13 +927,13 @@ function ReviewState({
                   variant="outline"
                 >
                   {deciding ? <LoaderCircleIcon className="animate-spin" /> : <ListChecksIcon />}{" "}
-                  Tout valider ({remaining})
+                  {t("review.validateAll", { count: remaining })}
                 </Button>
-                <p className="max-w-xs text-[11px] leading-4 text-slate-400 sm:text-right">
-                  Applicable pour {pendingApplicable} disposition
-                  {pendingApplicable === 1 ? "" : "s"} dont l’IA a extrait une exigence, non
-                  applicable pour les {remaining - pendingApplicable} autre
-                  {remaining - pendingApplicable === 1 ? "" : "s"}.
+                <p className="max-w-xs text-[11px] leading-4 text-slate-400 sm:text-end">
+                  {t("review.validateAllHint", {
+                    applicable: pendingApplicable,
+                    others: remaining - pendingApplicable,
+                  })}
                 </p>
               </>
             )}
@@ -891,14 +944,8 @@ function ReviewState({
             role="alert"
             className="mt-5 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800"
           >
-            <p className="font-semibold">
-              {blocked.length} source{blocked.length === 1 ? "" : "s"} à vérifier
-            </p>
-            <p className="mt-1 text-xs leading-5 text-rose-700">
-              Le document normatif présente un problème de qualité. Vous pouvez tout de même
-              approuver ou rejeter ces dispositions, mais il est recommandé de corriger et retraiter
-              la source dès que possible.
-            </p>
+            <p className="font-semibold">{t("review.sourcesToCheck", { count: blocked.length })}</p>
+            <p className="mt-1 text-xs leading-5 text-rose-700">{t("review.sourcesToCheckBody")}</p>
             <Button
               className="mt-3 bg-white"
               disabled={deciding || publishing}
@@ -906,7 +953,7 @@ function ReviewState({
               size="sm"
               variant="outline"
             >
-              <RefreshCwIcon /> Relancer l’analyse
+              <RefreshCwIcon /> {t("review.rerun")}
             </Button>
           </div>
         )}
@@ -919,17 +966,17 @@ function ReviewState({
             {groups.map((group) => (
               <TabsTrigger
                 className="h-auto min-h-10 whitespace-normal rounded-xl px-2 py-2 text-xs"
-                key={group.value}
-                value={group.value}
+                key={group}
+                value={group}
               >
-                {group.label}
+                {t(`review.groups.${group}`)}
                 <span className="rounded-md bg-white/70 px-1.5 py-0.5 text-[10px]">
-                  {candidates.filter((candidate) => candidate.changeType === group.value).length}
+                  {candidates.filter((candidate) => candidate.changeType === group).length}
                 </span>
               </TabsTrigger>
             ))}
           </TabsList>
-          <div className="max-h-[470px] space-y-3 overflow-y-auto pr-1">
+          <div className="max-h-[470px] space-y-3 overflow-y-auto pe-1">
             {candidates
               .filter((candidate) => candidate.changeType === selectedGroup)
               .map((candidate) => (
@@ -954,23 +1001,40 @@ function ReviewState({
                       <div className="mt-4 grid gap-3 lg:grid-cols-2">
                         <section className="rounded-xl border border-slate-200 bg-slate-50 p-3">
                           <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-                            Citation et texte source
+                            {t("review.citation")}
                           </p>
                           <p className="mt-2 text-xs font-semibold text-slate-700">
                             {candidate.source.citationLabel}
                           </p>
-                          <p className="mt-2 max-h-36 overflow-y-auto whitespace-pre-wrap text-xs leading-5 text-slate-600">
-                            {candidate.source.type === "DISCOVERED_LAW"
-                              ? "Source officielle à rattacher"
-                              : candidate.source.excerpt}
-                          </p>
+                          {candidate.source.type === "DISCOVERED_LAW" ? (
+                            candidate.source.url ? (
+                              <a
+                                className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-violet-700 underline underline-offset-2 hover:text-violet-900"
+                                href={candidate.source.url}
+                                rel="noreferrer"
+                                target="_blank"
+                              >
+                                {t("review.officialSource")}
+                              </a>
+                            ) : (
+                              <p className="mt-2 text-xs italic text-slate-400">
+                                {t("review.sourceToAttach")}
+                              </p>
+                            )
+                          ) : (
+                            <p className="mt-2 max-h-36 overflow-y-auto whitespace-pre-wrap text-xs leading-5 text-slate-600">
+                              {candidate.source.excerpt}
+                            </p>
+                          )}
                         </section>
                         <section
-                          aria-label={`Décision de l’IA ${candidate.source.provisionIdentifier ?? candidate.id}`}
+                          aria-label={t("review.aiDecision", {
+                            id: candidate.source.provisionIdentifier ?? candidate.id,
+                          })}
                           className="rounded-xl border border-violet-200 bg-violet-50/40 p-3"
                         >
                           <p className="text-[10px] font-semibold uppercase tracking-wider text-violet-700">
-                            Exigence extraite par l’IA
+                            {t("review.extracted")}
                           </p>
                           {candidate.requirement.text ? (
                             <p className="mt-2 max-h-28 overflow-y-auto whitespace-pre-wrap text-xs leading-5 text-slate-700">
@@ -978,11 +1042,11 @@ function ReviewState({
                             </p>
                           ) : (
                             <p className="mt-2 text-xs italic text-slate-400">
-                              Aucune exigence n’a pu être extraite de cette source.
+                              {t("review.noRequirement")}
                             </p>
                           )}
                           <p className="mt-3 text-[10px] font-semibold uppercase tracking-wider text-violet-700">
-                            Explication de l’IA
+                            {t("review.explanation")}
                           </p>
                           <p className="mt-2 whitespace-pre-wrap text-xs leading-5 text-slate-600">
                             {candidate.rationale}
@@ -990,7 +1054,10 @@ function ReviewState({
                         </section>
                       </div>
                       {candidate.requirement.issues.length > 0 && (
-                        <ul className="mt-3 list-disc space-y-1 rounded-xl bg-rose-50 px-7 py-3 text-xs text-rose-700">
+                        <ul
+                          className="mt-3 list-disc space-y-1 rounded-xl bg-rose-50 px-7 py-3 text-xs text-rose-700"
+                          lang="fr"
+                        >
                           {candidate.requirement.issues.map((issue) => (
                             <li key={issue}>{issue}</li>
                           ))}
@@ -1010,8 +1077,8 @@ function ReviewState({
                         >
                           <XIcon />
                           {candidate.changeType === "REMOVAL_PROPOSED"
-                            ? "Confirmer le retrait"
-                            : "Non applicable"}
+                            ? t("review.confirmRemoval")
+                            : t("review.notApplicable")}
                         </Button>
                         <Button
                           className={cn(
@@ -1032,7 +1099,9 @@ function ReviewState({
                           }
                         >
                           <CheckIcon />
-                          {candidate.changeType === "REMOVAL_PROPOSED" ? "Conserver" : "Applicable"}
+                          {candidate.changeType === "REMOVAL_PROPOSED"
+                            ? t("review.keep")
+                            : t("review.applicable")}
                         </Button>
                       </div>
                     ) : candidate.decision === "NOT_APPLICABLE" ? (
@@ -1040,14 +1109,14 @@ function ReviewState({
                         className="shrink-0 border-slate-200 bg-slate-100 text-slate-600"
                         variant="outline"
                       >
-                        <XIcon /> Non applicable (IA)
+                        <XIcon /> {t("review.notApplicableAi")}
                       </Badge>
                     ) : (
                       <Badge
                         className="shrink-0 border-emerald-200 bg-emerald-50 text-emerald-700"
                         variant="outline"
                       >
-                        <CheckIcon /> Conservée automatiquement
+                        <CheckIcon /> {t("review.keptAutomatically")}
                       </Badge>
                     )}
                   </div>
@@ -1055,7 +1124,7 @@ function ReviewState({
               ))}
             {candidates.every((candidate) => candidate.changeType !== selectedGroup) && (
               <p className="rounded-2xl border border-dashed border-slate-200 p-8 text-center text-sm text-slate-400">
-                Aucun élément dans cette catégorie.
+                {t("review.emptyGroup")}
               </p>
             )}
           </div>
@@ -1067,9 +1136,7 @@ function ReviewState({
         )}
         <div className="mt-6 flex items-center justify-between gap-4 border-t border-slate-100 pt-5">
           <p className="text-xs text-slate-500">
-            {partial
-              ? "La publication crée un référentiel immuable limité aux dispositions déjà analysées."
-              : "La publication crée un référentiel immuable lié à cette version du profil."}
+            {partial ? t("review.publishPartial") : t("review.publishFull")}
           </p>
           <Button
             className="h-11 rounded-xl bg-violet-600 px-5 hover:bg-violet-500"
@@ -1077,7 +1144,7 @@ function ReviewState({
             onClick={onPublish}
           >
             {publishing ? <LoaderCircleIcon className="animate-spin" /> : <FileCheck2Icon />}{" "}
-            Publier le référentiel
+            {t("review.publish")}
           </Button>
         </div>
       </div>
@@ -1205,6 +1272,8 @@ function AiEvaluationSheet({
   onClose: () => void;
   onSave: (input: EvaluationSaveInput) => Promise<void>;
 }) {
+  const { t } = useTranslation("regulatory");
+  const format = useFormat();
   const [result, setResult] = useState<"CONFORMING" | "PARTIAL" | "NON_CONFORMING">(
     "NON_CONFORMING",
   );
@@ -1272,10 +1341,8 @@ function AiEvaluationSheet({
       actionDraft.effectiveness !== "PENDING" ||
       actionDraft.status !== "OPEN",
     );
-    if (!title && hasOtherActionValues)
-      return "Renseignez l’intitulé de l’action avant d’enregistrer son plan.";
-    if (title && title.length < 2)
-      return "L’intitulé de l’action doit faire au moins 2 caractères.";
+    if (!title && hasOtherActionValues) return t("sheet.actionTitleRequired");
+    if (title && title.length < 2) return t("sheet.actionTitleShort");
 
     const created: EvaluationSaveInput["evidence"]["created"] = [];
     const updated: EvaluationSaveInput["evidence"]["updated"] = [];
@@ -1286,10 +1353,8 @@ function AiEvaluationSheet({
         if (draft.id) deletedIds.push(draft.id);
         continue;
       }
-      if (draft.kind === "NOTE" && !draft.note.trim())
-        return "Une preuve de type Note doit contenir un texte.";
-      if (draft.kind === "LINK" && !draft.url.trim())
-        return "Une preuve de type Lien doit contenir une URL.";
+      if (draft.kind === "NOTE" && !draft.note.trim()) return t("sheet.noteRequired");
+      if (draft.kind === "LINK" && !draft.url.trim()) return t("sheet.linkRequired");
       if (!draft.id) {
         created.push({
           kind: draft.kind === "LINK" ? "LINK" : "NOTE",
@@ -1344,15 +1409,18 @@ function AiEvaluationSheet({
       <SheetContent className="w-[min(96vw,680px)]! sm:max-w-[680px]!">
         {evaluation && (
           <>
-            <SheetHeader className="border-b border-slate-100 pr-16">
+            <SheetHeader className="border-b border-slate-100 pe-16">
               <div className="mb-2 flex flex-wrap items-center gap-2">
-                <Badge variant="outline">{evaluation.status}</Badge>
+                <Badge variant="outline">{t(`evaluationStatus.${evaluation.status}`)}</Badge>
                 {evaluation.aiSuggestedStatus && (
                   <Badge
                     className="border-violet-200 bg-violet-50 text-violet-700"
                     variant="outline"
                   >
-                    <SparklesIcon /> IA : {evaluation.aiSuggestedStatus}
+                    <SparklesIcon />{" "}
+                    {t("sheet.ai", {
+                      status: t(`evaluationStatus.${evaluation.aiSuggestedStatus}`),
+                    })}
                   </Badge>
                 )}
               </div>
@@ -1362,7 +1430,7 @@ function AiEvaluationSheet({
             <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-6">
               <section>
                 <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-                  Exigence applicable
+                  {t("sheet.requirement")}
                 </p>
                 <p className="mt-2 text-sm leading-6 text-slate-800">{evaluation.requirement}</p>
               </section>
@@ -1370,7 +1438,7 @@ function AiEvaluationSheet({
               {evaluation.officialSourceText && (
                 <section className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                   <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-                    Traçabilité — texte officiel
+                    {t("sheet.traceability")}
                   </p>
                   {evaluation.citation && (
                     <p className="mt-2 text-xs font-semibold text-slate-700">
@@ -1386,7 +1454,7 @@ function AiEvaluationSheet({
               <section className="rounded-2xl border border-emerald-100 bg-emerald-50/60 p-4">
                 <div className="flex items-center justify-between gap-3">
                   <p className="flex items-center gap-2 text-xs font-semibold text-emerald-800">
-                    <FileCheck2Icon className="size-4" /> Preuves associées
+                    <FileCheck2Icon className="size-4" /> {t("sheet.evidence")}
                   </p>
                   <Button
                     className="h-8 bg-white"
@@ -1408,12 +1476,12 @@ function AiEvaluationSheet({
                     type="button"
                     variant="outline"
                   >
-                    <PlusIcon /> Ajouter
+                    <PlusIcon /> {t("sheet.add")}
                   </Button>
                 </div>
                 <div className="mt-3 space-y-3">
                   {evidenceDrafts.filter((item) => !item.removed).length === 0 && (
-                    <p className="text-sm text-emerald-950/60">Aucune preuve liée.</p>
+                    <p className="text-sm text-emerald-950/60">{t("sheet.noEvidence")}</p>
                   )}
                   {evidenceDrafts.map((draft) =>
                     draft.removed ? null : (
@@ -1424,11 +1492,11 @@ function AiEvaluationSheet({
                         <div className="flex items-center justify-between gap-2">
                           {draft.id ? (
                             <Badge className="bg-emerald-50 text-emerald-800" variant="outline">
-                              {evidenceKindLabels[draft.kind]}
+                              {t(`evidenceKind.${draft.kind}`)}
                             </Badge>
                           ) : (
                             <select
-                              aria-label="Type de preuve"
+                              aria-label={t("sheet.evidenceType")}
                               className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-xs"
                               onChange={(event) =>
                                 updateEvidence(draft.key, {
@@ -1437,12 +1505,12 @@ function AiEvaluationSheet({
                               }
                               value={draft.kind}
                             >
-                              <option value="NOTE">Note</option>
-                              <option value="LINK">Lien</option>
+                              <option value="NOTE">{t("evidenceKind.NOTE")}</option>
+                              <option value="LINK">{t("evidenceKind.LINK")}</option>
                             </select>
                           )}
                           <Button
-                            aria-label="Retirer la preuve"
+                            aria-label={t("sheet.removeEvidence")}
                             className="size-8 text-slate-400 hover:text-rose-700"
                             onClick={() => updateEvidence(draft.key, { removed: true })}
                             size="icon"
@@ -1453,19 +1521,19 @@ function AiEvaluationSheet({
                           </Button>
                         </div>
                         <label className={cn(fieldLabelClass, "mt-3")}>
-                          Libellé
+                          {t("sheet.label")}
                           <Input
                             className="mt-1 h-9"
                             onChange={(event) =>
                               updateEvidence(draft.key, { label: event.target.value })
                             }
-                            placeholder="Nom de la preuve"
+                            placeholder={t("sheet.labelPlaceholder")}
                             value={draft.label}
                           />
                         </label>
                         {draft.kind === "LINK" ? (
                           <label className={cn(fieldLabelClass, "mt-3")}>
-                            Lien
+                            {t("sheet.link")}
                             <Input
                               className="mt-1 h-9"
                               onChange={(event) =>
@@ -1477,20 +1545,18 @@ function AiEvaluationSheet({
                           </label>
                         ) : draft.kind === "NOTE" ? (
                           <label className={cn(fieldLabelClass, "mt-3")}>
-                            Note
+                            {t("sheet.note")}
                             <Textarea
                               className="mt-1 min-h-16"
                               onChange={(event) =>
                                 updateEvidence(draft.key, { note: event.target.value })
                               }
-                              placeholder="Décrivez la preuve"
+                              placeholder={t("sheet.notePlaceholder")}
                               value={draft.note}
                             />
                           </label>
                         ) : (
-                          <p className="mt-3 text-xs text-slate-500">
-                            Fichier joint — remplacez-le depuis le module documentaire.
-                          </p>
+                          <p className="mt-3 text-xs text-slate-500">{t("sheet.attachedFile")}</p>
                         )}
                       </div>
                     ),
@@ -1500,13 +1566,12 @@ function AiEvaluationSheet({
 
               {(ai === "PENDING" || ai === "RUNNING") && (
                 <section className="flex items-center gap-3 rounded-2xl border border-violet-200 bg-violet-50 p-4 text-sm text-violet-800">
-                  <LoaderCircleIcon className="size-4 animate-spin" /> Pré-évaluation de conformité
-                  en cours…
+                  <LoaderCircleIcon className="size-4 animate-spin" /> {t("sheet.aiRunning")}
                 </section>
               )}
               {ai === "FAILED" && (
                 <section className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
-                  L’évaluation IA n’a pas abouti. Vous pouvez la relancer depuis la page.
+                  {t("sheet.aiFailed")}
                 </section>
               )}
               {ai === "COMPLETED" && (
@@ -1514,7 +1579,7 @@ function AiEvaluationSheet({
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <p className="flex items-center gap-2 text-xs font-semibold text-violet-900">
-                        <BotIcon className="size-4" /> Analyse IA à valider
+                        <BotIcon className="size-4" /> {t("sheet.aiToValidate")}
                       </p>
                       <p className="mt-2 text-sm leading-6 text-violet-950/80">
                         {evaluation.aiRationale}
@@ -1522,14 +1587,14 @@ function AiEvaluationSheet({
                     </div>
                     {evaluation.aiConfidence !== null && evaluation.aiConfidence !== undefined && (
                       <Badge className="shrink-0 bg-white text-violet-700" variant="outline">
-                        {Math.round(evaluation.aiConfidence * 100)} %
+                        {format.number(evaluation.aiConfidence, { style: "percent" })}
                       </Badge>
                     )}
                   </div>
                   {(evaluation.aiMatchedProfileKeys?.length ?? 0) > 0 && (
                     <div>
                       <p className="text-xs font-semibold text-slate-800">
-                        Éléments du profil utilisés
+                        {t("sheet.profileItems")}
                       </p>
                       <div className="mt-2 flex flex-wrap gap-1.5">
                         {evaluation.aiMatchedProfileKeys?.map((key) => (
@@ -1547,9 +1612,9 @@ function AiEvaluationSheet({
                   {(evaluation.aiMissingInformation?.length ?? 0) > 0 && (
                     <div>
                       <p className="text-xs font-semibold text-slate-800">
-                        Informations manquantes
+                        {t("sheet.missingInformation")}
                       </p>
-                      <ul className="mt-2 list-disc space-y-1 pl-5 text-xs leading-5 text-slate-600">
+                      <ul className="mt-2 list-disc space-y-1 ps-5 text-xs leading-5 text-slate-600">
                         {evaluation.aiMissingInformation?.map((item) => (
                           <li key={item}>{item}</li>
                         ))}
@@ -1562,7 +1627,7 @@ function AiEvaluationSheet({
               {evaluation.aiRemediationPlan && (
                 <section className="rounded-2xl border border-amber-200 bg-amber-50/70 p-4">
                   <p className="flex items-center gap-2 text-xs font-semibold text-amber-900">
-                    <TargetIcon className="size-4" /> Comment atteindre la conformité
+                    <TargetIcon className="size-4" /> {t("sheet.remediation")}
                   </p>
                   <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-amber-950/80">
                     {evaluation.aiRemediationPlan}
@@ -1572,25 +1637,29 @@ function AiEvaluationSheet({
                       <p className="font-semibold">{evaluation.aiAction.title}</p>
                       <dl className="mt-3 grid gap-3 sm:grid-cols-2">
                         <div>
-                          <dt className="text-slate-400">Responsable proposé</dt>
+                          <dt className="text-slate-400">{t("sheet.proposedOwner")}</dt>
                           <dd className="mt-1">{evaluation.aiAction.responsible ?? "—"}</dd>
                         </div>
                         <div>
-                          <dt className="text-slate-400">Ressources</dt>
+                          <dt className="text-slate-400">{t("sheet.resources")}</dt>
                           <dd className="mt-1">{evaluation.aiAction.resources ?? "—"}</dd>
                         </div>
                         <div>
-                          <dt className="text-slate-400">Date de début</dt>
-                          <dd className="mt-1">{formatDate(evaluation.aiAction.startDate)}</dd>
+                          <dt className="text-slate-400">{t("sheet.startDate")}</dt>
+                          <dd className="mt-1">
+                            {formatDate(format, evaluation.aiAction.startDate)}
+                          </dd>
                         </div>
                         <div>
-                          <dt className="text-slate-400">Date prévue</dt>
-                          <dd className="mt-1">{formatDate(evaluation.aiAction.dueDate)}</dd>
+                          <dt className="text-slate-400">{t("sheet.dueDate")}</dt>
+                          <dd className="mt-1">
+                            {formatDate(format, evaluation.aiAction.dueDate)}
+                          </dd>
                         </div>
                       </dl>
                       {evaluation.aiAction.effectivenessCriteria && (
                         <p className="mt-3">
-                          <span className="text-slate-400">Critère d’efficacité : </span>
+                          <span className="text-slate-400">{t("sheet.criterion")}</span>
                           {evaluation.aiAction.effectivenessCriteria}
                         </p>
                       )}
@@ -1601,40 +1670,39 @@ function AiEvaluationSheet({
 
               <section className="rounded-2xl border border-slate-200 p-4">
                 <p className="flex items-center gap-2 text-xs font-semibold text-slate-900">
-                  <TargetIcon className="size-4" /> Plan d’action
+                  <TargetIcon className="size-4" /> {t("sheet.actionPlan")}
                 </p>
                 <p className="mt-1 text-[11px] leading-4 text-slate-500">
-                  Ces champs alimentent les colonnes « Actions » à « commentaire » de l’export
-                  Excel.
+                  {t("sheet.actionPlanHint")}
                 </p>
                 <label className={cn(fieldLabelClass, "mt-4")} htmlFor="action-title">
-                  Action
+                  {t("sheet.action")}
                 </label>
                 <Input
                   className="mt-1"
                   id="action-title"
                   maxLength={500}
                   onChange={(event) => updateAction("title", event.target.value)}
-                  placeholder="Intitulé de l’action à mener"
+                  placeholder={t("sheet.actionPlaceholder")}
                   value={actionDraft.title}
                 />
                 <div className="mt-3 grid gap-3 sm:grid-cols-2">
                   <div>
                     <label className={fieldLabelClass} htmlFor="action-responsible">
-                      Responsable
+                      {t("sheet.owner")}
                     </label>
                     <Input
                       className="mt-1"
                       id="action-responsible"
                       maxLength={200}
                       onChange={(event) => updateAction("responsibleName", event.target.value)}
-                      placeholder="Nom ou fonction"
+                      placeholder={t("sheet.ownerPlaceholder")}
                       value={actionDraft.responsibleName}
                     />
                   </div>
                   <div>
                     <label className={fieldLabelClass} htmlFor="action-status">
-                      Statut
+                      {t("sheet.status")}
                     </label>
                     <select
                       className={fieldControlClass}
@@ -1644,18 +1712,16 @@ function AiEvaluationSheet({
                       }
                       value={actionDraft.status}
                     >
-                      {(
-                        Object.entries(actionStatusLabels) as Array<[ActionDraft["status"], string]>
-                      ).map(([value, label]) => (
+                      {actionStatuses.map((value) => (
                         <option key={value} value={value}>
-                          {label}
+                          {t(`actionStatus.${value}`)}
                         </option>
                       ))}
                     </select>
                   </div>
                   <div>
                     <label className={fieldLabelClass} htmlFor="action-due-date">
-                      Date prévue
+                      {t("sheet.dueDate")}
                     </label>
                     <input
                       className={fieldControlClass}
@@ -1667,7 +1733,7 @@ function AiEvaluationSheet({
                   </div>
                   <div>
                     <label className={fieldLabelClass} htmlFor="action-completed-date">
-                      Date réelle
+                      {t("sheet.completedDate")}
                     </label>
                     <input
                       className={fieldControlClass}
@@ -1679,29 +1745,29 @@ function AiEvaluationSheet({
                   </div>
                 </div>
                 <label className={cn(fieldLabelClass, "mt-3")} htmlFor="action-resources">
-                  Ressources
+                  {t("sheet.resources")}
                 </label>
                 <Textarea
                   className="mt-1 min-h-16"
                   id="action-resources"
                   maxLength={2000}
                   onChange={(event) => updateAction("resources", event.target.value)}
-                  placeholder="Moyens humains, budget, prestataires…"
+                  placeholder={t("sheet.resourcesPlaceholder")}
                   value={actionDraft.resources}
                 />
                 <label className={cn(fieldLabelClass, "mt-3")} htmlFor="action-criteria">
-                  Critères d’efficacité
+                  {t("sheet.criteria")}
                 </label>
                 <Textarea
                   className="mt-1 min-h-16"
                   id="action-criteria"
                   maxLength={2000}
                   onChange={(event) => updateAction("effectivenessCriteria", event.target.value)}
-                  placeholder="Comment vérifierez-vous que l’action a produit son effet ?"
+                  placeholder={t("sheet.criteriaPlaceholder")}
                   value={actionDraft.effectivenessCriteria}
                 />
                 <label className={cn(fieldLabelClass, "mt-3")} htmlFor="action-effectiveness">
-                  Action efficace
+                  {t("sheet.effective")}
                 </label>
                 <select
                   className={fieldControlClass}
@@ -1714,27 +1780,27 @@ function AiEvaluationSheet({
                   }
                   value={actionDraft.effectiveness}
                 >
-                  <option value="PENDING">À vérifier</option>
-                  <option value="EFFECTIVE">Oui</option>
-                  <option value="INEFFECTIVE">Non</option>
+                  <option value="PENDING">{t("effectiveness.PENDING")}</option>
+                  <option value="EFFECTIVE">{t("effectiveness.EFFECTIVE")}</option>
+                  <option value="INEFFECTIVE">{t("effectiveness.INEFFECTIVE")}</option>
                 </select>
                 <label className={cn(fieldLabelClass, "mt-3")} htmlFor="action-comment">
-                  Commentaire de l’action
+                  {t("sheet.actionComment")}
                 </label>
                 <Textarea
                   className="mt-1 min-h-16"
                   id="action-comment"
                   maxLength={2000}
                   onChange={(event) => updateAction("comment", event.target.value)}
-                  placeholder="Suivi, points de blocage…"
+                  placeholder={t("sheet.actionCommentPlaceholder")}
                   value={actionDraft.comment}
                 />
               </section>
 
               <section className="rounded-2xl border border-slate-200 p-4">
-                <p className="text-xs font-semibold text-slate-900">Décision humaine finale</p>
+                <p className="text-xs font-semibold text-slate-900">{t("sheet.decision")}</p>
                 <label className="mt-3 block text-xs text-slate-500" htmlFor="evaluation-result">
-                  Résultat
+                  {t("sheet.result")}
                 </label>
                 <select
                   className="mt-1 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm"
@@ -1744,18 +1810,18 @@ function AiEvaluationSheet({
                   }
                   value={result}
                 >
-                  <option value="CONFORMING">Conforme</option>
-                  <option value="PARTIAL">Partiellement conforme</option>
-                  <option value="NON_CONFORMING">Non conforme</option>
+                  <option value="CONFORMING">{t("resultOptions.CONFORMING")}</option>
+                  <option value="PARTIAL">{t("resultOptions.PARTIAL")}</option>
+                  <option value="NON_CONFORMING">{t("resultOptions.NON_CONFORMING")}</option>
                 </select>
                 <label className="mt-3 block text-xs text-slate-500" htmlFor="evaluation-comment">
-                  Commentaire
+                  {t("sheet.comment")}
                 </label>
                 <Textarea
                   className="mt-1 min-h-24"
                   id="evaluation-comment"
                   onChange={(event) => setComment(event.target.value)}
-                  placeholder="Justification ou réserves de la validation"
+                  placeholder={t("sheet.commentPlaceholder")}
                   value={comment}
                 />
               </section>
@@ -1779,8 +1845,8 @@ function AiEvaluationSheet({
                   void onSave(input);
                 }}
               >
-                {saving ? <LoaderCircleIcon className="animate-spin" /> : <CheckIcon />} Valider
-                l’évaluation
+                {saving ? <LoaderCircleIcon className="animate-spin" /> : <CheckIcon />}{" "}
+                {t("sheet.validate")}
               </Button>
             </SheetFooter>
           </>
@@ -1820,7 +1886,10 @@ export function DataPage({
   // while it is open shows its recommendation, and so the submitted revision is the current
   // one rather than whatever it was at click time.
   const [selectedEvaluationId, setSelectedEvaluationId] = useState<string | null>(null);
-  const data = useMemo(() => regulatoryViewData(watch), [watch]);
+  const { t, i18n: instance } = useTranslation("regulatory");
+  const format = useFormat();
+  // Rebuilt when the interface language changes: the view data carries display strings.
+  const data = useMemo(() => regulatoryViewData(watch, t, format), [watch, t, instance.language]);
   const selectedEvaluation = useMemo(
     () => data.evaluations.find((item) => item.id === selectedEvaluationId) ?? null,
     [data.evaluations, selectedEvaluationId],
@@ -1837,22 +1906,20 @@ export function DataPage({
           <div className="flex items-center gap-2 text-xs text-slate-400">
             <span>{profile.project.name}</span>
             <span>/</span>
-            <span>Veille réglementaire</span>
+            <span>{t("data.title")}</span>
           </div>
           <div className="mt-2 flex flex-wrap items-center gap-3">
-            <h1 className="text-3xl font-semibold tracking-tight">Veille réglementaire</h1>
+            <h1 className="text-3xl font-semibold tracking-tight">{t("data.title")}</h1>
             {synchronizing && (
               <span
                 role="status"
                 className="inline-flex items-center gap-1.5 text-xs font-medium text-violet-700"
               >
-                <LoaderCircleIcon className="size-3.5 animate-spin" /> Synchronisation…
+                <LoaderCircleIcon className="size-3.5 animate-spin" /> {t("data.synchronizing")}
               </span>
             )}
           </div>
-          <p className="mt-2 text-sm text-slate-500">
-            Référentiel applicable et évaluation de conformité du projet.
-          </p>
+          <p className="mt-2 text-sm text-slate-500">{t("data.subtitle")}</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button
@@ -1862,7 +1929,7 @@ export function DataPage({
             variant="outline"
           >
             {evaluationBusy ? <LoaderCircleIcon className="animate-spin" /> : <SearchCheckIcon />}{" "}
-            {aiAnalysisActive ? "Évaluation IA en cours" : "Relancer l’évaluation IA"}
+            {aiAnalysisActive ? t("data.aiRunning") : t("data.rerunAi")}
           </Button>
           <Button
             className="h-10 rounded-xl bg-white"
@@ -1871,15 +1938,15 @@ export function DataPage({
             variant="outline"
           >
             <RefreshCwIcon className={cn((refreshing || analysisActive) && "animate-spin")} />{" "}
-            {analysisActive ? "Analyse en cours" : "Actualiser l’analyse"}
+            {analysisActive ? t("data.analysisRunning") : t("data.refresh")}
           </Button>
           <Button
             className="h-10 rounded-xl bg-slate-950 px-4 hover:bg-slate-800"
             disabled={exporting}
             onClick={onExport}
           >
-            {exporting ? <LoaderCircleIcon className="animate-spin" /> : <DownloadIcon />} Exporter
-            en Excel
+            {exporting ? <LoaderCircleIcon className="animate-spin" /> : <DownloadIcon />}{" "}
+            {t("data.export")}
           </Button>
         </div>
       </header>
@@ -1892,16 +1959,15 @@ export function DataPage({
             </span>
             <div className="min-w-0 flex-1">
               <div className="flex items-center justify-between gap-3">
-                <p className="text-sm font-semibold text-violet-950">
-                  Mise à jour du référentiel en cours
-                </p>
+                <p className="text-sm font-semibold text-violet-950">{t("data.updating")}</p>
                 <span className="text-xs font-semibold text-violet-800">
                   {watch.currentAnalysis?.progressPercent ?? 0}%
                 </span>
               </div>
               <p className="mt-1 text-xs text-violet-800/70">
-                {analysisPhaseLabel(watch.currentAnalysis?.phase)}. Le référentiel publié reste
-                disponible pendant toute l’analyse.
+                {t("data.updatingBody", {
+                  phase: analysisPhaseLabel(t, watch.currentAnalysis?.phase),
+                })}
               </p>
               <Progress
                 className="mt-3 [&_[data-slot=progress-indicator]]:bg-violet-600 [&_[data-slot=progress-track]]:bg-violet-100"
@@ -1915,12 +1981,9 @@ export function DataPage({
         <div className="flex items-start gap-3 rounded-2xl border border-violet-200 bg-violet-50 p-4">
           <LoaderCircleIcon className="mt-0.5 size-4 shrink-0 animate-spin text-violet-700" />
           <div>
-            <p className="text-sm font-semibold text-violet-950">
-              Pré-évaluation de conformité en cours
-            </p>
+            <p className="text-sm font-semibold text-violet-950">{t("data.preassessment")}</p>
             <p className="mt-1 text-xs leading-5 text-violet-800/70">
-              L’IA compare les exigences publiées avec le profil du projet. Les résultats resteront
-              à valider par un responsable.
+              {t("data.preassessmentBody")}
             </p>
           </div>
         </div>
@@ -1930,16 +1993,12 @@ export function DataPage({
           <div className="flex items-start gap-3">
             <CircleAlertIcon className="mt-0.5 size-4 shrink-0 text-amber-700" />
             <div>
-              <p className="text-sm font-semibold text-amber-950">
-                Le profil a changé depuis cette publication
-              </p>
-              <p className="mt-1 text-xs text-amber-800/70">
-                Actualisez l’analyse pour vérifier si le périmètre réglementaire doit évoluer.
-              </p>
+              <p className="text-sm font-semibold text-amber-950">{t("data.profileChanged")}</p>
+              <p className="mt-1 text-xs text-amber-800/70">{t("data.profileChangedBody")}</p>
             </div>
           </div>
           <Button className="bg-white" onClick={onRefresh} size="sm" variant="outline">
-            Synchroniser maintenant
+            {t("data.syncNow")}
           </Button>
         </div>
       )}
@@ -1948,38 +2007,40 @@ export function DataPage({
           role="alert"
           className="flex items-start gap-2 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700"
         >
-          <AlertCircleIcon className="mt-0.5 size-4 shrink-0" /> La dernière synchronisation a
-          échoué. Le référentiel publié reste disponible.
+          <AlertCircleIcon className="mt-0.5 size-4 shrink-0" /> {t("data.syncFailed")}
         </div>
       )}
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <MetricCard
           icon={FileTextIcon}
-          label="Textes applicables"
-          value={String(data.documents.length)}
-          detail={`${data.summary.total} exigences publiées`}
+          label={t("data.applicableTexts")}
+          value={format.number(data.documents.length)}
+          detail={t("data.publishedRequirements", { count: data.summary.total })}
           tone="bg-blue-50 text-blue-700"
         />
         <MetricCard
           icon={ListChecksIcon}
-          label="Exigences identifiées"
-          value={String(data.summary.total)}
-          detail={`${data.summary.aiAssessed} analysées par IA · ${data.summary.humanValidated} confirmées`}
+          label={t("data.identifiedRequirements")}
+          value={format.number(data.summary.total)}
+          detail={t("data.aiAndConfirmed", {
+            ai: data.summary.aiAssessed,
+            confirmed: data.summary.humanValidated,
+          })}
           tone="bg-violet-50 text-violet-700"
         />
         <MetricCard
           icon={CheckCircle2Icon}
-          label="Taux de conformité"
-          value={`${data.summary.compliancePercent} %`}
-          detail={`${data.summary.conforming} exigences conformes`}
+          label={t("data.complianceRate")}
+          value={format.number(data.summary.compliancePercent / 100, { style: "percent" })}
+          detail={t("data.conformingRequirements", { count: data.summary.conforming })}
           tone="bg-emerald-50 text-emerald-700"
         />
         <MetricCard
           icon={Clock3Icon}
-          label="Actions ouvertes"
-          value={String(data.summary.openActions)}
-          detail="À piloter dans l’évaluation"
+          label={t("data.openActions")}
+          value={format.number(data.summary.openActions)}
+          detail={t("data.openActionsDetail")}
           tone="bg-rose-50 text-rose-700"
         />
       </div>
@@ -1989,17 +2050,17 @@ export function DataPage({
             <ShieldCheckIcon className="size-4" />
           </span>
           <div>
-            <p className="text-sm font-semibold text-emerald-950">
-              Référentiel basé sur le profil validé
-            </p>
+            <p className="text-sm font-semibold text-emerald-950">{t("data.basedOnProfile")}</p>
             <p className="mt-0.5 text-xs text-emerald-800/70">
-              Baseline {watch.currentBaseline?.sequence} · publiée le{" "}
-              {formatDate(watch.currentBaseline?.publishedAt)}
+              {t("data.baseline", {
+                sequence: watch.currentBaseline?.sequence,
+                date: formatDate(format, watch.currentBaseline?.publishedAt),
+              })}
             </p>
           </div>
         </div>
         <Badge className="border-emerald-200 bg-white text-emerald-700" variant="outline">
-          <CheckCircle2Icon /> Publié
+          <CheckCircle2Icon /> {t("data.published")}
         </Badge>
       </div>
 
@@ -2009,7 +2070,7 @@ export function DataPage({
             className="h-auto min-h-12 whitespace-normal rounded-xl px-2 py-2 text-center leading-4 data-active:bg-slate-950 data-active:text-white sm:px-5"
             value="documents"
           >
-            <FileTextIcon /> Liste des textes réglementaires et normatives{" "}
+            <FileTextIcon /> {t("data.documentsTab")}{" "}
             <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-600">
               {data.documents.length}
             </span>
@@ -2018,7 +2079,7 @@ export function DataPage({
             className="h-auto min-h-12 whitespace-normal rounded-xl px-2 py-2 text-center leading-4 data-active:bg-slate-950 data-active:text-white sm:px-5"
             value="evaluation"
           >
-            <ListChecksIcon /> Évaluation réglementaire et normative{" "}
+            <ListChecksIcon /> {t("data.evaluationTab")}{" "}
             <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-600">
               {data.summary.total}
             </span>
@@ -2071,8 +2132,10 @@ export function DataPage({
 export function RegulatoryWatchPage() {
   const { projectId = "" } = useParams();
   const queryClient = useQueryClient();
+  const { t } = useTranslation("regulatory");
   const [actionError, setActionError] = useState<string>();
   const [exporting, setExporting] = useState(false);
+  const automaticPublicationAttemptedRun = useRef<string | null>(null);
   const profileQuery = useQuery({
     queryKey: ["project-profile", projectId],
     queryFn: () => clientApi.projectProfile(projectId),
@@ -2108,12 +2171,12 @@ export function RegulatoryWatchPage() {
       await watchQuery.refetch();
     },
     onError: (error) =>
-      setActionError(error instanceof Error ? error.message : "L’analyse n’a pas pu démarrer."),
+      setActionError(error instanceof Error ? error.message : t("page.startFailed")),
   });
   const clarificationMutation = useMutation({
     mutationFn: (answers: Array<{ key: string; answer: string }>) => {
       const analysis = watchQuery.data?.currentAnalysis;
-      if (!analysis) throw new Error("Analyse introuvable");
+      if (!analysis) throw new Error(t("page.analysisNotFound"));
       return clientApi.answerRegulatoryClarifications(projectId, analysis.id, {
         revision: analysis.clarificationRevision,
         answers,
@@ -2124,9 +2187,7 @@ export function RegulatoryWatchPage() {
       await watchQuery.refetch();
     },
     onError: (error) =>
-      setActionError(
-        error instanceof Error ? error.message : "Les réponses n’ont pas pu être enregistrées.",
-      ),
+      setActionError(error instanceof Error ? error.message : t("page.answersFailed")),
   });
   const analysisReviewMutation = useMutation({
     mutationFn: (
@@ -2134,15 +2195,13 @@ export function RegulatoryWatchPage() {
         { outcome: "SUBMITTED"; rating: number; comment: string | null } | { outcome: "SKIPPED" },
     ) => {
       const analysis = watchQuery.data?.currentAnalysis;
-      if (!analysis) throw new Error("Analyse introuvable");
+      if (!analysis) throw new Error(t("page.analysisNotFound"));
       return clientApi.reviewRegulatoryAnalysis(projectId, analysis.id, input);
     },
     onMutate: () => setActionError(undefined),
     onSuccess: (watch) => queryClient.setQueryData(["regulatory-watch", projectId], watch),
     onError: (error) =>
-      setActionError(
-        error instanceof Error ? error.message : "Votre avis n’a pas pu être enregistré.",
-      ),
+      setActionError(error instanceof Error ? error.message : t("page.reviewFailed")),
   });
   const decisionMutation = useMutation({
     mutationFn: ({
@@ -2155,7 +2214,7 @@ export function RegulatoryWatchPage() {
       requirementText?: string | undefined;
     }) => {
       const watch = watchQuery.data;
-      if (!watch) throw new Error("Veille introuvable");
+      if (!watch) throw new Error(t("page.watchNotFound"));
       return clientApi.decideRegulatoryCandidate(projectId, candidateId, {
         watchRevision: watch.revision,
         decision,
@@ -2165,9 +2224,7 @@ export function RegulatoryWatchPage() {
     onMutate: () => setActionError(undefined),
     onSuccess: (watch) => queryClient.setQueryData(["regulatory-watch", projectId], watch),
     onError: (error) => {
-      setActionError(
-        error instanceof Error ? error.message : "La décision n’a pas pu être enregistrée.",
-      );
+      setActionError(error instanceof Error ? error.message : t("page.decisionFailed"));
       void watchQuery.refetch();
     },
   });
@@ -2176,7 +2233,7 @@ export function RegulatoryWatchPage() {
       decisions: Array<{ candidateId: string; decision: "APPLICABLE" | "NOT_APPLICABLE" }>,
     ) => {
       const watch = watchQuery.data;
-      if (!watch) throw new Error("Veille introuvable");
+      if (!watch) throw new Error(t("page.watchNotFound"));
       return clientApi.decideRegulatoryCandidates(projectId, {
         watchRevision: watch.revision,
         decisions,
@@ -2185,9 +2242,7 @@ export function RegulatoryWatchPage() {
     onMutate: () => setActionError(undefined),
     onSuccess: (watch) => queryClient.setQueryData(["regulatory-watch", projectId], watch),
     onError: (error) => {
-      setActionError(
-        error instanceof Error ? error.message : "Les décisions n’ont pas pu être enregistrées.",
-      );
+      setActionError(error instanceof Error ? error.message : t("page.decisionsFailed"));
       void watchQuery.refetch();
     },
   });
@@ -2195,7 +2250,7 @@ export function RegulatoryWatchPage() {
     mutationFn: () => {
       const watch = watchQuery.data;
       const analysis = watch?.currentAnalysis;
-      if (!watch || !analysis) throw new Error("Analyse introuvable");
+      if (!watch || !analysis) throw new Error(t("page.analysisNotFound"));
       return clientApi.publishRegulatoryBaseline(projectId, {
         analysisRunId: analysis.id,
         watchRevision: watch.revision,
@@ -2204,12 +2259,36 @@ export function RegulatoryWatchPage() {
     onMutate: () => setActionError(undefined),
     onSuccess: (watch) => queryClient.setQueryData(["regulatory-watch", projectId], watch),
     onError: (error) => {
-      setActionError(
-        error instanceof Error ? error.message : "Le référentiel n’a pas pu être publié.",
-      );
+      setActionError(error instanceof Error ? error.message : t("page.publishFailed"));
       void watchQuery.refetch();
     },
   });
+  const automaticPublishMutation = useMutation({
+    mutationFn: () => {
+      const watch = watchQuery.data;
+      const analysis = watch?.currentAnalysis;
+      if (!watch || !analysis) throw new Error(t("page.analysisNotFound"));
+      return clientApi.publishRegulatoryBaselineAutomatically(projectId, {
+        analysisRunId: analysis.id,
+        watchRevision: watch.revision,
+      });
+    },
+    onSuccess: (watch) => queryClient.setQueryData(["regulatory-watch", projectId], watch),
+    onError: () => void watchQuery.refetch(),
+  });
+  const analysisForAutomaticPublication = watchQuery.data?.currentAnalysis;
+  useEffect(() => {
+    if (
+      !AUTO_APPLICABLE ||
+      !analysisForAutomaticPublication ||
+      !["READY_FOR_REVIEW", "PARTIAL"].includes(analysisForAutomaticPublication.status) ||
+      automaticPublicationAttemptedRun.current === analysisForAutomaticPublication.id
+    ) {
+      return;
+    }
+    automaticPublicationAttemptedRun.current = analysisForAutomaticPublication.id;
+    automaticPublishMutation.mutate();
+  }, [analysisForAutomaticPublication?.id, analysisForAutomaticPublication?.status]);
   const evaluationRunMutation = useMutation({
     mutationFn: () => clientApi.startRegulatoryEvaluation(projectId),
     onMutate: () => setActionError(undefined),
@@ -2217,9 +2296,7 @@ export function RegulatoryWatchPage() {
       await watchQuery.refetch();
     },
     onError: (error) =>
-      setActionError(
-        error instanceof Error ? error.message : "L’évaluation IA n’a pas pu démarrer.",
-      ),
+      setActionError(error instanceof Error ? error.message : t("page.evaluationStartFailed")),
   });
   const evaluationMutation = useMutation({
     // One reviewer action can touch preuves, the action plan and the conformity decision. Each
@@ -2251,9 +2328,7 @@ export function RegulatoryWatchPage() {
     onMutate: () => setActionError(undefined),
     onSuccess: (watch) => queryClient.setQueryData(["regulatory-watch", projectId], watch),
     onError: (error) =>
-      setActionError(
-        error instanceof Error ? error.message : "L’évaluation n’a pas pu être validée.",
-      ),
+      setActionError(error instanceof Error ? error.message : t("page.evaluationFailed")),
   });
 
   if ((profileQuery.isPending && !profileQuery.data) || (watchQuery.isPending && !watchQuery.data))
@@ -2264,17 +2339,15 @@ export function RegulatoryWatchPage() {
     return (
       <section className="mx-auto max-w-2xl rounded-3xl border border-rose-200 bg-white p-8 text-center">
         <AlertCircleIcon className="mx-auto size-7 text-rose-600" />
-        <h1 className="mt-4 text-xl font-semibold">La veille réglementaire est indisponible</h1>
+        <h1 className="mt-4 text-xl font-semibold">{t("page.unavailable")}</h1>
         <p className="mt-2 text-sm text-slate-500">
-          {profileQuery.error?.message ??
-            watchQuery.error?.message ??
-            "Réessayez dans quelques instants."}
+          {profileQuery.error?.message ?? watchQuery.error?.message ?? t("page.tryLater")}
         </p>
         <Button
           className="mt-5"
           onClick={() => void Promise.all([profileQuery.refetch(), watchQuery.refetch()])}
         >
-          Réessayer
+          {t("retry", { ns: "common" })}
         </Button>
       </section>
     );
@@ -2284,6 +2357,7 @@ export function RegulatoryWatchPage() {
   const hasBaseline = Boolean(watch.currentBaseline);
   const analysisStatus = watch.currentAnalysis?.status;
   const analysisAwaitingReview =
+    !AUTO_APPLICABLE &&
     ["READY_FOR_REVIEW", "PARTIAL"].includes(analysisStatus ?? "") &&
     watch.currentAnalysis?.review == null;
   if (!hasBaseline && watch.status === "NOT_STARTED")
@@ -2318,6 +2392,35 @@ export function RegulatoryWatchPage() {
         onSkip={() => analysisReviewMutation.mutate({ outcome: "SKIPPED" })}
       />
     );
+  if (AUTO_APPLICABLE && ["READY_FOR_REVIEW", "PARTIAL"].includes(analysisStatus ?? ""))
+    return (
+      <StateShell tone="light">
+        <div className="mx-auto max-w-xl py-20 text-center">
+          <span className="mx-auto grid size-14 place-items-center rounded-2xl bg-violet-50 text-violet-700">
+            {automaticPublishMutation.isError ? (
+              <AlertCircleIcon className="size-6" />
+            ) : (
+              <LoaderCircleIcon className="size-6 animate-spin" />
+            )}
+          </span>
+          <h1 className="mt-5 text-2xl font-semibold">
+            {automaticPublishMutation.isError
+              ? t("page.autoPublishFailed")
+              : t("page.autoPublishing")}
+          </h1>
+          <p className="mt-3 text-sm text-slate-500">
+            {automaticPublishMutation.isError
+              ? automaticPublishMutation.error.message
+              : t("page.autoPublishingBody")}
+          </p>
+          {automaticPublishMutation.isError && (
+            <Button className="mt-6" onClick={() => automaticPublishMutation.mutate()}>
+              <RefreshCwIcon /> {t("retry", { ns: "common" })}
+            </Button>
+          )}
+        </div>
+      </StateShell>
+    );
   if (!hasBaseline && ["READY_FOR_REVIEW", "PARTIAL"].includes(analysisStatus ?? ""))
     return (
       <ReviewState
@@ -2341,7 +2444,7 @@ export function RegulatoryWatchPage() {
           <span className="mx-auto grid size-14 place-items-center rounded-2xl bg-rose-50 text-rose-700">
             <AlertCircleIcon className="size-6" />
           </span>
-          <h1 className="mt-5 text-2xl font-semibold">L’analyse n’a pas abouti</h1>
+          <h1 className="mt-5 text-2xl font-semibold">{t("page.analysisFailed")}</h1>
           <p className="mt-3 text-sm text-slate-500">
             {analysisErrorMessage(watch.currentAnalysis?.error?.code)}
           </p>
@@ -2351,7 +2454,7 @@ export function RegulatoryWatchPage() {
               disabled={startMutation.isPending}
               onClick={() => startMutation.mutate()}
             >
-              <RefreshCwIcon /> Relancer l’analyse
+              <RefreshCwIcon /> {t("review.rerun")}
             </Button>
           ) : null}
         </div>
@@ -2370,11 +2473,11 @@ export function RegulatoryWatchPage() {
       );
       const anchor = document.createElement("a");
       anchor.href = url;
-      anchor.download = `veille-reglementaire-${projectSlug}.xlsx`;
+      anchor.download = `${t("page.exportFileName")}-${projectSlug}.xlsx`;
       anchor.click();
       URL.revokeObjectURL(url);
     } catch (error) {
-      setActionError(error instanceof Error ? error.message : "L’export n’a pas pu être généré.");
+      setActionError(error instanceof Error ? error.message : t("page.exportFailed"));
     } finally {
       setExporting(false);
     }
@@ -2391,7 +2494,7 @@ export function RegulatoryWatchPage() {
           onSubmit={(answers) => clarificationMutation.mutate(answers)}
         />
       )}
-      {["READY_FOR_REVIEW", "PARTIAL"].includes(analysisStatus ?? "") && (
+      {!AUTO_APPLICABLE && ["READY_FOR_REVIEW", "PARTIAL"].includes(analysisStatus ?? "") && (
         <ReviewState
           watch={watch}
           deciding={decisionMutation.isPending || bulkDecisionMutation.isPending}
@@ -2410,7 +2513,7 @@ export function RegulatoryWatchPage() {
           <div className="flex items-start gap-2 text-rose-800">
             <AlertCircleIcon className="mt-0.5 size-4 shrink-0" />
             <div>
-              <p className="font-medium">La dernière analyse n’a pas abouti</p>
+              <p className="font-medium">{t("page.lastAnalysisFailed")}</p>
               <p className="mt-1 text-rose-700">
                 {analysisErrorMessage(watch.currentAnalysis?.error?.code)}
               </p>
@@ -2422,7 +2525,7 @@ export function RegulatoryWatchPage() {
               disabled={startMutation.isPending}
               onClick={() => startMutation.mutate()}
             >
-              <RefreshCwIcon /> Relancer l’analyse
+              <RefreshCwIcon /> {t("review.rerun")}
             </Button>
           ) : null}
         </div>
@@ -2445,13 +2548,13 @@ export function RegulatoryWatchPage() {
       {actionError && (
         <div
           role="alert"
-          className="fixed bottom-5 right-5 z-40 flex max-w-sm items-start gap-2 rounded-2xl border border-rose-200 bg-white p-4 text-sm text-rose-700 shadow-xl"
+          className="fixed bottom-5 end-5 z-40 flex max-w-sm items-start gap-2 rounded-2xl border border-rose-200 bg-white p-4 text-sm text-rose-700 shadow-xl"
         >
           <AlertCircleIcon className="mt-0.5 size-4 shrink-0" />
           {actionError}
           <button
-            aria-label="Fermer"
-            className="ml-auto"
+            aria-label={t("close", { ns: "common" })}
+            className="ms-auto"
             onClick={() => setActionError(undefined)}
             type="button"
           >

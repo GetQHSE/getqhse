@@ -69,6 +69,7 @@ describe.skipIf(!enabled)("regulatory applicability OpenAI live", () => {
         profileChanges: [],
         clarificationContext: [],
         previousDecision: null,
+        language: "fr",
         candidate: {
           provisionId: `synthetic-${source.language}`,
           previousEntryId: null,

@@ -21,7 +21,6 @@ describe("OrganizationsPage", () => {
           slug: "atlas-safety",
           logo: null,
           status: "active",
-          countryCode: "MA",
           locale: "fr-MA",
           timezone: "Africa/Casablanca",
           createdAt: "2026-08-11T10:00:00Z",
@@ -29,7 +28,6 @@ describe("OrganizationsPage", () => {
         },
       ],
       pagination: { total: 1, page: 1, pageSize: 25, pageCount: 1 },
-      filters: { countries: ["MA"] },
     });
   });
 

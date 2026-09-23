@@ -373,7 +373,6 @@ export function createQhseAuth({
                 defaultValue: "active",
                 input: false,
               },
-              countryCode: { type: "string", required: true, defaultValue: "MA" },
               locale: { type: "string", required: true, defaultValue: "fr-MA" },
               timezone: {
                 type: "string",

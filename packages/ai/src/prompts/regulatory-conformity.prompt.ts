@@ -1,4 +1,5 @@
 import type { PromptDefinition } from "../prompt-definition.js";
+import { inLanguage, outputLanguageRule, type OutputLanguage } from "./language.js";
 
 export type RegulatoryConformityPromptInput = {
   profileContext: unknown;
@@ -13,11 +14,12 @@ export type RegulatoryConformityPromptInput = {
   evidence: Array<{ kind: string; label: string | null; note: string | null; url: string | null }>;
   knowledgeExamples: unknown[];
   currentDate: string;
+  language: OutputLanguage;
 };
 
 export const regulatoryConformityPrompt: PromptDefinition<RegulatoryConformityPromptInput> = {
   key: "regulatory.conformity-assessment",
-  version: 1,
+  version: 2,
   build: (input) => ({
     system: `Tu réalises une pré-évaluation de conformité d'une exigence réglementaire ou normative déjà déclarée applicable. La décision reste soumise à validation humaine.
 
@@ -41,7 +43,8 @@ Remédiation et planification:
 - Pour CONFORMING, les champs d'action et remediationPlan sont null.
 - missingInformation contient les faits ou preuves nécessaires qui ne sont pas disponibles.
 
-Rédige le raisonnement et les propositions en français, de façon concise et vérifiable.`,
-    context: JSON.stringify(input),
+Rédige le raisonnement et les propositions ${inLanguage(input.language)}, de façon concise et vérifiable.
+${outputLanguageRule(input.language)}`,
+    context: JSON.stringify({ ...input, language: undefined }),
   }),
 };

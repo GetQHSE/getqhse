@@ -1,10 +1,11 @@
 import { getProfileFieldValueJsonSchema, type ProfileFieldKey } from "@qhse/profile";
 
 import type { PromptDefinition } from "../prompt-definition.js";
+import { outputLanguageRuleEn, type OutputLanguage } from "./language.js";
 import { sharedQhseAssistantPolicy } from "../policies/shared.policy.js";
 
 export type ProfileChatPromptInput = {
-  language: "fr" | "ar";
+  language: OutputLanguage;
   currentQuestion: { key: ProfileFieldKey; prompt: string } | null;
   profileRevision: number;
   completenessPercent: number;
@@ -14,12 +15,9 @@ export type ProfileChatPromptInput = {
 
 export const profileChatPrompt: PromptDefinition<ProfileChatPromptInput> = {
   key: "profile.chat",
-  version: 2,
+  version: 3,
   build(input) {
-    const languageInstruction =
-      input.language === "ar"
-        ? "Reply in clear Modern Standard Arabic unless the user uses another language."
-        : "Reply in clear professional French unless the user uses another language.";
+    const languageInstruction = outputLanguageRuleEn(input.language);
     return {
       system: `${sharedQhseAssistantPolicy}
 

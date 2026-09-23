@@ -13,7 +13,7 @@ describe("modular prompt registry", () => {
       knownFields: [],
     });
     expect(profileChatPrompt.key).toBe("profile.chat");
-    expect(profileChatPrompt.version).toBe(2);
+    expect(profileChatPrompt.version).toBe(3);
     expect(prompt.system).toContain("recordProfileAnswers");
     expect(prompt.system).toContain("exactly once");
     expect(prompt.system).not.toContain("determine regulatory applicability");

@@ -94,7 +94,10 @@ describe.sequential("multi-provider live language calls", () => {
     it.skipIf(!enabled)(
       `${providerCase.provider} regulatory discovery exposes cited web sources`,
       async () => {
-        const search = providerWebSearch(providerCase.provider);
+        const search = providerWebSearch(providerCase.provider, {
+          country: "MA",
+          timezone: "Africa/Casablanca",
+        });
         const result = await generateText({
           model: languageModel({ provider: providerCase.provider, model: providerCase.model }),
           prompt: "Find the official Moroccan workplace health and safety law and cite the source.",

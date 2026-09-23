@@ -12,6 +12,22 @@
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["--filter", "@qhse/client-web", "dev"],
       "port": 5173
+    },
+    {
+      "name": "client-api",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": [
+        "exec",
+        "dotenv",
+        "-e",
+        ".env",
+        "--",
+        "pnpm",
+        "--filter",
+        "@qhse/client-api",
+        "dev"
+      ],
+      "port": 3000
     }
   ]
 }

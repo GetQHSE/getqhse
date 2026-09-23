@@ -1,12 +1,9 @@
 import type { PropsWithChildren, ReactNode } from "react";
 import { CheckIcon, ShieldCheckIcon, SparklesIcon } from "lucide-react";
 import { BrandLogo } from "@qhse/ui/components/brand-logo";
+import { useTranslation } from "react-i18next";
 
-const steps = [
-  { number: 1, label: "Votre compte" },
-  { number: 2, label: "Votre organisation" },
-  { number: 3, label: "Votre premier projet" },
-];
+import { LanguageSelect } from "../../components/language-switcher.js";
 
 export function OnboardingShell({
   currentStep,
@@ -15,45 +12,43 @@ export function OnboardingShell({
   description,
   children,
   aside,
-  finalStepLabel = "Votre premier projet",
+  finalStepLabel,
 }: PropsWithChildren<{
   currentStep: 1 | 2 | 3;
   eyebrow: string;
   title: string;
   description: string;
   aside?: ReactNode;
-  finalStepLabel?: string;
+  finalStepLabel?: string | undefined;
 }>) {
-  const displayedSteps = steps.map((step) =>
-    step.number === 3 ? { ...step, label: finalStepLabel } : step,
-  );
+  const { t } = useTranslation("onboarding");
+  const displayedSteps = [
+    { number: 1, label: t("shell.steps.account") },
+    { number: 2, label: t("shell.steps.organization") },
+    { number: 3, label: finalStepLabel ?? t("shell.steps.firstProject") },
+  ];
   return (
     <main className="min-h-screen bg-[#f6f6f8] text-slate-950 lg:grid lg:grid-cols-[22rem_minmax(0,1fr)]">
       <aside className="relative overflow-hidden bg-[#080c16] px-6 py-7 text-white lg:flex lg:min-h-screen lg:flex-col lg:px-8 lg:py-9">
-        <div className="absolute -left-24 top-1/3 size-64 rounded-full bg-violet-600/20 blur-3xl" />
-        <div className="absolute -right-32 bottom-10 size-72 rounded-full bg-cyan-400/10 blur-3xl" />
+        <div className="absolute -start-24 top-1/3 size-64 rounded-full bg-violet-600/20 blur-3xl" />
+        <div className="absolute -end-32 bottom-10 size-72 rounded-full bg-cyan-400/10 blur-3xl" />
         <div className="relative">
           <BrandLogo
             variant="dark-background"
             label="GetQHSE"
-            className="h-10 w-auto max-w-48 object-contain object-left"
+            className="h-10 w-auto max-w-48 object-contain object-left rtl:object-right"
           />
           <div>
-            <p className="text-xs text-slate-400">Votre copilote conformité</p>
+            <p className="text-xs text-slate-400">{t("shell.tagline")}</p>
           </div>
         </div>
 
         <div className="relative mt-8 hidden lg:block">
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-violet-300">
-            Configuration
+            {t("shell.setup")}
           </p>
-          <h2 className="mt-3 text-2xl font-semibold leading-tight">
-            Un espace clair pour piloter votre démarche QHSE.
-          </h2>
-          <p className="mt-3 text-sm leading-6 text-slate-400">
-            Nous préparons votre environnement afin que l’assistant adapte ses questions et ses
-            recommandations à votre activité.
-          </p>
+          <h2 className="mt-3 text-2xl font-semibold leading-tight">{t("shell.heading")}</h2>
+          <p className="mt-3 text-sm leading-6 text-slate-400">{t("shell.body")}</p>
         </div>
 
         <ol className="relative mt-7 hidden space-y-2 lg:block">
@@ -86,12 +81,9 @@ export function OnboardingShell({
 
         <div className="relative mt-auto hidden rounded-2xl border border-white/10 bg-white/[0.04] p-4 lg:block">
           <div className="flex items-center gap-2 text-sm font-medium">
-            <ShieldCheckIcon className="size-4 text-emerald-400" /> Données sécurisées
+            <ShieldCheckIcon className="size-4 text-emerald-400" /> {t("shell.secureTitle")}
           </div>
-          <p className="mt-2 text-xs leading-5 text-slate-400">
-            Vos informations restent séparées par organisation et alimentent uniquement votre espace
-            de travail.
-          </p>
+          <p className="mt-2 text-xs leading-5 text-slate-400">{t("shell.secureBody")}</p>
         </div>
       </aside>
 
@@ -99,6 +91,7 @@ export function OnboardingShell({
         <div className="w-full max-w-4xl">
           <div className="mb-7 flex items-center gap-2 text-sm font-medium text-violet-700">
             <SparklesIcon className="size-4" /> {eyebrow}
+            <LanguageSelect className="ms-auto" />
           </div>
           <div className="max-w-2xl">
             <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">{title}</h1>

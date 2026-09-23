@@ -9,13 +9,15 @@ import {
   SparklesIcon,
   UsersIcon,
 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 
 import { useAuth } from "../../app/auth.js";
 
 export function DashboardPage() {
   const { activeOrganization, projects, user } = useAuth();
-  const displayName = user?.email.split("@")[0] ?? "bonjour";
+  const { t } = useTranslation("workspace");
+  const displayName = user?.email.split("@")[0] ?? t("dashboard.greetingFallback");
   const firstProject = projects[0];
 
   return (
@@ -23,70 +25,66 @@ export function DashboardPage() {
       <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-sm font-medium text-violet-700">{activeOrganization?.name}</p>
-          <h1 className="mt-1 text-3xl font-semibold tracking-tight">Bonjour {displayName}</h1>
-          <p className="mt-2 text-sm text-slate-600">
-            Voici le point de départ de votre espace QHSE.
-          </p>
+          <h1 className="mt-1 text-3xl font-semibold tracking-tight">
+            {t("dashboard.greeting", { name: displayName })}
+          </h1>
+          <p className="mt-2 text-sm text-slate-600">{t("dashboard.subtitle")}</p>
         </div>
         <Link
           to="/projects/new"
           className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 text-sm font-medium text-white transition hover:bg-slate-800"
         >
-          <PlusIcon className="size-4" /> Nouveau projet
+          <PlusIcon className="size-4" /> {t("dashboard.newProject")}
         </Link>
       </header>
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.45fr)_minmax(18rem,0.55fr)]">
         <article className="relative overflow-hidden rounded-3xl bg-[#0a0e18] p-6 text-white shadow-sm sm:p-8">
-          <div className="absolute -right-16 -top-20 size-72 rounded-full bg-violet-600/25 blur-3xl" />
-          <div className="absolute bottom-0 right-1/4 size-40 rounded-full bg-cyan-400/10 blur-3xl" />
+          <div className="absolute -end-16 -top-20 size-72 rounded-full bg-violet-600/25 blur-3xl" />
+          <div className="absolute bottom-0 end-1/4 size-40 rounded-full bg-cyan-400/10 blur-3xl" />
           <div className="relative max-w-xl">
             <span className="inline-flex items-center gap-2 rounded-full border border-violet-400/20 bg-violet-400/10 px-3 py-1.5 text-xs font-medium text-violet-200">
-              <SparklesIcon className="size-3.5" /> Assistant QHSE
+              <SparklesIcon className="size-3.5" /> {t("dashboard.assistant")}
             </span>
             <h2 className="mt-5 text-2xl font-semibold tracking-tight sm:text-3xl">
               {firstProject
-                ? `Continuez le profil de ${firstProject.name}`
-                : "Créez votre premier périmètre QHSE"}
+                ? t("dashboard.continueProfile", { project: firstProject.name })
+                : t("dashboard.createFirst")}
             </h2>
             <p className="mt-3 max-w-lg text-sm leading-6 text-slate-400">
-              {firstProject
-                ? "Répondez aux questions guidées pour préparer une veille réglementaire adaptée à votre activité."
-                : "Ajoutez l’entreprise, le site ou l’établissement à accompagner. L’assistant vous guidera ensuite étape par étape."}
+              {firstProject ? t("dashboard.continueBody") : t("dashboard.createBody")}
             </p>
             <Link
               to={firstProject ? `/projects/${firstProject.slug}/chat` : "/projects/new"}
               className="mt-6 inline-flex h-10 items-center gap-2 rounded-xl bg-violet-600 px-4 text-sm font-semibold text-white transition hover:bg-violet-500"
             >
-              {firstProject ? "Reprendre avec l’assistant" : "Configurer un projet"}
-              <ArrowRightIcon className="size-4" />
+              {firstProject ? t("dashboard.resume") : t("dashboard.setUp")}
+              <ArrowRightIcon className="size-4 rtl:rotate-180" />
             </Link>
           </div>
         </article>
 
         <article className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
           <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">
-            Votre espace
+            {t("dashboard.yourSpace")}
           </p>
           <div className="mt-5 grid grid-cols-2 gap-3">
             <div className="rounded-2xl bg-violet-50 p-4">
               <FolderKanbanIcon className="size-5 text-violet-700" />
               <p className="mt-4 text-2xl font-semibold">{projects.length}</p>
               <p className="mt-1 text-xs text-slate-600">
-                Projet{projects.length === 1 ? "" : "s"}
+                {t("dashboard.projects", { count: projects.length })}
               </p>
             </div>
             <div className="rounded-2xl bg-emerald-50 p-4">
               <UsersIcon className="size-5 text-emerald-700" />
               <p className="mt-4 text-2xl font-semibold">1</p>
-              <p className="mt-1 text-xs text-slate-600">Organisation</p>
+              <p className="mt-1 text-xs text-slate-600">{t("dashboard.organization")}</p>
             </div>
           </div>
           <div className="mt-5 flex items-start gap-3 border-t border-slate-100 pt-5">
             <CheckCircle2Icon className="mt-0.5 size-4 shrink-0 text-emerald-500" />
-            <p className="text-xs leading-5 text-slate-600">
-              Votre organisation est configurée. Ajoutez des collaborateurs depuis l’espace équipe.
-            </p>
+            <p className="text-xs leading-5 text-slate-600">{t("dashboard.configured")}</p>
           </div>
         </article>
       </div>
@@ -95,21 +93,21 @@ export function DashboardPage() {
         <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
           <div className="flex items-center justify-between gap-4">
             <div>
-              <h2 className="font-semibold">Vos projets</h2>
-              <p className="mt-1 text-xs text-slate-500">Accédez rapidement à chaque périmètre.</p>
+              <h2 className="font-semibold">{t("dashboard.yourProjects")}</h2>
+              <p className="mt-1 text-xs text-slate-500">{t("dashboard.yourProjectsHelp")}</p>
             </div>
             <Link
               to="/projects"
               className="text-xs font-semibold text-violet-700 hover:text-violet-900"
             >
-              Voir tous
+              {t("dashboard.viewAll")}
             </Link>
           </div>
           {projects.length === 0 ? (
             <div className="mt-5 rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-7 text-center">
               <FolderKanbanIcon className="mx-auto size-6 text-slate-400" />
-              <p className="mt-3 text-sm font-medium">Aucun projet pour le moment</p>
-              <p className="mt-1 text-xs text-slate-500">Votre premier projet apparaîtra ici.</p>
+              <p className="mt-3 text-sm font-medium">{t("dashboard.noProjects")}</p>
+              <p className="mt-1 text-xs text-slate-500">{t("dashboard.noProjectsHelp")}</p>
             </div>
           ) : (
             <ul className="mt-5 grid gap-3 sm:grid-cols-2">
@@ -131,7 +129,7 @@ export function DashboardPage() {
                           .join(" · ") || "ISO 9001"}
                       </span>
                     </span>
-                    <ArrowRightIcon className="size-4 text-slate-300 transition group-hover:translate-x-0.5 group-hover:text-violet-600" />
+                    <ArrowRightIcon className="size-4 text-slate-300 transition group-hover:translate-x-0.5 group-hover:text-violet-600 rtl:rotate-180 rtl:group-hover:-translate-x-0.5" />
                   </Link>
                 </li>
               ))}
@@ -140,26 +138,26 @@ export function DashboardPage() {
         </section>
 
         <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-          <h2 className="font-semibold">Modules</h2>
-          <p className="mt-1 text-xs text-slate-500">Construisez votre système progressivement.</p>
+          <h2 className="font-semibold">{t("dashboard.modules")}</h2>
+          <p className="mt-1 text-xs text-slate-500">{t("dashboard.modulesHelp")}</p>
           <div className="mt-5 space-y-2">
             {[
               {
                 icon: MessageSquareTextIcon,
-                label: "Profil guidé",
-                status: "Disponible",
+                label: t("dashboard.moduleProfile"),
+                status: t("dashboard.available"),
                 color: "text-violet-700 bg-violet-50",
               },
               {
                 icon: ScaleIcon,
-                label: "Veille réglementaire",
-                status: "À venir",
+                label: t("dashboard.moduleWatch"),
+                status: t("dashboard.comingSoon"),
                 color: "text-blue-700 bg-blue-50",
               },
               {
                 icon: FileSearchIcon,
-                label: "Audits et preuves",
-                status: "À venir",
+                label: t("dashboard.moduleAudits"),
+                status: t("dashboard.comingSoon"),
                 color: "text-emerald-700 bg-emerald-50",
               },
             ].map((module) => (

@@ -7,6 +7,22 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./smq/context/method": {
+      "types": "./dist/smq/context/method.d.ts",
+      "default": "./dist/smq/context/method.js"
+    },
+    "./smq/context/labels": {
+      "types": "./dist/smq/context/labels.d.ts",
+      "default": "./dist/smq/context/labels.js"
+    },
+    "./countries": {
+      "types": "./dist/countries.d.ts",
+      "default": "./dist/countries.js"
+    },
+    "./language": {
+      "types": "./dist/language.d.ts",
+      "default": "./dist/language.js"
     }
   },
   "scripts": {
@@ -18,6 +34,7 @@
     "test:coverage": "vitest run --coverage"
   },
   "devDependencies": {
+    "@types/node": "^24.10.10",
     "typescript": "^6.0.3",
     "vitest": "^4.1.10"
   }

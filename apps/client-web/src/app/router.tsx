@@ -1,3 +1,5 @@
+import type { ParseKeys } from "i18next";
+import { useTranslation } from "react-i18next";
 import { createBrowserRouter } from "react-router-dom";
 
 import { AppLayout } from "./layout.js";
@@ -14,12 +16,14 @@ import { SitesPage } from "../features/sites/sites-page.js";
 import { TestAiChatPage } from "../features/ai-chat/test-ai-chat-page.js";
 import { TestAiChatPage2 } from "../features/ai-chat/test-ai-chat-page-2.js";
 import { TestAiChatPage3 } from "../features/ai-chat/test-ai-chat-page-3.js";
+import { ContextPage } from "../features/context/context-page.js";
 import { RegulatoryWatchTestPage } from "../features/regulatory-watch/regulatory-watch-test-page.js";
 import { RegulatoryWatchPage } from "../features/regulatory-watch/regulatory-watch-page.js";
 import { TeamPage } from "../features/organizations/team-page.js";
 
-function Placeholder({ title }: { title: string }) {
-  return <h1 className="text-2xl font-semibold">{title}</h1>;
+function Placeholder({ title }: { title: ParseKeys<"common"> }) {
+  const { t } = useTranslation();
+  return <h1 className="text-2xl font-semibold">{t(title)}</h1>;
 }
 
 export const router = createBrowserRouter([
@@ -75,13 +79,14 @@ export const router = createBrowserRouter([
       { path: "projects", element: <ProjectsPage /> },
       { path: "projects/:projectId/chat", element: <ProjectChatPage /> },
       { path: "projects/:projectId/profile", element: <ProjectProfilePage /> },
+      { path: "projects/:projectId/context", element: <ContextPage /> },
       {
         path: "projects/:projectId/regulatory-watch",
         element: <RegulatoryWatchPage />,
       },
       {
         path: "projects/:projectId/settings",
-        element: <Placeholder title="Paramètres du projet" />,
+        element: <Placeholder title="pages.projectSettings" />,
       },
       { path: "team", element: <TeamPage /> },
       {
@@ -92,10 +97,10 @@ export const router = createBrowserRouter([
           </PermissionRoute>
         ),
       },
-      { path: "audits", element: <Placeholder title="Audits" /> },
-      { path: "evidence", element: <Placeholder title="Éléments de preuve" /> },
-      { path: "notifications", element: <Placeholder title="Notifications" /> },
-      { path: "forbidden", element: <Placeholder title="Accès refusé" /> },
+      { path: "audits", element: <Placeholder title="pages.audits" /> },
+      { path: "evidence", element: <Placeholder title="pages.evidence" /> },
+      { path: "notifications", element: <Placeholder title="pages.notifications" /> },
+      { path: "forbidden", element: <Placeholder title="pages.forbidden" /> },
     ],
   },
 ]);

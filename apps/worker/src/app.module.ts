@@ -5,6 +5,8 @@ import { queueNames } from "./queues.js";
 import { WorkerHealthServer } from "./health-server.js";
 import { DocumentIngestionProcessor } from "./processors/document-ingestion.processor.js";
 import { DocumentProcessingProcessor } from "./processors/document-processing.processor.js";
+import { ContextAnalysisProcessor } from "./processors/context-analysis.processor.js";
+import { ContextExternalResearchProcessor } from "./processors/context-external-research.processor.js";
 import { RegulatoryAnalysisProcessor } from "./processors/regulatory-analysis.processor.js";
 import { RegulatoryEvaluationProcessor } from "./processors/regulatory-evaluation.processor.js";
 import {
@@ -45,6 +47,8 @@ const redisUrl = new URL(process.env["REDIS_URL"] ?? "redis://localhost:6379");
     DocumentProcessingProcessor,
     RegulatoryAnalysisProcessor,
     RegulatoryEvaluationProcessor,
+    ContextExternalResearchProcessor,
+    ContextAnalysisProcessor,
     KnowledgeEmbeddingProcessor,
     KnowledgeEmbeddingReconciler,
     RegulatoryImpactProcessor,

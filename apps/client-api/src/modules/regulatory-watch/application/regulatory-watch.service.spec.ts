@@ -6,7 +6,147 @@ import {
 } from "@nestjs/common";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { evaluationCarryForward, RegulatoryWatchService } from "./regulatory-watch.service.js";
+import {
+  automaticCandidateDecision,
+  evaluationCarryForward,
+  RegulatoryWatchService,
+} from "./regulatory-watch.service.js";
+
+describe("automatic regulatory applicability", () => {
+  const discovered = {
+    decision: null,
+    decisionSource: null,
+    changeType: "ADDED",
+    suggestion: "TO_CONFIRM",
+    sourceType: "DISCOVERED_LAW" as const,
+    requirementStatus: "SOURCE_REVIEW_REQUIRED",
+    requirementText: null,
+    requirementSource: null,
+  };
+
+  it("keeps a discovered law applicable even when its article text is missing", () => {
+    expect(automaticCandidateDecision(discovered)).toBe("APPLICABLE");
+  });
+
+  it("does not publish a platform provision without a verified requirement", () => {
+    expect(
+      automaticCandidateDecision({
+        ...discovered,
+        decision: "APPLICABLE",
+        decisionSource: "SYSTEM",
+        sourceType: "PLATFORM_PROVISION",
+      }),
+    ).toBe("NOT_APPLICABLE");
+  });
+
+  it("preserves a prior human rejection and an analysis exclusion", () => {
+    expect(
+      automaticCandidateDecision({
+        ...discovered,
+        decision: "NOT_APPLICABLE",
+        decisionSource: "HUMAN",
+      }),
+    ).toBe("NOT_APPLICABLE");
+    expect(automaticCandidateDecision({ ...discovered, suggestion: "NOT_APPLICABLE" })).toBe(
+      "NOT_APPLICABLE",
+    );
+  });
+
+  it("publishes an existing undecided discovered law as a system decision", async () => {
+    process.env["DATABASE_URL"] ??= "postgresql://postgres:postgres@localhost:5432/qhse_test";
+    const previousFlag = process.env["REGULATORY_AUTO_APPLICABLE"];
+    process.env["REGULATORY_AUTO_APPLICABLE"] = "true";
+    try {
+      const service = new RegulatoryWatchService({
+        assertWorkerAvailable: vi.fn().mockResolvedValue(undefined),
+        enqueue: vi.fn().mockResolvedValue({}),
+      } as never);
+      const candidate = {
+        id: "candidate-1",
+        sourceType: "DISCOVERED_LAW",
+        sourceReference: "Loi n° 65-99",
+        sourceTitle: "Code du travail",
+        sourceUrl: null,
+        provision: null,
+        provisionId: null,
+        previousEntry: null,
+        previousEntryId: null,
+        changeType: "ADDED",
+        suggestion: "TO_CONFIRM",
+        decision: null,
+        decisionSource: null,
+        requiresReview: true,
+        requirementStatus: "NOT_REQUIRED",
+        requirementText: null,
+        requirementSource: null,
+        requirementSupportingExcerpts: [],
+        rationale: "L'entreprise emploie 300 salariés.",
+        reviewedAt: null,
+        reviewedById: null,
+      };
+      const run = {
+        id: "run-1",
+        createdById: "initiator-1",
+        profileSnapshotId: "snapshot-1",
+        baseBaselineId: null,
+        review: null,
+        candidates: [candidate],
+      };
+      const tx = {
+        projectRegulatoryWatch: {
+          updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+          update: vi.fn().mockResolvedValue({}),
+        },
+        regulatoryApplicabilityCandidate: { update: vi.fn().mockResolvedValue({}) },
+        regulatoryBaseline: {
+          count: vi.fn().mockResolvedValue(0),
+          create: vi.fn().mockResolvedValue({ id: "baseline-1" }),
+          updateMany: vi.fn().mockResolvedValue({}),
+        },
+        regulatoryRegisterEntry: { create: vi.fn().mockResolvedValue({ id: "entry-1" }) },
+        regulatoryEvaluation: { create: vi.fn().mockResolvedValue({}) },
+        regulatoryAnalysisRun: { update: vi.fn().mockResolvedValue({}) },
+      };
+      (service as unknown as { loadedWatch(): Promise<unknown> }).loadedWatch = async () => ({
+        id: "watch-1",
+        currentBaselineId: null,
+      });
+      (service as unknown as { get(): Promise<unknown> }).get = async () => ({ status: "ACTIVE" });
+      (service as unknown as { database: object }).database = {
+        regulatoryAnalysisRun: { findFirst: vi.fn().mockResolvedValue(run) },
+        $transaction: (callback: (transaction: typeof tx) => Promise<unknown>) => callback(tx),
+      };
+
+      await expect(
+        service.publishAutomatically(
+          { organizationId: "org-1", userId: "owner-1", role: "owner" },
+          "atlas-industrie",
+          { analysisRunId: "run-1", watchRevision: 1 },
+        ),
+      ).resolves.toEqual({ status: "ACTIVE" });
+      expect(tx.regulatoryApplicabilityCandidate.update).toHaveBeenCalledWith({
+        where: { id: "candidate-1" },
+        data: { decision: "APPLICABLE", decisionSource: "SYSTEM", requiresReview: false },
+      });
+      expect(tx.regulatoryRegisterEntry.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            baselineId: "baseline-1",
+            sourceReference: "Loi n° 65-99",
+            requirementReviewedById: null,
+            requirementReviewedAt: null,
+          }),
+        }),
+      );
+      expect(tx.regulatoryBaseline.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({ publishedById: "initiator-1" }),
+      });
+    } finally {
+      if (previousFlag === undefined) delete process.env["REGULATORY_AUTO_APPLICABLE"];
+      else process.env["REGULATORY_AUTO_APPLICABLE"] = previousFlag;
+    }
+  });
+});
 
 describe("RegulatoryWatchService authorization", () => {
   it("rejects applicability approval by regular members before touching persistence", async () => {
@@ -36,6 +176,7 @@ describe("regulatory analysis reviews", () => {
     });
     (service as unknown as { get(): Promise<unknown> }).get = async () => ({ id: "watch-1" });
     (service as unknown as { database: object }).database = {
+      project: { findFirst: vi.fn().mockResolvedValue({ countryCode: "MA" }) },
       regulatoryAnalysisRun: { findFirst: vi.fn().mockResolvedValue({ id: "run-1" }) },
       regulatoryAnalysisReview: { upsert },
       aiKnowledgeExample: { upsert: knowledgeUpsert, deleteMany: vi.fn() },
@@ -249,6 +390,7 @@ describe("AI-assisted conformity evaluation", () => {
       });
     (service as unknown as { get(): Promise<unknown> }).get = async () => ({ id: "watch-1" });
     (service as unknown as { database: object }).database = {
+      project: { findFirst: vi.fn().mockResolvedValue({ countryCode: "MA" }) },
       regulatoryEvaluation: { updateMany: evaluationUpdateMany },
       regulatoryEvaluationAction: { count: vi.fn().mockResolvedValue(1), create: actionCreate },
       aiKnowledgeExample: { upsert: knowledgeUpsert },
@@ -394,6 +536,29 @@ describe("accuracy-first regulatory review gates", () => {
         }),
       }),
     );
+    expect(candidateUpdate.mock.calls[0]?.[0]?.data).not.toHaveProperty("requirementText");
+  });
+
+  it("keeps a discovered law's AI-drafted article under source review after approval", async () => {
+    const { service, candidateUpdate } = serviceWithLoadedWatch({
+      id: "candidate-discovered",
+      sourceType: "DISCOVERED_LAW",
+      requirementStatus: "SOURCE_REVIEW_REQUIRED",
+      requirementText: "Article 12 : Nommer un délégué à la protection des données.",
+    });
+    await service.decideCandidate(tenant, "project-1", "candidate-discovered", {
+      watchRevision: 3,
+      decision: "APPLICABLE",
+    });
+    expect(candidateUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          decision: "APPLICABLE",
+          requirementStatus: "SOURCE_REVIEW_REQUIRED",
+        }),
+      }),
+    );
+    // Approving applicability isn't approving the wording; the drafted text itself is untouched.
     expect(candidateUpdate.mock.calls[0]?.[0]?.data).not.toHaveProperty("requirementText");
   });
 
@@ -674,6 +839,31 @@ describe("bulk regulatory review decisions", () => {
         data: expect.objectContaining({
           decision: "APPLICABLE",
           requirementStatus: "NOT_REQUIRED",
+        }),
+      }),
+    );
+  });
+
+  it("keeps a discovered law's AI-drafted article under source review in bulk approval", async () => {
+    const { service, candidateUpdateMany } = serviceWithCandidates([
+      {
+        id: "candidate-discovered",
+        sourceType: "DISCOVERED_LAW",
+        requirementText: "Article 12 : Nommer un délégué à la protection des données.",
+      },
+    ]);
+
+    await service.decideCandidates(tenant, "project-1", {
+      watchRevision: 3,
+      decisions: [{ candidateId: "candidate-discovered", decision: "APPLICABLE" }],
+    });
+
+    expect(candidateUpdateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: { in: ["candidate-discovered"] } },
+        data: expect.objectContaining({
+          decision: "APPLICABLE",
+          requirementStatus: "SOURCE_REVIEW_REQUIRED",
         }),
       }),
     );

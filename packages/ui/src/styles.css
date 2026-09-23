@@ -7,11 +7,14 @@
 
 @source "../../../apps/**/*.{ts,tsx}";
 @source "./**/*.{ts,tsx}";
+@source "../node_modules/streamdown/dist/*.js";
 
 @theme inline {
   /* Typography */
   --font-heading: var(--font-sans);
-  --font-sans: "Inter Variable", sans-serif;
+  /* Inter has no Arabic glyphs: Arabic text falls back to the platform's Arabic UI fonts. */
+  --font-sans:
+    "Inter Variable", "Segoe UI", "SF Arabic", "Geeza Pro", "Noto Sans Arabic", Tahoma, sans-serif;
 
   /* Base */
   --color-background: var(--background);
