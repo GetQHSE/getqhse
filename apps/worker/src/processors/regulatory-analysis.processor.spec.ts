@@ -262,7 +262,7 @@ describe("regulatory analysis query planning", () => {
   it("lets the per-mtok overrides retune the primary model without touching other models", () => {
     process.env["OPENAI_REGULATORY_SERVICE_TIER"] = "default";
     process.env["OPENAI_REGULATORY_INPUT_USD_PER_MTOK"] = "1";
-    expect(regulatoryModelRates("gpt-5-mini").inputUsdPerMTok).toBe(1);
+    expect(regulatoryModelRates("gpt-5.6-luna").inputUsdPerMTok).toBe(1);
     expect(regulatoryModelRates("gpt-5-nano").inputUsdPerMTok).toBe(0.05);
   });
 

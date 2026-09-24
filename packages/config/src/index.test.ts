@@ -9,9 +9,9 @@ describe("serverEnvironmentSchema", () => {
     expect(serverEnvironmentSchema.shape.OPENAI_API_KEY.parse("test-key")).toBe("test-key");
   });
 
-  it("defaults regulatory analysis to bounded GPT-5 mini calls", () => {
+  it("defaults regulatory analysis to bounded GPT-5.6 Luna calls", () => {
     expect(serverEnvironmentSchema.shape.OPENAI_REGULATORY_MODEL.parse(undefined)).toBe(
-      "gpt-5-mini",
+      "gpt-5.6-luna",
     );
     expect(serverEnvironmentSchema.shape.OPENAI_REGULATORY_REASONING_EFFORT.parse(undefined)).toBe(
       "low",
