@@ -98,8 +98,6 @@ services:
     depends_on:
       migrate:
         condition: service_completed_successfully
-      docling:
-        condition: service_healthy
 
     deploy:
       resources:
@@ -139,8 +137,6 @@ services:
     depends_on:
       migrate:
         condition: service_completed_successfully
-      docling:
-        condition: service_healthy
 
     deploy:
       resources:
@@ -173,8 +169,6 @@ services:
     depends_on:
       migrate:
         condition: service_completed_successfully
-      docling:
-        condition: service_healthy
 
     stop_grace_period: 240s
 
@@ -184,46 +178,48 @@ services:
           cpus: ${WORKER_CPU_LIMIT:-2.0}
           memory: ${WORKER_MEMORY_LIMIT:-2G}
 
-  docling:
-    <<: *service-defaults
-
-    build:
-      context: services/docling
-      dockerfile: Dockerfile
-
-    environment:
-      DOCLING_HOST: 0.0.0.0
-      DOCLING_PORT: "8000"
-      DOCLING_MAX_UPLOAD_BYTES: ${DOCLING_MAX_UPLOAD_BYTES:-52428800}
-      DOCLING_ALLOWED_TYPES: ${DOCLING_ALLOWED_TYPES:-application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document}
-      DOCLING_OCR_LANGUAGES: ${DOCLING_OCR_LANGUAGES:-fra+ara}
-      DOCLING_MAX_CONCURRENT_CONVERSIONS: ${DOCLING_MAX_CONCURRENT_CONVERSIONS:-1}
-      DOCLING_REPAIR_DEGENERATE_TEXT_LAYER: ${DOCLING_REPAIR_DEGENERATE_TEXT_LAYER:-true}
-      DOCLING_INFER_HEADING_HIERARCHY: ${DOCLING_INFER_HEADING_HIERARCHY:-true}
-      DOCLING_FALLBACK_OCR_DPI: ${DOCLING_FALLBACK_OCR_DPI:-300}
-
-    expose:
-      - "8000"
-
-    volumes:
-      - docling-cache:/home/docling/.cache/huggingface
-
-    healthcheck:
-      test:
-        - CMD
-        - python
-        - -c
-        - import urllib.request; urllib.request.urlopen("http://127.0.0.1:8000/health/ready")
-      interval: 15s
-      timeout: 10s
-      retries: 10
-      start_period: 120s
-
-    deploy:
-      resources:
-        limits:
-          cpus: ${DOCLING_CPU_LIMIT:-4.0}
-          memory: ${DOCLING_MEMORY_LIMIT:-8G}
+  # Docling (document extraction/OCR) is disabled: it only served admin
+  # normative uploads, and the veille is web-search only. Uncomment to restore.
+  # docling:
+  #   <<: *service-defaults
+  #
+  #   build:
+  #     context: services/docling
+  #     dockerfile: Dockerfile
+  #
+  #   environment:
+  #     DOCLING_HOST: 0.0.0.0
+  #     DOCLING_PORT: "8000"
+  #     DOCLING_MAX_UPLOAD_BYTES: ${DOCLING_MAX_UPLOAD_BYTES:-52428800}
+  #     DOCLING_ALLOWED_TYPES: ${DOCLING_ALLOWED_TYPES:-application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document}
+  #     DOCLING_OCR_LANGUAGES: ${DOCLING_OCR_LANGUAGES:-fra+ara}
+  #     DOCLING_MAX_CONCURRENT_CONVERSIONS: ${DOCLING_MAX_CONCURRENT_CONVERSIONS:-1}
+  #     DOCLING_REPAIR_DEGENERATE_TEXT_LAYER: ${DOCLING_REPAIR_DEGENERATE_TEXT_LAYER:-true}
+  #     DOCLING_INFER_HEADING_HIERARCHY: ${DOCLING_INFER_HEADING_HIERARCHY:-true}
+  #     DOCLING_FALLBACK_OCR_DPI: ${DOCLING_FALLBACK_OCR_DPI:-300}
+  #
+  #   expose:
+  #     - "8000"
+  #
+  #   volumes:
+  #     - docling-cache:/home/docling/.cache/huggingface
+  #
+  #   healthcheck:
+  #     test:
+  #       - CMD
+  #       - python
+  #       - -c
+  #       - import urllib.request; urllib.request.urlopen("http://127.0.0.1:8000/health/ready")
+  #     interval: 15s
+  #     timeout: 10s
+  #     retries: 10
+  #     start_period: 120s
+  #
+  #   deploy:
+  #     resources:
+  #       limits:
+  #         cpus: ${DOCLING_CPU_LIMIT:-4.0}
+  #         memory: ${DOCLING_MEMORY_LIMIT:-8G}
 
   client-web:
     <<: *service-defaults
@@ -274,5 +270,5 @@ networks:
   app-internal:
     driver: bridge
 
-volumes:
-  docling-cache:
+# volumes:
+#   docling-cache:
