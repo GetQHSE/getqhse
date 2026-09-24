@@ -40,3 +40,6 @@ jobs:
       - run: pnpm env:check
       - run: pnpm test:unit
       - run: pnpm build
+      # Unit tests compile through esbuild, which drops decorator metadata; this resolves the
+      # tsc-built Nest apps so injection errors fail here instead of at container start.
+      - run: pnpm di:check

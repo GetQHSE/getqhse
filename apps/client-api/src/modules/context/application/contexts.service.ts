@@ -1,6 +1,12 @@
 import { randomUUID } from "node:crypto";
 
-import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
+import {
+  BadRequestException,
+  Inject,
+  Injectable,
+  NotFoundException,
+  Optional,
+} from "@nestjs/common";
 import type {
   AddContextIssueEvidence,
   ApplyContextIssueOverride,
@@ -51,7 +57,7 @@ export class ContextsService {
     @Inject(WorkQueueService) private readonly queue: WorkQueueService,
     @Inject(ContextAnswerAssistModelPort)
     private readonly answerAssist: ContextAnswerAssistModelPort,
-    database?: DatabaseClient,
+    @Optional() database?: DatabaseClient,
   ) {
     this.database = database ?? createPrismaClient();
   }

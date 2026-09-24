@@ -42,6 +42,7 @@
     "openapi:generate": "pnpm --filter @qhse/client-api openapi:generate",
     "openapi:admin:generate": "pnpm --filter @qhse/admin-api openapi:generate",
     "env:check": "node scripts/check-env.mjs",
+    "di:check": "node scripts/check-nest-di.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "deps:check": "pnpm outdated --recursive"
