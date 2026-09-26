@@ -1,121 +1,54 @@
 /**
- * Step 2 — méthode d'analyse + analyse du contexte externe. Same behaviour
- * and wording as the foundation's AnalysisMethodCard / ExternalAnalysisPanel,
- * rendered in the demo template's visual language.
+ * Tab 2 — analyse externe, as in the template: SWOT and/or PESTEL (both by
+ * default, never none), then one independent deliverable per method, never
+ * merged. SWOT puts the forces/faiblesses validated in tab 1 next to the
+ * opportunités/menaces found by the external research; PESTEL lays the
+ * researched factors out by dimension, the légal one reusing the published veille.
  */
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { ExternalLinkIcon, LoaderCircleIcon } from "lucide-react";
+import { ExternalLinkIcon } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import type {
-  ContextAnalysisMethod,
-  ContextExternalFactor,
-  ContextExternalRunSummary,
-  ProjectContextSettings,
-} from "@qhse/contracts";
-import { analysisMethodLabel, analysisMethodOptions } from "@qhse/domain/smq/context/method";
+import type { ContextAnalysisMethod, ContextExternalFactor, ContextIssue } from "@qhse/contracts";
+import {
+  analysisMethodOptions,
+  pestelDimensionKey,
+  pestelDimensions,
+  swotQuadrants,
+  type SwotQuadrantKey,
+} from "@qhse/domain/smq/context/method";
 import { cn } from "@qhse/ui/lib/utils";
 
-import { clientApi } from "../../app/client-api.js";
 import { currentLanguage } from "../../app/i18n.js";
 import {
   AiBanner,
-  ContextRunHistory,
-  EmptyState,
   ErrorState,
-  Field,
   FooterCard,
   GqButton,
   ProcessingState,
   ResultsHead,
-  notify,
 } from "./context-ui.js";
 
-/**
- * Method choice (SWOT or PESTEL) persisted at project level. Choosing never
- * launches an analysis and never rewrites an existing run.
- */
-export function AnalysisMethodCard({
-  projectId,
-  settings,
-}: {
-  projectId: string;
-  settings: ProjectContextSettings | undefined;
-}) {
-  const queryClient = useQueryClient();
-  const { t } = useTranslation("context");
-  const language = currentLanguage();
-  const current = settings?.analysisMethod ?? "SWOT";
-  const explicit = settings?.explicit ?? false;
+const SWOT_TONES: Record<SwotQuadrantKey, string> = {
+  force: "gq-swot-force",
+  faiblesse: "gq-swot-weakness",
+  opportunite: "gq-swot-opportunity",
+  menace: "gq-swot-threat",
+};
 
-  const save = useMutation({
-    mutationFn: (method: ContextAnalysisMethod) =>
-      clientApi.setContextMethod(projectId, { method }),
-    onSuccess: (next) => {
-      queryClient.setQueryData(["context-settings", projectId], next);
-      notify.success(
-        t("method.saved", {
-          method: analysisMethodLabel(next.analysisMethod.toLowerCase(), language),
-        }),
-      );
-    },
-    onError: () => notify.error(t("method.saveFailed")),
-  });
+const PESTEL_ICONS: Record<string, string> = {
+  politique: "◌",
+  economique: "↗",
+  social: "◎",
+  technologique: "⌁",
+  environnemental: "♧",
+  legal: "§",
+};
 
-  const choose = (method: ContextAnalysisMethod) => {
-    if (save.isPending || (explicit && method === current)) return;
-    save.mutate(method);
-  };
-
-  const currentLabel = analysisMethodLabel(current.toLowerCase(), language);
-
-  return (
-    <section className="gq-card">
-      <div className="gq-method-title">
-        <h3>{t("method.title")}</h3>
-        <span className="gq-method-badge">
-          {explicit ? currentLabel : t("method.byDefault", { method: currentLabel })}
-        </span>
-      </div>
-      <p className="gq-lead mt-1.5">{t("method.help")}</p>
-      <div className="gq-method-grid">
-        {analysisMethodOptions(language).map((option) => {
-          const value = option.value.toUpperCase() as ContextAnalysisMethod;
-          const selected = value === current;
-          return (
-            <button
-              key={option.value}
-              type="button"
-              aria-pressed={selected}
-              onClick={() => choose(value)}
-              disabled={save.isPending}
-              className={cn("gq-method-card", selected && "is-selected")}
-            >
-              <h4>
-                {option.title}
-                {selected ? <span className="gq-check">✓</span> : null}
-                {save.isPending && save.variables === value ? (
-                  <LoaderCircleIcon className="size-4 animate-spin text-slate-400" aria-hidden />
-                ) : null}
-              </h4>
-              <p>{option.description}</p>
-            </button>
-          );
-        })}
-      </div>
-    </section>
-  );
+interface Item {
+  id: string;
+  title: string;
+  text: string | null;
+  source?: { label: string; url: string | null } | null;
 }
-
-/** Orientation and evidence strength are stable French keys emitted by the AI. */
-const ORIENTATION_TONES = {
-  favorable: "is-opportunity",
-  defavorable: "is-threat",
-  incertain: "",
-} as const;
-type Orientation = keyof typeof ORIENTATION_TONES;
-
-const STRENGTHS = ["solide", "moderee", "faible"] as const;
-type Strength = (typeof STRENGTHS)[number];
 
 function hostname(url: string | null): string | null {
   if (!url) return null;
@@ -126,160 +59,225 @@ function hostname(url: string | null): string | null {
   }
 }
 
-export function ExternalFactorCard({ factor }: { factor: ContextExternalFactor }) {
+function factorItem(factor: ContextExternalFactor, regulatoryLabel: string): Item {
+  const source = factor.sources[0];
+  const regulatory = factor.sourceOrigin === "regulatory";
+  return {
+    id: factor.id,
+    title: factor.title,
+    text: factor.description ?? factor.relevanceToCompany,
+    source:
+      regulatory || source
+        ? {
+            label: regulatory
+              ? regulatoryLabel
+              : (source?.title ?? hostname(source?.url ?? null) ?? ""),
+            url: source?.url ?? null,
+          }
+        : null,
+  };
+}
+
+function Items({ items, empty }: { items: Item[]; empty: string }) {
   const { t } = useTranslation("context");
-  const orientation =
-    factor.orientation && factor.orientation in ORIENTATION_TONES
-      ? (factor.orientation as Orientation)
-      : null;
-  const strength = (STRENGTHS as readonly string[]).includes(factor.evidenceStrength ?? "")
-    ? (factor.evidenceStrength as Strength)
-    : null;
-  const influences = [
-    [t("external.objectives"), factor.influenceOnObjectives],
-    [t("external.quality"), factor.influenceOnQuality],
-    [t("external.customer"), factor.influenceOnCustomerSatisfaction],
-  ].filter((entry): entry is [string, string] => Boolean(entry[1]));
-
+  if (items.length === 0) return <p className="gq-item-empty">{empty}</p>;
   return (
-    <article className="gq-issue-card">
-      <div className="gq-issue-tags">
-        <span className={cn("gq-type", orientation ? ORIENTATION_TONES[orientation] : undefined)}>
-          {orientation
-            ? t(`external.orientation.${orientation}`)
-            : (factor.orientation ?? t("external.factor"))}
-        </span>
-        {factor.evidenceStrength ? (
-          <span className="gq-tag">
-            {strength ? t(`external.strength.${strength}`) : factor.evidenceStrength}
-          </span>
-        ) : null}
-        {factor.comparisonStatus === "recurrent" ? (
-          <span className="gq-tag">{t("external.recurrent")}</span>
-        ) : null}
-      </div>
-      <h4>{factor.title}</h4>
-      {factor.description ? <p>{factor.description}</p> : null}
-
-      <div className="gq-details">
-        {factor.relevanceToCompany ? (
-          <div>
-            <strong>{t("external.relevance")}</strong>
-            {factor.relevanceToCompany}
-          </div>
-        ) : null}
-        {influences.map(([label, text]) => (
-          <div key={label}>
-            <strong>{label}</strong>
-            {text}
-          </div>
-        ))}
-        {factor.geographicScope ? (
-          <div>
-            <strong>{t("external.geography")}</strong>
-            {factor.geographicScope}
-          </div>
-        ) : null}
-      </div>
-
-      {factor.sources.length > 0 ? (
-        <div className="gq-evidence">
-          <span>{t("external.sources", { count: factor.sources.length })}</span>
-          {factor.sources.map((source, index) => {
-            const isRegulatory =
-              factor.sourceOrigin === "regulatory" ||
-              source.groundingOrigin === "regulatory" ||
-              source.groundingOrigin === "regulatory_reuse";
-            const label = source.title ?? hostname(source.url) ?? t("external.source");
-            return (
-              <span key={source.id}>
-                {index > 0 ? " · " : ""}
-                {source.url ? (
-                  <a
-                    href={source.url}
-                    target="_blank"
-                    rel="noreferrer noopener"
-                    className="gq-link"
-                    title={isRegulatory ? t("external.regulatorySource") : t("external.webSource")}
-                  >
-                    {label}
-                    <ExternalLinkIcon className="size-3" aria-hidden />
-                  </a>
-                ) : (
-                  (source.title ?? t("external.noSource"))
-                )}
-              </span>
-            );
-          })}
+    <>
+      {items.map((item) => (
+        <div key={item.id} className="gq-item">
+          <strong>{item.title}</strong>
+          {item.text ? <span>{item.text}</span> : null}
+          {item.source ? (
+            <small className="gq-item-source">
+              {t("external.source")} ·{" "}
+              {item.source.url ? (
+                <a
+                  href={item.source.url}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  className="gq-link"
+                >
+                  {item.source.label}
+                  <ExternalLinkIcon className="size-3" aria-hidden />
+                </a>
+              ) : (
+                item.source.label
+              )}
+            </small>
+          ) : null}
         </div>
-      ) : null}
-    </article>
+      ))}
+    </>
   );
 }
 
-export function ExternalAnalysisPanel({
+function SwotMatrix({
+  internalIssues,
   factors,
-  runs,
-  scopeRows,
-  canLaunch,
-  blockedReason,
+}: {
+  internalIssues: ContextIssue[];
+  factors: ContextExternalFactor[];
+}) {
+  const { t } = useTranslation("context");
+  const regulatory = t("external.regulatorySource");
+  const items: Record<SwotQuadrantKey, Item[]> = {
+    force: internalIssues
+      .filter((issue) => issue.nature === "force")
+      .map((issue) => ({ id: issue.id, title: issue.title, text: issue.description })),
+    faiblesse: internalIssues
+      .filter((issue) => issue.nature === "faiblesse")
+      .map((issue) => ({ id: issue.id, title: issue.title, text: issue.description })),
+    opportunite: factors
+      .filter((factor) => factor.orientation === "favorable")
+      .map((factor) => factorItem(factor, regulatory)),
+    menace: factors
+      .filter((factor) => factor.orientation === "defavorable")
+      .map((factor) => factorItem(factor, regulatory)),
+  };
+
+  return (
+    <div className="gq-swot">
+      {swotQuadrants(currentLanguage()).map((quadrant) => (
+        <section key={quadrant.key} className={cn("gq-quadrant", SWOT_TONES[quadrant.key])}>
+          <div className="gq-quadrant-head">
+            <div>
+              <h4>{quadrant.label}</h4>
+              <small>{t(`external.swotSub.${quadrant.key}`)}</small>
+            </div>
+            <span className="gq-badge">{items[quadrant.key].length}</span>
+          </div>
+          <Items
+            items={items[quadrant.key]}
+            empty={
+              quadrant.key === "force" || quadrant.key === "faiblesse"
+                ? t("external.swotEmptyInternal")
+                : t("external.swotEmptyExternal")
+            }
+          />
+        </section>
+      ))}
+    </div>
+  );
+}
+
+function PestelGrid({ factors }: { factors: ContextExternalFactor[] }) {
+  const { t } = useTranslation("context");
+  const regulatory = t("external.regulatorySource");
+  return (
+    <div className="gq-pestel">
+      {pestelDimensions(currentLanguage()).map((dimension) => {
+        const items = factors
+          .filter(
+            (factor) =>
+              pestelDimensionKey(factor.categoryKey, factor.categoryLabel) === dimension.key,
+          )
+          .map((factor) => factorItem(factor, regulatory));
+        return (
+          <section key={dimension.key} className="gq-dimension">
+            <div className="gq-dimension-head">
+              <span className="gq-dimension-icon" aria-hidden>
+                {PESTEL_ICONS[dimension.key] ?? "•"}
+              </span>
+              <h4>{dimension.label}</h4>
+              <span className="gq-badge ms-auto">{items.length}</span>
+            </div>
+            <Items items={items} empty={t("external.pestelEmpty")} />
+          </section>
+        );
+      })}
+    </div>
+  );
+}
+
+export function ExternalAnalysisView({
+  methods,
+  generated,
+  factors,
+  internalIssues,
+  isSavingMethods,
   isRunning,
   errorMessage,
+  canLaunch,
+  blockedReason,
+  onToggleMethod,
   onLaunch,
   onContinue,
 }: {
+  methods: ContextAnalysisMethod[];
+  /** True once an analysis made with exactly these methods is available. */
+  generated: boolean;
   factors: ContextExternalFactor[];
-  runs: ContextExternalRunSummary[];
-  scopeRows: { label: string; value: string }[];
-  canLaunch: boolean;
-  blockedReason: string | null;
+  /** The forces and faiblesses validated in tab 1, for the SWOT matrix. */
+  internalIssues: ContextIssue[];
+  isSavingMethods: boolean;
   isRunning: boolean;
   errorMessage: string | null;
+  canLaunch: boolean;
+  blockedReason: string | null;
+  onToggleMethod: (method: ContextAnalysisMethod) => void;
   onLaunch: () => void;
   onContinue: () => void;
 }) {
   const { t } = useTranslation("context");
-  const grouped = new Map<string, ContextExternalFactor[]>();
-  for (const factor of factors) {
-    const bucket = grouped.get(factor.categoryLabel) ?? [];
-    bucket.push(factor);
-    grouped.set(factor.categoryLabel, bucket);
-  }
-  const hasFactors = factors.length > 0;
-  const sourcesCount = factors.reduce((sum, factor) => sum + factor.sources.length, 0);
+  const both = methods.length === 2;
+  const selection = methods.join(" + ");
 
   return (
-    <div className="mt-4 space-y-4">
-      <AiBanner
-        title={t("external.title")}
-        description={t("external.body")}
-        action={
+    <div className="space-y-4">
+      <section className="gq-card">
+        <h3>{t("external.methodTitle")}</h3>
+        <p className="gq-lead mt-1.5">{t("external.methodBody")}</p>
+        <div className="gq-method-grid">
+          {analysisMethodOptions(currentLanguage()).map((option) => {
+            const value = option.value.toUpperCase() as ContextAnalysisMethod;
+            const selected = methods.includes(value);
+            return (
+              <button
+                key={option.value}
+                type="button"
+                aria-pressed={selected}
+                disabled={isSavingMethods || isRunning}
+                onClick={() => onToggleMethod(value)}
+                className={cn("gq-method-card", selected && "is-selected")}
+              >
+                <h4>
+                  {option.title}
+                  {selected ? <span className="gq-check">✓</span> : null}
+                </h4>
+                <p>{option.description}</p>
+              </button>
+            );
+          })}
+        </div>
+        <div className="gq-row mt-5">
+          <div>
+            <strong className="text-[13px]">{selection}</strong>
+            <div className="mt-1 text-[11px] text-slate-500">
+              {both ? t("external.twoAnalyses") : t("external.oneAnalysis")}
+            </div>
+          </div>
           <GqButton variant="primary" disabled={!canLaunch || isRunning} onClick={onLaunch}>
             {isRunning
               ? t("external.running")
-              : hasFactors
-                ? t("external.rerun")
-                : t("external.run")}
+              : generated
+                ? both
+                  ? t("external.regenerateBoth")
+                  : t("external.regenerateOne")
+                : both
+                  ? t("external.generateBoth")
+                  : t("external.generateOne")}
           </GqButton>
-        }
-      >
-        <dl className="gq-context-grid">
-          {scopeRows.map((row) => (
-            <Field key={row.label} label={row.label}>
-              {row.value}
-            </Field>
-          ))}
-        </dl>
+        </div>
         {blockedReason ? (
-          <p className="mt-4 text-[12.5px] text-slate-500">{blockedReason}</p>
+          <p className="mt-3 text-[12.5px] text-slate-500">{blockedReason}</p>
         ) : null}
-      </AiBanner>
+      </section>
 
       {isRunning ? (
         <ProcessingState title={t("external.running")} description={t("external.runningBody")} />
       ) : null}
 
-      {errorMessage ? (
+      {errorMessage && !isRunning ? (
         <ErrorState
           title={t("external.failed")}
           description={errorMessage}
@@ -287,68 +285,45 @@ export function ExternalAnalysisPanel({
         />
       ) : null}
 
-      {!hasFactors && !isRunning && !errorMessage ? (
-        <EmptyState title={t("external.emptyTitle")} description={t("external.emptyBody")} />
+      {!generated && !isRunning && !errorMessage ? (
+        <AiBanner title={t("external.pendingTitle")} description={t("external.pendingBody")} />
       ) : null}
 
-      {hasFactors ? (
+      {generated && !isRunning && methods.includes("SWOT") ? (
         <section className="gq-section">
           <ResultsHead
-            label={t("external.resultsLabel")}
-            title={t("external.resultsTitle")}
-            description={t("external.resultsBody", {
-              factors: factors.length,
-              sources: sourcesCount,
-            })}
+            label={t("external.swotLabel")}
+            title={t("external.swotTitle")}
+            description={t("external.swotBody")}
             badge={<span className="gq-badge is-valid">{t("external.done")}</span>}
           />
-          {Array.from(grouped.entries()).map(([category, items]) => (
-            <div key={category} className="mt-5">
-              <h4 className="mb-2.5 text-[13px] font-semibold text-slate-900">
-                {category}{" "}
-                <span className="font-normal text-slate-400">
-                  {t("external.factorCount", { count: items.length })}
-                </span>
-              </h4>
-              <div className="gq-issue-grid">
-                {items.map((factor) => (
-                  <ExternalFactorCard key={factor.id} factor={factor} />
-                ))}
-              </div>
-            </div>
-          ))}
+          <SwotMatrix internalIssues={internalIssues} factors={factors} />
         </section>
       ) : null}
 
-      {hasFactors ? (
+      {generated && !isRunning && methods.includes("PESTEL") ? (
+        <section className="gq-section">
+          <ResultsHead
+            label={t("external.pestelLabel")}
+            title={t("external.pestelTitle")}
+            description={t("external.pestelBody")}
+            badge={<span className="gq-badge is-valid">{t("external.done")}</span>}
+          />
+          <PestelGrid factors={factors} />
+        </section>
+      ) : null}
+
+      {generated && !isRunning ? (
         <FooterCard
           title={t("external.readyTitle")}
-          description={t("external.readyBody")}
+          description={both ? t("external.preparedBoth") : t("external.preparedOne")}
           action={
-            <GqButton variant="primary" onClick={onContinue} disabled={isRunning}>
+            <GqButton variant="primary" onClick={onContinue}>
               {t("external.toSynthesis")}
             </GqButton>
           }
         />
       ) : null}
-
-      <ContextRunHistory
-        title={t("external.history")}
-        runs={runs.map((run) => ({
-          id: run.id,
-          status: run.status,
-          createdAt: run.createdAt,
-          errorMessage: run.errorMessage,
-          detail:
-            t("external.historyDetail", {
-              factors: run.factorsCount,
-              sources: run.sourcesCount,
-            }) +
-            (run.searchQueries.length > 0
-              ? t("external.historySearches", { count: run.searchQueries.length })
-              : ""),
-        }))}
-      />
     </div>
   );
 }

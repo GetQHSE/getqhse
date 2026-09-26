@@ -1,3 +1,4 @@
+import { lazy, Suspense, type ReactNode } from "react";
 import type { ParseKeys } from "i18next";
 import { useTranslation } from "react-i18next";
 import { createBrowserRouter } from "react-router-dom";
@@ -20,6 +21,22 @@ import { ContextPage } from "../features/context/context-page.js";
 import { RegulatoryWatchTestPage } from "../features/regulatory-watch/regulatory-watch-test-page.js";
 import { RegulatoryWatchPage } from "../features/regulatory-watch/regulatory-watch-page.js";
 import { TeamPage } from "../features/organizations/team-page.js";
+
+// Template mocks carry the captured screens: loaded only when opened.
+const InterestedPartiesMockPage = lazy(() =>
+  import("../features/template-mocks/interested-parties-mock-page.js").then((module) => ({
+    default: module.InterestedPartiesMockPage,
+  })),
+);
+const RisksMockPage = lazy(() =>
+  import("../features/template-mocks/risks-mock-page.js").then((module) => ({
+    default: module.RisksMockPage,
+  })),
+);
+
+function Lazy({ children }: { children: ReactNode }) {
+  return <Suspense fallback={null}>{children}</Suspense>;
+}
 
 function Placeholder({ title }: { title: ParseKeys<"common"> }) {
   const { t } = useTranslation();
@@ -80,6 +97,22 @@ export const router = createBrowserRouter([
       { path: "projects/:projectId/chat", element: <ProjectChatPage /> },
       { path: "projects/:projectId/profile", element: <ProjectProfilePage /> },
       { path: "projects/:projectId/context", element: <ContextPage /> },
+      {
+        path: "projects/:projectId/interested-parties",
+        element: (
+          <Lazy>
+            <InterestedPartiesMockPage />
+          </Lazy>
+        ),
+      },
+      {
+        path: "projects/:projectId/risks",
+        element: (
+          <Lazy>
+            <RisksMockPage />
+          </Lazy>
+        ),
+      },
       {
         path: "projects/:projectId/regulatory-watch",
         element: <RegulatoryWatchPage />,

@@ -18,7 +18,7 @@ import {
   contextAnswerAssistRequestSchema,
   createManualContextIssueSchema,
   saveContextInternalInputsSchema,
-  setContextAnalysisMethodSchema,
+  setContextAnalysisMethodsSchema,
   upsertContextInternalInputSchema,
 } from "@qhse/contracts";
 
@@ -44,19 +44,19 @@ export class ContextsController {
   constructor(@Inject(ContextsService) private readonly contexts: ContextsService) {}
 
   @Get("settings")
-  @ApiOkResponse({ description: "Analysis method choice (SWOT or PESTEL)" })
+  @ApiOkResponse({ description: "Analysis methods (SWOT and/or PESTEL)" })
   getSettings(@Req() request: QhseRequest, @Param("projectIdOrSlug") projectIdOrSlug: string) {
     return this.contexts.getSettings(request.tenant!, projectIdOrSlug);
   }
 
-  @Post("settings/method")
-  setMethod(
+  @Post("settings/methods")
+  setMethods(
     @Req() request: QhseRequest,
     @Param("projectIdOrSlug") projectIdOrSlug: string,
     @Body() body: unknown,
   ) {
-    const input = parse(setContextAnalysisMethodSchema, body);
-    return this.contexts.setMethod(request.tenant!, projectIdOrSlug, input.method);
+    const input = parse(setContextAnalysisMethodsSchema, body);
+    return this.contexts.setMethods(request.tenant!, projectIdOrSlug, input.methods);
   }
 
   @Get("internal-inputs")
@@ -86,6 +86,23 @@ export class ContextsController {
   ) {
     const input = parse(saveContextInternalInputsSchema, body);
     return this.contexts.saveInternalInputs(request.tenant!, projectIdOrSlug, input);
+  }
+
+  @Get("internal-issues")
+  @ApiOkResponse({ description: "Tab 1 — internal issues deduced from the declared context" })
+  listInternalIssues(
+    @Req() request: QhseRequest,
+    @Param("projectIdOrSlug") projectIdOrSlug: string,
+  ) {
+    return this.contexts.listInternalIssues(request.tenant!, projectIdOrSlug);
+  }
+
+  @Post("internal-issues/runs")
+  triggerInternalIssues(
+    @Req() request: QhseRequest,
+    @Param("projectIdOrSlug") projectIdOrSlug: string,
+  ) {
+    return this.contexts.triggerInternalIssues(request.tenant!, projectIdOrSlug);
   }
 
   @Get("scope")
@@ -128,7 +145,7 @@ export class ContextsController {
   }
 
   @Get("runs")
-  @ApiOkResponse({ description: "Step 3 — synthèse des enjeux run history" })
+  @ApiOkResponse({ description: "Internal-issues and synthesis run history" })
   listAnalysisRuns(@Req() request: QhseRequest, @Param("projectIdOrSlug") projectIdOrSlug: string) {
     return this.contexts.listAnalysisRuns(request.tenant!, projectIdOrSlug);
   }
@@ -139,9 +156,18 @@ export class ContextsController {
   }
 
   @Get("issues")
-  @ApiOkResponse({ description: "Step 4 — the latest completed run's register, for validation" })
+  @ApiOkResponse({ description: "Tab 3 — the latest completed synthesis, for evaluation" })
   listIssues(@Req() request: QhseRequest, @Param("projectIdOrSlug") projectIdOrSlug: string) {
     return this.contexts.listIssues(request.tenant!, projectIdOrSlug);
+  }
+
+  @Post("synthesis/validate")
+  @ApiOkResponse({ description: "Tab 3 — « Valider la synthèse », which unlocks the exports" })
+  validateSynthesis(
+    @Req() request: QhseRequest,
+    @Param("projectIdOrSlug") projectIdOrSlug: string,
+  ) {
+    return this.contexts.validateSynthesis(request.tenant!, projectIdOrSlug);
   }
 
   @Post("issues")

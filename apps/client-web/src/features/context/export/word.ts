@@ -110,6 +110,40 @@ export async function buildContextWordBlob(doc: ContextDocument): Promise<Blob> 
       ],
     });
 
+  /** The template's synthesis table: one evaluated issue per row. */
+  const SYNTHESIS_WIDTHS = [3000, 1900, 1100, 1100, 1100, 1160] as const;
+  const synthesisTable = (issues: ContextDocumentIssue[]) =>
+    new Table({
+      width: { size: 9360, type: WidthType.DXA },
+      visuallyRightToLeft: rtl,
+      columnWidths: [...SYNTHESIS_WIDTHS],
+      rows: [
+        new TableRow({
+          children: [
+            t("export.columns.identifiedIssue"),
+            t("export.columns.category"),
+            t("export.columns.nature"),
+            t("export.columns.impact"),
+            t("export.columns.mastery"),
+            t("export.columns.qualification"),
+          ].map((label, index) => cell(label, SYNTHESIS_WIDTHS[index]!, true)),
+        }),
+        ...issues.map(
+          (issue) =>
+            new TableRow({
+              children: [
+                issue.title,
+                issue.categoryLabel,
+                issue.originShort,
+                issue.impact,
+                issue.mastery,
+                issue.qualificationLabel,
+              ].map((value, index) => cell(value, SYNTHESIS_WIDTHS[index]!)),
+            }),
+        ),
+      ],
+    });
+
   const children: object[] = [
     new Paragraph({
       heading: HeadingLevel.HEADING_1,
@@ -171,7 +205,7 @@ export async function buildContextWordBlob(doc: ContextDocument): Promise<Blob> 
   if (doc.synthesis.length === 0) {
     children.push(body(t("export.noIssues")));
   } else {
-    children.push(issueTable(doc.synthesis));
+    children.push(synthesisTable(doc.synthesis));
   }
 
   const document = new Document({

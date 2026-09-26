@@ -7,3 +7,5 @@ packages/database/src/generated
 packages/database/prisma/migrations
 playwright-report
 test-results
+apps/client-web/src/features/template-mocks/*.snapshots.json
+apps/client-web/src/features/template-mocks/template-mocks.css

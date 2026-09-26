@@ -289,7 +289,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Analysis method choice (SWOT or PESTEL)"
+            "description": "Analysis methods (SWOT and/or PESTEL)"
           }
         },
         "security": [
@@ -300,9 +300,9 @@
         "tags": ["context"]
       }
     },
-    "/v1/projects/{projectIdOrSlug}/context/settings/method": {
+    "/v1/projects/{projectIdOrSlug}/context/settings/methods": {
       "post": {
-        "operationId": "ContextsController_setMethod",
+        "operationId": "ContextsController_setMethods",
         "parameters": [
           {
             "name": "x-organization-id",
@@ -379,6 +379,58 @@
     "/v1/projects/{projectIdOrSlug}/context/internal-inputs/bulk": {
       "post": {
         "operationId": "ContextsController_saveInternalInputs",
+        "parameters": [
+          {
+            "name": "x-organization-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["context"]
+      }
+    },
+    "/v1/projects/{projectIdOrSlug}/context/internal-issues": {
+      "get": {
+        "operationId": "ContextsController_listInternalIssues",
+        "parameters": [
+          {
+            "name": "x-organization-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Tab 1 — internal issues deduced from the declared context"
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["context"]
+      }
+    },
+    "/v1/projects/{projectIdOrSlug}/context/internal-issues/runs": {
+      "post": {
+        "operationId": "ContextsController_triggerInternalIssues",
         "parameters": [
           {
             "name": "x-organization-id",
@@ -545,7 +597,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Step 3 — synthèse des enjeux run history"
+            "description": "Internal-issues and synthesis run history"
           }
         },
         "security": [
@@ -595,7 +647,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Step 4 — the latest completed run's register, for validation"
+            "description": "Tab 3 — the latest completed synthesis, for evaluation"
           }
         },
         "security": [
@@ -620,6 +672,32 @@
         "responses": {
           "201": {
             "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["context"]
+      }
+    },
+    "/v1/projects/{projectIdOrSlug}/context/synthesis/validate": {
+      "post": {
+        "operationId": "ContextsController_validateSynthesis",
+        "parameters": [
+          {
+            "name": "x-organization-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Tab 3 — « Valider la synthèse », which unlocks the exports"
           }
         },
         "security": [

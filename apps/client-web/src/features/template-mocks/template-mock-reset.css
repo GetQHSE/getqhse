@@ -1,0 +1,11 @@
+/*
+ * The captured template CSS was written against browser defaults. Inside a
+ * mock, undo the app's base styles (Tailwind preflight, UI kit) first; the
+ * scoped template rules in template-mocks.css then apply on top.
+ */
+.gq-mock,
+.gq-mock *,
+.gq-mock *::before,
+.gq-mock *::after {
+  all: revert;
+}

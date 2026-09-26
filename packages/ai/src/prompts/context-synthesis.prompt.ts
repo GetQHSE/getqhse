@@ -3,35 +3,37 @@ import { CONTEXT_ISO_GUIDANCE } from "./context-external-research.prompt.js";
 import { inLanguage, outputLanguageRule, type OutputLanguage } from "./language.js";
 
 /**
- * Step 3 of "Analyse des enjeux" (ISO 9001 §4.1) — one strict-JSON call, no
- * web search: the model reasons only on material the platform already
- * persisted (validated profile, declared internal context, persisted
- * external factors, existing regulatory register). Same text as the
- * foundation's context-synthesis engine.
+ * Tab 3 of "Analyse des enjeux" (ISO 9001 §4.1), "Synthèse des enjeux" — one
+ * strict-JSON call, no web search. It pre-evaluates the internal issues the
+ * user retained in tab 1 (never rewriting them) and identifies the external
+ * issues from the factors documented in tab 2, each rated on impact and on
+ * the organisation's capacity to control it.
  */
 export type ContextSynthesisPromptInput = {
   digest: string;
+  /** The retained internal issues, one per line, referenced I1, I2, … */
+  internalIssues: string;
   externalMaterial: string;
-  method: "SWOT" | "PESTEL";
+  methods: ("SWOT" | "PESTEL")[];
   language: OutputLanguage;
 };
 
 export const contextSynthesisPrompt: PromptDefinition<ContextSynthesisPromptInput> = {
   key: "context.synthesis",
-  version: 3,
+  version: 4,
   build: (input) => ({
     system: `Tu es le moteur de synthèse des enjeux de GetQhse AI, aligné sur le chapitre 4.1 d'ISO 9001.
-À partir d'éléments DÉJÀ ÉTABLIS par la plateforme, tu identifies les enjeux internes et externes de l'organisation.
+Tu as deux tâches, sur des éléments DÉJÀ ÉTABLIS par la plateforme :
+1. Pré-évaluer chaque enjeu interne retenu par l'organisation (références I1, I2, …) dans internalRatings. Tu ne modifies, ne fusionnes et ne supprimes aucun de ces enjeux.
+2. Identifier les enjeux externes de l'organisation dans externalIssues, à partir des facteurs externes documentés et du contexte réglementaire établi, et les pré-évaluer de la même manière.
 Règles absolues :
 - N'utilise QUE le matériel fourni. N'invente aucun fait, aucun chiffre, aucune source, aucune tendance.
-- Chaque enjeu doit être rattaché à au moins une preuve (evidence) copiée du matériel fourni, sans reformulation.
-- origin = "internal" si l'enjeu provient du contexte interne déclaré ou du profil validé ; "external" s'il provient des facteurs externes documentés ou du contexte réglementaire établi.
-- nature : "force" ou "faiblesse" pour les enjeux internes ; "opportunite" ou "menace" pour les enjeux externes.
-- Les scores sont des entiers de 1 à 5 exprimant l'influence potentielle (1 = très faible, 5 = très forte).
-- recommendedPriority = true uniquement pour les enjeux que tu recommandes réellement de traiter en priorité.
+- impact est un entier de 1 à 3 : impact de l'enjeu sur la qualité des produits/services et la satisfaction client (1 = faible, 2 = moyen, 3 = élevé).
+- mastery est un entier de 1 à 3 : capacité de l'organisation à maîtriser cet enjeu au vu du matériel fourni (1 = faible, 2 = moyenne, 3 = élevée). C'est une pré-évaluation que l'utilisateur ajustera.
+- Un enjeu externe est une opportunité ("opportunite") ou une menace ("menace") pour l'organisation, rattaché à au moins une preuve (evidence) copiée du matériel fourni, sans reformulation.
+- Un enjeu externe doit être spécifique à l'organisation, jamais une généralité, et ne doit pas répéter un enjeu interne.
 - confidence est une estimation interne entre 0 et 1 : elle ne remplace jamais la validation humaine.
-- Un enjeu doit être un véritable enjeu de l'organisation, pas une reformulation de la question posée ni une généralité de management.
-- Ne produis pas de plan d'action détaillé.
+- Ne produis pas de plan d'action.
 - Rédige tous les champs textuels ${inLanguage(input.language)}.
 ${outputLanguageRule(input.language)}
 Réponds uniquement en JSON valide.
@@ -41,15 +43,17 @@ ${CONTEXT_ISO_GUIDANCE}`,
       "MATÉRIEL INTERNE ÉTABLI :",
       input.digest,
       "",
+      "ENJEUX INTERNES RETENUS (étape 1, à pré-évaluer sans les modifier) :",
+      input.internalIssues,
+      "",
       "FACTEURS EXTERNES DOCUMENTÉS (étape 2, sources réelles) :",
       input.externalMaterial,
       "",
-      input.method === "PESTEL"
-        ? "MÉTHODE : PESTEL. Les enjeux externes doivent refléter les dimensions PESTEL (politique, économique, social, technologique, environnemental, légal) via leur catégorie. La nature reste opportunite ou menace."
-        : "MÉTHODE : SWOT. Les enjeux internes sont des forces ou faiblesses, les enjeux externes des opportunités ou menaces.",
+      input.methods.includes("PESTEL")
+        ? "categoryKey d'un enjeu externe : la dimension PESTEL concernée (politique, economique, social, technologique, environnemental, legal)."
+        : "categoryKey d'un enjeu externe : une clé courte en minuscules sans accent (ex. marche, concurrence, competences).",
       "",
-      "Produis la synthèse des enjeux internes et externes de cette organisation.",
-      "Chaque enjeu doit être utile, spécifique et justifié par une preuve du matériel fourni.",
+      "Pré-évalue chaque enjeu interne retenu, puis identifie et pré-évalue les enjeux externes.",
     ].join("\n"),
   }),
 };

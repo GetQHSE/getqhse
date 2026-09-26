@@ -11,7 +11,7 @@ import {
   contextJobSchema,
   createManualContextIssueSchema,
   projectContextSettingsSchema,
-  setContextAnalysisMethodSchema,
+  setContextAnalysisMethodsSchema,
   upsertContextInternalInputSchema,
   saveContextInternalInputsSchema,
   contextScopeSchema,
@@ -84,7 +84,7 @@ import {
   type ContextJob,
   type CreateManualContextIssue,
   type ProjectContextSettings,
-  type SetContextAnalysisMethod,
+  type SetContextAnalysisMethods,
   type StartRegulatoryAnalysis,
   type UpsertContextInternalInput,
   type SaveContextInternalInputs,
@@ -463,14 +463,14 @@ export class QhseApiClient {
     );
   }
 
-  setContextMethod(
+  setContextMethods(
     projectIdOrSlug: string,
-    input: SetContextAnalysisMethod,
+    input: SetContextAnalysisMethods,
   ): Promise<ProjectContextSettings> {
     return this.#request(
-      `/v1/projects/${encodeURIComponent(projectIdOrSlug)}/context/settings/method`,
+      `/v1/projects/${encodeURIComponent(projectIdOrSlug)}/context/settings/methods`,
       projectContextSettingsSchema,
-      { method: "POST", body: JSON.stringify(setContextAnalysisMethodSchema.parse(input)) },
+      { method: "POST", body: JSON.stringify(setContextAnalysisMethodsSchema.parse(input)) },
     );
   }
 
@@ -543,6 +543,31 @@ export class QhseApiClient {
     return this.#request(
       `/v1/projects/${encodeURIComponent(projectIdOrSlug)}/context/runs`,
       contextJobSchema,
+      { method: "POST" },
+    );
+  }
+
+  /** Tab 1: the internal issues deduced from the declared internal context. */
+  listContextInternalIssues(projectIdOrSlug: string): Promise<ContextIssue[]> {
+    return this.#request(
+      `/v1/projects/${encodeURIComponent(projectIdOrSlug)}/context/internal-issues`,
+      z.array(contextIssueSchema),
+    );
+  }
+
+  triggerContextInternalIssues(projectIdOrSlug: string): Promise<ContextJob> {
+    return this.#request(
+      `/v1/projects/${encodeURIComponent(projectIdOrSlug)}/context/internal-issues/runs`,
+      contextJobSchema,
+      { method: "POST" },
+    );
+  }
+
+  /** "Valider la synthèse": validates the latest synthesis, which unlocks the exports. */
+  validateContextSynthesis(projectIdOrSlug: string): Promise<ContextAnalysisRunSummary> {
+    return this.#request(
+      `/v1/projects/${encodeURIComponent(projectIdOrSlug)}/context/synthesis/validate`,
+      contextAnalysisRunSummarySchema,
       { method: "POST" },
     );
   }

@@ -31,6 +31,9 @@ type Labels = {
     impactQuality: string;
     impactCustomer: string;
     impactOverall: string;
+    impact: string;
+    mastery: string;
+    qualification: string;
     priority: string;
     manual: string;
     corrected: string;
@@ -96,6 +99,9 @@ export const CONTEXT_EXPORT_LABELS: Record<SupportedLanguage, Labels> = {
       impactQuality: "Impact qualité",
       impactCustomer: "Impact satisfaction client",
       impactOverall: "Impact global",
+      impact: "Impact qualité & satisfaction client",
+      mastery: "Capacité de maîtrise",
+      qualification: "Qualification",
       priority: "Priorité",
       manual: "Ajout manuel",
       corrected: "Corrigé",
@@ -159,6 +165,9 @@ export const CONTEXT_EXPORT_LABELS: Record<SupportedLanguage, Labels> = {
       impactQuality: "Quality impact",
       impactCustomer: "Customer satisfaction impact",
       impactOverall: "Overall impact",
+      impact: "Impact on quality & customer satisfaction",
+      mastery: "Capacity to control",
+      qualification: "Qualification",
       priority: "Priority",
       manual: "Added manually",
       corrected: "Corrected",
@@ -216,6 +225,9 @@ export const CONTEXT_EXPORT_LABELS: Record<SupportedLanguage, Labels> = {
       impactQuality: "الأثر على الجودة",
       impactCustomer: "الأثر على رضا العملاء",
       impactOverall: "الأثر الإجمالي",
+      impact: "الأثر على الجودة ورضا العملاء",
+      mastery: "القدرة على التحكم",
+      qualification: "التأهيل",
       priority: "الأولوية",
       manual: "إضافة يدوية",
       corrected: "مصحَّح",

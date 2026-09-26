@@ -7,6 +7,21 @@ import {
 import type { DatabaseClient } from "@qhse/database";
 import { projectCountryCodes } from "@qhse/domain";
 
+export type AnalysisMethod = "SWOT" | "PESTEL";
+
+const DEFAULT_METHODS: AnalysisMethod[] = ["SWOT", "PESTEL"];
+
+function orderedMethods(methods: readonly string[]): AnalysisMethod[] {
+  return DEFAULT_METHODS.filter((method) => methods.includes(method));
+}
+
+/** True when a run's stored methods are exactly the selection (order aside). */
+export function sameMethods(stored: unknown, selected: readonly AnalysisMethod[]): boolean {
+  if (!Array.isArray(stored)) return false;
+  const run = orderedMethods(stored.filter((value): value is string => typeof value === "string"));
+  return run.length === selected.length && run.every((method, index) => method === selected[index]);
+}
+
 /**
  * Canonical material for steps 2 and 3 of "Analyse des enjeux" — the
  * platform equivalent of the foundation's assembleCanonicalAnalysisContext.
@@ -60,7 +75,8 @@ export async function loadContextMaterial(database: DatabaseClient, projectId: s
     project,
     /** Every text generated for the project is written in its language. */
     language: toOutputLanguage(project.language),
-    method: project.contextSettings?.analysisMethod ?? null,
+    /** SWOT and/or PESTEL; both until the user unselects one, as in the template. */
+    methods: orderedMethods(project.contextSettings?.analysisMethods ?? DEFAULT_METHODS),
     internalCompleted,
     countries: projectCountryCodes(snapshotData, project.countryCode),
     validatedAnswersCount: validatedProfileAnswers(digestInput.profileFields).length,

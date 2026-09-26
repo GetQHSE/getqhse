@@ -162,6 +162,29 @@ describe("buildContextDocument", () => {
     expect(contextDocumentFileName(doc, "xlsx")).toMatch(/^context-analysis-north-plant-/);
   });
 
+  it("carries the synthesis evaluation and its derived qualification", () => {
+    const doc = buildContextDocument({
+      language: "fr",
+      organizationName: "Org",
+      projectName: "Usine Nord",
+      isoStandard: "ISO_9001",
+      method: "SWOT",
+      methodExplicit: true,
+      analysisDate: null,
+      factors: [],
+      issues: [
+        issue({ id: "1", scores: { impact: 3, mastery: 1 } }),
+        issue({ id: "2", scores: { impact: 2 } }),
+      ],
+    });
+    expect(doc.synthesis[0]).toMatchObject({
+      impact: "3",
+      mastery: "1",
+      qualificationLabel: "Majeur",
+    });
+    expect(doc.synthesis[1]).toMatchObject({ impact: "2", mastery: "—", qualificationLabel: "—" });
+  });
+
   it("labels a non-explicit method choice as a default, not a decision", () => {
     const doc = buildContextDocument({
       language: "fr",

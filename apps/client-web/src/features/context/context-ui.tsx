@@ -7,8 +7,6 @@ import { useTranslation } from "react-i18next";
 import { toast } from "@qhse/ui/components/toast";
 import { cn } from "@qhse/ui/lib/utils";
 
-import { useFormat } from "../../app/format.js";
-
 export const notify = {
   success: (title: string) => toast.add({ title, type: "success" }),
   error: (title: string) => toast.add({ title, type: "error" }),
@@ -38,44 +36,50 @@ export function GqButton({
   );
 }
 
-export const ANALYSIS_STEPS = ["internal", "external", "synthesis", "validation"] as const;
+export const ANALYSIS_STEPS = ["internal", "external", "synthesis"] as const;
 
 export function AnalysisStepper({
   activeStep,
   completedSteps,
   maxReachableStep,
   onStepChange,
+  action,
 }: {
   activeStep: number;
   completedSteps: number[];
   maxReachableStep: number;
   onStepChange: (step: number) => void;
+  /** Shown at the end of the row, as the template's "Exporter" menu. */
+  action?: ReactNode;
 }) {
   const { t } = useTranslation("context");
   return (
-    <nav className="gq-tabs" aria-label={t("ui.stepsNav")}>
-      {ANALYSIS_STEPS.map((label, index) => {
-        const step = index + 1;
-        const isActive = step === activeStep;
-        return (
-          <button
-            key={label}
-            type="button"
-            className={cn("gq-tab", isActive && "is-active")}
-            aria-current={isActive ? "step" : undefined}
-            disabled={step > maxReachableStep}
-            onClick={() => onStepChange(step)}
-          >
-            {step}. {t(`ui.steps.${label}`)}
-            {completedSteps.includes(step) ? (
-              <span className="gq-tab-check" aria-label={t("ui.stepDone")}>
-                ✓
-              </span>
-            ) : null}
-          </button>
-        );
-      })}
-    </nav>
+    <div className="gq-tabs-row">
+      <nav className="gq-tabs" aria-label={t("ui.stepsNav")}>
+        {ANALYSIS_STEPS.map((label, index) => {
+          const step = index + 1;
+          const isActive = step === activeStep;
+          return (
+            <button
+              key={label}
+              type="button"
+              className={cn("gq-tab", isActive && "is-active")}
+              aria-current={isActive ? "step" : undefined}
+              disabled={step > maxReachableStep}
+              onClick={() => onStepChange(step)}
+            >
+              {step}. {t(`ui.steps.${label}`)}
+              {completedSteps.includes(step) ? (
+                <span className="gq-tab-check" aria-label={t("ui.stepDone")}>
+                  ✓
+                </span>
+              ) : null}
+            </button>
+          );
+        })}
+      </nav>
+      {action ? <div className="gq-tabs-action">{action}</div> : null}
+    </div>
   );
 }
 
@@ -202,56 +206,6 @@ export function ProcessingState({ title, description }: { title: string; descrip
           ))}
         </span>
       </div>
-    </div>
-  );
-}
-
-const RUN_STATUSES = ["DRAFT", "RUNNING", "COMPLETED", "FAILED"] as const;
-
-export function ContextRunHistory({
-  title,
-  runs,
-}: {
-  title: string;
-  runs: {
-    id: string;
-    status: string;
-    createdAt: string;
-    errorMessage: string | null;
-    detail: string;
-  }[];
-}) {
-  const { t } = useTranslation("context");
-  const format = useFormat();
-  if (runs.length === 0) return null;
-  return (
-    <section className="gq-card mt-6">
-      <h3>{title}</h3>
-      <div className="mt-2">
-        {runs.map((run) => (
-          <div key={run.id} className="gq-history-row">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <span>{format.dateTime(run.createdAt)}</span>
-              <span className={cn("gq-badge", run.status === "COMPLETED" && "is-valid")}>
-                {(RUN_STATUSES as readonly string[]).includes(run.status)
-                  ? t(`ui.runStatus.${run.status as (typeof RUN_STATUSES)[number]}`)
-                  : run.status}
-              </span>
-            </div>
-            <small>{run.detail}</small>
-            {run.errorMessage ? <small>{run.errorMessage}</small> : null}
-          </div>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-export function Field({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div>
-      <dt>{label}</dt>
-      <dd>{children}</dd>
     </div>
   );
 }

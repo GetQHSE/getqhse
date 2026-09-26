@@ -70,3 +70,11 @@ export function sectionHelper(t: TFunction<"context">, key: InternalContextSecti
 export function questionLabel(t: TFunction<"context">, key: InternalContextQuestionKey): string {
   return t(`questions.${key}`);
 }
+
+/** The short theme of a question, for the "Thème : réponse" fact pills. */
+export function questionShortLabel(
+  t: TFunction<"context">,
+  key: InternalContextQuestionKey,
+): string {
+  return t(`questionsShort.${key}`);
+}

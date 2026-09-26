@@ -1426,6 +1426,17 @@ export type ComplianceResult = z.infer<typeof complianceResultSchema>;
 export const contextAnalysisMethodSchema = z.enum(["SWOT", "PESTEL"]);
 export type ContextAnalysisMethod = z.infer<typeof contextAnalysisMethodSchema>;
 
+/** INTERNAL: tab 1 deduces the internal issues. SYNTHESIS: tab 3, the evaluated synthesis. */
+export const contextAnalysisRunKindSchema = z.enum(["INTERNAL", "SYNTHESIS"]);
+export type ContextAnalysisRunKind = z.infer<typeof contextAnalysisRunKindSchema>;
+
+/** SWOT and/or PESTEL: at least one, each at most once. */
+export const contextAnalysisMethodsSchema = z
+  .array(contextAnalysisMethodSchema)
+  .min(1)
+  .max(2)
+  .refine((methods) => new Set(methods).size === methods.length, "Duplicate method");
+
 export const contextRunStatusSchema = z.enum(["DRAFT", "RUNNING", "COMPLETED", "FAILED"]);
 export type ContextRunStatus = z.infer<typeof contextRunStatusSchema>;
 
@@ -1448,15 +1459,14 @@ export type ContextIssueNature = z.infer<typeof contextIssueNatureSchema>;
 
 export const projectContextSettingsSchema = z.object({
   projectId: idSchema,
-  analysisMethod: contextAnalysisMethodSchema,
-  explicit: z.boolean(),
+  analysisMethods: contextAnalysisMethodsSchema,
 });
 export type ProjectContextSettings = z.infer<typeof projectContextSettingsSchema>;
 
-export const setContextAnalysisMethodSchema = z.object({
-  method: contextAnalysisMethodSchema,
+export const setContextAnalysisMethodsSchema = z.object({
+  methods: contextAnalysisMethodsSchema,
 });
-export type SetContextAnalysisMethod = z.infer<typeof setContextAnalysisMethodSchema>;
+export type SetContextAnalysisMethods = z.infer<typeof setContextAnalysisMethodsSchema>;
 
 /* ------------------------------- Step 1 ------------------------------- */
 
@@ -1554,7 +1564,8 @@ export const contextExternalRunSummarySchema = z.object({
   sourcesCount: z.number().int().nonnegative(),
   searchQueries: z.array(z.string()),
   regulatoryRunId: idSchema.nullable(),
-  analysisMethod: contextAnalysisMethodSchema.nullable(),
+  /** The methods this run was made with; empty for runs predating the choice. */
+  analysisMethods: z.array(contextAnalysisMethodSchema),
 });
 export type ContextExternalRunSummary = z.infer<typeof contextExternalRunSummarySchema>;
 
@@ -1596,6 +1607,10 @@ export const contextIssueScoresSchema = z.object({
   influenceQuality: z.number().min(0).max(5).optional(),
   influenceCustomer: z.number().min(0).max(5).optional(),
   overall: z.number().min(0).max(5).optional(),
+  /** Synthesis evaluation: impact on quality & customer satisfaction, 1–3. */
+  impact: z.number().int().min(1).max(3).optional(),
+  /** Synthesis evaluation: the organisation's capacité de maîtrise, 1–3. */
+  mastery: z.number().int().min(1).max(3).optional(),
 });
 export type ContextIssueScores = z.infer<typeof contextIssueScoresSchema>;
 
@@ -1648,6 +1663,7 @@ export type ContextIssue = z.infer<typeof contextIssueSchema>;
 
 export const contextAnalysisRunSummarySchema = z.object({
   id: idSchema,
+  kind: contextAnalysisRunKindSchema,
   status: contextRunStatusSchema,
   createdAt: isoDateTimeSchema,
   startedAt: isoDateTimeSchema.nullable(),
@@ -1658,7 +1674,9 @@ export const contextAnalysisRunSummarySchema = z.object({
   externalCount: z.number().int().nonnegative(),
   model: z.string().nullable(),
   methodologyVersion: z.string().nullable(),
-  analysisMethod: contextAnalysisMethodSchema.nullable(),
+  analysisMethods: z.array(contextAnalysisMethodSchema),
+  /** "Valider la synthèse" (SYNTHESIS runs): set once, cleared by a later change. */
+  validatedAt: isoDateTimeSchema.nullable(),
 });
 export type ContextAnalysisRunSummary = z.infer<typeof contextAnalysisRunSummarySchema>;
 

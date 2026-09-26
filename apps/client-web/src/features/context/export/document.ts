@@ -20,10 +20,16 @@ import {
   pestelDimensions,
   swotQuadrants,
 } from "@qhse/domain/smq/context/method";
+import {
+  isEvaluationLevel,
+  issueQualification,
+  qualificationLabel,
+} from "@qhse/domain/smq/context/evaluation";
 import type { TFunction } from "i18next";
 
 import { formatters } from "../../../app/format.js";
 import { i18n } from "../../../app/i18n.js";
+import { evaluatedIssues } from "../evaluation.js";
 
 /** A deliverable is written in the project language, whatever the interface language. */
 export function exportTranslator(language: SupportedLanguage): TFunction<"context"> {
@@ -39,12 +45,19 @@ export interface ContextDocumentIssue {
   title: string;
   description: string;
   originLabel: string;
+  /** "Interne" / "Externe", the template's Nature column of the synthesis. */
+  originShort: string;
   natureLabel: string;
   categoryLabel: string;
   statusLabel: string;
   impactQuality: string;
   impactCustomer: string;
   impactOverall: string;
+  /** Synthesis evaluation (1–3), "—" until rated. */
+  impact: string;
+  mastery: string;
+  /** Derived from impact × capacité de maîtrise, "—" until both are rated. */
+  qualificationLabel: string;
   priorityLabel: string;
   addedManually: boolean;
   corrected: boolean;
@@ -101,18 +114,28 @@ function formatDate(value: string | null | undefined, language: SupportedLanguag
   return Number.isNaN(date.getTime()) ? null : formatters(language).date(date);
 }
 
-function toDocumentIssue(issue: ContextIssue, t: TFunction<"context">): ContextDocumentIssue {
+function toDocumentIssue(
+  issue: ContextIssue,
+  t: TFunction<"context">,
+  language: SupportedLanguage,
+): ContextDocumentIssue {
   const nature = NATURES.find((value) => value === issue.nature);
+  const { impact, mastery } = issue.scores;
+  const qualification = issueQualification(impact, mastery);
   return {
     title: issue.title,
     description: issue.description ?? "—",
     originLabel: t(`export.origin.${issue.origin}`),
+    originShort: t(`issues.evaluation.origin.${issue.origin}`),
     natureLabel: nature ? t(`issues.nature.${nature}`) : (issue.nature ?? "—"),
     categoryLabel: issue.categoryLabel || "—",
     statusLabel: t(`export.status.${issue.reviewStatus}`),
     impactQuality: issue.impactQuality || "—",
     impactCustomer: issue.impactCustomerSatisfaction || "—",
     impactOverall: issue.impactOverall || "—",
+    impact: isEvaluationLevel(impact) ? String(impact) : "—",
+    mastery: isEvaluationLevel(mastery) ? String(mastery) : "—",
+    qualificationLabel: qualification ? qualificationLabel(qualification, language) : "—",
     priorityLabel: issue.selectedPriority ? t("export.priority") : "—",
     addedManually: issue.sourceKind === "MANUAL",
     corrected: issue.reviewStatus === "MODIFIED" || issue.corrections.length > 0,
@@ -130,7 +153,7 @@ function buildSwot(
       helper: quadrant.helper,
       issues: issues
         .filter((issue) => issue.nature === quadrant.key)
-        .map((issue) => toDocumentIssue(issue, t)),
+        .map((issue) => toDocumentIssue(issue, t, language)),
     }))
     .filter((group) => group.issues.length > 0);
 }
@@ -149,14 +172,14 @@ function buildPestel(
         .filter(
           (issue) => pestelDimensionKey(issue.categoryKey, issue.categoryLabel) === dimension.key,
         )
-        .map((issue) => toDocumentIssue(issue, t)),
+        .map((issue) => toDocumentIssue(issue, t, language)),
     })),
     {
       label: t("export.otherDimensions"),
       helper: t("export.otherDimensionsHelp"),
       issues: external
         .filter((issue) => pestelDimensionKey(issue.categoryKey, issue.categoryLabel) === "autre")
-        .map((issue) => toDocumentIssue(issue, t)),
+        .map((issue) => toDocumentIssue(issue, t, language)),
     },
   ].filter((group) => group.issues.length > 0);
 }
@@ -215,11 +238,11 @@ export function buildContextDocument(input: {
     analysisDate: formatDate(input.analysisDate, language),
     internalIssues: input.issues
       .filter((issue) => issue.origin === "INTERNAL")
-      .map((issue) => toDocumentIssue(issue, t)),
+      .map((issue) => toDocumentIssue(issue, t, language)),
     factors,
     swot: swot && swot.length > 0 ? swot : null,
     pestel: pestel && pestel.length > 0 ? pestel : null,
-    synthesis: input.issues.map((issue) => toDocumentIssue(issue, t)),
+    synthesis: evaluatedIssues(input.issues).map((issue) => toDocumentIssue(issue, t, language)),
     summary: {
       issues: input.issues.length,
       retained: retained.length,

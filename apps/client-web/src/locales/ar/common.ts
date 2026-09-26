@@ -41,6 +41,8 @@ const common: Catalog<typeof fr> = {
     profile: "الملف التعريفي",
     regulatoryWatch: "اليقظة التنظيمية",
     context: "تحليل الرهانات",
+    interestedParties: "الأطراف المعنية",
+    risks: "المخاطر والفرص",
     chooseProject: "اختيار مشروع",
     projectSpace: "مساحة المشروع",
     newProject: "مشروع جديد",

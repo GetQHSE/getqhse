@@ -11,6 +11,7 @@ import type {
   AddContextIssueEvidence,
   ApplyContextIssueOverride,
   ContextAnalysisMethod,
+  ContextAnalysisRunKind,
   ContextAnalysisRunSummary,
   ContextAnswerAssistRequest,
   ContextAnswerAssistResponse,
@@ -34,10 +35,8 @@ import { ContextAnswerAssistModelPort } from "./context-answer-assist-model.port
 import { buildContextDocument, contextDocumentFileName } from "./context-document.js";
 import { buildContextRegisterWorkbook } from "./context-exporter.js";
 
-/** Matches smqContext.DEFAULT_ANALYSIS_METHOD ("swot"), spelled in the
- * Prisma enum's casing. Kept local rather than derived so a project without
- * an explicit choice falls back to the same default the domain rules name. */
-const DEFAULT_ANALYSIS_METHOD: ContextAnalysisMethod = "SWOT";
+/** As in the template, both methods are selected until the user unselects one. */
+const DEFAULT_ANALYSIS_METHODS: ContextAnalysisMethod[] = ["SWOT", "PESTEL"];
 
 /**
  * "Analyse des enjeux" (ISO 9001 §4.1) application service.
@@ -84,24 +83,29 @@ export class ContextsService {
     const settings = await this.database.projectContextSettings.findUnique({
       where: { projectId: project.id },
     });
-    if (!settings) {
-      return { projectId: project.id, analysisMethod: DEFAULT_ANALYSIS_METHOD, explicit: false };
-    }
-    return { projectId: project.id, analysisMethod: settings.analysisMethod, explicit: true };
+    return {
+      projectId: project.id,
+      analysisMethods: orderedMethods(settings?.analysisMethods ?? DEFAULT_ANALYSIS_METHODS),
+    };
   }
 
-  async setMethod(
+  /**
+   * Selecting SWOT and/or PESTEL never launches anything. Results produced with
+   * another selection are no longer shown (tab 2 "clears" them), but they stay stored.
+   */
+  async setMethods(
     tenant: TenantContext,
     projectIdOrSlug: string,
-    method: ContextAnalysisMethod,
+    methods: ContextAnalysisMethod[],
   ): Promise<ProjectContextSettings> {
     const project = await this.loadProject(tenant, projectIdOrSlug);
+    const analysisMethods = orderedMethods(methods);
     await this.database.projectContextSettings.upsert({
       where: { projectId: project.id },
-      create: { projectId: project.id, analysisMethod: method, updatedById: tenant.userId },
-      update: { analysisMethod: method, updatedById: tenant.userId },
+      create: { projectId: project.id, analysisMethods, updatedById: tenant.userId },
+      update: { analysisMethods, updatedById: tenant.userId },
     });
-    return { projectId: project.id, analysisMethod: method, explicit: true };
+    return { projectId: project.id, analysisMethods };
   }
 
   /* -------------------------------- step 1 -------------------------------- */
@@ -301,7 +305,7 @@ export class ContextsService {
       sourcesCount: run.factors.reduce((sum, factor) => sum + factor.sources.length, 0),
       searchQueries: Array.isArray(run.searchQueries) ? (run.searchQueries as string[]) : [],
       regulatoryRunId: run.regulatoryRunId,
-      analysisMethod: summaryMethod(run.summary),
+      analysisMethods: summaryMethods(run.summary),
     }));
   }
 
@@ -372,27 +376,28 @@ export class ContextsService {
       orderBy: { createdAt: "desc" },
       include: { issues: true },
     });
-    return runs.map((run) => ({
-      id: run.id,
-      status: run.status,
-      createdAt: run.createdAt.toISOString(),
-      startedAt: run.startedAt?.toISOString() ?? null,
-      completedAt: run.completedAt?.toISOString() ?? null,
-      errorMessage: run.errorMessage,
-      issuesCount: run.issues.length,
-      internalCount: run.issues.filter((issue) => issue.aiOrigin === "INTERNAL").length,
-      externalCount: run.issues.filter((issue) => issue.aiOrigin === "EXTERNAL").length,
-      model: null,
-      methodologyVersion: run.methodologyVersion,
-      analysisMethod: summaryMethod(run.summary),
-    }));
+    return runs.map(toRunSummary);
   }
 
-  /** Creates a DRAFT run and hands it to the worker; no synthesis happens here. */
+  /** Tab 1: deduces the internal issues (forces / faiblesses) from the declared context. */
+  async triggerInternalIssues(tenant: TenantContext, projectIdOrSlug: string) {
+    return this.triggerAnalysisRun(tenant, projectIdOrSlug, "INTERNAL");
+  }
+
+  /** Tab 3: evaluates the retained internal issues and the external ones. */
   async triggerSynthesis(tenant: TenantContext, projectIdOrSlug: string) {
+    return this.triggerAnalysisRun(tenant, projectIdOrSlug, "SYNTHESIS");
+  }
+
+  /** Creates a DRAFT run and hands it to the worker; no analysis happens here. */
+  private async triggerAnalysisRun(
+    tenant: TenantContext,
+    projectIdOrSlug: string,
+    kind: ContextAnalysisRunKind,
+  ) {
     const project = await this.loadProject(tenant, projectIdOrSlug);
     const run = await this.database.contextAnalysisRun.create({
-      data: { projectId: project.id, status: "DRAFT", triggeredById: tenant.userId },
+      data: { projectId: project.id, kind, status: "DRAFT", triggeredById: tenant.userId },
     });
     try {
       const queued = await this.queue.enqueue("context-analysis", "run-context-analysis", {
@@ -416,20 +421,86 @@ export class ContextsService {
     });
   }
 
-  /** The latest completed run's issues, or the empty register if none exists yet. */
+  /** Tab 3: the latest completed synthesis's issues, or none yet. */
   async listIssues(tenant: TenantContext, projectIdOrSlug: string): Promise<ContextIssue[]> {
     const project = await this.loadProject(tenant, projectIdOrSlug);
-    const latestRun = await this.database.contextAnalysisRun.findFirst({
-      where: { projectId: project.id, status: "COMPLETED" },
+    return this.latestIssues(project.id, "SYNTHESIS");
+  }
+
+  /** Tab 1: the latest completed deduction of internal issues, or none yet. */
+  async listInternalIssues(
+    tenant: TenantContext,
+    projectIdOrSlug: string,
+  ): Promise<ContextIssue[]> {
+    const project = await this.loadProject(tenant, projectIdOrSlug);
+    return this.latestIssues(project.id, "INTERNAL");
+  }
+
+  private latestRun(projectId: string, kind: ContextAnalysisRunKind) {
+    return this.database.contextAnalysisRun.findFirst({
+      where: { projectId, kind, status: "COMPLETED" },
       orderBy: { completedAt: "desc" },
     });
-    if (!latestRun) return [];
+  }
+
+  private async latestIssues(projectId: string, kind: ContextAnalysisRunKind) {
+    const run = await this.latestRun(projectId, kind);
+    if (!run) return [];
     const issues = await this.database.contextIssue.findMany({
-      where: { runId: latestRun.id },
+      where: { runId: run.id },
       include: { evidence: true, corrections: { orderBy: { createdAt: "asc" } } },
       orderBy: { createdAt: "asc" },
     });
     return issues.map(toIssueContract);
+  }
+
+  /**
+   * "Valider la synthèse": every issue of the latest synthesis still under
+   * review is validated (one audited correction each), and the run is marked
+   * validated, which unlocks the exports. A later change to one of its issues
+   * clears that mark (see applyIssueOverride).
+   */
+  async validateSynthesis(
+    tenant: TenantContext,
+    projectIdOrSlug: string,
+  ): Promise<ContextAnalysisRunSummary> {
+    const project = await this.loadProject(tenant, projectIdOrSlug);
+    const run = await this.latestRun(project.id, "SYNTHESIS");
+    if (!run) throw new BadRequestException("no completed synthesis for this project");
+
+    const updated = await this.database.$transaction(async (tx) => {
+      const pending = await tx.contextIssue.findMany({
+        where: { runId: run.id, reviewStatus: "PENDING" },
+        select: { id: true },
+      });
+      if (pending.length > 0) {
+        await tx.contextIssueCorrection.createMany({
+          data: pending.map((issue) => ({
+            issueId: issue.id,
+            fieldName: "review_status",
+            previousValue: "pending",
+            newValue: "validated",
+            correctionReason: "Synthèse validée par la revue humaine.",
+            correctedById: tenant.userId,
+          })),
+        });
+        await tx.contextIssue.updateMany({
+          where: { id: { in: pending.map((issue) => issue.id) } },
+          data: {
+            reviewStatus: "VALIDATED",
+            humanOverride: true,
+            humanReviewedById: tenant.userId,
+            humanReviewedAt: new Date(),
+          },
+        });
+      }
+      return tx.contextAnalysisRun.update({
+        where: { id: run.id },
+        data: { validatedAt: new Date(), validatedById: tenant.userId },
+        include: { issues: true },
+      });
+    });
+    return toRunSummary(updated);
   }
 
   /* ------------------------------ human review ------------------------------ */
@@ -528,6 +599,13 @@ export class ContextsService {
           correctedById: tenant.userId,
         })),
       });
+      // A validated synthesis is re-opened by any change to what it states.
+      if (changes.some((change) => SYNTHESIS_FIELDS.has(change.field))) {
+        await tx.contextAnalysisRun.updateMany({
+          where: { id: issue.runId, kind: "SYNTHESIS", validatedAt: { not: null } },
+          data: { validatedAt: null, validatedById: null },
+        });
+      }
       return tx.contextIssue.update({
         where: { id: issueId },
         data: {
@@ -555,10 +633,7 @@ export class ContextsService {
     input: CreateManualContextIssue,
   ): Promise<ContextIssue> {
     const project = await this.loadProject(tenant, projectIdOrSlug);
-    const run = await this.database.contextAnalysisRun.findFirst({
-      where: { projectId: project.id, status: "COMPLETED" },
-      orderBy: { completedAt: "desc" },
-    });
+    const run = await this.latestRun(project.id, "SYNTHESIS");
     if (!run) {
       throw new BadRequestException("no completed context analysis run for this project");
     }
@@ -661,14 +736,8 @@ export class ContextsService {
     const settings = await this.database.projectContextSettings.findUnique({
       where: { projectId: project.id },
     });
-    const method = settings?.analysisMethod ?? DEFAULT_ANALYSIS_METHOD;
-    const methodExplicit = settings != null;
-
-    const completedRuns = await this.database.contextAnalysisRun.findMany({
-      where: { projectId: project.id, status: "COMPLETED" },
-      orderBy: { completedAt: "desc" },
-    });
-    const latestRun = completedRuns[0] ?? null;
+    const methods = orderedMethods(settings?.analysisMethods ?? DEFAULT_ANALYSIS_METHODS);
+    const latestRun = await this.latestRun(project.id, "SYNTHESIS");
 
     const issues = latestRun
       ? await this.database.contextIssue.findMany({
@@ -685,8 +754,9 @@ export class ContextsService {
       organizationName: project.organization.name,
       projectName: project.name,
       isoStandard: project.standardCode,
-      method,
-      methodExplicit,
+      method: methods[0]!,
+      methodExplicit: true,
+      methodsPerformed: methods,
       analysisDate: latestRun?.completedAt?.toISOString() ?? null,
       factors,
       issues: issues.map(toIssueContract),
@@ -698,9 +768,54 @@ export class ContextsService {
   }
 }
 
-function summaryMethod(summary: unknown): ContextAnalysisMethod | null {
-  const method = (summary as { analysisMethod?: unknown } | null)?.analysisMethod;
-  return method === "SWOT" || method === "PESTEL" ? method : null;
+/** Fields whose change re-opens a validated synthesis. */
+const SYNTHESIS_FIELDS = new Set([
+  "title",
+  "description",
+  "nature",
+  "origin",
+  "category_key",
+  "category_label",
+  "scores",
+  "review_status",
+]);
+
+function isMethod(value: unknown): value is ContextAnalysisMethod {
+  return value === "SWOT" || value === "PESTEL";
+}
+
+/** SWOT before PESTEL, each once — the order the template presents them in. */
+function orderedMethods(methods: readonly ContextAnalysisMethod[]): ContextAnalysisMethod[] {
+  return (["SWOT", "PESTEL"] as const).filter((method) => methods.includes(method));
+}
+
+/** The methods a run was made with; runs from the single-method era stored one. */
+function summaryMethods(summary: unknown): ContextAnalysisMethod[] {
+  const { analysisMethods, analysisMethod } =
+    (summary as { analysisMethods?: unknown; analysisMethod?: unknown } | null) ?? {};
+  if (Array.isArray(analysisMethods)) return orderedMethods(analysisMethods.filter(isMethod));
+  return isMethod(analysisMethod) ? [analysisMethod] : [];
+}
+
+type RunWithIssues = Prisma.ContextAnalysisRunGetPayload<{ include: { issues: true } }>;
+
+function toRunSummary(run: RunWithIssues): ContextAnalysisRunSummary {
+  return {
+    id: run.id,
+    kind: run.kind,
+    status: run.status,
+    createdAt: run.createdAt.toISOString(),
+    startedAt: run.startedAt?.toISOString() ?? null,
+    completedAt: run.completedAt?.toISOString() ?? null,
+    errorMessage: run.errorMessage,
+    issuesCount: run.issues.length,
+    internalCount: run.issues.filter((issue) => issue.aiOrigin === "INTERNAL").length,
+    externalCount: run.issues.filter((issue) => issue.aiOrigin === "EXTERNAL").length,
+    model: null,
+    methodologyVersion: run.methodologyVersion,
+    analysisMethods: summaryMethods(run.summary),
+    validatedAt: run.validatedAt?.toISOString() ?? null,
+  };
 }
 
 type FactorRow = Prisma.ContextExternalFactorGetPayload<{ include: { sources: true } }>;

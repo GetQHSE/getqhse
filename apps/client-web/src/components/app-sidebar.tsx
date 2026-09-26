@@ -22,6 +22,8 @@ import {
   MessageSquareTextIcon,
   ScaleIcon,
   SettingsIcon,
+  ShieldAlertIcon,
+  UsersRoundIcon,
   UserRoundIcon,
   UsersIcon,
 } from "lucide-react";
@@ -53,6 +55,16 @@ function projectNav(slug: string, t: TFunction): MainNavItem[] {
       title: t("nav.context"),
       url: `${baseUrl}/context`,
       icon: <CompassIcon />,
+    },
+    {
+      title: t("nav.interestedParties"),
+      url: `${baseUrl}/interested-parties`,
+      icon: <UsersRoundIcon />,
+    },
+    {
+      title: t("nav.risks"),
+      url: `${baseUrl}/risks`,
+      icon: <ShieldAlertIcon />,
     },
   ];
 }

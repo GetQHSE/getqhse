@@ -181,8 +181,8 @@ export const clientApi = {
 
   // SMQ Contexte (§4.1)
   contextSettings: (idOrSlug: string) => qhseApi.getContextSettings(idOrSlug),
-  setContextMethod: (idOrSlug: string, input: Parameters<QhseApiClient["setContextMethod"]>[1]) =>
-    qhseApi.setContextMethod(idOrSlug, input),
+  setContextMethods: (idOrSlug: string, input: Parameters<QhseApiClient["setContextMethods"]>[1]) =>
+    qhseApi.setContextMethods(idOrSlug, input),
   contextInternalInputs: (idOrSlug: string) => qhseApi.listContextInternalInputs(idOrSlug),
   upsertContextInternalInput: (
     idOrSlug: string,
@@ -199,6 +199,10 @@ export const clientApi = {
     qhseApi.triggerContextExternalResearch(idOrSlug),
   contextAnalysisRuns: (idOrSlug: string) => qhseApi.listContextAnalysisRuns(idOrSlug),
   triggerContextSynthesis: (idOrSlug: string) => qhseApi.triggerContextSynthesis(idOrSlug),
+  contextInternalIssues: (idOrSlug: string) => qhseApi.listContextInternalIssues(idOrSlug),
+  triggerContextInternalIssues: (idOrSlug: string) =>
+    qhseApi.triggerContextInternalIssues(idOrSlug),
+  validateContextSynthesis: (idOrSlug: string) => qhseApi.validateContextSynthesis(idOrSlug),
   contextIssues: (idOrSlug: string) => qhseApi.listContextIssues(idOrSlug),
   createManualContextIssue: (
     idOrSlug: string,

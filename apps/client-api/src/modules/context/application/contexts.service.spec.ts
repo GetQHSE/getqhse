@@ -93,6 +93,7 @@ describe("ContextsService.applyIssueOverride", () => {
     const findFirst = vi.fn().mockResolvedValue(includeShape());
     const createMany = vi.fn().mockResolvedValue({ count: 1 });
     const update = vi.fn().mockResolvedValue(includeShape({ title: "Turnover maîtrisé" }));
+    const reopen = vi.fn().mockResolvedValue({ count: 1 });
     const service = newService();
     withDatabase(service, {
       project: { findFirst: vi.fn().mockResolvedValue({ id: "project-1" }) },
@@ -101,6 +102,7 @@ describe("ContextsService.applyIssueOverride", () => {
         fn({
           contextIssueCorrection: { createMany },
           contextIssue: { update },
+          contextAnalysisRun: { updateMany: reopen },
         }),
     });
 
@@ -126,6 +128,11 @@ describe("ContextsService.applyIssueOverride", () => {
         data: expect.objectContaining({ title: "Turnover maîtrisé", humanOverride: true }),
       }),
     );
+    // A change to what a validated synthesis states re-opens it.
+    expect(reopen).toHaveBeenCalledWith({
+      where: { id: "run-1", kind: "SYNTHESIS", validatedAt: { not: null } },
+      data: { validatedAt: null, validatedById: null },
+    });
   });
 
   it("writes nothing at all for a no-op patch — not even humanReviewedAt", async () => {
@@ -155,7 +162,11 @@ describe("ContextsService.applyIssueOverride", () => {
       project: { findFirst: vi.fn().mockResolvedValue({ id: "project-1" }) },
       contextIssue: { findFirst },
       $transaction: async (fn: (tx: unknown) => unknown) =>
-        fn({ contextIssueCorrection: { createMany }, contextIssue: { update } }),
+        fn({
+          contextIssueCorrection: { createMany },
+          contextIssue: { update },
+          contextAnalysisRun: { updateMany: vi.fn() },
+        }),
     });
 
     await service.applyIssueOverride(tenant, "project-1", "issue-1", {
@@ -254,7 +265,7 @@ describe("ContextsService.createManualIssue", () => {
 });
 
 describe("ContextsService settings", () => {
-  it("reports the default method as non-explicit when nothing is persisted", async () => {
+  it("selects both SWOT and PESTEL until the user unselects one", async () => {
     const service = newService();
     withDatabase(service, {
       project: { findFirst: vi.fn().mockResolvedValue({ id: "project-1" }) },
@@ -263,21 +274,110 @@ describe("ContextsService settings", () => {
 
     const settings = await service.getSettings(tenant, "project-1");
 
-    expect(settings).toEqual({ projectId: "project-1", analysisMethod: "SWOT", explicit: false });
+    expect(settings).toEqual({ projectId: "project-1", analysisMethods: ["SWOT", "PESTEL"] });
   });
 
-  it("reports an explicit choice once persisted, unaffected by later runs", async () => {
+  it("keeps a persisted selection, in the template's SWOT-then-PESTEL order", async () => {
+    const upsert = vi.fn().mockResolvedValue({});
     const service = newService();
     withDatabase(service, {
       project: { findFirst: vi.fn().mockResolvedValue({ id: "project-1" }) },
-      projectContextSettings: {
-        findUnique: vi.fn().mockResolvedValue({ analysisMethod: "PESTEL" }),
-      },
+      projectContextSettings: { upsert },
     });
 
-    const settings = await service.getSettings(tenant, "project-1");
+    const settings = await service.setMethods(tenant, "project-1", ["PESTEL", "SWOT"]);
 
-    expect(settings).toEqual({ projectId: "project-1", analysisMethod: "PESTEL", explicit: true });
+    expect(settings).toEqual({ projectId: "project-1", analysisMethods: ["SWOT", "PESTEL"] });
+    expect(upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        update: { analysisMethods: ["SWOT", "PESTEL"], updatedById: "reviewer-1" },
+      }),
+    );
+  });
+});
+
+describe("ContextsService runs", () => {
+  it("queues tab 1 as an INTERNAL run and tab 3 as a SYNTHESIS run", async () => {
+    const create = vi.fn().mockImplementation(({ data }: { data: { kind: string } }) => ({
+      id: `run-${data.kind}`,
+      status: "DRAFT",
+    }));
+    const enqueue = vi.fn().mockResolvedValue({ jobId: "job-1" });
+    const service = new ContextsService({ enqueue } as never, {} as never, {} as never);
+    withDatabase(service, {
+      project: { findFirst: vi.fn().mockResolvedValue({ id: "project-1" }) },
+      contextAnalysisRun: { create },
+    });
+
+    await service.triggerInternalIssues(tenant, "project-1");
+    await service.triggerSynthesis(tenant, "project-1");
+
+    expect(create).toHaveBeenNthCalledWith(1, {
+      data: expect.objectContaining({ kind: "INTERNAL", status: "DRAFT" }),
+    });
+    expect(create).toHaveBeenNthCalledWith(2, {
+      data: expect.objectContaining({ kind: "SYNTHESIS", status: "DRAFT" }),
+    });
+  });
+
+  it("validates the latest synthesis: pending issues validated with an audit row, run marked", async () => {
+    const run = {
+      id: "syn-1",
+      kind: "SYNTHESIS",
+      status: "COMPLETED",
+      createdAt: new Date("2026-09-01T00:00:00.000Z"),
+      startedAt: null,
+      completedAt: new Date("2026-09-01T00:05:00.000Z"),
+      errorMessage: null,
+      methodologyVersion: "issues-v3",
+      summary: { analysisMethods: ["SWOT", "PESTEL"] },
+      issues: [],
+    };
+    const createMany = vi.fn();
+    const updateMany = vi.fn();
+    const runUpdate = vi.fn().mockResolvedValue({ ...run, validatedAt: new Date() });
+    const service = newService();
+    withDatabase(service, {
+      project: { findFirst: vi.fn().mockResolvedValue({ id: "project-1" }) },
+      contextAnalysisRun: { findFirst: vi.fn().mockResolvedValue(run) },
+      $transaction: async (fn: (tx: unknown) => unknown) =>
+        fn({
+          contextIssue: {
+            findMany: vi.fn().mockResolvedValue([{ id: "i1" }, { id: "i2" }]),
+            updateMany,
+          },
+          contextIssueCorrection: { createMany },
+          contextAnalysisRun: { update: runUpdate },
+        }),
+    });
+
+    const summary = await service.validateSynthesis(tenant, "project-1");
+
+    expect(createMany).toHaveBeenCalledWith({
+      data: [
+        expect.objectContaining({
+          issueId: "i1",
+          fieldName: "review_status",
+          newValue: "validated",
+        }),
+        expect.objectContaining({
+          issueId: "i2",
+          fieldName: "review_status",
+          newValue: "validated",
+        }),
+      ],
+    });
+    expect(updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ reviewStatus: "VALIDATED" }) }),
+    );
+    expect(runUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "syn-1" },
+        data: expect.objectContaining({ validatedById: "reviewer-1" }),
+      }),
+    );
+    expect(summary.validatedAt).not.toBeNull();
+    expect(summary.analysisMethods).toEqual(["SWOT", "PESTEL"]);
   });
 });
 

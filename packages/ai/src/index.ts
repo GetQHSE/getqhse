@@ -6,6 +6,7 @@ export * from "./prompts/language.js";
 export * from "./prompts/context-digest.js";
 export * from "./prompts/context-external-research.prompt.js";
 export * from "./prompts/context-internal-input-assist.prompt.js";
+export * from "./prompts/context-internal-issues.prompt.js";
 export * from "./prompts/context-synthesis.prompt.js";
 export * from "./prompts/profile-chat.prompt.js";
 export * from "./prompts/regulatory-applicability.prompt.js";

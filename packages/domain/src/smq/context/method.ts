@@ -1,11 +1,12 @@
 /**
- * Analysis method of the "Analyse des enjeux" module (SWOT or PESTEL).
+ * Analysis methods of the "Analyse des enjeux" module: SWOT and/or PESTEL.
  *
- * The method is a project-level, persisted CHOICE. It only affects FUTURE runs:
- * every run keeps the method it was executed with in its own scope/inputs, so
- * historical runs stay readable exactly as they were produced. Runs persisted
- * before this choice existed have no stored method and are labelled
- * "méthodologie historique".
+ * As in the demo template, both are selected by default and the user keeps one
+ * or both (never none). Each produces its own deliverable, never merged. The
+ * selection is persisted per project and only affects FUTURE runs: every run
+ * keeps the methods it was executed with, so historical runs stay readable
+ * exactly as they were produced. Runs persisted before any method existed are
+ * labelled "méthodologie historique".
  *
  * Whatever the method, the final effective issues keep the SAME normalized
  * downstream contract consumed by the Risks & Opportunities module:
@@ -17,7 +18,7 @@ import type { Language, Localized } from "../../language.js";
 
 export type ContextAnalysisMethod = "swot" | "pestel";
 
-export const DEFAULT_ANALYSIS_METHOD: ContextAnalysisMethod = "swot";
+export const DEFAULT_ANALYSIS_METHODS: readonly ContextAnalysisMethod[] = ["swot", "pestel"];
 
 const HISTORICAL_METHOD: Localized = {
   fr: "Méthodologie historique",
@@ -43,14 +44,14 @@ export function analysisMethodLabel(value: unknown, language: Language = "fr"): 
 
 const METHOD_DESCRIPTIONS: Record<ContextAnalysisMethod, Localized> = {
   swot: {
-    fr: "Synthèse globale de votre contexte interne et externe, présentée en Forces, Faiblesses, Opportunités et Menaces.",
-    en: "An overall synthesis of your internal and external context, presented as Strengths, Weaknesses, Opportunities and Threats.",
-    ar: "خلاصة شاملة لسياقكم الداخلي والخارجي، مقدَّمة في شكل نقاط قوة ونقاط ضعف وفرص وتهديدات.",
+    fr: "Synthèse stratégique en quatre quadrants : Forces, Faiblesses, Opportunités et Menaces.",
+    en: "A strategic synthesis in four quadrants: Strengths, Weaknesses, Opportunities and Threats.",
+    ar: "خلاصة استراتيجية في أربعة أرباع: نقاط القوة ونقاط الضعف والفرص والتهديدات.",
   },
   pestel: {
-    fr: "L’investigation externe est structurée par dimension : politique, économique, social, technologique, environnemental et légal. Votre contexte interne reste collecté (il fait partie du contexte selon l’ISO).",
-    en: "The external investigation is structured by dimension: political, economic, social, technological, environmental and legal. Your internal context is still collected (it is part of the context under ISO).",
-    ar: "يُنظَّم البحث الخارجي حسب الأبعاد: السياسي والاقتصادي والاجتماعي والتكنولوجي والبيئي والقانوني. ويظل سياقكم الداخلي مُجمَّعًا (فهو جزء من السياق وفق معيار ISO).",
+    fr: "Lecture du macro-environnement selon six dimensions : politique, économique, sociale, technologique, environnementale et légale.",
+    en: "A reading of the macro-environment along six dimensions: political, economic, social, technological, environmental and legal.",
+    ar: "قراءة للبيئة الكلية وفق ستة أبعاد: السياسي والاقتصادي والاجتماعي والتكنولوجي والبيئي والقانوني.",
   },
 };
 

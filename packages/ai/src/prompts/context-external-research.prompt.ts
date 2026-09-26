@@ -18,13 +18,13 @@ export const CONTEXT_ISO_GUIDANCE = [
 
 export type ContextExternalPlanPromptInput = {
   digest: string;
-  method: "SWOT" | "PESTEL";
+  methods: ("SWOT" | "PESTEL")[];
   language: OutputLanguage;
 };
 
 export const contextExternalPlanPrompt: PromptDefinition<ContextExternalPlanPromptInput> = {
   key: "context.external-plan",
-  version: 3,
+  version: 4,
   build: (input) => ({
     system: `Tu es le moteur de planification de l'analyse du contexte EXTERNE de GetQhse AI.
 Objectif : identifier les recherches à mener pour comprendre les facteurs externes susceptibles d'influencer réellement
@@ -45,21 +45,24 @@ Réponds uniquement en JSON valide.`,
       "CONTEXTE CANONIQUE DE L'ORGANISATION (seule source de faits) :",
       input.digest,
       "",
-      ...(input.method === "PESTEL"
+      ...(input.methods.includes("PESTEL")
         ? [
-            "MÉTHODE RETENUE : PESTEL. Structure les recherches par dimension PESTEL :",
+            "ANALYSE PESTEL DEMANDÉE : couvre les dimensions PESTEL justifiées par les faits :",
             "politique, économique, social, technologique, environnemental.",
             "La dimension LÉGALE est exclue ici : elle provient de la veille réglementaire déjà établie.",
             "Nomme chaque dimension exactement par son nom PESTEL, et liste dans excludedDimensions",
             "les dimensions PESTEL non justifiées par les faits fournis (avec « légal » systématiquement).",
           ]
-        : [
-            "MÉTHODE RETENUE : SWOT. Dimensions externes possibles (n'en retiens que celles réellement justifiées) :",
-            "économique et marché, technologique, social et démographique, concurrentiel,",
-            "environnemental et climatique, chaîne d'approvisionnement, attentes clients,",
-            "main-d'œuvre et compétences disponibles, infrastructures et logistique,",
+        : []),
+      ...(input.methods.includes("SWOT")
+        ? [
+            "ANALYSE SWOT DEMANDÉE : recherche les opportunités et menaces externes réellement justifiées :",
+            "marché et demande, concurrence, attentes clients, main-d'œuvre et compétences disponibles,",
+            "chaîne d'approvisionnement, technologies du secteur, infrastructures et logistique,",
             "politique (uniquement si impact opérationnel démontrable).",
-          ]),
+            "Nomme chaque dimension par son nom PESTEL le plus proche (ex. « Économique » pour le marché).",
+          ]
+        : []),
       "",
       "Produis au maximum 8 requêtes, les plus discriminantes pour cette organisation.",
     ].join("\n"),
@@ -118,7 +121,7 @@ export type ContextExternalStructurePromptInput = {
 export const contextExternalStructurePrompt: PromptDefinition<ContextExternalStructurePromptInput> =
   {
     key: "context.external-structure",
-    version: 3,
+    version: 4,
     build: (input) => ({
       system: `Tu convertis un dossier de recherche de contexte externe en JSON strict pour GetQhse AI.
 Règles absolues :
@@ -128,7 +131,7 @@ Règles absolues :
 - orientation décrit le sens de l'influence potentielle : "favorable", "defavorable" ou "incertain". Ce n'est PAS encore un risque ni une opportunité formalisés.
 - evidenceStrength vaut "solide", "moderee" ou "faible" selon la qualité et la convergence des sources consultées.
 - confidence est une estimation interne entre 0 et 1 de la fiabilité de la documentation du facteur.
-- categoryKey est une clé courte en minuscules sans accent (ex. "economique", "technologique", "concurrentiel"), categoryLabel son libellé lisible rédigé ${inLanguage(input.language)}.
+- categoryKey est la dimension PESTEL du facteur, exactement l'une de : "politique", "economique", "social", "technologique", "environnemental" ; categoryLabel son libellé lisible rédigé ${inLanguage(input.language)}.
 - Ne produis ni score de criticité, ni probabilité, ni gravité.
 - Rédige tous les champs textuels ${inLanguage(input.language)}.
 ${outputLanguageRule(input.language)}

@@ -41,6 +41,9 @@ const ISSUE_COLUMNS = [
   { header: "impactQuality", key: "impactQuality", width: 24 },
   { header: "impactCustomer", key: "impactCustomer", width: 24 },
   { header: "impactOverall", key: "impactOverall", width: 24 },
+  { header: "impact", key: "impact", width: 18 },
+  { header: "mastery", key: "mastery", width: 18 },
+  { header: "qualification", key: "qualificationLabel", width: 16 },
   { header: "priority", key: "priorityLabel", width: 12 },
   { header: "manual", key: "addedManually", width: 12 },
   { header: "corrected", key: "corrected", width: 10 },
@@ -62,18 +65,25 @@ function writeIssueSheet(
 
   issues.forEach((issue, index) => {
     const row = sheet.getRow(index + 2);
-    row.getCell(1).value = issue.title;
-    row.getCell(2).value = issue.description;
-    row.getCell(3).value = issue.originLabel;
-    row.getCell(4).value = issue.natureLabel;
-    row.getCell(5).value = issue.categoryLabel;
-    row.getCell(6).value = issue.statusLabel;
-    row.getCell(7).value = issue.impactQuality;
-    row.getCell(8).value = issue.impactCustomer;
-    row.getCell(9).value = issue.impactOverall;
-    row.getCell(10).value = issue.priorityLabel;
-    row.getCell(11).value = issue.addedManually ? labels.yes : labels.no;
-    row.getCell(12).value = issue.corrected ? labels.yes : labels.no;
+    [
+      issue.title,
+      issue.description,
+      issue.originLabel,
+      issue.natureLabel,
+      issue.categoryLabel,
+      issue.statusLabel,
+      issue.impactQuality,
+      issue.impactCustomer,
+      issue.impactOverall,
+      issue.impact,
+      issue.mastery,
+      issue.qualificationLabel,
+      issue.priorityLabel,
+      issue.addedManually ? labels.yes : labels.no,
+      issue.corrected ? labels.yes : labels.no,
+    ].forEach((value, column) => {
+      row.getCell(column + 1).value = value;
+    });
     styleDataRow(sheet, index + 2, ISSUE_COLUMNS.length, rtl);
   });
 }

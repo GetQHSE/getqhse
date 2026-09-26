@@ -17,7 +17,14 @@ import { INTL_LOCALES, smqContext } from "@qhse/domain";
 
 import { CONTEXT_EXPORT_LABELS } from "./context-export-labels.js";
 
-const { pestelDimensionKey, pestelDimensions, swotQuadrants } = smqContext;
+const {
+  isEvaluationLevel,
+  issueQualification,
+  pestelDimensionKey,
+  pestelDimensions,
+  qualificationLabel,
+  swotQuadrants,
+} = smqContext;
 
 type ExportLabels = (typeof CONTEXT_EXPORT_LABELS)[SupportedLanguage];
 
@@ -36,6 +43,11 @@ export interface ContextDocumentIssue {
   impactQuality: string;
   impactCustomer: string;
   impactOverall: string;
+  /** Synthesis evaluation (1–3), "—" until rated. */
+  impact: string;
+  mastery: string;
+  /** Derived from impact × capacité de maîtrise, "—" until both are rated. */
+  qualificationLabel: string;
   priorityLabel: string;
   addedManually: boolean;
   corrected: boolean;
@@ -89,8 +101,14 @@ function formatDate(value: Date | string | null | undefined, language: Supported
   return Number.isNaN(date.getTime()) ? null : date.toLocaleDateString(INTL_LOCALES[language]);
 }
 
-function toDocumentIssue(issue: ContextIssue, labels: ExportLabels): ContextDocumentIssue {
+function toDocumentIssue(
+  issue: ContextIssue,
+  labels: ExportLabels,
+  language: SupportedLanguage,
+): ContextDocumentIssue {
   const nature = issue.nature && issue.nature in labels.nature ? issue.nature : null;
+  const { impact, mastery } = issue.scores;
+  const qualification = issueQualification(impact, mastery);
   return {
     title: issue.title,
     description: issue.description ?? "—",
@@ -103,6 +121,9 @@ function toDocumentIssue(issue: ContextIssue, labels: ExportLabels): ContextDocu
     impactQuality: issue.impactQuality || "—",
     impactCustomer: issue.impactCustomerSatisfaction || "—",
     impactOverall: issue.impactOverall || "—",
+    impact: isEvaluationLevel(impact) ? String(impact) : "—",
+    mastery: isEvaluationLevel(mastery) ? String(mastery) : "—",
+    qualificationLabel: qualification ? qualificationLabel(qualification, language) : "—",
     priorityLabel: issue.selectedPriority ? labels.priority : "—",
     addedManually: issue.sourceKind === "MANUAL",
     corrected: issue.reviewStatus === "MODIFIED" || issue.corrections.length > 0,
@@ -117,7 +138,7 @@ function buildSwot(issues: ContextIssue[], language: SupportedLanguage): Context
       helper: quadrant.helper,
       issues: issues
         .filter((issue) => issue.nature === quadrant.key)
-        .map((issue) => toDocumentIssue(issue, labels)),
+        .map((issue) => toDocumentIssue(issue, labels, language)),
     }))
     .filter((group) => group.issues.length > 0);
 }
@@ -133,14 +154,14 @@ function buildPestel(issues: ContextIssue[], language: SupportedLanguage): Conte
         .filter(
           (issue) => pestelDimensionKey(issue.categoryKey, issue.categoryLabel) === dimension.key,
         )
-        .map((issue) => toDocumentIssue(issue, labels)),
+        .map((issue) => toDocumentIssue(issue, labels, language)),
     })),
     {
       label: labels.otherDimensions,
       helper: labels.otherDimensionsHelp,
       issues: external
         .filter((issue) => pestelDimensionKey(issue.categoryKey, issue.categoryLabel) === "autre")
-        .map((issue) => toDocumentIssue(issue, labels)),
+        .map((issue) => toDocumentIssue(issue, labels, language)),
     },
   ].filter((group) => group.issues.length > 0);
 }
@@ -199,11 +220,11 @@ export function buildContextDocument(input: {
     analysisDate: formatDate(input.analysisDate, language),
     internalIssues: input.issues
       .filter((issue) => issue.origin === "INTERNAL")
-      .map((issue) => toDocumentIssue(issue, labels)),
+      .map((issue) => toDocumentIssue(issue, labels, language)),
     factors,
     swot: swot && swot.length > 0 ? swot : null,
     pestel: pestel && pestel.length > 0 ? pestel : null,
-    synthesis: input.issues.map((issue) => toDocumentIssue(issue, labels)),
+    synthesis: input.issues.map((issue) => toDocumentIssue(issue, labels, language)),
     summary: {
       issues: input.issues.length,
       retained: retained.length,

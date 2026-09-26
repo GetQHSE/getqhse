@@ -1,22 +1,33 @@
 /**
- * Step 1 — contexte interne déclaré. Same form, same draft/"Continuer" flow
- * and same results view as the foundation: answers are the organisation's
- * declarations, never AI-generated.
+ * Tab 1 — contexte interne. The questionnaire collects the organisation's own
+ * declarations (never AI-generated); once answered, the template's view takes
+ * over: the Assistant QHSE deduces forces and faiblesses from them, and the
+ * user validates the ones that feed the synthesis.
  */
 import { useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import type { ContextInternalInput, SupportedLanguage } from "@qhse/contracts";
+import type { ContextInternalInput, ContextIssue, SupportedLanguage } from "@qhse/contracts";
 import { Textarea } from "@qhse/ui/components/textarea";
 import { cn } from "@qhse/ui/lib/utils";
 
 import { clientApi } from "../../app/client-api.js";
-import { useFormat } from "../../app/format.js";
 import { i18n } from "../../app/i18n.js";
-import { AiBanner, GqButton, notify } from "./context-ui.js";
+import { IssueEditDialog, type IssueEditInput } from "./context-step-issues.js";
+import {
+  AiBanner,
+  EmptyState,
+  ErrorState,
+  FooterCard,
+  GqButton,
+  ProcessingState,
+  ResultsHead,
+  notify,
+} from "./context-ui.js";
 import {
   INTERNAL_CONTEXT_SECTIONS,
   questionLabel,
+  questionShortLabel,
   sectionHelper,
   sectionTitle,
   type InternalContextSection,
@@ -227,86 +238,186 @@ export function InternalContextForm({
   );
 }
 
-export function InternalContextResults({
+/** "Thème : réponse" pills, the declared facts the analysis starts from. */
+const FACT_LENGTH = 48;
+
+function factSnippet(answer: string): string {
+  const text = answer.trim().replace(/\s+/g, " ");
+  return text.length > FACT_LENGTH ? `${text.slice(0, FACT_LENGTH).trimEnd()}…` : text;
+}
+
+/** The declared fact an internal issue was deduced from ("Fait utilisé"). */
+function usedFact(issue: ContextIssue): string | null {
+  const fact =
+    issue.evidence.find((item) => item.sourceType === "declared_fact") ??
+    issue.evidence.find((item) => item.excerpt);
+  return fact?.excerpt ?? null;
+}
+
+function isRetained(issue: ContextIssue): boolean {
+  return issue.reviewStatus === "VALIDATED" || issue.reviewStatus === "MODIFIED";
+}
+
+/**
+ * Tab 1 once the questions are answered, as in the template: the Assistant QHSE
+ * turns the declared internal context into forces and faiblesses, each tied to
+ * the fact it comes from, and the user validates the ones that feed the synthesis.
+ */
+export function InternalIssuesView({
   inputs,
+  issues,
+  isRunning,
+  isSaving,
+  errorMessage,
+  onGenerate,
+  onToggleValidated,
   onEdit,
+  onEditAnswers,
   onContinue,
 }: {
   inputs: ContextInternalInput[];
-  onEdit: () => void;
+  issues: ContextIssue[];
+  isRunning: boolean;
+  isSaving: boolean;
+  errorMessage: string | null;
+  onGenerate: () => void;
+  onToggleValidated: (issue: ContextIssue) => void;
+  onEdit: (input: IssueEditInput) => void;
+  onEditAnswers: () => void;
   onContinue: () => void;
 }) {
   const { t } = useTranslation("context");
-  const format = useFormat();
-  const byQuestion = new Map(inputs.map((input) => [input.questionKey, input]));
-  const lastUpdate = inputs
-    .map((input) => input.updatedAt)
-    .sort()
-    .at(-1);
+  const [editing, setEditing] = useState<ContextIssue | null>(null);
+  const answers = new Map(inputs.map((input) => [input.questionKey, input.answerText]));
+  const facts = ALL_QUESTIONS.filter((question) => isAnswered(answers.get(question.questionKey)));
+  const generated = issues.length > 0;
+  const validated = issues.filter(isRetained).length;
 
   return (
     <div className="space-y-4">
       <AiBanner
-        title={t("internal.savedTitle")}
-        description={
-          lastUpdate
-            ? t("internal.savedBodyDated", { date: format.date(lastUpdate) })
-            : t("internal.savedBody")
+        title={t("internal.assistantTitle")}
+        description={t("internal.assistantBody")}
+        action={
+          <GqButton variant="primary" disabled={isRunning} onClick={onGenerate}>
+            {isRunning
+              ? t("internal.generating")
+              : generated
+                ? t("internal.regenerate")
+                : t("internal.generate")}
+          </GqButton>
         }
-        action={<GqButton onClick={onEdit}>{t("internal.editAnswers")}</GqButton>}
       />
 
-      {INTERNAL_CONTEXT_SECTIONS.map((section) => (
-        <section key={section.key} className="gq-card">
-          <h3>{sectionTitle(t, section.key)}</h3>
-          <dl className="mt-2">
-            {section.questions.map((question) => (
-              <div key={question.questionKey} className="gq-question">
-                <dt className="text-[12px] text-slate-500">
-                  {questionLabel(t, question.questionKey)}
-                </dt>
-                <dd className="gq-answer m-0">
-                  {byQuestion.get(question.questionKey)?.answerText?.trim() ||
-                    t("internal.notProvided")}
-                </dd>
-              </div>
-            ))}
-          </dl>
-        </section>
-      ))}
-
-      <FooterContinue onContinue={onContinue} />
-    </div>
-  );
-}
-
-function FooterContinue({ onContinue }: { onContinue: () => void }) {
-  const { t } = useTranslation("context");
-  return (
-    <div className="gq-footer">
-      <div>
-        <h4>{t("internal.validatedTitle")}</h4>
-        <p>{t("internal.validatedBody")}</p>
-      </div>
-      <GqButton variant="primary" onClick={onContinue}>
-        {t("internal.toExternal")}
-      </GqButton>
-    </div>
-  );
-}
-
-/** Informational placeholder only — no upload behaviour yet. */
-export function SupportingDocumentsCard() {
-  const { t } = useTranslation("context");
-  return (
-    <section className="gq-card mt-4">
-      <div className="gq-row">
-        <div>
-          <h3>{t("internal.documentsTitle")}</h3>
-          <p className="gq-lead">{t("internal.documentsBody")}</p>
+      <section className="gq-card">
+        <div className="gq-row">
+          <div>
+            <h3>{t("internal.declaredTitle")}</h3>
+            <p className="gq-lead">{t("internal.declaredBody")}</p>
+          </div>
+          <GqButton variant="ghost" size="sm" onClick={onEditAnswers}>
+            {t("internal.editAnswers")}
+          </GqButton>
         </div>
-        <span className="gq-badge">{t("internal.documentsSoon")}</span>
-      </div>
-    </section>
+        <div className="gq-pills mt-3">
+          {facts.map((question) => (
+            <span key={question.questionKey} className="gq-pill">
+              ✓ {questionShortLabel(t, question.questionKey)} :{" "}
+              {factSnippet(answers.get(question.questionKey) ?? "")}
+            </span>
+          ))}
+        </div>
+      </section>
+
+      {isRunning ? (
+        <ProcessingState
+          title={t("internal.generating")}
+          description={t("internal.generatingBody")}
+        />
+      ) : null}
+
+      {errorMessage && !isRunning ? (
+        <ErrorState title={t("internal.failed")} description={errorMessage} onRetry={onGenerate} />
+      ) : null}
+
+      {generated && !isRunning ? (
+        <>
+          <ResultsHead
+            title={t("internal.resultsTitle")}
+            description={t("internal.resultsBody", { count: issues.length })}
+            badge={<span className="gq-badge is-valid">{t("internal.aiDone")}</span>}
+          />
+          <div className="gq-issue-grid">
+            {issues.map((issue) => {
+              const fact = usedFact(issue);
+              const retained = isRetained(issue);
+              return (
+                <article key={issue.id} className={cn("gq-issue-card", retained && "is-validated")}>
+                  <div className="gq-issue-tags">
+                    <span
+                      className={cn(
+                        "gq-type",
+                        issue.nature === "force" ? "is-strength" : "is-weak",
+                      )}
+                    >
+                      {issue.nature === "force"
+                        ? t("issues.nature.force")
+                        : t("issues.nature.faiblesse")}
+                    </span>
+                  </div>
+                  <h4>{issue.title}</h4>
+                  {issue.description ? <p>{issue.description}</p> : null}
+                  {fact ? (
+                    <div className="gq-evidence">{t("internal.factUsed", { fact })}</div>
+                  ) : null}
+                  <div className="gq-issue-actions">
+                    <GqButton size="sm" disabled={isSaving} onClick={() => setEditing(issue)}>
+                      {t("internal.edit")}
+                    </GqButton>
+                    <GqButton
+                      size="sm"
+                      variant={retained ? "secondary" : "primary"}
+                      disabled={isSaving}
+                      onClick={() => onToggleValidated(issue)}
+                    >
+                      {retained ? t("internal.validated") : t("internal.validate")}
+                    </GqButton>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+          <FooterCard
+            title={t("internal.validatedCount", { validated, total: issues.length })}
+            description={t("internal.validatedCountBody")}
+            action={
+              <GqButton variant="primary" onClick={onContinue}>
+                {t("internal.toExternal")}
+              </GqButton>
+            }
+          />
+        </>
+      ) : null}
+
+      {!generated && !isRunning && !errorMessage ? (
+        <EmptyState
+          title={t("internal.placeholderTitle")}
+          description={t("internal.placeholderBody")}
+        />
+      ) : null}
+
+      {editing ? (
+        <IssueEditDialog
+          key={editing.id}
+          issue={editing}
+          isSaving={isSaving}
+          onClose={() => setEditing(null)}
+          onSubmit={(input) => {
+            onEdit(input);
+            setEditing(null);
+          }}
+        />
+      ) : null}
+    </div>
   );
 }

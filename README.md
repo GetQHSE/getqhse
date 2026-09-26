@@ -71,6 +71,68 @@ Integration and API tests use real PostgreSQL, Redis, and MinIO through Testcont
 
 Test Compose publishes isolated services on 55432, 56379, 59000, and 59001.
 
+## Template mock pages
+
+Some project pages are mocks of the GetQhse demo template (`getQhse-demo-*.html`): they reproduce
+its screens exactly, play its clicks locally, and never call the API. Today: Parties intéressées
+(`/projects/:projectId/interested-parties`) and Risques & opportunités (`/projects/:projectId/risks`).
+
+They are generated, not written by hand. `scripts/capture-template-mocks.mjs` opens the template in
+headless Chromium, walks every step and variant, and writes to
+`apps/client-web/src/features/template-mocks/`:
+
+- `<page>.snapshots.json` — the rendered HTML of each screen, its variants, and its modals;
+- `template-mocks.css` — only the template CSS rules those screens use, scoped under `.gq-mock`.
+
+The template's inline handlers become `data-mock` actions that `template-mock-page.tsx` plays:
+`step:N`, `variant:key=value`, `modal:key`, `close`, `close-toast:message`, `toast:message`, `back`,
+and a few inline edits. Actions are chained with `&&`. Do not edit the generated files by hand.
+
+### Update a page already brought in
+
+When the template changes, re-run the capture with the new file:
+
+```bash
+node scripts/capture-template-mocks.mjs ~/Downloads/getQhse-demo-vXX.html
+```
+
+It prints the number of screens and modals, and lists any template handler it could not map
+("played as a generic toast"). Map those in `mapHandler` (see below) and re-run. Then check the
+pages in the app, and run `pnpm --filter @qhse/client-web test`.
+
+### Bring in another page
+
+1. **Find it in the template.** Open the template in a browser and note, in the console: the route
+   (`setRoute('scope')`), the step state (e.g. `state.scopeAnalysis.step`), the page title, and the
+   handlers its buttons call (`onclick` attributes).
+2. **Capture it** in `scripts/capture-template-mocks.mjs`:
+   - add its title to the regex in `pageNode()`;
+   - add a block next to the `PIP` and `RISKS` ones: `setRoute(...)`, then for each step set the
+     step state, `await settle()`, and `snapshot(list, step, params)`. Capture one snapshot per
+     variant the user can switch to (filters, tabs, modes), with the variant in `params`, and put
+     the default variant in `defaults`. Capture modals with `captureModal`;
+   - map its handlers in `mapHandler` (a filter becomes `variant:…`, a dialog `modal:…`, a save
+     `toast:…` or `close-toast:…`);
+   - write its bundle next to the others (`writeFileSync(.../<page>.snapshots.json, ...)`).
+3. **Add the page** in `apps/client-web/src/features/template-mocks/`, like
+   `risks-mock-page.tsx`:
+
+   ```tsx
+   import bundle from "./scope.snapshots.json";
+   import { TemplateMockPage } from "./template-mock-page.js";
+
+   export function ScopeMockPage() {
+     return <TemplateMockPage bundle={bundle} />;
+   }
+   ```
+
+4. **Route it** in `apps/client-web/src/app/router.tsx` with `lazy(...)` and the `Lazy` wrapper, so
+   the captured screens load only when the page is opened.
+5. **Link it** in `projectNav` (`apps/client-web/src/components/app-sidebar.tsx`), with its
+   `nav.*` label in `apps/client-web/src/locales/{fr,en,ar}/common.ts`.
+6. **Run the capture and check it**: every step, variant and modal against the template, then the
+   web tests, typecheck and lint.
+
 ## Architecture
 
 - A modular monolith keeps transactions and authorization straightforward.

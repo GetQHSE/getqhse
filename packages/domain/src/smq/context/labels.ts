@@ -39,6 +39,7 @@ const USER_INFORMATION: Localized = {
 const EVIDENCE_SOURCE_LABELS: Record<string, Localized> = {
   internal_context: INTERNAL_CONTEXT,
   internal_input: INTERNAL_CONTEXT,
+  declared_fact: INTERNAL_CONTEXT,
   external_factor: EXTERNAL_ANALYSIS,
   external_factors: EXTERNAL_ANALYSIS,
   profile_answer: ORGANIZATION_PROFILE,

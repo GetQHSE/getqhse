@@ -118,6 +118,37 @@ export async function buildContextPdfBlob(doc: ContextDocument): Promise<Blob> {
       { 0: usable * 0.24, 1: usable * 0.36, 2: usable * 0.18, 3: usable * 0.22 },
     );
 
+  /** The template's synthesis table: one evaluated issue per row. */
+  const synthesisTable = (issues: ContextDocumentIssue[]) =>
+    table(
+      [
+        [
+          t("export.columns.identifiedIssue"),
+          t("export.columns.category"),
+          t("export.columns.nature"),
+          t("export.columns.impact"),
+          t("export.columns.mastery"),
+          t("export.columns.qualification"),
+        ],
+      ],
+      issues.map((issue) => [
+        issue.title,
+        issue.categoryLabel,
+        issue.originShort,
+        issue.impact,
+        issue.mastery,
+        issue.qualificationLabel,
+      ]),
+      {
+        0: usable * 0.32,
+        1: usable * 0.2,
+        2: usable * 0.12,
+        3: usable * 0.11,
+        4: usable * 0.11,
+        5: usable * 0.14,
+      },
+    );
+
   const groupSection = (title: string, groups: ContextDocumentGroup[]) => {
     heading(title);
     for (const group of groups) {
@@ -165,7 +196,7 @@ export async function buildContextPdfBlob(doc: ContextDocument): Promise<Blob> {
 
   heading(t("export.sectionSynthesis", { index }));
   if (doc.synthesis.length === 0) note(t("export.noIssues"));
-  else issueTable(doc.synthesis);
+  else synthesisTable(doc.synthesis);
 
   return pdf.output("blob");
 }

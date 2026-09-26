@@ -21,7 +21,15 @@ import { loadContextMaterial } from "./context-material.js";
 import { acquireModelTokens } from "./regulatory-rate-limiter.js";
 import { conservativeInputTokens, positiveNumber } from "./regulatory-model-cost.js";
 
-const { canonicalKey, factorFingerprint, pestelDimensionKey } = smqContext;
+const { canonicalKey, factorFingerprint, pestelDimensionKey, pestelDimensions } = smqContext;
+
+/** How many laws of the published register the PESTEL légal dimension shows. */
+const LEGAL_FACTORS = 6;
+
+/** The first register entries (register order), as the PESTEL légal factors. */
+export function legalFactorEntries<T>(entries: T[]): T[] {
+  return entries.slice(0, LEGAL_FACTORS);
+}
 
 /**
  * Step 2 of "Analyse des enjeux" (ISO 9001 §4.1) — external context research.
@@ -174,12 +182,7 @@ export class ContextExternalResearchProcessor extends WorkerHost {
     };
 
     const material = await loadContextMaterial(this.database, run.projectId);
-    const { project, method, digest, registerEntries } = material;
-    if (!method) {
-      // A NEW run requires an explicit persisted method choice; the default is a
-      // display fallback only, never silently executed.
-      return fail("Choisissez d’abord la méthode d’analyse SWOT ou PESTEL.");
-    }
+    const { project, methods, digest, registerEntries } = material;
     if (material.validatedAnswersCount === 0) {
       return fail(
         "Aucune réponse validée dans le profil du projet : l'analyse externe a besoin d'un profil d'entreprise validé.",
@@ -203,7 +206,7 @@ export class ContextExternalResearchProcessor extends WorkerHost {
       // ---------------- 1. plan (no browsing, no factor invented)
       const planPrompt = contextExternalPlanPrompt.build({
         digest,
-        method,
+        methods,
         language: material.language,
       });
       await acquireModelTokens(
@@ -383,6 +386,57 @@ export class ContextExternalResearchProcessor extends WorkerHost {
         }
       }
 
+      // PESTEL's légal dimension is never searched: it reuses the published veille.
+      if (methods.includes("PESTEL")) {
+        const legalLabel =
+          pestelDimensions(material.language).find((dimension) => dimension.key === "legal")
+            ?.label ?? "Légal";
+        for (const entry of legalFactorEntries(registerEntries)) {
+          const title = (entry.sourceTitle ?? entry.citationLabel).trim();
+          const key = canonicalKey(title, entry.citationLabel);
+          if (!key) continue;
+          const fingerprint = await factorFingerprint(project.id, "legal", key);
+          if (insertedFingerprints.has(fingerprint)) continue;
+          insertedFingerprints.add(fingerprint);
+          const previousId = previousByFingerprint.get(fingerprint) ?? null;
+          await this.database.contextExternalFactor.create({
+            data: {
+              runId,
+              projectId: project.id,
+              categoryKey: "legal",
+              categoryLabel: legalLabel,
+              title,
+              description: entry.requirementText?.trim().slice(0, 600) || null,
+              relevanceToCompany: entry.applicabilityRationale,
+              orientation: "incertain",
+              evidenceStrength: "solide",
+              sourceOrigin: "regulatory",
+              regulatoryEntryId: entry.id,
+              canonicalKey: key,
+              factorFingerprint: fingerprint,
+              comparisonStatus: previousId ? "recurrent" : "new",
+              previousFactorId: previousId,
+              model: null,
+              ...(entry.sourceUrl
+                ? {
+                    sources: {
+                      create: {
+                        url: entry.sourceUrl,
+                        title: entry.sourceTitle,
+                        groundingOrigin: "regulatory_reuse",
+                        authorityTier: "grounded",
+                      },
+                    },
+                  }
+                : {}),
+            },
+          });
+          factorsCreated += 1;
+          categories.add("legal");
+          if (entry.sourceUrl) sourcesCreated += 1;
+        }
+      }
+
       if (factorsCreated === 0) {
         return fail(
           "Les facteurs externes identifiés n'ont pas pu être enregistrés. Aucun résultat approximatif n'a été conservé.",
@@ -403,7 +457,7 @@ export class ContextExternalResearchProcessor extends WorkerHost {
             categoriesCovered: [...categories],
             excludedDimensions: plan.excludedDimensions,
             reusedRegulatoryEntries: registerEntries.length,
-            analysisMethod: method,
+            analysisMethods: methods,
           },
         },
       });

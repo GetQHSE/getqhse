@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   contextAnswerAssistPrompt,
   contextExternalStructurePrompt,
+  contextInternalIssuesPrompt,
   contextSynthesisPrompt,
   outputLanguageRule,
   profileChatPrompt,
@@ -27,8 +28,14 @@ describe("output language", () => {
 
   it.each(["en", "ar"] as const)("removes every French-only rule from %s prompts", (language) => {
     const systems = [
-      contextSynthesisPrompt.build({ digest: "", externalMaterial: "", method: "SWOT", language })
-        .system,
+      contextSynthesisPrompt.build({
+        digest: "",
+        internalIssues: "",
+        externalMaterial: "",
+        methods: ["SWOT", "PESTEL"],
+        language,
+      }).system,
+      contextInternalIssuesPrompt.build({ digest: "", language }).system,
       contextExternalStructurePrompt.build({ digest: "", researchText: "", sources: [], language })
         .system,
       contextAnswerAssistPrompt.build({

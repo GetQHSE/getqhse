@@ -1,8 +1,14 @@
 /**
- * "Analyse des enjeux" (ISO 9001 §4.1) — steps 1 through 4, same flow,
- * wording and gating as the foundation's analysis route. Runs execute in the
- * worker: "running" is read from the latest run's status instead of a
- * pending request, everything else behaves identically.
+ * "Analyse des enjeux" (ISO 9001 §4.1), following the demo template's three tabs:
+ *
+ * 1. Contexte interne — the declared internal context becomes forces and
+ *    faiblesses (AI), which the user validates one by one.
+ * 2. Analyse externe — SWOT and/or PESTEL, each its own deliverable.
+ * 3. Synthèse des enjeux — the retained issues rated impact × capacité de
+ *    maîtrise, validated once to unlock the exports.
+ *
+ * Runs execute in the worker: "running" is read from the latest run's status
+ * instead of a pending request.
  */
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
@@ -10,31 +16,29 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertCircleIcon, LoaderCircleIcon, ScaleIcon } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type {
+  ContextAnalysisMethod,
   ContextAnalysisRunSummary,
   ContextExternalRunSummary,
+  ContextIssue,
   SupportedLanguage,
 } from "@qhse/contracts";
+import type { EvaluationLevel } from "@qhse/domain/smq/context/evaluation";
 import { Badge } from "@qhse/ui/components/badge";
 import { Button } from "@qhse/ui/components/button";
 import { Skeleton } from "@qhse/ui/components/skeleton";
 import { Toaster } from "@qhse/ui/components/toast";
 
 import { clientApi } from "../../app/client-api.js";
-import { AnalysisMethodCard, ExternalAnalysisPanel } from "./context-step-external.js";
+import { ExternalAnalysisView } from "./context-step-external.js";
+import { InternalContextForm, InternalIssuesView } from "./context-step-internal.js";
 import {
-  InternalContextForm,
-  InternalContextResults,
-  SupportingDocumentsCard,
-} from "./context-step-internal.js";
-import {
-  ContextExportCard,
-  ContextVisualSummary,
+  ContextExportMenu,
+  IssuesEvaluation,
   IssuesSynthesisPanel,
-  IssuesValidationPanel,
-  ManualIssueDialog,
-  computeIssueMetrics,
-  type ReviewIssueInput,
+  type EvaluationField,
+  type IssueEditInput,
 } from "./context-step-issues.js";
+import { evaluatedIssues } from "./evaluation.js";
 import { AnalysisStepper, notify } from "./context-ui.js";
 import { buildContextDocument } from "./export/document.js";
 import "./context.css";
@@ -159,7 +163,7 @@ function AnalysisPage({
   const queryClient = useQueryClient();
   const { t } = useTranslation("context");
   const pollWhileActive = (query: { state: { data?: { status: string }[] | undefined } }) =>
-    isActive(query.state.data?.[0]) ? 3_000 : false;
+    query.state.data?.some(isActive) ? 3_000 : false;
 
   const settingsQuery = useQuery({
     queryKey: ["context-settings", projectId],
@@ -172,6 +176,10 @@ function AnalysisPage({
   const inputsQuery = useQuery({
     queryKey: ["context-internal-inputs", projectId],
     queryFn: () => clientApi.contextInternalInputs(projectId),
+  });
+  const internalIssuesQuery = useQuery({
+    queryKey: ["context-internal-issues", projectId],
+    queryFn: () => clientApi.contextInternalIssues(projectId),
   });
   const externalRunsQuery = useQuery({
     queryKey: ["context-external-runs", projectId],
@@ -194,20 +202,45 @@ function AnalysisPage({
 
   const savedInputs = inputsQuery.data ?? [];
   const internalCompleted = savedInputs.some((input) => input.status === "completed");
-  const factors = factorsQuery.data ?? [];
+  const internalIssues = internalIssuesQuery.data ?? [];
+  const retainedInternal = internalIssues.filter(
+    (issue) => issue.reviewStatus === "VALIDATED" || issue.reviewStatus === "MODIFIED",
+  );
+  const methods = settingsQuery.data?.analysisMethods ?? ["SWOT", "PESTEL"];
   const issues = issuesQuery.data ?? [];
-  const metrics = useMemo(() => computeIssueMetrics(issues), [issues]);
-  const latestCompletedRun =
-    (analysisRunsQuery.data ?? []).find((run) => run.status === "COMPLETED") ?? null;
 
-  const methodChosen = settingsQuery.data?.explicit === true;
-  const displayedMethod =
-    latestCompletedRun?.analysisMethod ?? settingsQuery.data?.analysisMethod ?? "SWOT";
-  const displayedMethodExplicit =
-    Boolean(latestCompletedRun?.analysisMethod) || (settingsQuery.data?.explicit ?? false);
+  const runsOf = (kind: ContextAnalysisRunSummary["kind"]) =>
+    (analysisRunsQuery.data ?? []).filter((run) => run.kind === kind);
+  const internalRuns = runsOf("INTERNAL");
+  const synthesisRuns = runsOf("SYNTHESIS");
+  const latestSynthesis = synthesisRuns.find((run) => run.status === "COMPLETED") ?? null;
+  const synthesisValidated = latestSynthesis?.validatedAt != null;
+
+  // Tab 2 only shows an analysis made with exactly the selected methods: changing
+  // the selection "clears" it, as in the template (it stays stored).
+  const latestExternalRun =
+    (externalRunsQuery.data ?? []).find((run) => run.status === "COMPLETED") ?? null;
+  const externalGenerated =
+    latestExternalRun != null &&
+    latestExternalRun.analysisMethods.length === methods.length &&
+    methods.every((method) => latestExternalRun.analysisMethods.includes(method));
+  const factors = externalGenerated ? (factorsQuery.data ?? []) : [];
 
   /* ------------------------------- runs ------------------------------- */
 
+  const invalidate = (key: string) =>
+    void queryClient.invalidateQueries({ queryKey: [key, projectId] });
+
+  const internal = useLaunchedRun<ContextAnalysisRunSummary>(
+    internalRuns,
+    useMemo(
+      () => (run: ContextAnalysisRunSummary) => {
+        void queryClient.invalidateQueries({ queryKey: ["context-internal-issues", projectId] });
+        notify.success(t("page.internalDone", { count: run.issuesCount }));
+      },
+      [projectId, queryClient, t],
+    ),
+  );
   const external = useLaunchedRun<ContextExternalRunSummary>(
     externalRunsQuery.data,
     useMemo(
@@ -219,7 +252,7 @@ function AnalysisPage({
     ),
   );
   const synthesis = useLaunchedRun<ContextAnalysisRunSummary>(
-    analysisRunsQuery.data,
+    synthesisRuns,
     useMemo(
       () => (run: ContextAnalysisRunSummary) => {
         void queryClient.invalidateQueries({ queryKey: ["context-issues", projectId] });
@@ -229,38 +262,132 @@ function AnalysisPage({
     ),
   );
 
+  const launchInternal = useMutation({
+    mutationFn: () => clientApi.triggerContextInternalIssues(projectId),
+    onSuccess: (job) => {
+      internal.track(job.runId);
+      invalidate("context-analysis-runs");
+    },
+  });
   const launchExternal = useMutation({
     mutationFn: () => clientApi.triggerContextExternalResearch(projectId),
     onSuccess: (job) => {
       external.track(job.runId);
-      void queryClient.invalidateQueries({ queryKey: ["context-external-runs", projectId] });
+      invalidate("context-external-runs");
     },
   });
   const launchSynthesis = useMutation({
     mutationFn: () => clientApi.triggerContextSynthesis(projectId),
     onSuccess: (job) => {
       synthesis.track(job.runId);
-      void queryClient.invalidateQueries({ queryKey: ["context-analysis-runs", projectId] });
+      invalidate("context-analysis-runs");
     },
   });
-  const review = useMutation({
-    mutationFn: (input: ReviewIssueInput) =>
+
+  const saveMethods = useMutation({
+    mutationFn: (next: ContextAnalysisMethod[]) =>
+      clientApi.setContextMethods(projectId, { methods: next }),
+    onSuccess: (next) => queryClient.setQueryData(["context-settings", projectId], next),
+    onError: () => notify.error(t("external.methodSaveFailed")),
+  });
+  const toggleMethod = (method: ContextAnalysisMethod) => {
+    const next = methods.includes(method)
+      ? methods.filter((value) => value !== method)
+      : [...methods, method];
+    if (next.length === 0) {
+      notify.error(t("external.keepOneMethod"));
+      return;
+    }
+    saveMethods.mutate(next);
+  };
+
+  /** Replaces an issue in whichever list holds it (tab 1 or tab 3). */
+  const replaceIssue = (updated: ContextIssue) => {
+    for (const key of ["context-internal-issues", "context-issues"]) {
+      queryClient.setQueryData<ContextIssue[]>([key, projectId], (current) =>
+        current?.map((issue) => (issue.id === updated.id ? updated : issue)),
+      );
+    }
+  };
+  // A change to a validated synthesis re-opens it on the server.
+  const afterSynthesisChange = () => invalidate("context-analysis-runs");
+
+  /** Tab 1 "Valider" / "✓ Validé": an audited review of one internal issue. */
+  const toggleInternal = useMutation({
+    mutationFn: (issue: ContextIssue) => {
+      const retained = issue.reviewStatus === "VALIDATED" || issue.reviewStatus === "MODIFIED";
+      return clientApi.applyContextIssueOverride(projectId, issue.id, {
+        reviewStatus: retained ? "PENDING" : "VALIDATED",
+        correctionReason: retained
+          ? t("issues.reasons.internalReopened")
+          : t("issues.reasons.internalValidated"),
+      });
+    },
+    onSuccess: replaceIssue,
+    onError: () => notify.error(t("page.reviewFailed")),
+  });
+  const edit = useMutation({
+    mutationFn: (input: IssueEditInput) =>
       clientApi.applyContextIssueOverride(projectId, input.issueId, {
-        ...(input.reviewStatus ? { reviewStatus: input.reviewStatus } : {}),
-        ...(input.selectedPriority !== undefined
-          ? { selectedPriority: input.selectedPriority }
-          : {}),
         ...(input.title ? { title: input.title } : {}),
         ...(input.description ? { description: input.description } : {}),
         ...(input.nature ? { nature: input.nature } : {}),
         correctionReason: input.reason,
       }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["context-issues", projectId] }),
+    onSuccess: (updated) => {
+      replaceIssue(updated);
+      afterSynthesisChange();
+    },
     onError: () => notify.error(t("page.reviewFailed")),
   });
 
+  const issuesKey = ["context-issues", projectId];
+  /** A rating changes the table at once; the audited override follows. */
+  const rate = useMutation({
+    mutationFn: ({
+      issue,
+      field,
+      value,
+    }: {
+      issue: ContextIssue;
+      field: EvaluationField;
+      value: EvaluationLevel;
+    }) =>
+      clientApi.applyContextIssueOverride(projectId, issue.id, {
+        scores: { ...issue.scores, [field]: value },
+        correctionReason: t("issues.reasons.rated"),
+      }),
+    onMutate: async ({ issue, field, value }) => {
+      await queryClient.cancelQueries({ queryKey: issuesKey });
+      const previous = queryClient.getQueryData<ContextIssue[]>(issuesKey);
+      replaceIssue({ ...issue, scores: { ...issue.scores, [field]: value } });
+      return { previous };
+    },
+    onSuccess: (updated) => {
+      replaceIssue(updated);
+      afterSynthesisChange();
+    },
+    onError: (_error, _input, context) => {
+      queryClient.setQueryData(issuesKey, context?.previous);
+      notify.error(t("issues.evaluation.rateFailed"));
+    },
+  });
+  const validateSynthesis = useMutation({
+    mutationFn: () => clientApi.validateContextSynthesis(projectId),
+    onSuccess: () => notify.success(t("issues.evaluation.validatedToast")),
+    onError: () => notify.error(t("page.reviewFailed")),
+    onSettled: () => {
+      invalidate("context-analysis-runs");
+      invalidate("context-issues");
+    },
+  });
+
+  const internalRunning = launchInternal.isPending || internal.isRunning;
   const externalRunning = launchExternal.isPending || external.isRunning;
   const synthesisRunning = launchSynthesis.isPending || synthesis.isRunning;
+  const internalError = launchInternal.isError
+    ? t("page.internalLaunchFailed")
+    : internal.errorMessage;
   const externalError = launchExternal.isError
     ? t("page.externalLaunchFailed")
     : external.errorMessage;
@@ -270,53 +397,52 @@ function AnalysisPage({
 
   /* ------------------------------- steps ------------------------------- */
 
-  const step1Done = internalCompleted;
-  const step2Done = factors.length > 0;
-  const step3Done = issues.length > 0;
+  const step1Done = retainedInternal.length > 0;
+  const step2Done = externalGenerated;
   const completedSteps = [
     ...(step1Done ? [1] : []),
     ...(step2Done ? [2] : []),
-    ...(step3Done ? [3] : []),
-    ...(step3Done && metrics.pending === 0 ? [4] : []),
+    ...(synthesisValidated ? [3] : []),
   ];
-  const maxReachableStep = step3Done ? 4 : step2Done ? 3 : step1Done ? 2 : 1;
 
-  const isLoadingStep = inputsQuery.isLoading || factorsQuery.isLoading || issuesQuery.isLoading;
+  const isLoadingStep =
+    inputsQuery.isLoading ||
+    internalIssuesQuery.isLoading ||
+    factorsQuery.isLoading ||
+    issuesQuery.isLoading ||
+    externalRunsQuery.isLoading;
   const [step, setStep] = useState(1);
   const [autoAdvanced, setAutoAdvanced] = useState(false);
   useEffect(() => {
     if (autoAdvanced || isLoadingStep) return;
-    setStep(maxReachableStep);
+    // Open on the first tab still to do, as a returning user expects.
+    setStep(issues.length > 0 || step2Done ? 3 : step1Done ? 2 : 1);
     setAutoAdvanced(true);
-  }, [autoAdvanced, isLoadingStep, maxReachableStep]);
+  }, [autoAdvanced, isLoadingStep, issues.length, step1Done, step2Done]);
 
   const [editingInternal, setEditingInternal] = useState(false);
-  const showInternalSuccess = internalCompleted && !editingInternal;
+  const showQuestions = !internalCompleted || editingInternal;
+
+  // The synthesis needs a new run when tab 1 or tab 2 changed after it.
+  const synthesisOutdated =
+    latestSynthesis?.completedAt != null &&
+    [
+      latestExternalRun?.completedAt,
+      internalRuns.find((run) => run.status === "COMPLETED")?.completedAt,
+    ].some((at) => at != null && at > latestSynthesis.completedAt!);
+  const synthesisBlockedReason = !step1Done
+    ? t("page.internalFirst")
+    : !step2Done
+      ? t("page.externalFirst")
+      : null;
+  const showSynthesisLaunch =
+    issues.length === 0 ||
+    synthesisOutdated ||
+    synthesisRunning ||
+    !!synthesisError ||
+    synthesisBlockedReason != null;
 
   const scope = scopeQuery.data;
-  const scopeRows = scope
-    ? [
-        { label: t("page.scope.project"), value: scope.projectName },
-        { label: t("page.scope.organization"), value: scope.organizationName || "—" },
-        { label: t("page.scope.standard"), value: scope.isoStandard },
-        { label: t("page.scope.activity"), value: scope.activity ?? "—" },
-        {
-          label: t("page.scope.countries"),
-          value: scope.countries.join(", ") || t("page.scope.noCountries"),
-        },
-        {
-          label: t("page.scope.internal"),
-          value: internalCompleted
-            ? t("page.scope.internalValidated")
-            : t("page.scope.internalTodo"),
-        },
-        {
-          label: t("page.scope.language"),
-          value: t(`projectLanguage.${projectLanguage}`, { ns: "common" }),
-        },
-      ]
-    : [];
-
   const exportDocument = useMemo(() => {
     if (!scope) return null;
     return buildContextDocument({
@@ -324,21 +450,14 @@ function AnalysisPage({
       organizationName: scope.organizationName || "—",
       projectName: scope.projectName,
       isoStandard: scope.isoStandard,
-      method: displayedMethod,
-      methodExplicit: displayedMethodExplicit,
-      analysisDate: latestCompletedRun?.completedAt ?? latestCompletedRun?.createdAt ?? null,
+      method: methods[0] ?? "SWOT",
+      methodExplicit: true,
+      methodsPerformed: methods,
+      analysisDate: latestSynthesis?.completedAt ?? latestSynthesis?.createdAt ?? null,
       factors,
       issues,
     });
-  }, [
-    scope,
-    projectLanguage,
-    displayedMethod,
-    displayedMethodExplicit,
-    latestCompletedRun,
-    factors,
-    issues,
-  ]);
+  }, [scope, projectLanguage, methods, latestSynthesis, factors, issues]);
 
   return (
     <div className="gq-analysis mx-auto max-w-5xl py-8">
@@ -351,8 +470,15 @@ function AnalysisPage({
         <AnalysisStepper
           activeStep={step}
           completedSteps={completedSteps}
-          maxReachableStep={maxReachableStep}
+          maxReachableStep={3}
           onStepChange={setStep}
+          action={
+            <ContextExportMenu
+              projectId={projectId}
+              document={exportDocument}
+              enabled={synthesisValidated}
+            />
+          }
         />
 
         {isLoadingStep ? (
@@ -361,99 +487,73 @@ function AnalysisPage({
             <Skeleton className="h-64 w-full" />
           </div>
         ) : step === 1 ? (
-          <>
-            {showInternalSuccess ? (
-              <InternalContextResults
-                inputs={savedInputs}
-                onEdit={() => setEditingInternal(true)}
-                onContinue={() => setStep(2)}
-              />
-            ) : (
-              <InternalContextForm
-                projectId={projectId}
-                projectLanguage={projectLanguage}
-                existingInputs={savedInputs}
-                onCompleted={() => {
-                  setEditingInternal(false);
-                  setStep(2);
-                }}
-              />
-            )}
-            <SupportingDocumentsCard />
-          </>
+          showQuestions ? (
+            <InternalContextForm
+              projectId={projectId}
+              projectLanguage={projectLanguage}
+              existingInputs={savedInputs}
+              onCompleted={() => setEditingInternal(false)}
+            />
+          ) : (
+            <InternalIssuesView
+              inputs={savedInputs}
+              issues={internalIssues}
+              isRunning={internalRunning}
+              isSaving={toggleInternal.isPending || edit.isPending}
+              errorMessage={internalRunning ? null : internalError}
+              onGenerate={() => {
+                if (!internalRunning) launchInternal.mutate();
+              }}
+              onToggleValidated={(issue) => toggleInternal.mutate(issue)}
+              onEdit={(input) => edit.mutate(input)}
+              onEditAnswers={() => setEditingInternal(true)}
+              onContinue={() => setStep(2)}
+            />
+          )
         ) : step === 2 ? (
-          <>
-            <AnalysisMethodCard projectId={projectId} settings={settingsQuery.data} />
-            <ExternalAnalysisPanel
-              factors={factors}
-              runs={externalRunsQuery.data ?? []}
-              scopeRows={scopeRows}
-              canLaunch={step1Done && methodChosen}
-              blockedReason={
-                !methodChosen
-                  ? t("page.methodRequired")
-                  : step1Done
-                    ? null
-                    : t("page.internalFirst")
-              }
-              isRunning={externalRunning}
-              errorMessage={externalRunning ? null : externalError}
-              onLaunch={() => {
-                if (!step1Done || !methodChosen || externalRunning) return;
-                launchExternal.mutate();
-              }}
-              onContinue={() => setStep(3)}
-            />
-          </>
-        ) : step === 3 ? (
-          <>
-            {methodChosen ? null : (
-              <AnalysisMethodCard projectId={projectId} settings={settingsQuery.data} />
-            )}
-            <IssuesSynthesisPanel
-              issues={issues}
-              runs={analysisRunsQuery.data ?? []}
-              canLaunch={step1Done && step2Done && methodChosen}
-              blockedReason={
-                !methodChosen
-                  ? t("page.methodRequired")
-                  : step2Done
-                    ? null
-                    : t("page.externalFirst")
-              }
-              isRunning={synthesisRunning}
-              errorMessage={synthesisRunning ? null : synthesisError}
-              onLaunch={() => {
-                if (!step2Done || !methodChosen || synthesisRunning) return;
-                launchSynthesis.mutate();
-              }}
-              onContinue={() => setStep(4)}
-            />
-          </>
+          <ExternalAnalysisView
+            methods={methods}
+            generated={externalGenerated}
+            factors={factors}
+            internalIssues={retainedInternal}
+            isSavingMethods={saveMethods.isPending}
+            isRunning={externalRunning}
+            errorMessage={externalRunning ? null : externalError}
+            canLaunch={internalCompleted}
+            blockedReason={internalCompleted ? null : t("page.questionsFirst")}
+            onToggleMethod={toggleMethod}
+            onLaunch={() => {
+              if (!internalCompleted || externalRunning) return;
+              launchExternal.mutate();
+            }}
+            onContinue={() => setStep(3)}
+          />
         ) : (
-          <>
-            <IssuesValidationPanel
+          <IssuesSynthesisPanel
+            showLaunch={showSynthesisLaunch}
+            hasIssues={issues.length > 0}
+            canLaunch={synthesisBlockedReason == null}
+            blockedReason={synthesisBlockedReason}
+            isRunning={synthesisRunning}
+            errorMessage={synthesisRunning ? null : synthesisError}
+            onLaunch={() => {
+              if (synthesisBlockedReason != null || synthesisRunning) return;
+              launchSynthesis.mutate();
+            }}
+          >
+            <IssuesEvaluation
               issues={issues}
-              metrics={metrics}
-              isReviewing={review.isPending}
-              analysisDate={
-                latestCompletedRun?.completedAt ?? latestCompletedRun?.createdAt ?? null
-              }
-              methodologyVersion={latestCompletedRun?.methodologyVersion ?? null}
-              onReview={(input) => review.mutate(input)}
-              headerAction={
-                <ManualIssueDialog projectId={projectId} projectLanguage={projectLanguage} />
-              }
+              validated={synthesisValidated}
+              isSaving={edit.isPending || validateSynthesis.isPending}
+              isValidating={validateSynthesis.isPending}
+              onRate={(issue, field, value) => rate.mutate({ issue, field, value })}
+              onEdit={(input) => edit.mutate(input)}
+              onValidate={() => {
+                if (evaluatedIssues(issues).length > 0) validateSynthesis.mutate();
+              }}
+              onBack={() => setStep(2)}
             />
-
-            <ContextVisualSummary
-              issues={issues}
-              method={displayedMethod}
-              methodExplicit={displayedMethodExplicit}
-            />
-
-            <ContextExportCard document={exportDocument} />
-          </>
+          </IssuesSynthesisPanel>
         )}
       </div>
     </div>

@@ -41,6 +41,8 @@ const common: Catalog<typeof fr> = {
     profile: "Profile",
     regulatoryWatch: "Regulatory watch",
     context: "Context analysis",
+    interestedParties: "Interested parties",
+    risks: "Risks & opportunities",
     chooseProject: "Choose a project",
     projectSpace: "Project space",
     newProject: "New project",

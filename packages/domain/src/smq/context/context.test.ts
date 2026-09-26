@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { canonicalKey, factorFingerprint, issueFingerprint } from "./identity.js";
 import {
-  DEFAULT_ANALYSIS_METHOD,
+  DEFAULT_ANALYSIS_METHODS,
   HISTORICAL_METHOD_LABEL,
   PESTEL_DIMENSIONS,
   PESTEL_DIMENSION_ENUM,
@@ -14,8 +14,8 @@ import {
 } from "./method.js";
 
 describe("analysis method", () => {
-  it("defaults to SWOT", () => {
-    expect(DEFAULT_ANALYSIS_METHOD).toBe("swot");
+  it("selects both SWOT and PESTEL by default, as in the template", () => {
+    expect(DEFAULT_ANALYSIS_METHODS).toEqual(["swot", "pestel"]);
   });
 
   it("labels a run persisted before the method choice existed", () => {

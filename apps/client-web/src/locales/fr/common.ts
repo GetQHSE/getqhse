@@ -38,6 +38,8 @@ const common = {
     profile: "Profil",
     regulatoryWatch: "Veille réglementaire",
     context: "Analyse des enjeux",
+    interestedParties: "Parties intéressées",
+    risks: "Risques & opportunités",
     chooseProject: "Choisir un projet",
     projectSpace: "Espace projet",
     newProject: "Nouveau projet",
