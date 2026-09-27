@@ -19,7 +19,7 @@
     "lint": "turbo lint && dependency-cruiser --config .dependency-cruiser.cjs apps packages",
     "typecheck": "turbo typecheck",
     "test": "turbo test",
-    "test:unit": "turbo test:unit",
+    "test:unit": "turbo test:unit --concurrency=4",
     "test:integration": "vitest run --config tests/integration/vitest.config.ts",
     "test:api": "vitest run --config tests/api/vitest.config.ts",
     "test:e2e": "playwright test",
