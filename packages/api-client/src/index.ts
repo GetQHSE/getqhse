@@ -1,4 +1,20 @@
 import {
+  pipRegisterSchema,
+  pipJobSchema,
+  pipLaunchSchema,
+  pipReviewSchema,
+  pipAllocationSchema,
+  pipAddPartySchema,
+  pipAddRequirementSchema,
+  pipAnswerSchema,
+  type PipLaunch,
+  type PipReview,
+  type PipAllocation,
+  type PipAddParty,
+  type PipAddRequirement,
+  type PipAnswer,
+} from "@qhse/contracts";
+import {
   addContextIssueEvidenceSchema,
   apiErrorSchema,
   applyContextIssueOverrideSchema,
@@ -623,6 +639,65 @@ export class QhseApiClient {
       contextAnswerAssistResponseSchema,
       { method: "POST", body: JSON.stringify(contextAnswerAssistRequestSchema.parse(input)) },
     );
+  }
+
+  pipRegister(projectId: string) {
+    return this.#request(`/v1/projects/${encodeURIComponent(projectId)}/pip`, pipRegisterSchema);
+  }
+  launchPip(projectId: string, input: PipLaunch) {
+    return this.#request(`/v1/projects/${encodeURIComponent(projectId)}/pip/runs`, pipJobSchema, {
+      method: "POST",
+      body: JSON.stringify(pipLaunchSchema.parse(input)),
+    });
+  }
+  reviewPip(projectId: string, input: PipReview) {
+    return this.#request(
+      `/v1/projects/${encodeURIComponent(projectId)}/pip/review`,
+      pipRegisterSchema,
+      { method: "POST", body: JSON.stringify(pipReviewSchema.parse(input)) },
+    );
+  }
+  allocatePip(projectId: string, input: PipAllocation) {
+    return this.#request(
+      `/v1/projects/${encodeURIComponent(projectId)}/pip/allocation`,
+      pipRegisterSchema,
+      { method: "POST", body: JSON.stringify(pipAllocationSchema.parse(input)) },
+    );
+  }
+  addPipParty(projectId: string, input: PipAddParty) {
+    return this.#request(
+      `/v1/projects/${encodeURIComponent(projectId)}/pip/parties`,
+      pipRegisterSchema,
+      { method: "POST", body: JSON.stringify(pipAddPartySchema.parse(input)) },
+    );
+  }
+  addPipRequirement(projectId: string, input: PipAddRequirement) {
+    return this.#request(
+      `/v1/projects/${encodeURIComponent(projectId)}/pip/requirements`,
+      pipRegisterSchema,
+      { method: "POST", body: JSON.stringify(pipAddRequirementSchema.parse(input)) },
+    );
+  }
+  answerPip(projectId: string, input: PipAnswer) {
+    return this.#request(
+      `/v1/projects/${encodeURIComponent(projectId)}/pip/clarifications`,
+      pipRegisterSchema,
+      { method: "POST", body: JSON.stringify(pipAnswerSchema.parse(input)) },
+    );
+  }
+  validatePip(projectId: string) {
+    return this.#request(
+      `/v1/projects/${encodeURIComponent(projectId)}/pip/validate`,
+      pipRegisterSchema,
+      { method: "POST" },
+    );
+  }
+  async exportPipRegister(projectId: string): Promise<ArrayBuffer> {
+    const response = await this.#axios.get<ArrayBuffer>(
+      `/v1/projects/${encodeURIComponent(projectId)}/pip/export.xlsx`,
+      { responseType: "arraybuffer" },
+    );
+    return response.data;
   }
 
   async exportContextRegister(projectIdOrSlug: string): Promise<ArrayBuffer> {

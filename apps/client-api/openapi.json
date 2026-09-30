@@ -786,6 +786,240 @@
         "tags": ["context"]
       }
     },
+    "/v1/projects/{projectIdOrSlug}/pip": {
+      "get": {
+        "operationId": "PipController_register",
+        "parameters": [
+          {
+            "name": "x-organization-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["pip"]
+      }
+    },
+    "/v1/projects/{projectIdOrSlug}/pip/runs": {
+      "post": {
+        "operationId": "PipController_launch",
+        "parameters": [
+          {
+            "name": "x-organization-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["pip"]
+      }
+    },
+    "/v1/projects/{projectIdOrSlug}/pip/review": {
+      "post": {
+        "operationId": "PipController_review",
+        "parameters": [
+          {
+            "name": "x-organization-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["pip"]
+      }
+    },
+    "/v1/projects/{projectIdOrSlug}/pip/parties": {
+      "post": {
+        "operationId": "PipController_addParty",
+        "parameters": [
+          {
+            "name": "x-organization-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["pip"]
+      }
+    },
+    "/v1/projects/{projectIdOrSlug}/pip/requirements": {
+      "post": {
+        "operationId": "PipController_addRequirement",
+        "parameters": [
+          {
+            "name": "x-organization-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["pip"]
+      }
+    },
+    "/v1/projects/{projectIdOrSlug}/pip/allocation": {
+      "post": {
+        "operationId": "PipController_allocate",
+        "parameters": [
+          {
+            "name": "x-organization-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["pip"]
+      }
+    },
+    "/v1/projects/{projectIdOrSlug}/pip/clarifications": {
+      "post": {
+        "operationId": "PipController_answer",
+        "parameters": [
+          {
+            "name": "x-organization-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["pip"]
+      }
+    },
+    "/v1/projects/{projectIdOrSlug}/pip/validate": {
+      "post": {
+        "operationId": "PipController_validate",
+        "parameters": [
+          {
+            "name": "x-organization-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["pip"]
+      }
+    },
+    "/v1/projects/{projectIdOrSlug}/pip/export.xlsx": {
+      "get": {
+        "operationId": "PipController_export",
+        "parameters": [
+          {
+            "name": "x-organization-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["pip"]
+      }
+    },
     "/v1/projects/{projectIdOrSlug}/profile": {
       "get": {
         "operationId": "ProjectProfilesController_get",

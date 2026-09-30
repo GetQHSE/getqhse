@@ -1096,6 +1096,11 @@ model Project {
   aiInvocations          AiInvocation[]
   regulatoryWatch        ProjectRegulatoryWatch?
   knowledgeExamples      AiKnowledgeExample[]
+  pipState               PipState?
+  pipRuns                PipRun[]
+  pipParties             PipParty[]
+  pipClarifications      PipClarification[]
+  pipCorrections         PipCorrection[]
   contextSettings        ProjectContextSettings?
   contextInternalInputs  ContextInternalInput[]
   contextExternalRuns    ContextExternalResearchRun[]
@@ -2379,4 +2384,137 @@ model ContextIssueCorrection {
   correctedBy User         @relation("ContextIssueCorrectionAuthor", fields: [correctedById], references: [id], onDelete: Restrict)
 
   @@map("context_issue_corrections")
+}
+
+// PIP: stable reviewed records, immutable generation snapshots and audited edits.
+enum PipStage {
+  INVENTORY
+  REQUIREMENTS
+  EVALUATION
+}
+
+enum PipReviewStatus {
+  PENDING
+  VALIDATED
+  MODIFIED
+  NOT_RETAINED
+}
+
+model PipState {
+  projectId String @id @map("project_id")
+  revision Int @default(0)
+  evaluationMethod String @default("both") @map("evaluation_method")
+  inventoryFingerprint String? @map("inventory_fingerprint")
+  validatedAt DateTime? @map("validated_at")
+  validatedById String? @map("validated_by_id")
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  @@map("pip_states")
+}
+
+model PipRun {
+  id String @id @default(cuid())
+  projectId String @map("project_id")
+  stage PipStage
+  status ContextRunStatus @default(DRAFT)
+  revision Int
+  inputSnapshot Json @map("input_snapshot")
+  outputSnapshot Json? @map("output_snapshot")
+  contextFingerprint String @map("context_fingerprint")
+  methodologyVersion String @default("pip-v1") @map("methodology_version")
+  model String?
+  triggeredById String @map("triggered_by_id")
+  errorMessage String? @map("error_message")
+  createdAt DateTime @default(now()) @map("created_at")
+  startedAt DateTime? @map("started_at")
+  completedAt DateTime? @map("completed_at")
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  parties PipParty[]
+  requirements PipRequirement[]
+  clarifications PipClarification[]
+  @@index([projectId, createdAt])
+  @@map("pip_runs")
+}
+
+model PipParty {
+  id String @id @default(cuid())
+  projectId String @map("project_id")
+  runId String? @map("run_id")
+  canonicalKey String @map("canonical_key")
+  origin String @default("ai")
+  aiProposal Json? @map("ai_proposal")
+  effective Json
+  reviewStatus PipReviewStatus @default(PENDING) @map("review_status")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  run PipRun? @relation(fields: [runId], references: [id], onDelete: Restrict)
+  requirements PipRequirement[]
+  evaluations PipEvaluation[]
+  @@unique([projectId, canonicalKey])
+  @@map("pip_parties")
+}
+
+model PipRequirement {
+  id String @id @default(cuid())
+  partyId String @map("party_id")
+  runId String? @map("run_id")
+  canonicalKey String @map("canonical_key")
+  origin String @default("ai")
+  aiProposal Json? @map("ai_proposal")
+  effective Json
+  reviewStatus PipReviewStatus @default(PENDING) @map("review_status")
+  services String[] @default([])
+  allocationReviewed Boolean @default(false) @map("allocation_reviewed")
+  noServiceConfirmed Boolean @default(false) @map("no_service_confirmed")
+  createdAt DateTime @default(now()) @map("created_at")
+  party PipParty @relation(fields: [partyId], references: [id], onDelete: Cascade)
+  run PipRun? @relation(fields: [runId], references: [id], onDelete: Restrict)
+  @@unique([partyId, canonicalKey])
+  @@map("pip_requirements")
+}
+
+model PipEvaluation {
+  id String @id @default(cuid())
+  partyId String @map("party_id")
+  runId String @map("run_id")
+  humanOverride Boolean @default(false) @map("human_override")
+  createdAt DateTime @default(now()) @map("created_at")
+  aiProposal Json? @map("ai_proposal")
+  effective Json
+  reviewStatus PipReviewStatus @default(PENDING) @map("review_status")
+  methodologyVersion String @default("pip-v1") @map("methodology_version")
+  strategyVersion String @default("strategy-v1") @map("strategy_version")
+  party PipParty @relation(fields: [partyId], references: [id], onDelete: Cascade)
+  @@unique([partyId, runId])
+  @@map("pip_evaluations")
+}
+
+model PipClarification {
+  id String @id @default(cuid())
+  projectId String @map("project_id")
+  runId String @map("run_id")
+  question String
+  rationale String
+  answer String?
+  answeredAt DateTime? @map("answered_at")
+  answeredById String? @map("answered_by_id")
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  run PipRun @relation(fields: [runId], references: [id], onDelete: Restrict)
+  @@unique([projectId, question])
+  @@map("pip_clarifications")
+}
+
+model PipCorrection {
+  id String @id @default(cuid())
+  projectId String @map("project_id")
+  entityId String @map("entity_id")
+  entityType String @map("entity_type")
+  previousValue Json @map("previous_value")
+  newValue Json @map("new_value")
+  reason String
+  authorId String @map("author_id")
+  createdAt DateTime @default(now()) @map("created_at")
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  @@index([projectId, entityId])
+  @@map("pip_corrections")
 }

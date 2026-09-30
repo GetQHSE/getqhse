@@ -23,9 +23,9 @@ import { RegulatoryWatchPage } from "../features/regulatory-watch/regulatory-wat
 import { TeamPage } from "../features/organizations/team-page.js";
 
 // Template mocks carry the captured screens: loaded only when opened.
-const InterestedPartiesMockPage = lazy(() =>
-  import("../features/template-mocks/interested-parties-mock-page.js").then((module) => ({
-    default: module.InterestedPartiesMockPage,
+const PipPage = lazy(() =>
+  import("../features/pip/pip-page.js").then((module) => ({
+    default: module.PipPage,
   })),
 );
 const RisksMockPage = lazy(() =>
@@ -101,7 +101,7 @@ export const router = createBrowserRouter([
         path: "projects/:projectId/interested-parties",
         element: (
           <Lazy>
-            <InterestedPartiesMockPage />
+            <PipPage />
           </Lazy>
         ),
       },

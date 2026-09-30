@@ -218,6 +218,21 @@ export const clientApi = {
     issueId: string,
     input: Parameters<QhseApiClient["addContextIssueEvidence"]>[2],
   ) => qhseApi.addContextIssueEvidence(idOrSlug, issueId, input),
+  pipRegister: (id: string) => qhseApi.pipRegister(id),
+  launchPip: (id: string, input: Parameters<QhseApiClient["launchPip"]>[1]) =>
+    qhseApi.launchPip(id, input),
+  reviewPip: (id: string, input: Parameters<QhseApiClient["reviewPip"]>[1]) =>
+    qhseApi.reviewPip(id, input),
+  allocatePip: (id: string, input: Parameters<QhseApiClient["allocatePip"]>[1]) =>
+    qhseApi.allocatePip(id, input),
+  addPipParty: (id: string, input: Parameters<QhseApiClient["addPipParty"]>[1]) =>
+    qhseApi.addPipParty(id, input),
+  addPipRequirement: (id: string, input: Parameters<QhseApiClient["addPipRequirement"]>[1]) =>
+    qhseApi.addPipRequirement(id, input),
+  answerPip: (id: string, input: Parameters<QhseApiClient["answerPip"]>[1]) =>
+    qhseApi.answerPip(id, input),
+  validatePip: (id: string) => qhseApi.validatePip(id),
+  exportPipRegister: (id: string) => qhseApi.exportPipRegister(id),
   exportContextRegister: (idOrSlug: string) => qhseApi.exportContextRegister(idOrSlug),
   assistContextAnswer: (
     idOrSlug: string,

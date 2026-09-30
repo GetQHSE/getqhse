@@ -1,6 +1,8 @@
 import { BullModule } from "@nestjs/bullmq";
 import { Module } from "@nestjs/common";
 
+import { PipAnalysisProcessor } from "./processors/pip-analysis.processor.js";
+
 import { queueNames } from "./queues.js";
 import { WorkerHealthServer } from "./health-server.js";
 import { DocumentIngestionProcessor } from "./processors/document-ingestion.processor.js";
@@ -49,6 +51,7 @@ const redisUrl = new URL(process.env["REDIS_URL"] ?? "redis://localhost:6379");
     RegulatoryEvaluationProcessor,
     ContextExternalResearchProcessor,
     ContextAnalysisProcessor,
+    PipAnalysisProcessor,
     KnowledgeEmbeddingProcessor,
     KnowledgeEmbeddingReconciler,
     RegulatoryImpactProcessor,

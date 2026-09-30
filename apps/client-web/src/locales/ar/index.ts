@@ -1,3 +1,4 @@
+import pip from "./pip.js";
 import type fr from "../fr/index.js";
 import type { Catalog } from "../types.js";
 import auth from "./auth.js";
@@ -16,6 +17,7 @@ const ar: Catalog<typeof fr> = {
   profile,
   context,
   regulatory,
+  pip,
 };
 
 export default ar;

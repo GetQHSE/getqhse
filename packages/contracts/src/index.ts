@@ -1272,6 +1272,7 @@ export const workQueueNames = {
   regulatoryEvaluation: "regulatory-evaluation",
   contextExternalResearch: "context-external-research",
   contextAnalysis: "context-analysis",
+  pipAnalysis: "pip-analysis",
   evidenceAnalysis: "evidence-analysis",
   reportGeneration: "report-generation",
   notifications: "notifications",
@@ -1782,3 +1783,5 @@ export const contextJobSchema = z.object({
   correlationId: z.string().min(1),
 });
 export type ContextJob = z.infer<typeof contextJobSchema>;
+
+export * from "./pip.js";

@@ -1026,9 +1026,15 @@ importers:
       '@qhse/auth':
         specifier: workspace:*
         version: link:../../packages/auth
+      '@qhse/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
       '@qhse/database':
         specifier: workspace:*
         version: link:../../packages/database
+      '@qhse/domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
       '@qhse/notifications':
         specifier: workspace:*
         version: link:../../packages/notifications

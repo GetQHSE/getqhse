@@ -17,6 +17,7 @@ import { NormativeRepositoryModule } from "./modules/normative-repository/normat
 import { OrganizationsModule } from "./modules/organizations/organizations.module.js";
 import { OnboardingModule } from "./modules/onboarding/onboarding.module.js";
 import { ProjectsModule } from "./modules/projects/projects.module.js";
+import { PipModule } from "./modules/pip/pip.module.js";
 import { ContextModule } from "./modules/context/context.module.js";
 import { ProjectProfileModule } from "./modules/project-profile/project-profile.module.js";
 import { RegulatoryWatchModule } from "./modules/regulatory-watch/regulatory-watch.module.js";
@@ -37,6 +38,7 @@ import { SitesModule } from "./modules/sites/sites.module.js";
     OnboardingModule,
     ProjectsModule,
     ContextModule,
+    PipModule,
     ProjectProfileModule,
     RegulatoryWatchModule,
     SitesModule,
