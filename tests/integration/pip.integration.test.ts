@@ -226,16 +226,15 @@ suite("PIP persisted workflow", () => {
       (await service.launch(tenant, "project-pip", { stage: "EVALUATION", method: "both" })).runId,
     );
     const snapshot = generate.mock.calls.at(-1)![1];
-    expect(
-      snapshot.parties[0].requirements.every(
-        (r: { reviewStatus: string }) => r.reviewStatus === "VALIDATED",
-      ),
-    ).toBe(true);
-    expect(
-      snapshot.parties[0].requirements.find(
-        (r: { content: { kind: string } }) => r.content.kind === "qms_requirement",
-      ).allocationReviewed,
-    ).toBe(true);
+    const snapshotParty = snapshot.parties[0];
+    if (!snapshotParty) throw new Error("Evaluation snapshot must contain the retained party");
+    expect(snapshotParty.requirements.every((r) => r.reviewStatus === "VALIDATED")).toBe(true);
+    const snapshotRequirement = snapshotParty.requirements.find(
+      (r) => r.content.kind === "qms_requirement",
+    );
+    if (!snapshotRequirement)
+      throw new Error("Evaluation snapshot must contain the reviewed QMS requirement");
+    expect(snapshotRequirement.allocationReviewed).toBe(true);
     await expect(service.validate(tenant, "project-pip")).rejects.toMatchObject({ status: 400 });
     register = await service.review(tenant, "project-pip", {
       entityType: "evaluation",
