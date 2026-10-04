@@ -1264,6 +1264,9 @@ export const jobEnvelopeSchema = z.object({
 export type JobEnvelope = z.infer<typeof jobEnvelopeSchema>;
 
 export const workQueueNames = {
+  scopeStatement: "scope-statement",
+  planning: "qms-planning",
+  processSheets: "process-sheet-activities",
   documentIngestion: "document-ingestion",
   embeddingGeneration: "embedding-generation",
   knowledgeEmbedding: "knowledge-embedding",
@@ -1273,6 +1276,7 @@ export const workQueueNames = {
   contextExternalResearch: "context-external-research",
   contextAnalysis: "context-analysis",
   pipAnalysis: "pip-analysis",
+  roAnalysis: "ro-analysis",
   evidenceAnalysis: "evidence-analysis",
   reportGeneration: "report-generation",
   notifications: "notifications",
@@ -1785,3 +1789,11 @@ export const contextJobSchema = z.object({
 export type ContextJob = z.infer<typeof contextJobSchema>;
 
 export * from "./pip.js";
+
+export * from "./ro.js";
+
+export * from "./scope.js";
+
+export * from "./planning.js";
+
+export * from "./process-sheets.js";

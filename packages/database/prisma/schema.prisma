@@ -1096,6 +1096,23 @@ model Project {
   aiInvocations          AiInvocation[]
   regulatoryWatch        ProjectRegulatoryWatch?
   knowledgeExamples      AiKnowledgeExample[]
+  processSheets ProcessSheet[]
+  processSheetVersions ProcessSheetVersion[]
+  processSheetRuns ProcessSheetRun[]
+  processSheetCorrections ProcessSheetCorrection[]
+  planningStates PlanningState[]
+  planningVersions PlanningVersion[]
+  planningRuns PlanningRun[]
+  planningCorrections PlanningCorrection[]
+  scopeState ScopeState?
+  scopeVerifications ScopeVerification[]
+  scopeStatements ScopeStatement[]
+  scopeRuns ScopeRun[]
+  scopeCorrections ScopeCorrection[]
+  roState RoState?
+  roRuns RoRun[]
+  roItems RoItem[]
+  roCorrections RoCorrection[]
   pipState               PipState?
   pipRuns                PipRun[]
   pipParties             PipParty[]
@@ -2517,4 +2534,291 @@ model PipCorrection {
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
   @@index([projectId, entityId])
   @@map("pip_corrections")
+}
+
+model RoState {
+ projectId String @id @map("project_id")
+ revision Int @default(0)
+ branchFingerprints Json @default("{}") @map("branch_fingerprints")
+ validatedAt DateTime? @map("validated_at")
+ validatedById String? @map("validated_by_id")
+ project Project @relation(fields:[projectId], references:[id],onDelete:Cascade)
+ @@map("ro_states")
+}
+model RoRun {
+ id String @id @default(cuid())
+ projectId String @map("project_id")
+ stage String
+ branch String?
+ status ContextRunStatus @default(DRAFT)
+ revision Int
+ inputSnapshot Json @map("input_snapshot")
+ outputSnapshot Json? @map("output_snapshot")
+ contextFingerprint String @map("context_fingerprint")
+ methodologyVersion String @default("ro-v2") @map("methodology_version")
+ model String?
+ triggeredById String @map("triggered_by_id")
+ errorMessage String? @map("error_message")
+ createdAt DateTime @default(now()) @map("created_at")
+ startedAt DateTime? @map("started_at")
+ completedAt DateTime? @map("completed_at")
+ project Project @relation(fields:[projectId], references:[id],onDelete:Cascade)
+ @@index([projectId,createdAt])
+ @@map("ro_runs")
+}
+model RoItem {
+ id String @id @default(cuid())
+ projectId String @map("project_id")
+ canonicalKey String @map("canonical_key")
+ sourceId String? @map("source_id")
+ sourceSnapshot Json? @map("source_snapshot")
+ origin String @default("ai")
+ aiProposal Json? @map("ai_proposal")
+ treatmentFingerprint String? @map("treatment_fingerprint")
+ effective Json
+ reviewStatus PipReviewStatus @default(PENDING) @map("review_status")
+ createdAt DateTime @default(now()) @map("created_at")
+ updatedAt DateTime @updatedAt @map("updated_at")
+ project Project @relation(fields:[projectId], references:[id],onDelete:Cascade)
+ actions RoAction[]
+ @@unique([projectId,canonicalKey])
+ @@index([projectId,sourceId])
+ @@map("ro_items")
+}
+model RoAction {
+ id String @id @default(cuid())
+ itemId String @map("item_id")
+ canonicalKey String @map("canonical_key")
+ origin String @default("ai")
+ aiProposal Json? @map("ai_proposal")
+ effective Json
+ reviewStatus PipReviewStatus @default(PENDING) @map("review_status")
+ createdAt DateTime @default(now()) @map("created_at")
+ item RoItem @relation(fields:[itemId], references:[id],onDelete:Cascade)
+ events RoActionEvent[]
+ @@unique([itemId,canonicalKey])
+ @@map("ro_actions")
+}
+model RoActionEvent {
+ id String @id @default(cuid())
+ actionId String @map("action_id")
+ kind String
+ content Json
+ authorId String @map("author_id")
+ createdAt DateTime @default(now()) @map("created_at")
+ action RoAction @relation(fields:[actionId], references:[id],onDelete:Cascade)
+ @@index([actionId,createdAt])
+ @@map("ro_action_events")
+}
+model RoCorrection {
+ id String @id @default(cuid())
+ projectId String @map("project_id")
+ entityId String @map("entity_id")
+ entityType String @map("entity_type")
+ previousValue Json @map("previous_value")
+ newValue Json @map("new_value")
+ reason String
+ authorId String @map("author_id")
+ createdAt DateTime @default(now()) @map("created_at")
+ project Project @relation(fields:[projectId], references:[id],onDelete:Cascade)
+ @@index([projectId,entityId])
+ @@map("ro_corrections")
+}
+
+model ScopeState {
+  projectId String @id @map("project_id")
+  revision Int @default(0)
+  declaration Json
+  updatedAt DateTime @updatedAt @map("updated_at")
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  @@map("scope_states")
+}
+model ScopeVerification {
+  id String @id @default(cuid())
+  projectId String @map("project_id")
+  fingerprint String
+  decision Json
+  authorId String @map("author_id")
+  reviewedAt DateTime @default(now()) @map("reviewed_at")
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  @@index([projectId, reviewedAt])
+  @@map("scope_verifications")
+}
+model ScopeStatement {
+  id String @id @default(cuid())
+  projectId String @map("project_id")
+  status String @default("DRAFT")
+  version Int?
+  statement String
+  nonApplicable Json @map("non_applicable")
+  aiProposal Json @map("ai_proposal")
+  fingerprint String
+  verificationId String @map("verification_id")
+  sourceSnapshot Json @map("source_snapshot")
+  model String?
+  professionallyModified Boolean @default(false) @map("professionally_modified")
+  generatedAt DateTime? @map("generated_at")
+  validatedAt DateTime? @map("validated_at")
+  validatedById String? @map("validated_by_id")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  @@unique([projectId, version])
+  @@index([projectId, status])
+  @@map("scope_statements")
+}
+model ScopeRun {
+  id String @id @default(cuid())
+  projectId String @map("project_id")
+  status ContextRunStatus @default(DRAFT)
+  revision Int
+  inputSnapshot Json @map("input_snapshot")
+  outputSnapshot Json? @map("output_snapshot")
+  model String?
+  error String?
+  createdAt DateTime @default(now()) @map("created_at")
+  completedAt DateTime? @map("completed_at")
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  @@index([projectId, createdAt])
+  @@map("scope_runs")
+}
+model ScopeCorrection {
+  id String @id @default(cuid())
+  projectId String @map("project_id")
+  entityId String @map("entity_id")
+  kind String
+  previousValue Json @map("previous_value")
+  newValue Json @map("new_value")
+  authorId String @map("author_id")
+  createdAt DateTime @default(now()) @map("created_at")
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  @@index([projectId, createdAt])
+  @@map("scope_corrections")
+}
+
+model PlanningState {
+ id String @id @default(cuid())
+ projectId String @map("project_id")
+ project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+ module String
+ revision Int @default(0)
+ document Json
+ fingerprint String
+ updatedAt DateTime @updatedAt @map("updated_at")
+ @@unique([projectId, module])
+ @@map("planning_states")
+}
+model PlanningVersion {
+ id String @id @default(cuid())
+ projectId String @map("project_id")
+ project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+ kind String
+ version Int
+ document Json
+ sources Json
+ fingerprint String
+ authorId String @map("author_id")
+ createdAt DateTime @default(now()) @map("created_at")
+ @@unique([projectId, kind, version])
+ @@map("planning_versions")
+}
+model PlanningRun {
+ id String @id @default(cuid())
+ projectId String @map("project_id")
+ project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+ module String
+ stage String
+ revision Int
+ fingerprint String
+ inputSnapshot Json @map("input_snapshot")
+ outputSnapshot Json? @map("output_snapshot")
+ status String @default("DRAFT")
+ model String?
+ error String?
+ appliedAt DateTime? @map("applied_at")
+ completedAt DateTime? @map("completed_at")
+ createdAt DateTime @default(now()) @map("created_at")
+ @@index([projectId, module, createdAt])
+ @@map("planning_runs")
+}
+model PlanningCorrection {
+ id String @id @default(cuid())
+ projectId String @map("project_id")
+ project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+ module String
+ kind String
+ authorId String @map("author_id")
+ previous Json
+ next Json
+ createdAt DateTime @default(now()) @map("created_at")
+ @@index([projectId, module, createdAt])
+ @@map("planning_corrections")
+}
+
+model ProcessSheet {
+ id String @id @default(cuid())
+ projectId String @map("project_id")
+ project Project @relation(fields:[projectId],references:[id],onDelete:Cascade)
+ processId String @map("process_id")
+ revision Int @default(0)
+ content Json
+ sourceSnapshot Json @map("source_snapshot")
+ fingerprint String
+ updatedAt DateTime @updatedAt @map("updated_at")
+ versions ProcessSheetVersion[]
+ runs ProcessSheetRun[]
+ corrections ProcessSheetCorrection[]
+ @@unique([projectId,processId])
+ @@map("process_sheets")
+}
+model ProcessSheetVersion {
+ id String @id @default(cuid())
+ projectId String @map("project_id")
+ project Project @relation(fields:[projectId],references:[id],onDelete:Cascade)
+ sheetId String @map("sheet_id")
+ sheet ProcessSheet @relation(fields:[sheetId],references:[id],onDelete:Cascade)
+ processId String @map("process_id")
+ version Int
+ content Json
+ sourceSnapshot Json @map("source_snapshot")
+ fingerprint String
+ validatedById String @map("validated_by_id")
+ validatedAt DateTime @default(now()) @map("validated_at")
+ @@unique([sheetId,version])
+ @@index([projectId,validatedAt])
+ @@map("process_sheet_versions")
+}
+model ProcessSheetRun {
+ id String @id @default(cuid())
+ projectId String @map("project_id")
+ project Project @relation(fields:[projectId],references:[id],onDelete:Cascade)
+ sheetId String @map("sheet_id")
+ sheet ProcessSheet @relation(fields:[sheetId],references:[id],onDelete:Cascade)
+ revision Int
+ fingerprint String
+ inputSnapshot Json @map("input_snapshot")
+ outputSnapshot Json? @map("output_snapshot")
+ status String @default("DRAFT")
+ model String?
+ error String?
+ appliedAt DateTime? @map("applied_at")
+ completedAt DateTime? @map("completed_at")
+ createdAt DateTime @default(now()) @map("created_at")
+ @@index([projectId,createdAt])
+ @@index([sheetId])
+ @@map("process_sheet_runs")
+}
+model ProcessSheetCorrection {
+ id String @id @default(cuid())
+ projectId String @map("project_id")
+ project Project @relation(fields:[projectId],references:[id],onDelete:Cascade)
+ sheetId String @map("sheet_id")
+ sheet ProcessSheet @relation(fields:[sheetId],references:[id],onDelete:Cascade)
+ kind String
+ previous Json
+ next Json
+ authorId String @map("author_id")
+ createdAt DateTime @default(now()) @map("created_at")
+ @@index([projectId,createdAt])
+ @@index([sheetId])
+ @@map("process_sheet_corrections")
 }

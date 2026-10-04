@@ -1,0 +1,82 @@
+const sheets = {
+  module: "Gestion documentaire",
+  title: "Fiches processus",
+  intro:
+    "Préparez les fiches d’identité à partir de la cartographie validée, précisez le fonctionnement réel et validez les activités et leurs liens avec le SMQ.",
+  steps: ["Fiches processus", "Bibliothèque des fiches"],
+  noMap: "Validez une cartographie des processus pour préparer les fiches.",
+  mapStale:
+    "Les sources de la cartographie ont changé. Revalidez la cartographie avant de poursuivre.",
+  goMap: "Ouvrir la cartographie",
+  noVersions:
+    "Aucune fiche validée. Les versions apparaîtront ici après validation professionnelle.",
+  prepare: "Préparer la fiche",
+  open: "Ouvrir la fiche",
+  back: "Liste des processus",
+  draft: "Brouillon",
+  validated: "Version validée",
+  stale:
+    "Les sources ont changé. Les modifications restent enregistrables ; reprenez les sources avant de générer ou valider.",
+  unavailable:
+    "Ce processus ne figure plus dans la cartographie validée. Ses versions historiques restent disponibles dans la bibliothèque.",
+  refresh: "Reprendre les sources actuelles",
+  refreshHelp: "Cette action conserve vos textes et réouvre la revue des activités et références.",
+  code: "Code documentaire",
+  codePending: "Non attribué — après validation de la maîtrise documentaire",
+  date: "Date du document",
+  authorName: "Rédacteur",
+  approverName: "Approbateur",
+  description: "Décrivez le processus et son fonctionnement réel",
+  descriptionHelp:
+    "Expliquez le déclenchement, les grandes étapes, les intervenants et la fin du processus. Au moins 20 caractères sont nécessaires pour proposer les activités.",
+  activities: "Activités · entrées · sorties",
+  activity: "Activité",
+  activityInput: "Entrée / déclencheur",
+  activityOutput: "Sortie / livrable",
+  addActivity: "Ajouter une activité",
+  remove: "Supprimer",
+  generate: "Proposer le détail des activités",
+  activitiesHelp:
+    "Chaque activité proposée doit être corrigée ou explicitement retenue / non retenue avant validation.",
+  noActivities:
+    "Décrivez le fonctionnement puis demandez une proposition, ou ajoutez les activités manuellement.",
+  interactions: "Interactions du processus",
+  incoming: "Entrée reçue",
+  outgoing: "Sortie transmise",
+  kpiLinks: "Déclinaison Objectif stratégique → Objectif opérationnel → KPI",
+  kpiHelp:
+    "Choisissez un objectif validé ou saisissez une orientation manuelle. Les liaisons sont décidées par le professionnel.",
+  strategic: "Objectif stratégique",
+  manualStrategic: "Orientation manuelle",
+  operational: "Objectif opérationnel du processus",
+  kpi: "KPI associé",
+  addKpi: "Ajouter une liaison objectif / KPI",
+  risks: "Risques & opportunités à rattacher",
+  requirements: "Exigences PIP à rattacher",
+  referencesHelp:
+    "Ces éléments validés sont des références disponibles. Sélectionnez ceux qui concernent ce processus.",
+  referencesReviewed:
+    "J’ai revu les liaisons objectifs/KPI et les références risques/PIP, y compris leur absence éventuelle.",
+  noReferences: "Aucune référence validée actuelle disponible.",
+  oldReference: "Référence devenue indisponible",
+  notes: "Notes du professionnel",
+  validate: "Valider la fiche processus",
+  validationHelp:
+    "La validation crée une version immuable. Modifier le brouillon conserve les anciennes versions.",
+  missing: "À compléter avant validation :",
+  activitiesReview: "Décisions sur toutes les activités et au moins une activité retenue",
+  activitiesFields: "Entrées et sorties de chaque activité retenue",
+  duplicateIds: "Identifiants uniques des lignes",
+  dirty: "Enregistrez vos modifications avant de générer, reprendre les sources ou valider.",
+  ready: "Proposition prête à revoir",
+  apply: "Ajouter les activités proposées",
+  expired: "La proposition repose sur un état antérieur. Relancez la génération.",
+  preparing: "Préparation…",
+  approval: "Validation professionnelle",
+  sources: "Sources validées utilisées",
+  processVersion: "Version de la cartographie",
+  objectiveVersion: "Version des objectifs",
+  historic: "Version historique",
+  sheet: "Fiche processus",
+};
+export default sheets;

@@ -113,3 +113,9 @@ export function calculateCorrectiveActionDeadline(severity: FindingSeverity, ope
 export * as smqContext from "./smq/context/index.js";
 export * as smqPip from "./smq/pip/index.js";
 export * as smqRo from "./smq/ro/index.js";
+
+export * as smqScope from "./smq/scope/index.js";
+
+export * as smqPlanning from "./smq/planning/index.js";
+
+export * as smqProcessSheets from "./smq/process-sheets/index.js";

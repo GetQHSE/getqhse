@@ -225,12 +225,12 @@ const activeWatch = {
   },
 };
 
-function renderPage() {
+function renderPage(path = "/projects/atlas-industrie/regulatory-watch") {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false, refetchOnWindowFocus: false } },
   });
   return render(
-    <MemoryRouter initialEntries={["/projects/atlas-industrie/regulatory-watch"]}>
+    <MemoryRouter initialEntries={[path]}>
       <QueryClientProvider client={queryClient}>
         <Routes>
           <Route path="/projects/:projectId/regulatory-watch" element={<RegulatoryWatchPage />} />
@@ -705,6 +705,13 @@ describe("RegulatoryWatchPage", () => {
     expect(await screen.findByText("Traçabilité — texte officiel")).toBeInTheDocument();
     expect(screen.getByText("ISO 9001:2015, 7.1.5, p. 18")).toBeInTheDocument();
     expect(screen.getByText("Preuves associées")).toBeInTheDocument();
+  });
+
+  it("opens the compliance evaluation directly from a sidebar step link", async () => {
+    vi.mocked(clientApi.regulatoryWatch).mockResolvedValue(activeWatch as never);
+    renderPage("/projects/atlas-industrie/regulatory-watch?step=2");
+    const tab = await screen.findByRole("tab", { name: /Évaluation réglementaire et normative/ });
+    expect(tab).toHaveAttribute("aria-selected", "true");
   });
 
   it("shows a non-blocking synchronization indicator without hiding published data", () => {

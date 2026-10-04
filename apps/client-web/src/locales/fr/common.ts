@@ -31,6 +31,11 @@ const common = {
     saveFailed: "La langue n’a pas pu être enregistrée sur votre compte.",
   },
   nav: {
+    regulatoryModule: "Veille réglementaire et normative",
+    conformityEvaluation: "Évaluation de conformité",
+    navigation: "Navigation",
+    qualitySystem: "Système de management de la qualité",
+    scope: "Domaine d’application",
     overview: "Vue d’ensemble",
     projects: "Projets",
     team: "Équipe",

@@ -1,3 +1,7 @@
+import { ProcessSheetsModule } from "./modules/process-sheets/process-sheets.module.js";
+import { PlanningModule } from "./modules/planning/planning.module.js";
+import { ScopeModule } from "./modules/scope/scope.module.js";
+import { RoModule } from "./modules/ro/ro.module.js";
 import { MiddlewareConsumer, Module, type NestModule } from "@nestjs/common";
 import { APP_GUARD } from "@nestjs/core";
 import { ThrottlerGuard, ThrottlerModule } from "@nestjs/throttler";
@@ -39,6 +43,10 @@ import { SitesModule } from "./modules/sites/sites.module.js";
     ProjectsModule,
     ContextModule,
     PipModule,
+    RoModule,
+    ScopeModule,
+    PlanningModule,
+    ProcessSheetsModule,
     ProjectProfileModule,
     RegulatoryWatchModule,
     SitesModule,

@@ -64,7 +64,7 @@ describe("treatment eligibility", () => {
     itemReviewStatus: "validated",
     hasEvaluation: true,
     evaluationReviewStatus: "validated",
-    controlsState: "oui",
+    controlsState: "non",
   } as const;
 
   it("accepts a fully reviewed item", () => {
@@ -80,6 +80,10 @@ describe("treatment eligibility", () => {
         evaluationReviewStatus: "modified",
       }),
     ).toBe(true);
+  });
+
+  it("does not propose new actions when controls exist", () => {
+    expect(isRoTreatmentEligible({ ...eligible, controlsState: "oui" })).toBe(false);
   });
 
   it("accepts controls explicitly declared absent", () => {

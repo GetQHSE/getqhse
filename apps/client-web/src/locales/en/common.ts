@@ -34,6 +34,11 @@ const common: Catalog<typeof fr> = {
     saveFailed: "The language could not be saved to your account.",
   },
   nav: {
+    regulatoryModule: "Regulatory and standards watch",
+    conformityEvaluation: "Compliance evaluation",
+    navigation: "Navigation",
+    qualitySystem: "Quality management system",
+    scope: "QMS scope",
     overview: "Overview",
     projects: "Projects",
     team: "Team",

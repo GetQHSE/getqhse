@@ -34,6 +34,11 @@ const common: Catalog<typeof fr> = {
     saveFailed: "تعذّر حفظ اللغة في حسابكم.",
   },
   nav: {
+    regulatoryModule: "المتابعة التنظيمية والمعيارية",
+    conformityEvaluation: "تقييم الامتثال",
+    navigation: "التنقل",
+    qualitySystem: "نظام إدارة الجودة",
+    scope: "نطاق نظام إدارة الجودة",
     overview: "نظرة عامة",
     projects: "المشاريع",
     team: "الفريق",

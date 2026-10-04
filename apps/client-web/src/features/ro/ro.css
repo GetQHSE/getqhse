@@ -1,0 +1,18 @@
+.ro-app .pip-steps {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+.ro-app .pip-register {
+  overflow-x: auto;
+}
+.ro-app .pip-register table {
+  min-width: 2600px;
+}
+.ro-editor {
+  max-height: 85vh;
+  overflow-y: auto;
+}
+@media (max-width: 850px) {
+  .ro-app .pip-steps {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}

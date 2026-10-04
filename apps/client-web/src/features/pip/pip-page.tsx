@@ -1,3 +1,4 @@
+import { useModuleStep } from "../../hooks/use-module-step.js";
 import { useEffect, useState, type FormEvent } from "react";
 import { useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -68,7 +69,7 @@ function PipAnalysis({ projectId }: { projectId: string }) {
     refetchInterval: (q) =>
       q.state.data?.runs.some((r) => r.status === "DRAFT" || r.status === "RUNNING") ? 2500 : false,
   });
-  const [step, setStep] = useState(1);
+  const { step, setStep, explicit } = useModuleStep(5);
   const [landed, setLanded] = useState(false);
   const [filter, setFilter] = useState<
     "all" | "retained" | "pending" | "validated" | "rejected" | "added"
@@ -85,10 +86,10 @@ function PipAnalysis({ projectId }: { projectId: string }) {
   useEffect(() => {
     if (!register || landed) return;
     const first = workflow.completion.findIndex((done) => !done);
-    setStep(register.parties.length === 0 ? 1 : first === -1 ? 5 : first + 1);
+    if (!explicit) setStep(register.parties.length === 0 ? 1 : first === -1 ? 5 : first + 1);
     setMethod(register.evaluationMethod);
     setLanded(true);
-  }, [register, landed, workflow.completion]);
+  }, [register, landed, workflow.completion, explicit, setStep]);
   const errorText = (error: unknown) => {
     const obj = error as { body?: { message?: unknown }; message?: string };
     const code = typeof obj.body?.message === "string" ? obj.body.message : obj.message;

@@ -10,7 +10,7 @@
  *   2. an initial evaluation (cotation) exists;
  *   3. that evaluation is professionally reviewed (validated or modified) —
  *      a pending or not-retained cotation is never treated;
- *   4. existing controls are explicitly declared ("oui" or "non").
+ *   4. existing controls are explicitly declared absent ("non").
  */
 
 /** The review vocabulary of the module. */
@@ -33,7 +33,11 @@ export interface RoTreatmentEligibilityInput {
 }
 
 export type RoTreatmentBlocker =
-  "item_not_retained" | "rating_missing" | "rating_pending" | "controls_undeclared";
+  | "item_not_retained"
+  | "rating_missing"
+  | "rating_pending"
+  | "controls_undeclared"
+  | "existing_controls_cover_item";
 
 const REVIEWED = new Set(["validated", "modified"]);
 
@@ -45,6 +49,7 @@ export function roTreatmentBlocker(input: RoTreatmentEligibilityInput): RoTreatm
   if (input.controlsState !== "oui" && input.controlsState !== "non") {
     return "controls_undeclared";
   }
+  if (input.controlsState === "oui") return "existing_controls_cover_item";
   return null;
 }
 
@@ -61,6 +66,8 @@ export function roTreatmentBlockerLabel(blocker: RoTreatmentBlocker): string {
       return "Cotation à réaliser";
     case "rating_pending":
       return "Cotation à valider";
+    case "existing_controls_cover_item":
+      return "Maîtrises existantes conservées au registre";
     case "controls_undeclared":
       return "Maîtrises existantes à déclarer";
   }

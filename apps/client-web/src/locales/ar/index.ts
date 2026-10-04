@@ -1,3 +1,7 @@
+import sheets from "./sheets.js";
+import planning from "./planning.js";
+import scope from "./scope.js";
+import ro from "./ro.js";
 import pip from "./pip.js";
 import type fr from "../fr/index.js";
 import type { Catalog } from "../types.js";
@@ -18,6 +22,10 @@ const ar: Catalog<typeof fr> = {
   context,
   regulatory,
   pip,
+  ro,
+  scope,
+  planning,
+  sheets,
 };
 
 export default ar;

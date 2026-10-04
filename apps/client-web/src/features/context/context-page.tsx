@@ -1,3 +1,4 @@
+import { useModuleStep } from "../../hooks/use-module-step.js";
 /**
  * "Analyse des enjeux" (ISO 9001 §4.1), following the demo template's three tabs:
  *
@@ -411,14 +412,14 @@ function AnalysisPage({
     factorsQuery.isLoading ||
     issuesQuery.isLoading ||
     externalRunsQuery.isLoading;
-  const [step, setStep] = useState(1);
+  const { step, setStep, explicit } = useModuleStep(3);
   const [autoAdvanced, setAutoAdvanced] = useState(false);
   useEffect(() => {
-    if (autoAdvanced || isLoadingStep) return;
+    if (autoAdvanced || isLoadingStep || explicit) return;
     // Open on the first tab still to do, as a returning user expects.
     setStep(issues.length > 0 || step2Done ? 3 : step1Done ? 2 : 1);
     setAutoAdvanced(true);
-  }, [autoAdvanced, isLoadingStep, issues.length, step1Done, step2Done]);
+  }, [autoAdvanced, isLoadingStep, issues.length, step1Done, step2Done, explicit, setStep]);
 
   const [editingInternal, setEditingInternal] = useState(false);
   const showQuestions = !internalCompleted || editingInternal;

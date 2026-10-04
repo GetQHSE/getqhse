@@ -1,4 +1,33 @@
 import {
+  processSheetRegisterSchema,
+  processSheetVersionSchema,
+  processSheetWriteSchema,
+  type ProcessSheetWrite,
+} from "@qhse/contracts";
+import {
+  planningRegisterSchema,
+  planningWriteSchema,
+  planningLaunchSchema,
+  type PlanningModule,
+  type PlanningWrite,
+  type PlanningLaunch,
+} from "@qhse/contracts";
+import {
+  scopeRegisterSchema,
+  scopeWriteSchema,
+  scopeLaunchSchema,
+  scopeStatementSchema,
+  type ScopeWrite,
+  type ScopeLaunch,
+} from "@qhse/contracts";
+import {
+  roRegisterSchema,
+  roLaunchSchema,
+  roWriteSchema,
+  type RoLaunch,
+  type RoWrite,
+} from "@qhse/contracts";
+import {
   pipRegisterSchema,
   pipJobSchema,
   pipLaunchSchema,
@@ -641,6 +670,61 @@ export class QhseApiClient {
     );
   }
 
+  scopeRegister(projectId: string) {
+    return this.#request(
+      `/v1/projects/${encodeURIComponent(projectId)}/scope`,
+      scopeRegisterSchema,
+    );
+  }
+  writeScope(projectId: string, input: ScopeWrite) {
+    return this.#request(
+      `/v1/projects/${encodeURIComponent(projectId)}/scope/review`,
+      scopeRegisterSchema,
+      { method: "POST", body: JSON.stringify(scopeWriteSchema.parse(input)) },
+    );
+  }
+  launchScope(projectId: string, input: ScopeLaunch) {
+    return this.#request(`/v1/projects/${encodeURIComponent(projectId)}/scope/runs`, pipJobSchema, {
+      method: "POST",
+      body: JSON.stringify(scopeLaunchSchema.parse(input)),
+    });
+  }
+  exportScopeVersion(projectId: string, statementId: string) {
+    return this.#request(
+      `/v1/projects/${encodeURIComponent(projectId)}/scope/versions/${encodeURIComponent(statementId)}/export`,
+      scopeStatementSchema,
+    );
+  }
+  roRegister(projectId: string) {
+    return this.#request(`/v1/projects/${encodeURIComponent(projectId)}/ro`, roRegisterSchema);
+  }
+  launchRo(projectId: string, input: RoLaunch) {
+    return this.#request(`/v1/projects/${encodeURIComponent(projectId)}/ro/runs`, pipJobSchema, {
+      method: "POST",
+      body: JSON.stringify(roLaunchSchema.parse(input)),
+    });
+  }
+  writeRo(projectId: string, input: RoWrite) {
+    return this.#request(
+      `/v1/projects/${encodeURIComponent(projectId)}/ro/review`,
+      roRegisterSchema,
+      { method: "POST", body: JSON.stringify(roWriteSchema.parse(input)) },
+    );
+  }
+  validateRo(projectId: string) {
+    return this.#request(
+      `/v1/projects/${encodeURIComponent(projectId)}/ro/validate`,
+      roRegisterSchema,
+      { method: "POST" },
+    );
+  }
+  async exportRoRegister(projectId: string): Promise<ArrayBuffer> {
+    const response = await this.#axios.get<ArrayBuffer>(
+      `/v1/projects/${encodeURIComponent(projectId)}/ro/export.xlsx`,
+      { responseType: "arraybuffer" },
+    );
+    return response.data;
+  }
   pipRegister(projectId: string) {
     return this.#request(`/v1/projects/${encodeURIComponent(projectId)}/pip`, pipRegisterSchema);
   }
@@ -706,6 +790,73 @@ export class QhseApiClient {
       { responseType: "arraybuffer" },
     );
     return response.data;
+  }
+
+  processSheets(id: string) {
+    return this.#request(
+      `/v1/projects/${encodeURIComponent(id)}/process-sheets`,
+      processSheetRegisterSchema,
+    );
+  }
+  prepareProcessSheet(id: string, processId: string) {
+    return this.#request(
+      `/v1/projects/${encodeURIComponent(id)}/process-sheets`,
+      processSheetRegisterSchema,
+      { method: "POST", body: JSON.stringify({ processId }) },
+    );
+  }
+  writeProcessSheet(id: string, sheetId: string, input: ProcessSheetWrite) {
+    return this.#request(
+      `/v1/projects/${encodeURIComponent(id)}/process-sheets/${encodeURIComponent(sheetId)}/review`,
+      processSheetRegisterSchema,
+      { method: "POST", body: JSON.stringify(processSheetWriteSchema.parse(input)) },
+    );
+  }
+  launchProcessSheet(id: string, sheetId: string, revision: number) {
+    return this.#request(
+      `/v1/projects/${encodeURIComponent(id)}/process-sheets/${encodeURIComponent(sheetId)}/runs`,
+      processSheetRegisterSchema,
+      { method: "POST", body: JSON.stringify({ revision }) },
+    );
+  }
+  exportProcessSheet(id: string, versionId: string) {
+    return this.#request(
+      `/v1/projects/${encodeURIComponent(id)}/process-sheets/versions/${encodeURIComponent(versionId)}/export`,
+      processSheetVersionSchema,
+    );
+  }
+
+  planningRegister(id: string, module: PlanningModule) {
+    return this.#request(
+      `/v1/projects/${encodeURIComponent(id)}/planning/${module}`,
+      planningRegisterSchema,
+    );
+  }
+  writePlanning(id: string, module: PlanningModule, input: PlanningWrite) {
+    return this.#request(
+      `/v1/projects/${encodeURIComponent(id)}/planning/${module}/review`,
+      planningRegisterSchema,
+      { method: "POST", body: JSON.stringify(planningWriteSchema.parse(input)) },
+    );
+  }
+  launchPlanning(id: string, module: PlanningModule, input: PlanningLaunch) {
+    return this.#request(
+      `/v1/projects/${encodeURIComponent(id)}/planning/${module}/runs`,
+      planningRegisterSchema,
+      { method: "POST", body: JSON.stringify(planningLaunchSchema.parse(input)) },
+    );
+  }
+  async exportPlanningExcel(
+    id: string,
+    module: PlanningModule,
+    versionId: string,
+  ): Promise<ArrayBuffer> {
+    return (
+      await this.#axios.get<ArrayBuffer>(
+        `/v1/projects/${encodeURIComponent(id)}/planning/${module}/versions/${encodeURIComponent(versionId)}/export.xlsx`,
+        { responseType: "arraybuffer" },
+      )
+    ).data;
   }
 
   createFileUpload(input: CreateFileUpload): Promise<FileUploadResponse> {

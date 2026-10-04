@@ -1020,6 +1020,472 @@
         "tags": ["pip"]
       }
     },
+    "/v1/projects/{projectIdOrSlug}/ro": {
+      "get": {
+        "operationId": "RoController_register",
+        "parameters": [
+          {
+            "name": "x-organization-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["risks-opportunities"]
+      }
+    },
+    "/v1/projects/{projectIdOrSlug}/ro/runs": {
+      "post": {
+        "operationId": "RoController_launch",
+        "parameters": [
+          {
+            "name": "x-organization-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["risks-opportunities"]
+      }
+    },
+    "/v1/projects/{projectIdOrSlug}/ro/review": {
+      "post": {
+        "operationId": "RoController_review",
+        "parameters": [
+          {
+            "name": "x-organization-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["risks-opportunities"]
+      }
+    },
+    "/v1/projects/{projectIdOrSlug}/ro/validate": {
+      "post": {
+        "operationId": "RoController_validate",
+        "parameters": [
+          {
+            "name": "x-organization-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["risks-opportunities"]
+      }
+    },
+    "/v1/projects/{projectIdOrSlug}/ro/export.xlsx": {
+      "get": {
+        "operationId": "RoController_export",
+        "parameters": [
+          {
+            "name": "x-organization-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["risks-opportunities"]
+      }
+    },
+    "/v1/projects/{projectIdOrSlug}/scope": {
+      "get": {
+        "operationId": "ScopeController_register",
+        "parameters": [
+          {
+            "name": "x-organization-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["qms-scope"]
+      }
+    },
+    "/v1/projects/{projectIdOrSlug}/scope/review": {
+      "post": {
+        "operationId": "ScopeController_write",
+        "parameters": [
+          {
+            "name": "x-organization-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["qms-scope"]
+      }
+    },
+    "/v1/projects/{projectIdOrSlug}/scope/runs": {
+      "post": {
+        "operationId": "ScopeController_launch",
+        "parameters": [
+          {
+            "name": "x-organization-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["qms-scope"]
+      }
+    },
+    "/v1/projects/{projectIdOrSlug}/scope/versions/{statementId}/export": {
+      "get": {
+        "operationId": "ScopeController_export",
+        "parameters": [
+          {
+            "name": "x-organization-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["qms-scope"]
+      }
+    },
+    "/v1/projects/{projectIdOrSlug}/planning/{module}": {
+      "get": {
+        "operationId": "PlanningController_register",
+        "parameters": [
+          {
+            "name": "x-organization-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["qms-planning"]
+      }
+    },
+    "/v1/projects/{projectIdOrSlug}/planning/{module}/versions/{versionId}/export.xlsx": {
+      "get": {
+        "operationId": "PlanningController_export",
+        "parameters": [
+          {
+            "name": "x-organization-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["qms-planning"]
+      }
+    },
+    "/v1/projects/{projectIdOrSlug}/planning/{module}/review": {
+      "post": {
+        "operationId": "PlanningController_write",
+        "parameters": [
+          {
+            "name": "x-organization-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["qms-planning"]
+      }
+    },
+    "/v1/projects/{projectIdOrSlug}/planning/{module}/runs": {
+      "post": {
+        "operationId": "PlanningController_launch",
+        "parameters": [
+          {
+            "name": "x-organization-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["qms-planning"]
+      }
+    },
+    "/v1/projects/{projectIdOrSlug}/process-sheets": {
+      "get": {
+        "operationId": "ProcessSheetsController_register",
+        "parameters": [
+          {
+            "name": "x-organization-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["process-sheets"]
+      },
+      "post": {
+        "operationId": "ProcessSheetsController_prepare",
+        "parameters": [
+          {
+            "name": "x-organization-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["process-sheets"]
+      }
+    },
+    "/v1/projects/{projectIdOrSlug}/process-sheets/{sheetId}/review": {
+      "post": {
+        "operationId": "ProcessSheetsController_write",
+        "parameters": [
+          {
+            "name": "x-organization-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["process-sheets"]
+      }
+    },
+    "/v1/projects/{projectIdOrSlug}/process-sheets/{sheetId}/runs": {
+      "post": {
+        "operationId": "ProcessSheetsController_launch",
+        "parameters": [
+          {
+            "name": "x-organization-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["process-sheets"]
+      }
+    },
+    "/v1/projects/{projectIdOrSlug}/process-sheets/versions/{versionId}/export": {
+      "get": {
+        "operationId": "ProcessSheetsController_export",
+        "parameters": [
+          {
+            "name": "x-organization-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["process-sheets"]
+      }
+    },
     "/v1/projects/{projectIdOrSlug}/profile": {
       "get": {
         "operationId": "ProjectProfilesController_get",

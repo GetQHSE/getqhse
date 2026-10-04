@@ -1,0 +1,75 @@
+.scope-app .pip-panel {
+  margin-block: 18px;
+}
+.scope-field {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin-block: 16px;
+  font-weight: 500;
+}
+.scope-field textarea,
+.scope-field input,
+.scope-field select {
+  width: 100%;
+  border: 1px solid #d6dce6;
+  background: white;
+  border-radius: 6px;
+  padding: 10px;
+  font: inherit;
+}
+.scope-field textarea {
+  min-height: 78px;
+  resize: vertical;
+}
+.scope-field .scope-statement {
+  min-height: 180px;
+}
+.scope-app fieldset {
+  min-width: 0;
+}
+.scope-site,
+.scope-version,
+.scope-finding {
+  border: 1px solid #e2e6ee;
+  border-radius: 8px;
+  padding: 14px;
+  margin-block: 14px;
+}
+.scope-facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+  max-height: 350px;
+  overflow: auto;
+}
+.scope-facts p,
+.scope-version p,
+.scope-finding blockquote {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.scope-finding.missing,
+.scope-finding.incoherence,
+.scope-notice {
+  background: #fffbeb;
+}
+.scope-notice {
+  padding: 12px;
+  border-radius: 6px;
+}
+.scope-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-block: 14px;
+}
+.scope-app summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+@media (max-width: 700px) {
+  .scope-facts {
+    grid-template-columns: 1fr;
+  }
+}

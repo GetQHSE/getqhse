@@ -1,9 +1,12 @@
 import { createHash } from "node:crypto";
 import { buildContextDigest, toOutputLanguage } from "@qhse/ai";
-import type { DatabaseClient } from "@qhse/database";
+import type { DatabaseClient, Prisma } from "@qhse/database";
 
 /** Reads published regulatory evidence and only human-retained issues. */
-export async function loadPipMaterial(database: DatabaseClient, projectId: string) {
+export async function loadPipMaterial(
+  database: DatabaseClient | Prisma.TransactionClient,
+  projectId: string,
+) {
   const project = await database.project.findUniqueOrThrow({
     where: { id: projectId },
     include: {

@@ -17,6 +17,7 @@ import {
 import { BrandLogo } from "@qhse/ui/components/brand-logo";
 import {
   CompassIcon,
+  ScanLineIcon,
   LayoutDashboardIcon,
   FolderKanbanIcon,
   MessageSquareTextIcon,
@@ -41,31 +42,52 @@ function organizationNav(t: TFunction): MainNavItem[] {
   ];
 }
 
-function projectNav(slug: string, t: TFunction): MainNavItem[] {
-  const baseUrl = `/projects/${slug}`;
+function projectNav(
+  slug: string,
+  t: TFunction<["common", "context", "pip", "ro", "scope", "planning", "sheets"]>,
+): MainNavItem[] {
+  const base = `/projects/${slug}`;
+  const module = (
+    title: string,
+    path: string,
+    icon: React.ReactNode,
+    steps: readonly string[],
+  ) => ({
+    title,
+    url: `${base}/${path}`,
+    icon,
+    children: steps.map((title, i) => ({ title, url: `${base}/${path}?step=${i + 1}` })),
+  });
   return [
-    { title: t("nav.chat"), url: `${baseUrl}/chat`, icon: <MessageSquareTextIcon /> },
-    { title: t("nav.profile"), url: `${baseUrl}/profile`, icon: <UserRoundIcon /> },
-    {
-      title: t("nav.regulatoryWatch"),
-      url: `${baseUrl}/regulatory-watch`,
-      icon: <ScaleIcon />,
-    },
-    {
-      title: t("nav.context"),
-      url: `${baseUrl}/context`,
-      icon: <CompassIcon />,
-    },
-    {
-      title: t("nav.interestedParties"),
-      url: `${baseUrl}/interested-parties`,
-      icon: <UsersRoundIcon />,
-    },
-    {
-      title: t("nav.risks"),
-      url: `${baseUrl}/risks`,
-      icon: <ShieldAlertIcon />,
-    },
+    module(t("nav.regulatoryModule"), "regulatory-watch", <ScaleIcon />, [
+      t("nav.regulatoryWatch"),
+      t("nav.conformityEvaluation"),
+    ]),
+    module(t("nav.context"), "context", <CompassIcon />, [
+      t("context:ui.steps.internal"),
+      t("context:ui.steps.external"),
+      t("context:ui.steps.synthesis"),
+    ]),
+    module(
+      t("nav.interestedParties"),
+      "interested-parties",
+      <UsersRoundIcon />,
+      t("pip:steps", { returnObjects: true }),
+    ),
+    module(t("nav.risks"), "risks", <ShieldAlertIcon />, t("ro:steps", { returnObjects: true })),
+    module(t("nav.scope"), "scope", <ScanLineIcon />, t("scope:steps", { returnObjects: true })),
+    module(
+      t("planning:policyTitle"),
+      "policy",
+      <CompassIcon />,
+      t("planning:policySteps", { returnObjects: true }),
+    ),
+    module(
+      t("planning:processesTitle"),
+      "processes",
+      <FolderKanbanIcon />,
+      t("planning:processSteps", { returnObjects: true }),
+    ),
   ];
 }
 
@@ -88,7 +110,7 @@ export function AppSidebar({
   onLogout: () => void | Promise<void>;
 }) {
   const location = useLocation();
-  const { t } = useTranslation();
+  const { t } = useTranslation(["common", "context", "pip", "ro", "scope", "planning", "sheets"]);
   const settingsUrl = activeProject ? `/projects/${activeProject.slug}/settings` : null;
 
   return (
@@ -131,7 +153,44 @@ export function AppSidebar({
         ) : null}
       </SidebarHeader>
       <SidebarContent>
-        <NavMain items={activeProject ? projectNav(activeProject.slug, t) : organizationNav(t)} />
+        {activeProject ? (
+          <>
+            <NavMain
+              label={t("nav.projectSpace")}
+              items={[
+                {
+                  title: t("nav.chat"),
+                  url: `/projects/${activeProject.slug}/chat`,
+                  icon: <MessageSquareTextIcon />,
+                },
+                {
+                  title: t("nav.profile"),
+                  url: `/projects/${activeProject.slug}/profile`,
+                  icon: <UserRoundIcon />,
+                },
+              ]}
+            />
+            <div className="mx-5 border-t border-white/10" />
+            <NavMain label={t("nav.qualitySystem")} items={projectNav(activeProject.slug, t)} />
+            <div className="mx-5 border-t border-white/10" />
+            <NavMain
+              label={t("sheets:module")}
+              items={[
+                {
+                  title: t("sheets:title"),
+                  url: `/projects/${activeProject.slug}/process-sheets`,
+                  icon: <FolderKanbanIcon />,
+                  children: t("sheets:steps", { returnObjects: true }).map((title, i) => ({
+                    title,
+                    url: `/projects/${activeProject.slug}/process-sheets?step=${i + 1}`,
+                  })),
+                },
+              ]}
+            />
+          </>
+        ) : (
+          <NavMain label={t("nav.navigation")} items={organizationNav(t)} />
+        )}
       </SidebarContent>
       <SidebarFooter className="border-t border-white/10 p-3">
         {settingsUrl ? (

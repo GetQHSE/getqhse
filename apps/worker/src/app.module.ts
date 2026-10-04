@@ -1,3 +1,7 @@
+import { ProcessSheetProcessor } from "./processors/process-sheet.processor.js";
+import { PlanningProcessor } from "./processors/planning.processor.js";
+import { ScopeStatementProcessor } from "./processors/scope-statement.processor.js";
+import { RoAnalysisProcessor } from "./processors/ro-analysis.processor.js";
 import { BullModule } from "@nestjs/bullmq";
 import { Module } from "@nestjs/common";
 
@@ -52,6 +56,10 @@ const redisUrl = new URL(process.env["REDIS_URL"] ?? "redis://localhost:6379");
     ContextExternalResearchProcessor,
     ContextAnalysisProcessor,
     PipAnalysisProcessor,
+    RoAnalysisProcessor,
+    ScopeStatementProcessor,
+    PlanningProcessor,
+    ProcessSheetProcessor,
     KnowledgeEmbeddingProcessor,
     KnowledgeEmbeddingReconciler,
     RegulatoryImpactProcessor,

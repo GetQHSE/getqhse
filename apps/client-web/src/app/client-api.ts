@@ -1,3 +1,4 @@
+import type { ScopeWrite, ScopeLaunch } from "@qhse/contracts";
 import {
   fileObjectSchema,
   fileTranscriptionSchema,
@@ -218,6 +219,35 @@ export const clientApi = {
     issueId: string,
     input: Parameters<QhseApiClient["addContextIssueEvidence"]>[2],
   ) => qhseApi.addContextIssueEvidence(idOrSlug, issueId, input),
+  processSheets: (id: string) => qhseApi.processSheets(id),
+  prepareProcessSheet: (...args: Parameters<QhseApiClient["prepareProcessSheet"]>) =>
+    qhseApi.prepareProcessSheet(...args),
+  writeProcessSheet: (...args: Parameters<QhseApiClient["writeProcessSheet"]>) =>
+    qhseApi.writeProcessSheet(...args),
+  launchProcessSheet: (...args: Parameters<QhseApiClient["launchProcessSheet"]>) =>
+    qhseApi.launchProcessSheet(...args),
+  exportProcessSheet: (...args: Parameters<QhseApiClient["exportProcessSheet"]>) =>
+    qhseApi.exportProcessSheet(...args),
+  planningRegister: (id: string, module: Parameters<QhseApiClient["planningRegister"]>[1]) =>
+    qhseApi.planningRegister(id, module),
+  writePlanning: (...args: Parameters<QhseApiClient["writePlanning"]>) =>
+    qhseApi.writePlanning(...args),
+  launchPlanning: (...args: Parameters<QhseApiClient["launchPlanning"]>) =>
+    qhseApi.launchPlanning(...args),
+  exportPlanningExcel: (...args: Parameters<QhseApiClient["exportPlanningExcel"]>) =>
+    qhseApi.exportPlanningExcel(...args),
+  scopeRegister: (id: string) => qhseApi.scopeRegister(id),
+  writeScope: (id: string, input: ScopeWrite) => qhseApi.writeScope(id, input),
+  launchScope: (id: string, input: ScopeLaunch) => qhseApi.launchScope(id, input),
+  exportScopeVersion: (id: string, statementId: string) =>
+    qhseApi.exportScopeVersion(id, statementId),
+  roRegister: (id: string) => qhseApi.roRegister(id),
+  launchRo: (id: string, input: Parameters<QhseApiClient["launchRo"]>[1]) =>
+    qhseApi.launchRo(id, input),
+  writeRo: (id: string, input: Parameters<QhseApiClient["writeRo"]>[1]) =>
+    qhseApi.writeRo(id, input),
+  validateRo: (id: string) => qhseApi.validateRo(id),
+  exportRoRegister: (id: string) => qhseApi.exportRoRegister(id),
   pipRegister: (id: string) => qhseApi.pipRegister(id),
   launchPip: (id: string, input: Parameters<QhseApiClient["launchPip"]>[1]) =>
     qhseApi.launchPip(id, input),

@@ -15,3 +15,11 @@ export * from "./prompts/regulatory-requirement-verification.prompt.js";
 export * from "./prompts/regulatory-triage.prompt.js";
 
 export * from "./prompts/pip.prompt.js";
+
+export * from "./prompts/ro.prompt.js";
+
+export * from "./prompts/scope.prompt.js";
+
+export { buildPlanningPrompt } from "./prompts/planning.prompt.js";
+
+export { buildProcessSheetPrompt } from "./prompts/process-sheet.prompt.js";

@@ -22,15 +22,28 @@ import { RegulatoryWatchTestPage } from "../features/regulatory-watch/regulatory
 import { RegulatoryWatchPage } from "../features/regulatory-watch/regulatory-watch-page.js";
 import { TeamPage } from "../features/organizations/team-page.js";
 
-// Template mocks carry the captured screens: loaded only when opened.
+// Analysis modules are loaded only when opened.
+const ProcessSheetsPage = lazy(() =>
+  import("../features/process-sheets/process-sheets-page.js").then((module) => ({
+    default: module.ProcessSheetsPage,
+  })),
+);
+const PlanningPage = lazy(() =>
+  import("../features/planning/planning-page.js").then((module) => ({
+    default: module.PlanningPage,
+  })),
+);
+const ScopePage = lazy(() =>
+  import("../features/scope/scope-page.js").then((module) => ({ default: module.ScopePage })),
+);
 const PipPage = lazy(() =>
   import("../features/pip/pip-page.js").then((module) => ({
     default: module.PipPage,
   })),
 );
-const RisksMockPage = lazy(() =>
-  import("../features/template-mocks/risks-mock-page.js").then((module) => ({
-    default: module.RisksMockPage,
+const RoPage = lazy(() =>
+  import("../features/ro/ro-page.js").then((module) => ({
+    default: module.RoPage,
   })),
 );
 
@@ -96,6 +109,38 @@ export const router = createBrowserRouter([
       { path: "projects", element: <ProjectsPage /> },
       { path: "projects/:projectId/chat", element: <ProjectChatPage /> },
       { path: "projects/:projectId/profile", element: <ProjectProfilePage /> },
+      {
+        path: "projects/:projectId/scope",
+        element: (
+          <Lazy>
+            <ScopePage />
+          </Lazy>
+        ),
+      },
+      {
+        path: "projects/:projectId/policy",
+        element: (
+          <Lazy>
+            <PlanningPage module="policy" />
+          </Lazy>
+        ),
+      },
+      {
+        path: "projects/:projectId/processes",
+        element: (
+          <Lazy>
+            <PlanningPage module="processes" />
+          </Lazy>
+        ),
+      },
+      {
+        path: "projects/:projectId/process-sheets",
+        element: (
+          <Lazy>
+            <ProcessSheetsPage />
+          </Lazy>
+        ),
+      },
       { path: "projects/:projectId/context", element: <ContextPage /> },
       {
         path: "projects/:projectId/interested-parties",
@@ -109,7 +154,7 @@ export const router = createBrowserRouter([
         path: "projects/:projectId/risks",
         element: (
           <Lazy>
-            <RisksMockPage />
+            <RoPage />
           </Lazy>
         ),
       },

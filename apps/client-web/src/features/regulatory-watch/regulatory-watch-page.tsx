@@ -1,3 +1,4 @@
+import { useModuleStep } from "../../hooks/use-module-step.js";
 import { countryName } from "@qhse/domain/countries";
 import {
   regulatoryAnalysisErrorCodeSchema,
@@ -1881,6 +1882,7 @@ export function DataPage({
   onStartEvaluation?: () => void;
   onSaveEvaluation?: (input: EvaluationSaveInput) => Promise<void>;
 }) {
+  const { step, setStep } = useModuleStep(2);
   const [selectedDocument, setSelectedDocument] = useState<RegulatoryDocument | null>(null);
   // Held by id, not by value: the open sheet has to follow the 2s poll so a pass completing
   // while it is open shows its recommendation, and so the submitted revision is the current
@@ -2064,7 +2066,11 @@ export function DataPage({
         </Badge>
       </div>
 
-      <Tabs className="gap-4" defaultValue="documents">
+      <Tabs
+        className="gap-4"
+        value={step === 2 ? "evaluation" : "documents"}
+        onValueChange={(value) => setStep(value === "evaluation" ? 2 : 1)}
+      >
         <TabsList className="grid w-full grid-cols-2 rounded-2xl border border-slate-200 bg-white p-1 shadow-sm group-data-horizontal/tabs:h-auto">
           <TabsTrigger
             className="h-auto min-h-12 whitespace-normal rounded-xl px-2 py-2 text-center leading-4 data-active:bg-slate-950 data-active:text-white sm:px-5"
