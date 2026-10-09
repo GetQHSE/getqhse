@@ -205,6 +205,10 @@ export const pipRequirementsOutputSchema = z.object({
         items: z
           .array(
             pipRequirementContentSchema.extend({
+              // OpenAI Structured Outputs rejects the `uri` format emitted by .url().
+              // The worker replaces this model claim with the supplied regulatory source URL;
+              // persisted requirement content keeps its URL validation above.
+              sourceUrl: z.string().nullable(),
               services: z.array(z.string().trim().min(1).max(160)).max(10),
             }),
           )
