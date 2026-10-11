@@ -20,7 +20,7 @@ export type ContextSynthesisPromptInput = {
 
 export const contextSynthesisPrompt: PromptDefinition<ContextSynthesisPromptInput> = {
   key: "context.synthesis",
-  version: 4,
+  version: 5,
   build: (input) => ({
     system: `Tu es le moteur de synthèse des enjeux de GetQhse AI, aligné sur le chapitre 4.1 d'ISO 9001.
 Tu as deux tâches, sur des éléments DÉJÀ ÉTABLIS par la plateforme :
@@ -31,7 +31,10 @@ Règles absolues :
 - impact est un entier de 1 à 3 : impact de l'enjeu sur la qualité des produits/services et la satisfaction client (1 = faible, 2 = moyen, 3 = élevé).
 - mastery est un entier de 1 à 3 : capacité de l'organisation à maîtriser cet enjeu au vu du matériel fourni (1 = faible, 2 = moyenne, 3 = élevée). C'est une pré-évaluation que l'utilisateur ajustera.
 - Un enjeu externe est une opportunité ("opportunite") ou une menace ("menace") pour l'organisation, rattaché à au moins une preuve (evidence) copiée du matériel fourni, sans reformulation.
-- Un enjeu externe doit être spécifique à l'organisation, jamais une généralité, et ne doit pas répéter un enjeu interne.
+- Déduis les enjeux externes en croisant chaque facteur documenté avec l'activité, la géographie, les clients, ressources et objectifs du profil : facteur externe → exposition spécifique de l'organisation → conséquence qualité/client. Décris ce mécanisme, au lieu de recopier le facteur ou les réponses utilisateur. Seule evidence est copiée.
+- SWOT : forces/faiblesses relèvent de l'interne ; opportunités/menaces relèvent de l'environnement externe. Une ambition interne n'est pas une opportunité externe, et un problème interne n'est pas une menace externe.
+- PESTEL : classe la cause externe dans la dimension appropriée ; n'invente pas un facteur pour remplir chaque dimension. Une même cause ne doit pas être répétée sous plusieurs dimensions. La dimension légale repose exclusivement sur la veille fournie.
+- Un enjeu doit être matériel et spécifique à cette organisation. Écarte les généralités, facteurs sans lien démontrable, doublons et contradictions avec le profil. Ne transforme pas une incertitude ou une absence de réponse en fait négatif.
 - confidence est une estimation interne entre 0 et 1 : elle ne remplace jamais la validation humaine.
 - Ne produis pas de plan d'action.
 - Rédige tous les champs textuels ${inLanguage(input.language)}.

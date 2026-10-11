@@ -90,6 +90,8 @@ const analysisPhaseKeys = {
   planning: "planning",
   retrieval: "retrieval",
   "law-discovery": "lawDiscovery",
+  "law-discovery-complete": "lawDiscovery",
+  "law-articles": "lawArticles",
   "source-resolution": "sourceResolution",
   classification: "classification",
   classification_drafting: "classificationDrafting",
@@ -191,13 +193,53 @@ export function regulatoryViewData(
           (match) => match[1]!,
         )
       : [];
-    const provision =
-      entry.source.provisionIdentifier ??
-      (articleReferences.length ? [...new Set(articleReferences)].join(" · ") : null) ??
-      (entry.source.type === "DISCOVERED_LAW" ? t("view.articleToConfirm") : t("view.fullText"));
+    const excerpts =
+      entry.source.type === "DISCOVERED_LAW" ? (entry.requirement?.supportingExcerpts ?? []) : [];
+    const articles = excerpts.length
+      ? excerpts.map((excerpt, index) => {
+          const newline = excerpt.indexOf("\n");
+          const firstLine = newline > 0 ? excerpt.slice(0, newline) : null;
+          const hasReference =
+            firstLine &&
+            /^(?:Article|Art\.|Clause|المادة|الفصل|البند|\d+(?:\.\d+)*)(?:\s|$)/iu.test(firstLine);
+          const reference = hasReference
+            ? firstLine
+            : (articleReferences[index] ?? t("view.fullText"));
+          return {
+            id: `${entry.id}:article:${index}`,
+            reference,
+            text:
+              excerpts.length === 1
+                ? requirementText
+                : (requirementText?.split("\n").find((line) => line.startsWith(`${reference} :`)) ??
+                  null),
+            sourceText: hasReference ? excerpt.slice(newline + 1) : excerpt,
+            sourceUrl: entry.source.url,
+          };
+        })
+      : requirementText || entry.source.type !== "DISCOVERED_LAW"
+        ? [
+            {
+              id: entry.id,
+              reference:
+                entry.source.provisionIdentifier ??
+                (articleReferences.length
+                  ? [...new Set(articleReferences)].join(" · ")
+                  : t("view.fullText")),
+              text: requirementText,
+              sourceText: entry.source.type === "DISCOVERED_LAW" ? null : entry.source.excerpt,
+              sourceUrl: entry.source.url,
+            },
+          ]
+        : [];
+    const provision = articles.length
+      ? [...new Set(articles.map((article) => article.reference))].join(" · ")
+      : t("view.articlesUnavailable");
     const existing = groupedDocuments.get(key);
     if (existing) {
-      existing.requirements += 1;
+      existing.requirements += articles.length;
+      existing.articles?.push(...articles);
+      existing.sourceNeedsReview ||= entry.source.type === "DISCOVERED_LAW";
       if (!existing.provisions.split(" · ").includes(provision)) {
         existing.provisions = `${existing.provisions} · ${provision}`;
       }
@@ -212,10 +254,11 @@ export function regulatoryViewData(
         ? countryName(entry.source.countryCode, language)
         : entry.source.jurisdiction || t("view.international"),
       provisions: provision,
-      requirements: 1,
+      requirements: articles.length,
       source: entry.source.citationLabel,
       sourceUrl: entry.source.url,
       requirementText,
+      articles,
       sourceNeedsReview: entry.source.type === "DISCOVERED_LAW",
       status: "APPLICABLE",
       reason: entry.applicabilityRationale,
@@ -238,7 +281,7 @@ export function regulatoryViewData(
       source: entry.source.referenceNumber ?? entry.source.documentTitle,
       provision:
         entry.source.provisionIdentifier ?? entry.source.provisionType ?? t("view.fullText"),
-      requirement: entry.requirement?.text ?? t("view.requirementToRegenerate"),
+      requirement: entry.requirement?.text ?? t("view.articlesUnavailable"),
       citation: entry.source.citationLabel,
       officialSourceText: entry.source.excerpt ?? t("view.sourceToAttach"),
       status: entry.evaluation.result,
@@ -297,6 +340,7 @@ export function regulatoryViewData(
   const nonConforming = evaluationItems.filter((item) => item.status === "NON_CONFORMING").length;
   const aiAssessed = evaluationItems.filter((item) => item.aiStatus === "COMPLETED").length;
   const openActions = entries
+    .filter((entry) => entry.evaluation.result !== "CONFORMING")
     .flatMap((entry) => entry.evaluation.actions)
     .filter((action) => action.status !== "DONE" && action.status !== "VERIFIED").length;
 
@@ -1293,10 +1337,10 @@ function AiEvaluationSheet({
   useEffect(() => {
     if (!evaluationId) return;
     setResult(
-      suggestedResult && suggestedResult !== "NOT_ASSESSED"
-        ? suggestedResult
-        : humanResult && humanResult !== "NOT_ASSESSED"
-          ? humanResult
+      humanResult && humanResult !== "NOT_ASSESSED"
+        ? humanResult
+        : suggestedResult && suggestedResult !== "NOT_ASSESSED"
+          ? suggestedResult
           : "NON_CONFORMING",
     );
   }, [evaluationId, suggestedResult, humanResult]);
@@ -1342,8 +1386,9 @@ function AiEvaluationSheet({
       actionDraft.effectiveness !== "PENDING" ||
       actionDraft.status !== "OPEN",
     );
-    if (!title && hasOtherActionValues) return t("sheet.actionTitleRequired");
-    if (title && title.length < 2) return t("sheet.actionTitleShort");
+    if (result !== "CONFORMING" && !title && hasOtherActionValues)
+      return t("sheet.actionTitleRequired");
+    if (result !== "CONFORMING" && title && title.length < 2) return t("sheet.actionTitleShort");
 
     const created: EvaluationSaveInput["evidence"]["created"] = [];
     const updated: EvaluationSaveInput["evidence"]["updated"] = [];
@@ -1386,7 +1431,7 @@ function AiEvaluationSheet({
       result,
       comment: trimmedOrNull(comment),
       action:
-        actionDirty && title
+        result !== "CONFORMING" && actionDirty && title
           ? {
               id: seededAction?.id ?? null,
               title,
@@ -1625,7 +1670,7 @@ function AiEvaluationSheet({
                 </section>
               )}
 
-              {evaluation.aiRemediationPlan && (
+              {result !== "CONFORMING" && evaluation.aiRemediationPlan && (
                 <section className="rounded-2xl border border-amber-200 bg-amber-50/70 p-4">
                   <p className="flex items-center gap-2 text-xs font-semibold text-amber-900">
                     <TargetIcon className="size-4" /> {t("sheet.remediation")}
@@ -1669,134 +1714,136 @@ function AiEvaluationSheet({
                 </section>
               )}
 
-              <section className="rounded-2xl border border-slate-200 p-4">
-                <p className="flex items-center gap-2 text-xs font-semibold text-slate-900">
-                  <TargetIcon className="size-4" /> {t("sheet.actionPlan")}
-                </p>
-                <p className="mt-1 text-[11px] leading-4 text-slate-500">
-                  {t("sheet.actionPlanHint")}
-                </p>
-                <label className={cn(fieldLabelClass, "mt-4")} htmlFor="action-title">
-                  {t("sheet.action")}
-                </label>
-                <Input
-                  className="mt-1"
-                  id="action-title"
-                  maxLength={500}
-                  onChange={(event) => updateAction("title", event.target.value)}
-                  placeholder={t("sheet.actionPlaceholder")}
-                  value={actionDraft.title}
-                />
-                <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                  <div>
-                    <label className={fieldLabelClass} htmlFor="action-responsible">
-                      {t("sheet.owner")}
-                    </label>
-                    <Input
-                      className="mt-1"
-                      id="action-responsible"
-                      maxLength={200}
-                      onChange={(event) => updateAction("responsibleName", event.target.value)}
-                      placeholder={t("sheet.ownerPlaceholder")}
-                      value={actionDraft.responsibleName}
-                    />
+              {result !== "CONFORMING" && (
+                <section className="rounded-2xl border border-slate-200 p-4">
+                  <p className="flex items-center gap-2 text-xs font-semibold text-slate-900">
+                    <TargetIcon className="size-4" /> {t("sheet.actionPlan")}
+                  </p>
+                  <p className="mt-1 text-[11px] leading-4 text-slate-500">
+                    {t("sheet.actionPlanHint")}
+                  </p>
+                  <label className={cn(fieldLabelClass, "mt-4")} htmlFor="action-title">
+                    {t("sheet.action")}
+                  </label>
+                  <Input
+                    className="mt-1"
+                    id="action-title"
+                    maxLength={500}
+                    onChange={(event) => updateAction("title", event.target.value)}
+                    placeholder={t("sheet.actionPlaceholder")}
+                    value={actionDraft.title}
+                  />
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                    <div>
+                      <label className={fieldLabelClass} htmlFor="action-responsible">
+                        {t("sheet.owner")}
+                      </label>
+                      <Input
+                        className="mt-1"
+                        id="action-responsible"
+                        maxLength={200}
+                        onChange={(event) => updateAction("responsibleName", event.target.value)}
+                        placeholder={t("sheet.ownerPlaceholder")}
+                        value={actionDraft.responsibleName}
+                      />
+                    </div>
+                    <div>
+                      <label className={fieldLabelClass} htmlFor="action-status">
+                        {t("sheet.status")}
+                      </label>
+                      <select
+                        className={fieldControlClass}
+                        id="action-status"
+                        onChange={(event) =>
+                          updateAction("status", event.target.value as ActionDraft["status"])
+                        }
+                        value={actionDraft.status}
+                      >
+                        {actionStatuses.map((value) => (
+                          <option key={value} value={value}>
+                            {t(`actionStatus.${value}`)}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className={fieldLabelClass} htmlFor="action-due-date">
+                        {t("sheet.dueDate")}
+                      </label>
+                      <input
+                        className={fieldControlClass}
+                        id="action-due-date"
+                        onChange={(event) => updateAction("dueDate", event.target.value)}
+                        type="date"
+                        value={actionDraft.dueDate}
+                      />
+                    </div>
+                    <div>
+                      <label className={fieldLabelClass} htmlFor="action-completed-date">
+                        {t("sheet.completedDate")}
+                      </label>
+                      <input
+                        className={fieldControlClass}
+                        id="action-completed-date"
+                        onChange={(event) => updateAction("completedDate", event.target.value)}
+                        type="date"
+                        value={actionDraft.completedDate}
+                      />
+                    </div>
                   </div>
-                  <div>
-                    <label className={fieldLabelClass} htmlFor="action-status">
-                      {t("sheet.status")}
-                    </label>
-                    <select
-                      className={fieldControlClass}
-                      id="action-status"
-                      onChange={(event) =>
-                        updateAction("status", event.target.value as ActionDraft["status"])
-                      }
-                      value={actionDraft.status}
-                    >
-                      {actionStatuses.map((value) => (
-                        <option key={value} value={value}>
-                          {t(`actionStatus.${value}`)}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className={fieldLabelClass} htmlFor="action-due-date">
-                      {t("sheet.dueDate")}
-                    </label>
-                    <input
-                      className={fieldControlClass}
-                      id="action-due-date"
-                      onChange={(event) => updateAction("dueDate", event.target.value)}
-                      type="date"
-                      value={actionDraft.dueDate}
-                    />
-                  </div>
-                  <div>
-                    <label className={fieldLabelClass} htmlFor="action-completed-date">
-                      {t("sheet.completedDate")}
-                    </label>
-                    <input
-                      className={fieldControlClass}
-                      id="action-completed-date"
-                      onChange={(event) => updateAction("completedDate", event.target.value)}
-                      type="date"
-                      value={actionDraft.completedDate}
-                    />
-                  </div>
-                </div>
-                <label className={cn(fieldLabelClass, "mt-3")} htmlFor="action-resources">
-                  {t("sheet.resources")}
-                </label>
-                <Textarea
-                  className="mt-1 min-h-16"
-                  id="action-resources"
-                  maxLength={2000}
-                  onChange={(event) => updateAction("resources", event.target.value)}
-                  placeholder={t("sheet.resourcesPlaceholder")}
-                  value={actionDraft.resources}
-                />
-                <label className={cn(fieldLabelClass, "mt-3")} htmlFor="action-criteria">
-                  {t("sheet.criteria")}
-                </label>
-                <Textarea
-                  className="mt-1 min-h-16"
-                  id="action-criteria"
-                  maxLength={2000}
-                  onChange={(event) => updateAction("effectivenessCriteria", event.target.value)}
-                  placeholder={t("sheet.criteriaPlaceholder")}
-                  value={actionDraft.effectivenessCriteria}
-                />
-                <label className={cn(fieldLabelClass, "mt-3")} htmlFor="action-effectiveness">
-                  {t("sheet.effective")}
-                </label>
-                <select
-                  className={fieldControlClass}
-                  id="action-effectiveness"
-                  onChange={(event) =>
-                    updateAction(
-                      "effectiveness",
-                      event.target.value as ActionDraft["effectiveness"],
-                    )
-                  }
-                  value={actionDraft.effectiveness}
-                >
-                  <option value="PENDING">{t("effectiveness.PENDING")}</option>
-                  <option value="EFFECTIVE">{t("effectiveness.EFFECTIVE")}</option>
-                  <option value="INEFFECTIVE">{t("effectiveness.INEFFECTIVE")}</option>
-                </select>
-                <label className={cn(fieldLabelClass, "mt-3")} htmlFor="action-comment">
-                  {t("sheet.actionComment")}
-                </label>
-                <Textarea
-                  className="mt-1 min-h-16"
-                  id="action-comment"
-                  maxLength={2000}
-                  onChange={(event) => updateAction("comment", event.target.value)}
-                  placeholder={t("sheet.actionCommentPlaceholder")}
-                  value={actionDraft.comment}
-                />
-              </section>
+                  <label className={cn(fieldLabelClass, "mt-3")} htmlFor="action-resources">
+                    {t("sheet.resources")}
+                  </label>
+                  <Textarea
+                    className="mt-1 min-h-16"
+                    id="action-resources"
+                    maxLength={2000}
+                    onChange={(event) => updateAction("resources", event.target.value)}
+                    placeholder={t("sheet.resourcesPlaceholder")}
+                    value={actionDraft.resources}
+                  />
+                  <label className={cn(fieldLabelClass, "mt-3")} htmlFor="action-criteria">
+                    {t("sheet.criteria")}
+                  </label>
+                  <Textarea
+                    className="mt-1 min-h-16"
+                    id="action-criteria"
+                    maxLength={2000}
+                    onChange={(event) => updateAction("effectivenessCriteria", event.target.value)}
+                    placeholder={t("sheet.criteriaPlaceholder")}
+                    value={actionDraft.effectivenessCriteria}
+                  />
+                  <label className={cn(fieldLabelClass, "mt-3")} htmlFor="action-effectiveness">
+                    {t("sheet.effective")}
+                  </label>
+                  <select
+                    className={fieldControlClass}
+                    id="action-effectiveness"
+                    onChange={(event) =>
+                      updateAction(
+                        "effectiveness",
+                        event.target.value as ActionDraft["effectiveness"],
+                      )
+                    }
+                    value={actionDraft.effectiveness}
+                  >
+                    <option value="PENDING">{t("effectiveness.PENDING")}</option>
+                    <option value="EFFECTIVE">{t("effectiveness.EFFECTIVE")}</option>
+                    <option value="INEFFECTIVE">{t("effectiveness.INEFFECTIVE")}</option>
+                  </select>
+                  <label className={cn(fieldLabelClass, "mt-3")} htmlFor="action-comment">
+                    {t("sheet.actionComment")}
+                  </label>
+                  <Textarea
+                    className="mt-1 min-h-16"
+                    id="action-comment"
+                    maxLength={2000}
+                    onChange={(event) => updateAction("comment", event.target.value)}
+                    placeholder={t("sheet.actionCommentPlaceholder")}
+                    value={actionDraft.comment}
+                  />
+                </section>
+              )}
 
               <section className="rounded-2xl border border-slate-200 p-4">
                 <p className="text-xs font-semibold text-slate-900">{t("sheet.decision")}</p>

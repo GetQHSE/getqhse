@@ -8,7 +8,7 @@ import {
   profileChatPrompt,
 } from "@qhse/ai";
 import {
-  getProfileFieldValueJsonSchema,
+  getProfileAnswerJsonSchema,
   profileToolInputSchema,
   profileToolInputSchemaForField,
 } from "@qhse/profile";
@@ -61,12 +61,12 @@ export class OpenAiProfileChatAdapter extends ProfileChatModelPort {
       { role: "user", content: currentContent },
     ];
     const currentFieldSchema = input.currentQuestion
-      ? getProfileFieldValueJsonSchema(input.currentQuestion.key)
+      ? getProfileAnswerJsonSchema(input.currentQuestion.key)
       : null;
     const tools = {
       recordProfileAnswers: tool({
         description: input.currentQuestion
-          ? `Record the user's answer to the current profile question exactly once. The only allowed key is ${input.currentQuestion.key}. valueJson must contain JSON matching this exact schema: ${JSON.stringify(currentFieldSchema)}. Return validation failures to the user as one precise clarification question; never retry this tool in the same turn.`
+          ? `Record the user's answer to the current profile question exactly once. The only allowed key is ${input.currentQuestion.key}. valueJson must contain JSON matching this exact schema: ${JSON.stringify(currentFieldSchema)}. For descriptive fields, a JSON string with the understandable user answer is also accepted when structured details are missing. Never reject spelling, grammar or a response that differs from examples. Never retry this tool in the same turn.`
           : "Do not call this tool because the profile has no current question.",
         inputSchema: input.currentQuestion
           ? profileToolInputSchemaForField(input.currentQuestion.key)

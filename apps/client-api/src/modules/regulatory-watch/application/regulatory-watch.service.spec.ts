@@ -5,12 +5,97 @@ import {
   ServiceUnavailableException,
 } from "@nestjs/common";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import ExcelJS from "exceljs";
+import { regulatoryRegisterEntrySchema } from "@qhse/contracts";
 
 import {
   automaticCandidateDecision,
   evaluationCarryForward,
   RegulatoryWatchService,
 } from "./regulatory-watch.service.js";
+
+describe("retrieved regulatory article visibility", () => {
+  it("exposes sourced AI articles after automatic publication without claiming a human review", async () => {
+    process.env["DATABASE_URL"] ??= "postgresql://postgres:postgres@localhost:5432/qhse_test";
+    const service = new RegulatoryWatchService({} as never);
+    const now = new Date("2026-09-06T12:00:00Z");
+    const excerpt = "Article 12\nTexte complet de l’article et ses exceptions.";
+    (service as unknown as { loadedWatch(): Promise<unknown> }).loadedWatch = async () => ({
+      id: "watch",
+      projectId: "project",
+      status: "ACTIVE",
+      revision: 2,
+      analyses: [],
+      createdAt: now,
+      updatedAt: now,
+      lastCheckedAt: now,
+      lastSuccessfulSyncAt: now,
+      currentBaseline: {
+        id: "baseline",
+        sequence: 1,
+        profileSnapshotId: "profile",
+        publishedAt: now,
+        entries: [
+          {
+            id: "entry",
+            previousEntryId: null,
+            changeType: "ADDED",
+            orderIndex: 0,
+            sourceType: "DISCOVERED_LAW",
+            sourceReference: "Loi 09-08",
+            sourceTitle: "Protection des données",
+            sourceUrl: "https://adala.justice.gov.ma/official",
+            sourceCountryCode: "MA",
+            provision: null,
+            applicabilityRationale: "Le projet traite des données personnelles.",
+            requirementText: "Article 12 : Protéger les données.",
+            requirementSource: "AI",
+            requirementReviewedAt: null,
+            requirementSupportingExcerpts: [excerpt],
+            evaluation: {
+              id: "evaluation",
+              revision: 1,
+              result: "NOT_ASSESSED",
+              aiStatus: "PENDING",
+              aiConfidence: null,
+              aiMatchedProfileKeys: [],
+              aiMissingInformation: [],
+              updatedAt: now,
+              evidence: [],
+              actions: [],
+            },
+          },
+        ],
+      },
+    });
+    const watch = await service.get(
+      { organizationId: "org", userId: "user", role: "owner" },
+      "project",
+    );
+    expect(watch.currentBaseline?.entries[0]?.requirement).toEqual({
+      text: "Article 12 : Protéger les données.",
+      source: "AI",
+      supportingExcerpts: [excerpt],
+      reviewedAt: null,
+    });
+    expect(watch.currentBaseline?.entries[0]?.source.excerpt).toBe(excerpt);
+    expect(
+      regulatoryRegisterEntrySchema.shape.requirement.safeParse(
+        watch.currentBaseline?.entries[0]?.requirement,
+      ).success,
+    ).toBe(true);
+    const workbook = new ExcelJS.Workbook();
+    const workbookBytes = await service.exportWorkbook(
+      { organizationId: "org", userId: "user", role: "owner" },
+      "project",
+    );
+    await workbook.xlsx.load(Uint8Array.from(workbookBytes).buffer);
+    const cells: string[] = [];
+    workbook.worksheets[0]!.eachRow((row) => row.eachCell((cell) => cells.push(cell.text)));
+    expect(cells.join("\n")).toContain("Texte complet de l’article et ses exceptions.");
+    expect(cells.join("\n")).not.toContain("Source officielle à rattacher");
+  });
+});
 
 describe("automatic regulatory applicability", () => {
   const discovered = {

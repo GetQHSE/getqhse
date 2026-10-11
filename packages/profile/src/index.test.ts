@@ -104,3 +104,38 @@ describe("project profile catalog", () => {
     ).toBe(false);
   });
 });
+
+describe("free-form profile answers", () => {
+  it("accepts an understandable answer without imposing a proposed structure or spelling", () => {
+    const value = "on travaille avec des fourniseur locaux mais jai pas leurs noms";
+    expect(
+      parseProfileToolAnswer({
+        key: "operations.externalProviders",
+        valueJson: JSON.stringify(value),
+        confidence: 0.4,
+      }),
+    ).toMatchObject({ success: true, value });
+    expect(
+      calculateProfileCompletion([
+        { key: "operations.externalProviders", value, status: "ANSWERED" },
+      ]).answeredRequired,
+    ).toBe(1);
+  });
+  it("accepts partial information and long descriptions without requiring extra details", () => {
+    expect(validateProfileFieldValue("organization.mission", "a".repeat(5000)).success).toBe(true);
+    expect(
+      validateProfileFieldValue(
+        "strategy.values",
+        Array.from({ length: 21 }, (_, i) => `Valeur ${i}`),
+      ).success,
+    ).toBe(true);
+  });
+  it("records zero employees and an explicitly unknown employee count", () => {
+    expect(validateProfileFieldValue("organization.employeeCount", 0).success).toBe(true);
+    expect(validateProfileFieldValue("organization.employeeCount", null).success).toBe(true);
+  });
+  it("still rejects empty answers and malformed technical fields", () => {
+    expect(validateProfileFieldValue("operations.externalProviders", "   ").success).toBe(false);
+    expect(validateProfileFieldValue("scope.operatingCountries", "Maroc").success).toBe(false);
+  });
+});

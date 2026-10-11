@@ -116,7 +116,18 @@ suite("PIP persisted workflow", () => {
       service.register({ ...tenant, organizationId: "other-org" }, "project-pip"),
     ).rejects.toMatchObject({ status: 404 });
     generate.mockResolvedValueOnce({
-      output: { parties: [proposed], clarifications: [] },
+      output: {
+        parties: [
+          {
+            ...proposed,
+            evidence: [
+              { ...proposed.evidence[0]!, excerpt: "Repair\nservices" },
+              { ...proposed.evidence[0]!, excerpt: "Fabricated customer contract" },
+            ],
+          },
+        ],
+        clarifications: [],
+      },
       model: "test-model",
     });
     const { runId } = await service.launch(tenant, "project-pip", {
@@ -130,6 +141,7 @@ suite("PIP persisted workflow", () => {
     );
     await process(runId);
     expect(register.parties[0]?.reviewStatus).toBe("PENDING");
+    expect(register.parties[0]?.content.evidence).toHaveLength(1);
     const run = await database.pipRun.findUniqueOrThrow({ where: { id: runId } });
     expect(run.inputSnapshot).toHaveProperty("language", "en");
     await worker.process({

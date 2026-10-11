@@ -1184,7 +1184,7 @@ export const regulatoryRegisterEntrySchema = z.object({
       text: z.string(),
       source: regulatoryRequirementSourceSchema,
       supportingExcerpts: z.array(z.string()),
-      reviewedAt: isoDateTimeSchema,
+      reviewedAt: isoDateTimeSchema.nullable(),
     })
     .nullable(),
   source: regulatoryCitationSchema,

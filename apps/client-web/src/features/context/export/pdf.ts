@@ -95,7 +95,6 @@ export async function buildContextPdfBlob(doc: ContextDocument): Promise<Blob> {
           t("export.columns.issue"),
           t("export.columns.description"),
           t("export.columns.natureCategory"),
-          t("export.columns.assessment"),
         ],
       ],
       issues.map((issue) => [
@@ -108,14 +107,8 @@ export async function buildContextPdfBlob(doc: ContextDocument): Promise<Blob> {
           .join("\n"),
         issue.description,
         `${issue.natureLabel}\n${issue.categoryLabel}`,
-        [
-          t("export.statusLine", { value: issue.statusLabel }),
-          t("export.qualityShort", { value: issue.impactQuality }),
-          t("export.customerShort", { value: issue.impactCustomer }),
-          t("export.overallShort", { value: issue.impactOverall }),
-        ].join("\n"),
       ]),
-      { 0: usable * 0.24, 1: usable * 0.36, 2: usable * 0.18, 3: usable * 0.22 },
+      { 0: usable * 0.27, 1: usable * 0.49, 2: usable * 0.24 },
     );
 
   /** The template's synthesis table: one evaluated issue per row. */

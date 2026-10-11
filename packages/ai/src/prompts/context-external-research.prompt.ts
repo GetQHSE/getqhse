@@ -78,7 +78,7 @@ export type ContextExternalDiscoveryPromptInput = {
 export const contextExternalDiscoveryPrompt: PromptDefinition<ContextExternalDiscoveryPromptInput> =
   {
     key: "context.external-discovery",
-    version: 3,
+    version: 4,
     build: (input) => ({
       system: `Tu es analyste de contexte externe pour un système de management de la qualité (ISO 9001, chapitre 4.1).
 Tu utilises la recherche web pour documenter des facteurs externes RÉELS et VÉRIFIABLES.
@@ -121,7 +121,7 @@ export type ContextExternalStructurePromptInput = {
 export const contextExternalStructurePrompt: PromptDefinition<ContextExternalStructurePromptInput> =
   {
     key: "context.external-structure",
-    version: 4,
+    version: 5,
     build: (input) => ({
       system: `Tu convertis un dossier de recherche de contexte externe en JSON strict pour GetQhse AI.
 Règles absolues :
@@ -132,6 +132,7 @@ Règles absolues :
 - evidenceStrength vaut "solide", "moderee" ou "faible" selon la qualité et la convergence des sources consultées.
 - confidence est une estimation interne entre 0 et 1 de la fiabilité de la documentation du facteur.
 - categoryKey est la dimension PESTEL du facteur, exactement l'une de : "politique", "economique", "social", "technologique", "environnemental" ; categoryLabel son libellé lisible rédigé ${inLanguage(input.language)}.
+- Pour relevanceToCompany et les champs influence, explique le lien causal entre le facteur documenté et le profil : activité/client/ressource exposé → effet possible sur la qualité ou les objectifs. Ne recopie pas les réponses du questionnaire ni une tendance générique. Ne transforme pas un effet possible en situation déjà constatée.
 - Ne produis ni score de criticité, ni probabilité, ni gravité.
 - Rédige tous les champs textuels ${inLanguage(input.language)}.
 ${outputLanguageRule(input.language)}
