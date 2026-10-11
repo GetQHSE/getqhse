@@ -121,7 +121,23 @@ export type LawCatalogEntry = {
   tags: string[];
 };
 
-export type ApplicableLawProposal = z.infer<typeof applicableLawDiscoverySchema>["laws"][number];
+export type ApplicableLawProposal = z.infer<typeof applicableLawDiscoverySchema>["laws"][number] & {
+  sourceExcerpts?: string[];
+};
+
+// A separate search per law retrieves article content instead of sharing the discovery budget.
+export const lawArticlesSchema = z.object({
+  sourceUrl: z.string().max(2_048).nullable(),
+  articles: z
+    .array(
+      z.object({
+        reference: z.string().trim().min(1).max(120),
+        requirement: z.string().trim().min(1).max(2_400),
+        sourceText: z.string().trim().min(1).max(20_000),
+      }),
+    )
+    .max(30),
+});
 
 function normalizedIdentity(value: string | null): string {
   return (value ?? "")

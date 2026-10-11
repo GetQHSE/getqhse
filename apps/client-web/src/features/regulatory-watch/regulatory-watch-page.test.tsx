@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -519,6 +519,54 @@ describe("RegulatoryWatchPage", () => {
       "href",
       "https://adala.justice.gov.ma/code-du-travail",
     );
+  });
+
+  it("shows each retrieved article in full without generation placeholders", async () => {
+    const entry = activeWatch.currentBaseline.entries[0]!;
+    vi.mocked(clientApi.regulatoryWatch).mockResolvedValue({
+      ...activeWatch,
+      currentBaseline: {
+        ...activeWatch.currentBaseline,
+        entries: [
+          {
+            ...entry,
+            requirement: {
+              ...entry.requirement,
+              text: "Article 12 : Protéger les données.\nArticle 13 : Informer les personnes.",
+              supportingExcerpts: [
+                "Article 12\nLe responsable assure la sécurité des données. Sauf exception prévue au présent article.",
+                "Article 13\nLa personne concernée reçoit une information complète avant toute collecte.",
+              ],
+            },
+            source: {
+              ...entry.source,
+              type: "DISCOVERED_LAW",
+              referenceNumber: "Loi 09-08",
+              revisionId: null,
+              provisionIdentifier: null,
+              excerpt: "Le projet traite des données personnelles.",
+              url: "https://adala.justice.gov.ma/official",
+            },
+          },
+        ],
+      },
+    } as never);
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(await screen.findByRole("button", { name: "Voir Loi 09-08" }));
+    expect(screen.getByRole("heading", { name: "Article 12" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Article 13" })).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Le responsable assure la sécurité des données. Sauf exception prévue au présent article.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "La personne concernée reçoit une information complète avant toute collecte.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/régénérer|Article à confirmer/)).not.toBeInTheDocument();
   });
 
   it("shows and validates an AI conformity recommendation", async () => {
@@ -1438,5 +1486,110 @@ describe("RegulatoryWatchPage", () => {
       "evaluation-1",
       expect.objectContaining({ kind: "NOTE", note: "Photo du poste de mesure" }),
     );
+  });
+});
+
+describe("regulatory register corrections", () => {
+  it("removes the action editor immediately when the user selects conforming", async () => {
+    const user = userEvent.setup();
+    const save = vi.fn().mockResolvedValue(undefined);
+    render(
+      <MemoryRouter>
+        <DataPage
+          profile={profile as never}
+          watch={activeWatch as never}
+          synchronizing={false}
+          onRefresh={() => {}}
+          refreshing={false}
+          onExport={() => {}}
+          exporting={false}
+          onSaveEvaluation={save}
+        />
+      </MemoryRouter>,
+    );
+    await user.click(screen.getByRole("tab", { name: /Évaluation réglementaire/ }));
+    await user.click(screen.getAllByText(/L’organisme doit déterminer et fournir/)[0]!);
+    expect(await screen.findByLabelText("Responsable")).toBeInTheDocument();
+    await user.selectOptions(screen.getByLabelText("Résultat"), "CONFORMING");
+    expect(screen.queryByLabelText("Responsable")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Action")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Valider l’évaluation" }));
+    await waitFor(() =>
+      expect(save).toHaveBeenCalledWith(
+        expect.objectContaining({ result: "CONFORMING", action: null }),
+      ),
+    );
+  });
+
+  it("shows all articles of a grouped text in read-only details", async () => {
+    const user = userEvent.setup();
+    const first = activeWatch.currentBaseline.entries[0]!;
+    const watch = {
+      ...activeWatch,
+      currentBaseline: {
+        ...activeWatch.currentBaseline,
+        entries: [
+          first,
+          {
+            ...first,
+            id: "entry-2",
+            source: { ...first.source, provisionIdentifier: "Article 12" },
+            requirement: { ...first.requirement, text: "Deuxième article complet." },
+          },
+        ],
+      },
+    };
+    render(
+      <MemoryRouter>
+        <DataPage
+          profile={profile as never}
+          watch={watch as never}
+          synchronizing={false}
+          onRefresh={() => {}}
+          refreshing={false}
+          onExport={() => {}}
+          exporting={false}
+        />
+      </MemoryRouter>,
+    );
+    await user.click(screen.getAllByRole("button", { name: /Voir ISO/ })[0]!);
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText("Deuxième article complet.")).toBeInTheDocument();
+    expect(
+      within(dialog).queryByRole("button", { name: "Modifier l’applicabilité" }),
+    ).not.toBeInTheDocument();
+    expect(
+      within(dialog).queryByRole("button", { name: "Ouvrir les exigences" }),
+    ).not.toBeInTheDocument();
+  });
+  it("hides row information beyond conformity when a row is conforming", async () => {
+    const user = userEvent.setup();
+    const watch = {
+      ...activeWatch,
+      currentBaseline: {
+        ...activeWatch.currentBaseline,
+        entries: activeWatch.currentBaseline.entries.map((entry) => ({
+          ...entry,
+          evaluation: { ...entry.evaluation, result: "CONFORMING" },
+        })),
+      },
+    };
+    render(
+      <MemoryRouter>
+        <DataPage
+          profile={profile as never}
+          watch={watch as never}
+          synchronizing={false}
+          onRefresh={() => {}}
+          refreshing={false}
+          onExport={() => {}}
+          exporting={false}
+        />
+      </MemoryRouter>,
+    );
+    await user.click(screen.getByRole("tab", { name: /Évaluation réglementaire/ }));
+    expect(screen.getAllByText("Conforme").length).toBeGreaterThan(0);
+    expect(screen.queryByText("Responsable qualité")).not.toBeInTheDocument();
+    expect(screen.queryByText("Compléter le registre de métrologie")).not.toBeInTheDocument();
   });
 });

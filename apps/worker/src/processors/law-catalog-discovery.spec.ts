@@ -94,7 +94,15 @@ describe("MVP applicable-law discovery", () => {
   }
 
   function respond(laws = [storedProposal, lead], events?: string[]) {
-    generated.mockImplementation(async (input: { prompt: string }) => {
+    generated.mockImplementation(async (input: { prompt: string; system: string }) => {
+      if (input.system.startsWith("Recherche les articles")) {
+        events?.push("articles");
+        return {
+          output: { sourceUrl: null, articles: [] },
+          totalUsage: { inputTokens: 100, outputTokens: 50 },
+          sources: [],
+        };
+      }
       events?.push("model");
       expect(input.prompt).not.toContain("law-1");
       expect(input.prompt).not.toContain("Loi test");
@@ -113,7 +121,7 @@ describe("MVP applicable-law discovery", () => {
       provisions: [],
       discoveredLaws: [storedProposal, lead],
     });
-    expect(events).toEqual(["model"]);
+    expect(events).toEqual(["model", "articles", "articles"]);
     expect(generated).toHaveBeenCalledWith(
       expect.objectContaining({
         prompt: expect.stringContaining("employeeCount"),
@@ -132,6 +140,167 @@ describe("MVP applicable-law discovery", () => {
       data: { missingLaws: [] },
     });
     expect(db.$queryRaw).not.toHaveBeenCalled();
+  });
+
+  it("retrieves detailed articles separately before returning discovered laws", async () => {
+    const { db, run } = harness();
+    const url = "https://adala.justice.gov.ma/official";
+    const excerpt =
+      "Toute personne doit protéger les données collectées contre les accès non autorisés.";
+    generated
+      .mockResolvedValueOnce({
+        output: { laws: [lead] },
+        totalUsage: { inputTokens: 100, outputTokens: 50 },
+        sources: [],
+      })
+      .mockResolvedValueOnce({
+        output: {
+          sourceUrl: url,
+          articles: [
+            {
+              reference: "Article 12",
+              requirement: "Protéger les données collectées.",
+              sourceText: excerpt,
+            },
+          ],
+        },
+        totalUsage: { inputTokens: 100, outputTokens: 50 },
+        sources: [{ sourceType: "url", url }],
+      });
+
+    await expect(run()).resolves.toEqual({
+      provisions: [],
+      discoveredLaws: [
+        {
+          ...lead,
+          sourceUrl: url,
+          applicableRequirements: [
+            { reference: "Article 12", requirement: "Protéger les données collectées." },
+          ],
+          sourceExcerpts: [`Article 12\n${excerpt}`],
+        },
+      ],
+    });
+    expect(generated.mock.calls[1]?.[0].system).toContain("texte exact");
+    expect(generated.mock.calls[1]?.[0].prompt).toContain("Loi 09-08");
+    expect(db.regulatoryModelCall.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ stage: "articles" }),
+      }),
+    );
+  });
+
+  it("discards article content when its claimed source was not cited by web search", async () => {
+    const { run } = harness();
+    generated
+      .mockResolvedValueOnce({ output: { laws: [lead] }, totalUsage: {}, sources: [] })
+      .mockResolvedValueOnce({
+        output: {
+          sourceUrl: "https://invented.example/law",
+          articles: [
+            { reference: "Article 12", requirement: "Unsupported", sourceText: "Unsupported text" },
+          ],
+        },
+        totalUsage: {},
+        sources: [{ sourceType: "url", url: "https://official.example/other" }],
+      });
+    await expect(run()).resolves.toEqual({ provisions: [], discoveredLaws: [lead] });
+  });
+
+  it("fails the analysis when the dedicated article search fails", async () => {
+    const { processor, run } = harness();
+    (processor as unknown as { logger: unknown }).logger = { error: vi.fn() };
+    generated
+      .mockResolvedValueOnce({ output: { laws: [lead] }, totalUsage: {}, sources: [] })
+      .mockRejectedValueOnce(new Error("article provider unavailable"));
+    await expect(run()).rejects.toMatchObject({ code: "REGULATORY_MODEL_UNAVAILABLE" });
+  });
+
+  it("makes newly retrieved articles reviewable when refreshing an existing law", async () => {
+    const { processor, db } = harness();
+    const run = {
+      id: "run",
+      watchId: "watch",
+      status: "RUNNING",
+      baseBaselineId: "baseline",
+      clarificationRevision: 0,
+      profileSnapshot: { data: { fields: { "scope.operatingCountries": ["MA"] } } },
+      scopeFacts: [],
+      baseBaseline: {
+        profileSnapshot: { data: { fields: { "scope.operatingCountries": ["MA"] } } },
+        analysisRun: { candidates: [] },
+        entries: [
+          {
+            id: "previous",
+            sourceType: "DISCOVERED_LAW",
+            sourceReference: lead.reference,
+            sourceTitle: lead.title,
+            sourceUrl: null,
+            sourceCountryCode: "MA",
+            requirementText: null,
+            requirementSupportingExcerpts: [],
+            applicabilityRationale: lead.reason,
+          },
+        ],
+      },
+    };
+    db.regulatoryAnalysisRun.findUnique.mockImplementation(async (input: { include?: unknown }) =>
+      input.include ? run : { status: "RUNNING" },
+    );
+    const candidates = {
+      deleteMany: vi.fn().mockResolvedValue({}),
+      createMany: vi.fn().mockResolvedValue({}),
+      count: vi.fn().mockResolvedValue(1),
+    };
+    const fullDb = {
+      ...db,
+      regulatoryApplicabilityCandidate: candidates,
+      projectRegulatoryWatch: { update: vi.fn().mockResolvedValue({}) },
+    };
+    const internal = processor as unknown as {
+      database: unknown;
+      logger: unknown;
+      recoverAbandonedModelCalls: (runId: string) => Promise<void>;
+      retrieveAdditions: (run: unknown, job: unknown) => Promise<unknown>;
+      analyze: (runId: string, job: unknown) => Promise<void>;
+    };
+    internal.database = fullDb;
+    internal.logger = { info: vi.fn(), error: vi.fn() };
+    internal.recoverAbandonedModelCalls = vi.fn().mockResolvedValue(undefined);
+    internal.retrieveAdditions = vi.fn().mockResolvedValue({
+      provisions: [],
+      discoveredLaws: [
+        {
+          ...lead,
+          sourceUrl: "https://adala.justice.gov.ma/official",
+          applicableRequirements: [
+            { reference: "Article 12", requirement: "Protéger les données." },
+          ],
+          sourceExcerpts: ["Article 12\nTexte consulté."],
+        },
+      ],
+    });
+    await internal.analyze("run", { updateProgress: vi.fn() });
+    expect(candidates.createMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: [
+          expect.objectContaining({
+            changeType: "MODIFIED",
+            requirementText: "Article 12 : Protéger les données.",
+          }),
+        ],
+      }),
+    );
+    expect(db.regulatoryAnalysisRun.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ status: "READY_FOR_REVIEW" }),
+      }),
+    );
+    expect(db.regulatoryAnalysisRun.update).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ phase: "no-change" }),
+      }),
+    );
   });
 
   it("refuses to guess a country when the profile declares none", async () => {
@@ -225,7 +394,10 @@ describe("MVP applicable-law discovery", () => {
   });
 
   it("keeps only source URLs returned by the web-search tool", async () => {
-    const { db, run } = harness();
+    const { processor } = harness();
+    const discover = (
+      processor as unknown as { discoverApplicableLaws(run: unknown): Promise<unknown> }
+    ).discoverApplicableLaws.bind(processor);
     generated.mockResolvedValue({
       output: {
         laws: [
@@ -243,18 +415,17 @@ describe("MVP applicable-law discovery", () => {
         },
       ],
     });
-    await expect(run()).resolves.toEqual({
-      provisions: [],
-      discoveredLaws: [
-        { ...lead, sourceUrl: "https://adala.justice.gov.ma/official" },
-        storedProposal,
-      ],
+    await expect(
+      discover({
+        id: "run",
+        asOf: new Date("2026-09-06"),
+        clarificationRevision: 0,
+        profileSnapshot: { data: { fields: { "scope.operatingCountries": ["MA"] } } },
+        scopeFacts: [],
+      }),
+    ).resolves.toEqual({
+      laws: [{ ...lead, sourceUrl: "https://adala.justice.gov.ma/official" }, storedProposal],
     });
-    expect(db.regulatoryAnalysisRun.update).toHaveBeenCalledWith({
-      where: { id: "run" },
-      data: { missingLaws: [] },
-    });
-    expect(db.$queryRaw).not.toHaveBeenCalled();
   });
 
   it("allows the model to return no potentially applicable law", async () => {
@@ -407,6 +578,7 @@ describe("MVP applicable-law discovery", () => {
           },
           { reference: null, requirement: "Tenir un registre des traitements." },
         ],
+        sourceExcerpts: ["Article 12\nTexte intégral consulté, y compris ses exceptions."],
         previousEntryId: null,
         changeType: "ADDED",
         requiresReview: true,
@@ -418,6 +590,9 @@ describe("MVP applicable-law discovery", () => {
       data: [
         expect.objectContaining({
           sourceType: "DISCOVERED_LAW",
+          requirementSupportingExcerpts: [
+            "Article 12\nTexte intégral consulté, y compris ses exceptions.",
+          ],
           requirementText:
             "Article 12 : Nommer un délégué à la protection des données.\nTenir un registre des traitements.",
           requirementStatus: "SOURCE_REVIEW_REQUIRED",

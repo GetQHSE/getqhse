@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { ContextExternalFactor, ContextIssue } from "@qhse/contracts";
 
+import { buildContextRegisterWorkbook } from "./context-exporter.js";
+
 import { buildContextDocument, contextDocumentFileName } from "./context-document.js";
 
 function issue(overrides: Partial<ContextIssue> = {}): ContextIssue {
@@ -243,5 +245,26 @@ describe("contextDocumentFileName", () => {
     expect(contextDocumentFileName(doc, "xlsx")).toMatch(
       /^analyse-enjeux-usine-du-nord-site-principal-\d{4}-\d{2}-\d{2}\.xlsx$/,
     );
+  });
+});
+
+describe("context export review privacy", () => {
+  it("omits the review-status column from the exported workbook", () => {
+    const doc = buildContextDocument({
+      language: "fr",
+      organizationName: "Org",
+      projectName: "Projet",
+      isoStandard: "ISO_9001",
+      method: "SWOT",
+      methodExplicit: true,
+      analysisDate: null,
+      factors: [],
+      issues: [issue()],
+    });
+    const sheet = buildContextRegisterWorkbook(doc).worksheets[1]!;
+    expect(sheet.getRow(1).values).not.toContain("Statut de revue");
+    expect(sheet.columns.map((column) => column.key)).not.toContain("statusLabel");
+    expect(sheet.getRow(2).values).not.toContain("Retenu");
+    expect(sheet.getRow(2).values).toContain("Rotation élevée du personnel");
   });
 });

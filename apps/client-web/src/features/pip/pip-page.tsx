@@ -104,6 +104,11 @@ function PipAnalysis({ projectId }: { projectId: string }) {
       "PIP_REQUIREMENT_EXISTS",
       "PIP_EVALUATION_INCOMPLETE",
       "PIP_ANALYSIS_FAILED",
+      "PIP_NO_SUPPORTED_PARTIES",
+      "PIP_AI_NOT_CONFIGURED",
+      "PIP_INVALID_OUTPUT",
+      "PIP_PROVIDER_UNAVAILABLE",
+      "PIP_COVERAGE_MISMATCH",
       "PIP_QUEUE_UNAVAILABLE",
     ] as const;
     const found = codes.find((c) => c === code);

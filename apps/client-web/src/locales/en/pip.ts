@@ -134,6 +134,15 @@ const pip = {
   userAdded: "Added by you",
   corrected: "Corrected by you",
   errors: {
+    PIP_NO_SUPPORTED_PARTIES:
+      "No interested party could be grounded in the supplied information. Complete the profile or retry the analysis.",
+    PIP_AI_NOT_CONFIGURED: "The AI service is not configured. Set up the provider in AI settings.",
+    PIP_INVALID_OUTPUT:
+      "The AI response was incomplete or incorrectly structured. Run the analysis again.",
+    PIP_PROVIDER_UNAVAILABLE:
+      "The AI provider remains temporarily unavailable after several attempts. Try again shortly.",
+    PIP_COVERAGE_MISMATCH: "The analysis does not cover all retained parties. Run it again.",
+
     PIP_PROFILE_REQUIRED: "Validate the organisation profile first.",
     PIP_RUN_ACTIVE: "A PIP analysis is already running.",
     PIP_INVENTORY_REQUIRED: "Retain a party and refresh the inventory.",

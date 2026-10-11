@@ -78,6 +78,13 @@ export type RegulatoryDocument = {
   sourceUrl?: string | null;
   requirementText?: string | null;
   sourceNeedsReview?: boolean;
+  articles?: {
+    id: string;
+    reference: string;
+    text: string | null;
+    sourceText?: string | null;
+    sourceUrl: string | null;
+  }[];
   status: DocumentStatus;
   reason: string;
 };
@@ -335,6 +342,37 @@ function textCell(value: string | undefined): React.ReactNode {
   return <span className="line-clamp-3 block whitespace-pre-line">{value?.trim() || "—"}</span>;
 }
 
+function evidenceCell(evaluation: RegulatoryEvaluation): React.ReactNode {
+  if (!evaluation.evidenceItems?.length) return textCell(evaluation.evidence);
+  return (
+    <div className="space-y-1">
+      {evaluation.evidenceItems.map((item) => {
+        const url = item.url && /^https?:\/\//i.test(item.url) ? item.url : null;
+        return (
+          <div key={item.id}>
+            {url ? (
+              <>
+                <a
+                  href={url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="block text-violet-700 underline"
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  {item.label || url}
+                </a>
+                {item.note && <p>{item.note}</p>}
+              </>
+            ) : (
+              <p>{[item.label, item.note].filter(Boolean).join(" — ") || "—"}</p>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 const optionalEvaluationColumns: EvaluationColumn[] = [
   {
     id: "status",
@@ -348,7 +386,7 @@ const optionalEvaluationColumns: EvaluationColumn[] = [
       </>
     ),
   },
-  { id: "evidence", className: "max-w-52", cell: (evaluation) => textCell(evaluation.evidence) },
+  { id: "evidence", className: "max-w-52", cell: evidenceCell },
   {
     id: "action",
     className: "max-w-64",
@@ -577,6 +615,10 @@ export function DocumentList({
                 <TableCell className="px-6 py-5 text-end">
                   <Button
                     aria-label={t("lists.view", { reference: document.reference })}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onOpen(document);
+                    }}
                     size="icon-sm"
                     variant="ghost"
                   >
@@ -851,11 +893,23 @@ export function EvaluationList({
                       )}
                       key={column.id}
                     >
-                      {column.cell(evaluation, t)}
+                      {evaluation.status === "CONFORMING" && column.id !== "status"
+                        ? null
+                        : column.cell(evaluation, t)}
                     </TableCell>
                   ))}
                   <TableCell className="px-5 py-4 text-end">
-                    <ChevronRightIcon className="size-4 text-slate-300 group-hover:text-violet-700 rtl:rotate-180" />
+                    <Button
+                      aria-label={t("lists.details")}
+                      size="icon-sm"
+                      variant="ghost"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onOpen(evaluation);
+                      }}
+                    >
+                      <ChevronRightIcon className="size-4 text-slate-300 group-hover:text-violet-700 rtl:rotate-180" />
+                    </Button>
                   </TableCell>
                 </TableRow>
               ))}
@@ -865,45 +919,52 @@ export function EvaluationList({
 
         <div className="divide-y divide-slate-100 xl:hidden">
           {filteredEvaluations.map((evaluation) => (
-            <button
-              className="w-full p-4 text-start transition hover:bg-slate-50 sm:p-5"
-              key={evaluation.id}
-              onClick={() => onOpen(evaluation)}
-              type="button"
-            >
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="text-[11px] font-semibold text-violet-700">
-                  {evaluation.source} · {evaluation.provision}
-                </p>
-                <EvaluationBadge status={evaluation.status} />
-              </div>
-              <p className="mt-3 text-sm leading-6 text-slate-800">{evaluation.requirement}</p>
-              <div className="mt-4 grid gap-3 rounded-2xl bg-slate-50 p-3 text-xs sm:grid-cols-2">
-                {[
-                  { label: t("lists.columns.evidence"), value: evaluation.evidence },
-                  { label: t("lists.columns.action"), value: evaluation.action },
-                  { label: t("lists.columns.owner"), value: evaluation.owner },
-                  { label: t("lists.columns.resources"), value: evaluation.resources },
-                  { label: t("lists.columns.dueDate"), value: evaluation.dueDate },
-                  { label: t("lists.columns.completedDate"), value: evaluation.completedDate },
-                  {
-                    label: t("lists.columns.effectivenessCriteria"),
-                    value: evaluation.effectivenessCriteria,
-                  },
-                  { label: t("lists.columns.effectiveness"), value: evaluation.effectiveness },
-                  { label: t("lists.columns.comment"), value: evaluation.comment },
-                ].map((field) => (
-                  <div key={field.label}>
-                    <p className="text-[10px] uppercase tracking-wider text-slate-400">
-                      {field.label}
-                    </p>
-                    <p className="mt-1 whitespace-pre-line text-slate-600">
-                      {field.value?.trim() || "—"}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </button>
+            <article className="w-full p-4 text-start sm:p-5" key={evaluation.id}>
+              <button
+                className="w-full text-start"
+                onClick={() => onOpen(evaluation)}
+                type="button"
+              >
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-[11px] font-semibold text-violet-700">
+                    {evaluation.source} · {evaluation.provision}
+                  </p>
+                  <EvaluationBadge status={evaluation.status} />
+                </div>
+                <p className="mt-3 text-sm leading-6 text-slate-800">{evaluation.requirement}</p>
+              </button>
+              {evaluation.status !== "CONFORMING" && (
+                <div className="mt-4 grid gap-3 rounded-2xl bg-slate-50 p-3 text-xs sm:grid-cols-2">
+                  {[
+                    {
+                      label: t("lists.columns.evidence"),
+                      value: evaluation.evidence,
+                      content: evidenceCell(evaluation),
+                    },
+                    { label: t("lists.columns.action"), value: evaluation.action },
+                    { label: t("lists.columns.owner"), value: evaluation.owner },
+                    { label: t("lists.columns.resources"), value: evaluation.resources },
+                    { label: t("lists.columns.dueDate"), value: evaluation.dueDate },
+                    { label: t("lists.columns.completedDate"), value: evaluation.completedDate },
+                    {
+                      label: t("lists.columns.effectivenessCriteria"),
+                      value: evaluation.effectivenessCriteria,
+                    },
+                    { label: t("lists.columns.effectiveness"), value: evaluation.effectiveness },
+                    { label: t("lists.columns.comment"), value: evaluation.comment },
+                  ].map((field) => (
+                    <div key={field.label}>
+                      <p className="text-[10px] uppercase tracking-wider text-slate-400">
+                        {field.label}
+                      </p>
+                      <div className="mt-1 whitespace-pre-line text-slate-600">
+                        {field.content ?? (field.value?.trim() || "—")}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </article>
           ))}
         </div>
 
@@ -959,13 +1020,45 @@ export function DetailSheet({
                   <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400">
                     {t("lists.articles")}
                   </h3>
-                  <p className="mt-2 text-sm font-medium leading-6 text-slate-800">
-                    {document.provisions}
-                  </p>
-                  {document.requirementText && (
-                    <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-slate-700">
-                      {document.requirementText}
-                    </p>
+                  {(
+                    document.articles ?? [
+                      {
+                        id: document.id,
+                        reference: document.provisions,
+                        text: document.requirementText ?? null,
+                        sourceUrl: document.sourceUrl ?? null,
+                      },
+                    ]
+                  ).map((article) => (
+                    <article
+                      key={article.id}
+                      className="mt-3 rounded-xl border border-slate-200 p-3"
+                    >
+                      <h4 className="text-sm font-semibold text-slate-800">{article.reference}</h4>
+                      {article.sourceText && (
+                        <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-700">
+                          {article.sourceText}
+                        </p>
+                      )}
+                      {article.text && article.text !== article.sourceText && (
+                        <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-700">
+                          {article.text}
+                        </p>
+                      )}
+                      {article.sourceUrl && article.sourceUrl !== document.sourceUrl && (
+                        <a
+                          className="mt-2 inline-flex text-xs text-violet-700 underline"
+                          href={article.sourceUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          {t("lists.viewSource")}
+                        </a>
+                      )}
+                    </article>
+                  ))}
+                  {document.articles?.length === 0 && (
+                    <p className="mt-3 text-sm text-slate-600">{t("view.articlesUnavailable")}</p>
                   )}
                   {document.sourceNeedsReview && (
                     <p className="mt-2 text-xs text-amber-700">{t("lists.verifyOfficial")}</p>
@@ -1003,7 +1096,7 @@ export function DetailSheet({
                         </a>
                       ) : document.sourceNeedsReview ? (
                         <p className="mt-2 text-xs text-amber-700">
-                          {t("lists.sourceLinkToConfirm")}
+                          {t("lists.sourceUnavailable")}
                         </p>
                       ) : null}
                     </div>
@@ -1011,14 +1104,6 @@ export function DetailSheet({
                 </section>
               </div>
             </div>
-            <SheetFooter className="border-t border-slate-100 bg-slate-50">
-              <Button className="h-10 rounded-xl bg-slate-950 hover:bg-slate-800">
-                {t("lists.openRequirements")}
-              </Button>
-              <Button className="h-10 rounded-xl" variant="outline">
-                {t("lists.editApplicability")}
-              </Button>
-            </SheetFooter>
           </>
         )}
 

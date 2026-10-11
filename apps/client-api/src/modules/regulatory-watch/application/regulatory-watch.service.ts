@@ -218,7 +218,7 @@ function sourceFromDiscoveredLaw(input: {
   sourceTitle: string | null;
   sourceUrl: string | null;
   sourceCountryCode?: string | null;
-  rationale: string;
+  sourceExcerpts: string[];
 }): RegulatoryCitation {
   const reference = input.sourceReference ?? input.sourceTitle ?? "Texte réglementaire";
   const title = input.sourceTitle ?? input.sourceReference ?? "Texte réglementaire à confirmer";
@@ -241,7 +241,7 @@ function sourceFromDiscoveredLaw(input: {
     headingPath: [],
     pageStart: null,
     pageEnd: null,
-    excerpt: input.rationale,
+    excerpt: input.sourceExcerpts.length ? input.sourceExcerpts.join("\n\n").slice(0, 1_200) : null,
     citationLabel: [reference, title]
       .filter((value, index, values) => values.indexOf(value) === index)
       .join(" — "),
@@ -257,6 +257,7 @@ function sourceFromEntry(entry: {
   sourceCountryCode?: string | null;
   rationale?: string;
   applicabilityRationale?: string;
+  requirementSupportingExcerpts?: string[];
 }): RegulatoryCitation {
   if (entry.sourceType === "PLATFORM_PROVISION" && entry.provision) {
     return sourceFromProvision(entry.provision);
@@ -266,7 +267,7 @@ function sourceFromEntry(entry: {
     sourceTitle: entry.sourceTitle,
     sourceUrl: entry.sourceUrl,
     sourceCountryCode: entry.sourceCountryCode ?? null,
-    rationale: entry.rationale ?? entry.applicabilityRationale ?? "Applicabilité à confirmer.",
+    sourceExcerpts: entry.requirementSupportingExcerpts ?? [],
   });
 }
 
@@ -421,12 +422,14 @@ export class RegulatoryWatchService {
               orderIndex: entry.orderIndex,
               applicabilityRationale: entry.applicabilityRationale,
               requirement:
-                entry.requirementText && entry.requirementSource && entry.requirementReviewedAt
+                entry.requirementText &&
+                entry.requirementSource &&
+                (entry.sourceType === "DISCOVERED_LAW" || entry.requirementReviewedAt)
                   ? {
                       text: entry.requirementText,
                       source: entry.requirementSource,
                       supportingExcerpts: entry.requirementSupportingExcerpts,
-                      reviewedAt: entry.requirementReviewedAt.toISOString(),
+                      reviewedAt: dateTime(entry.requirementReviewedAt),
                     }
                   : null,
               source: sourceFromEntry(entry),
@@ -1601,8 +1604,12 @@ export class RegulatoryWatchService {
         documentLabel: document
           ? [document.referenceNumber, document.title].filter(Boolean).join(" — ")
           : [entry.sourceReference, entry.sourceTitle].filter(Boolean).join(" — "),
-        provisionIdentifier: entry.provision?.sourceIdentifier ?? labels.fullText,
-        sourceText: entry.provision?.content ?? labels.sourceToAttach,
+        provisionIdentifier:
+          entry.provision?.sourceIdentifier ??
+          (entry.requirementSupportingExcerpts?.length ? "" : labels.fullText),
+        sourceText:
+          entry.provision?.content ??
+          (entry.requirementSupportingExcerpts?.join("\n\n") || labels.sourceToAttach),
         requirement: entry.requirementText ?? entry.applicabilityRationale,
         result: entry.evaluation.result,
         aiRationale: entry.evaluation.aiRationale,

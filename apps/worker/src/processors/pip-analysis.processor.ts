@@ -1,5 +1,11 @@
 import { Processor, WorkerHost } from "@nestjs/bullmq";
-import { buildPipPrompt, languageModel, languageProviderOptions, llmSettings } from "@qhse/ai";
+import {
+  buildPipPrompt,
+  languageModel,
+  languageProviderOptions,
+  llmSettings,
+  LlmNotConfiguredError,
+} from "@qhse/ai";
 import {
   pipMaterialSchema,
   pipInventoryOutputSchema,
@@ -11,7 +17,7 @@ import {
 import { createPrismaClient, Prisma, type DatabaseClient } from "@qhse/database";
 import { smqPip } from "@qhse/domain";
 import { createLogger } from "@qhse/observability";
-import { Output, generateText } from "ai";
+import { Output, generateText, NoObjectGeneratedError } from "ai";
 import type { Job } from "bullmq";
 import type { z } from "zod";
 import { queueNames } from "../queues.js";
@@ -20,18 +26,51 @@ import { conservativeInputTokens } from "./regulatory-model-cost.js";
 
 const json = (value: unknown) => JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
 
-/** Refuse AI evidence which cannot be found in the supplied source material. */
+/** Whitespace differences do not change a quotation's meaning. */
+const normalizeExcerpt = (text: string) => text.normalize("NFC").replace(/\s+/gu, " ").trim();
+
+export function groundedPipParty<
+  T extends z.infer<typeof pipInventoryOutputSchema>["parties"][number],
+>(party: T, material: PipMaterial) {
+  const corpus = normalizeExcerpt(
+    [
+      material.digest,
+      ...material.issues.map((i) => `${i.title}\n${i.description ?? ""}`),
+      ...material.regulations.map((r) => `${r.title}\n${r.requirementText ?? ""}`),
+      ...material.clarifications.map((c) => `${c.question}\n${c.answer}`),
+    ].join("\n"),
+  );
+  const evidence = party.evidence.filter((item) => {
+    const excerpt = normalizeExcerpt(item.excerpt);
+    return (
+      excerpt.length > 0 && (item.sourceType === "ai_sector_knowledge" || corpus.includes(excerpt))
+    );
+  });
+  return evidence.length > 0 ? { ...party, evidence } : null;
+}
 export function supportedPipParty<
   T extends z.infer<typeof pipInventoryOutputSchema>["parties"][number],
 >(party: T, material: PipMaterial): boolean {
-  const corpus = [
-    material.digest,
-    ...material.issues.map((i) => `${i.title}\n${i.description ?? ""}`),
-    ...material.regulations.map((r) => `${r.title}\n${r.requirementText ?? ""}`),
-    ...material.clarifications.map((c) => `${c.question}\n${c.answer}`),
-  ].join("\n");
-  return party.evidence.every(
-    (e) => e.sourceType === "ai_sector_knowledge" || corpus.includes(e.excerpt.trim()),
+  return groundedPipParty(party, material) !== null;
+}
+
+function retryableProviderError(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const value = error as {
+    isRetryable?: boolean;
+    statusCode?: number;
+    name?: string;
+    cause?: unknown;
+    lastError?: unknown;
+  };
+  return (
+    value.isRetryable === true ||
+    value.statusCode === 429 ||
+    (value.statusCode !== undefined && value.statusCode >= 500) ||
+    value.name === "TimeoutError" ||
+    value.name === "AbortError" ||
+    (value.lastError !== undefined && retryableProviderError(value.lastError)) ||
+    (value.cause !== undefined && value.cause !== error && retryableProviderError(value.cause))
   );
 }
 
@@ -119,7 +158,10 @@ export class PipAnalysisProcessor extends WorkerHost {
         if (state.revision !== run.revision) throw new Error("PIP_INPUT_CHANGED");
         if (run.stage === "INVENTORY") {
           const output = pipInventoryOutputSchema.parse(generated.output);
-          const supported = output.parties.filter((party) => supportedPipParty(party, material));
+          const supported = output.parties.flatMap((party) => {
+            const grounded = groundedPipParty(party, material);
+            return grounded ? [grounded] : [];
+          });
           if (supported.length === 0) throw new Error("PIP_NO_SUPPORTED_PARTIES");
           for (const party of supported) {
             const canonicalKey = smqPip.canonicalPipKey(party.name);
@@ -255,16 +297,30 @@ export class PipAnalysisProcessor extends WorkerHost {
         });
       });
     } catch (error) {
-      this.logger.error({ runId, error }, "PIP analysis failed");
+      // Let BullMQ retry transport/rate-limit failures; a swallowed exception marks
+      // the queue job completed and prevents every configured retry.
+      const attempts = job.opts?.attempts ?? 1;
+      if (retryableProviderError(error) && (job.attemptsMade ?? 0) + 1 < attempts) {
+        this.logger.warn({ runId }, "PIP provider temporarily unavailable; retrying");
+        throw error;
+      }
+      const errorCode =
+        error instanceof LlmNotConfiguredError
+          ? "PIP_AI_NOT_CONFIGURED"
+          : NoObjectGeneratedError.isInstance(error)
+            ? "PIP_INVALID_OUTPUT"
+            : error instanceof Error && error.message.startsWith("PIP_")
+              ? error.message
+              : retryableProviderError(error)
+                ? "PIP_PROVIDER_UNAVAILABLE"
+                : "PIP_ANALYSIS_FAILED";
+      this.logger.error({ runId, errorCode }, "PIP analysis failed");
       await this.database.pipRun.update({
         where: { id: run.id },
         data: {
           status: "FAILED",
           completedAt: new Date(),
-          errorMessage:
-            error instanceof Error && error.message.startsWith("PIP_")
-              ? error.message
-              : "PIP_ANALYSIS_FAILED",
+          errorMessage: errorCode,
         },
       });
     }

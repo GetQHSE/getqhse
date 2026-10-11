@@ -63,16 +63,16 @@ export type ProfileFieldSource = z.infer<typeof profileFieldSourceSchema>;
 export const profileStatusSchema = z.enum(["IN_PROGRESS", "REVIEW_REQUIRED", "COMPLETE", "STALE"]);
 export type ProfileStatus = z.infer<typeof profileStatusSchema>;
 
-const text = (max = 4_000) => z.string().trim().min(1).max(max);
-const textList = (maxItems = 50) => z.array(text(500)).min(1).max(maxItems);
-const optionalText = (max = 2_000) => text(max).optional();
+const text = () => z.string().trim().min(1);
+const textList = () => z.array(text()).min(1);
+const optionalText = () => text().optional();
 const countryCode = z.string().regex(/^[A-Z]{2}$/);
 
 const yesNoList = (itemName: string) =>
   z
     .object({
       has: z.boolean(),
-      items: z.array(text(1_000)).max(50),
+      items: z.array(text()).max(50),
     })
     .superRefine((value, context) => {
       if (value.has && value.items.length === 0) {
@@ -85,22 +85,22 @@ const yesNoList = (itemName: string) =>
     });
 
 const profileValueSchemas = {
-  "project.name": text(160),
+  "project.name": text().max(160),
   "project.logoUrl": z.url().nullable(),
   "organization.mission": text(),
   "organization.offerings": z
     .array(
       z.object({
-        name: text(200),
+        name: text(),
         type: z.enum(["PRODUCT", "SERVICE"]),
-        range: optionalText(200),
+        range: optionalText(),
         description: optionalText(),
       }),
     )
     .min(1)
     .max(100),
   "organization.offeringRanges": z
-    .object({ hasMultiple: z.boolean(), ranges: z.array(text(200)).max(50) })
+    .object({ hasMultiple: z.boolean(), ranges: z.array(text()).max(50) })
     .superRefine((value, context) => {
       if (value.hasMultiple && value.ranges.length < 2) {
         context.addIssue({
@@ -111,11 +111,11 @@ const profileValueSchemas = {
       }
     }),
   "market.primaryCustomerSegments": textList(),
-  "organization.employeeCount": z.number().int().positive().max(10_000_000),
+  "organization.employeeCount": z.number().int().nonnegative().max(10_000_000).nullable(),
   "operations.keyProcesses": z
     .array(
       z.object({
-        name: text(200),
+        name: text(),
         description: optionalText(),
         sequence: z.number().int().positive().optional(),
         classification: z.enum(["MANAGEMENT", "CORE", "SUPPORT"]).optional(),
@@ -130,10 +130,10 @@ const profileValueSchemas = {
       providers: z
         .array(
           z.object({
-            name: optionalText(200),
+            name: optionalText(),
             category: z.enum(["SUPPLIER", "SUBCONTRACTOR"]),
-            suppliedProductOrService: text(500),
-            outsourcedProcess: optionalText(500),
+            suppliedProductOrService: text(),
+            outsourcedProcess: optionalText(),
             critical: z.boolean(),
           }),
         )
@@ -151,7 +151,7 @@ const profileValueSchemas = {
   "organization.afterSalesServices": z
     .object({
       hasAfterSalesServices: z.boolean(),
-      services: z.array(z.object({ name: text(200), description: optionalText() })).max(50),
+      services: z.array(z.object({ name: text(), description: optionalText() })).max(50),
     })
     .superRefine((value, context) => {
       if (value.hasAfterSalesServices && value.services.length === 0) {
@@ -164,7 +164,7 @@ const profileValueSchemas = {
     }),
   "scope.operatingReach": z.enum(["LOCAL", "NATIONAL", "INTERNATIONAL"]),
   "scope.operatingCountries": z.array(countryCode).min(1).max(5),
-  "organization.primarySector": z.object({ label: text(200), code: optionalText(50) }),
+  "organization.primarySector": z.object({ label: text(), code: optionalText() }),
   "regulatory.implementedFrameworks": z
     .object({
       hasImplementedFrameworks: z.boolean(),
@@ -172,8 +172,8 @@ const profileValueSchemas = {
         .array(
           z.object({
             type: z.enum(["STANDARD", "REGULATION", "CERTIFICATION", "OTHER"]),
-            reference: optionalText(200),
-            name: text(500),
+            reference: optionalText(),
+            name: text(),
             status: z.enum(["IMPLEMENTED", "PARTIAL", "PLANNED", "UNKNOWN"]),
             scope: optionalText(),
           }),
@@ -189,12 +189,12 @@ const profileValueSchemas = {
         });
       }
     }),
-  "operations.orderToDeliveryFlow": text(10_000),
+  "operations.orderToDeliveryFlow": text(),
   "resources.keyResources": z
     .array(
       z.object({
         category: z.enum(["HUMAN", "EQUIPMENT", "SOFTWARE", "INFRASTRUCTURE", "SUPPLIER", "OTHER"]),
-        name: text(300),
+        name: text(),
         critical: z.boolean(),
       }),
     )
@@ -214,7 +214,7 @@ const profileValueSchemas = {
           "SOCIAL",
           "OTHER",
         ]),
-        description: text(1_000),
+        description: text(),
       }),
     )
     .min(1)
@@ -223,9 +223,7 @@ const profileValueSchemas = {
     .object({
       hasKnownRequirements: z.boolean(),
       requirements: z
-        .array(
-          z.object({ name: text(500), reference: optionalText(200), description: optionalText() }),
-        )
+        .array(z.object({ name: text(), reference: optionalText(), description: optionalText() }))
         .max(100),
     })
     .superRefine((value, context) => {
@@ -239,7 +237,7 @@ const profileValueSchemas = {
     }),
   "context.sectorChallenges": textList(),
   "stakeholders.customerNeeds": z
-    .array(z.object({ customerType: text(300), needs: textList(20) }))
+    .array(z.object({ customerType: text(), needs: textList() }))
     .min(1)
     .max(50),
   "stakeholders.otherParties": z
@@ -256,28 +254,28 @@ const profileValueSchemas = {
           "COMMUNITY",
           "OTHER",
         ]),
-        name: optionalText(300),
+        name: optionalText(),
       }),
     )
     .min(1)
     .max(100),
   "stakeholders.expectations": z
-    .array(z.object({ party: text(300), expectations: textList(30) }))
+    .array(z.object({ party: text(), expectations: textList() }))
     .min(1)
     .max(100),
   "strategy.annualObjectives": z
     .array(
       z.object({
-        description: text(1_000),
-        target: optionalText(500),
+        description: text(),
+        target: optionalText(),
         dueDate: z.iso.date().optional(),
-        owner: optionalText(300),
+        owner: optionalText(),
       }),
     )
     .min(1)
     .max(10),
-  "strategy.values": textList(20),
-  "strategy.differentiators": textList(20),
+  "strategy.values": textList(),
+  "strategy.differentiators": textList(),
   "strategy.iso9001Motivation": text(),
   "context.marketChallenges": textList(),
   "context.growthOpportunities": textList(),
@@ -288,9 +286,9 @@ const profileValueSchemas = {
       issues: z
         .array(
           z.object({
-            description: text(1_000),
-            frequency: optionalText(200),
-            impact: optionalText(1_000),
+            description: text(),
+            frequency: optionalText(),
+            impact: optionalText(),
           }),
         )
         .max(100),
@@ -624,10 +622,27 @@ export const profileQuestions: readonly ProfileQuestion[] = [
 
 export const profileQuestionByKey = new Map(profileQuestions.map((item) => [item.key, item]));
 
+// Machine-readable identity/geography stays typed; descriptive answers may be
+// recorded verbatim when the user has not supplied enough detail to structure them.
+const technicalFields = new Set<ProfileFieldKey>([
+  "project.name",
+  "project.logoUrl",
+  "organization.employeeCount",
+  "scope.operatingReach",
+  "scope.operatingCountries",
+]);
+function profileAnswerSchema(key: ProfileFieldKey) {
+  return technicalFields.has(key) || profileValueSchemas[key] instanceof z.ZodString
+    ? profileValueSchemas[key]
+    : z.union([profileValueSchemas[key], text()]);
+}
 export function validateProfileFieldValue(key: ProfileFieldKey, value: unknown) {
-  return profileValueSchemas[key].safeParse(value);
+  return profileAnswerSchema(key).safeParse(value);
 }
 
+export function getProfileAnswerJsonSchema(key: ProfileFieldKey) {
+  return z.toJSONSchema(profileAnswerSchema(key));
+}
 export function getProfileFieldValueJsonSchema(key: ProfileFieldKey) {
   return z.toJSONSchema(profileValueSchemas[key]);
 }
@@ -710,7 +725,7 @@ export const profileToolInputSchema = z.object({
 });
 
 export function profileToolInputSchemaForField(key: ProfileFieldKey) {
-  const valueSchema = JSON.stringify(getProfileFieldValueJsonSchema(key));
+  const valueSchema = JSON.stringify(getProfileAnswerJsonSchema(key));
   return z.object({
     answers: z
       .array(

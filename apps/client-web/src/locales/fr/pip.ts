@@ -131,6 +131,15 @@ const pip = {
   userAdded: "Ajoutée par vous",
   corrected: "Corrigé par vous",
   errors: {
+    PIP_NO_SUPPORTED_PARTIES:
+      "Aucune partie intéressée n’a pu être rattachée aux informations fournies. Complétez le profil ou relancez l’analyse.",
+    PIP_AI_NOT_CONFIGURED:
+      "Le service IA n’est pas configuré. Configurez le fournisseur dans les paramètres IA.",
+    PIP_INVALID_OUTPUT: "La réponse IA était incomplète ou mal structurée. Relancez l’analyse.",
+    PIP_PROVIDER_UNAVAILABLE:
+      "Le fournisseur IA reste temporairement indisponible après plusieurs tentatives. Réessayez dans quelques instants.",
+    PIP_COVERAGE_MISMATCH: "L’analyse ne couvre pas toutes les parties retenues. Relancez-la.",
+
     PIP_PROFILE_REQUIRED: "Validez d’abord le profil de l’organisation.",
     PIP_RUN_ACTIVE: "Une analyse PIP est déjà en cours.",
     PIP_INVENTORY_REQUIRED: "Retenez une partie et actualisez le pré-inventaire.",

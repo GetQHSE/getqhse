@@ -442,6 +442,8 @@ export function initialEditorValue(schema: EditorSchema, value: unknown): unknow
 }
 
 export function cleanEditorValue(schema: EditorSchema, value: unknown): unknown {
+  if ((schema.kind === "object" || schema.kind === "array") && typeof value === "string")
+    return value.trim();
   if (schema.kind === "text") {
     const cleaned = String(value ?? "").trim();
     return schema.optional && !cleaned ? undefined : cleaned;
@@ -482,6 +484,16 @@ export function ProfileFieldEditor({
 }) {
   const { t, i18n } = useTranslation("profile");
   const label = (key: Label) => t(`editor.${key}`);
+  if ((schema.kind === "object" || schema.kind === "array") && typeof value === "string") {
+    return (
+      <textarea
+        aria-label={label(schema.label ?? "details")}
+        className="min-h-24 w-full rounded-xl border border-slate-200 p-3 text-sm"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+      />
+    );
+  }
   if (schema.kind === "countries") {
     return (
       <div>

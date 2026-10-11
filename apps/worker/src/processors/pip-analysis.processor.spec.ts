@@ -1,7 +1,33 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import type * as AiSdk from "ai";
+import type * as QhseAi from "@qhse/ai";
 import type { PipMaterial } from "@qhse/contracts";
-vi.mock("@qhse/database", () => ({ createPrismaClient: vi.fn() }));
-import { groundedPipRequirement, supportedPipParty } from "./pip-analysis.processor.js";
+const { database, generateText } = vi.hoisted(() => ({
+  database: {
+    pipRun: { findFirst: vi.fn(), update: vi.fn(), findUniqueOrThrow: vi.fn() },
+    pipState: { findUniqueOrThrow: vi.fn(), update: vi.fn() },
+    pipParty: { upsert: vi.fn() },
+    pipClarification: { upsert: vi.fn() },
+    pipEvaluation: { updateMany: vi.fn() },
+    $queryRaw: vi.fn(),
+    $transaction: vi.fn(),
+  },
+  generateText: vi.fn(),
+}));
+vi.mock("@qhse/database", () => ({ createPrismaClient: () => database }));
+vi.mock("ai", async (importOriginal) => ({
+  ...(await importOriginal<typeof AiSdk>()),
+  generateText,
+}));
+vi.mock("@qhse/ai", async (importOriginal) => ({
+  ...(await importOriginal<typeof QhseAi>()),
+  languageModel: vi.fn(() => ({})),
+}));
+import {
+  groundedPipRequirement,
+  supportedPipParty,
+  PipAnalysisProcessor,
+} from "./pip-analysis.processor.js";
 const material: PipMaterial = {
   language: "en",
   digest: "The organisation provides repairs.",
@@ -85,5 +111,129 @@ describe("PIP grounding", () => {
         material,
       ),
     ).toBe(false);
+  });
+});
+
+const proposedParty = {
+  name: "Customers",
+  description: "Repair customers",
+  category: "Clients",
+  scope: "external" as const,
+  relevance: "relevant" as const,
+  reasoning: "Declared repairs",
+  confidence: 0.8,
+  evidence: [
+    {
+      sourceType: "profile" as const,
+      reference: null,
+      excerpt: "The organisation provides repairs.",
+    },
+  ],
+};
+describe("PIP inventory processing", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    const run = {
+      id: "run-1",
+      projectId: "project-1",
+      stage: "INVENTORY",
+      status: "DRAFT",
+      revision: 1,
+      contextFingerprint: "context-1",
+      inputSnapshot: material,
+    };
+    database.pipRun.findFirst.mockResolvedValue(run);
+    database.pipRun.findUniqueOrThrow.mockResolvedValue(run);
+    database.pipState.findUniqueOrThrow.mockResolvedValue({
+      revision: 1,
+      inventoryFingerprint: null,
+    });
+    database.$transaction.mockImplementation(async (callback: (tx: typeof database) => unknown) =>
+      callback(database),
+    );
+  });
+  const job = {
+    data: { organizationId: "org-1", payload: { runId: "run-1" } },
+    opts: { attempts: 3 },
+    attemptsMade: 0,
+  };
+  it("completes inventory with faithful evidence differing only in whitespace", async () => {
+    generateText.mockResolvedValue({
+      output: {
+        parties: [
+          {
+            ...proposedParty,
+            evidence: [
+              { ...proposedParty.evidence[0]!, excerpt: "The organisation\nprovides  repairs." },
+            ],
+          },
+        ],
+        clarifications: [],
+      },
+    });
+    await new PipAnalysisProcessor().process(job as never);
+    expect(database.pipParty.upsert).toHaveBeenCalled();
+    expect(database.pipRun.update).toHaveBeenLastCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ status: "COMPLETED" }) }),
+    );
+  });
+  it("keeps grounded parties and discards only unsupported evidence", async () => {
+    generateText.mockResolvedValue({
+      output: {
+        parties: [
+          {
+            ...proposedParty,
+            evidence: [
+              ...proposedParty.evidence,
+              { ...proposedParty.evidence[0]!, excerpt: "Invented contract" },
+            ],
+          },
+        ],
+        clarifications: [],
+      },
+    });
+    await new PipAnalysisProcessor().process(job as never);
+    expect(database.pipParty.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({
+          effective: expect.objectContaining({ evidence: proposedParty.evidence }),
+        }),
+      }),
+    );
+    expect(database.pipRun.update).toHaveBeenLastCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ status: "COMPLETED" }) }),
+    );
+  });
+  it("retries transient failures instead of silently completing the queue job as failed", async () => {
+    generateText.mockRejectedValue(
+      Object.assign(new Error("Rate limited"), { statusCode: 429, isRetryable: true }),
+    );
+    await expect(new PipAnalysisProcessor().process(job as never)).rejects.toThrow("Rate limited");
+    expect(database.pipRun.update).not.toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ status: "FAILED" }) }),
+    );
+  });
+  it("still fails without publishing an entirely fabricated inventory", async () => {
+    generateText.mockResolvedValue({
+      output: {
+        parties: [
+          {
+            ...proposedParty,
+            evidence: [{ ...proposedParty.evidence[0]!, excerpt: "Invented contract" }],
+          },
+        ],
+        clarifications: [],
+      },
+    });
+    await new PipAnalysisProcessor().process(job as never);
+    expect(database.pipParty.upsert).not.toHaveBeenCalled();
+    expect(database.pipRun.update).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          status: "FAILED",
+          errorMessage: "PIP_NO_SUPPORTED_PARTIES",
+        }),
+      }),
+    );
   });
 });

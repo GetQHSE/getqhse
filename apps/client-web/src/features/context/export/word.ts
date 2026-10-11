@@ -63,7 +63,7 @@ export async function buildContextWordBlob(doc: ContextDocument): Promise<Blob> 
       ),
     });
 
-  const ISSUE_WIDTHS = [2400, 3400, 1720, 1840] as const;
+  const ISSUE_WIDTHS = [2600, 4560, 2200] as const;
 
   const issueTable = (issues: ContextDocumentIssue[]) =>
     new Table({
@@ -76,7 +76,6 @@ export async function buildContextWordBlob(doc: ContextDocument): Promise<Blob> 
             cell(t("export.columns.issue"), ISSUE_WIDTHS[0], true),
             cell(t("export.columns.description"), ISSUE_WIDTHS[1], true),
             cell(t("export.columns.natureCategory"), ISSUE_WIDTHS[2], true),
-            cell(t("export.columns.assessment"), ISSUE_WIDTHS[3], true),
           ],
         }),
         ...issues.map(
@@ -95,15 +94,6 @@ export async function buildContextWordBlob(doc: ContextDocument): Promise<Blob> 
                 ),
                 cell(issue.description, ISSUE_WIDTHS[1]),
                 cell(`${issue.natureLabel}\n${issue.categoryLabel}`, ISSUE_WIDTHS[2]),
-                cell(
-                  [
-                    t("export.statusLine", { value: issue.statusLabel }),
-                    t("export.qualityLine", { value: issue.impactQuality }),
-                    t("export.customerLine", { value: issue.impactCustomer }),
-                    t("export.overallLine", { value: issue.impactOverall }),
-                  ].join("\n"),
-                  ISSUE_WIDTHS[3],
-                ),
               ],
             }),
         ),
