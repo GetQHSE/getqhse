@@ -56,6 +56,7 @@ import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import { Streamdown } from "streamdown";
 
+import { LinkifiedText } from "../../components/linkified-text.js";
 import { clientApi } from "../../app/client-api.js";
 import { apiUrl } from "../../app/api-url.js";
 import { useFormat } from "../../app/format.js";
@@ -349,7 +350,9 @@ function ChatMessage({ message }: { message: ProfileUiMessage }) {
                   key={`${message.id}-text-${index}`}
                   className="whitespace-pre-wrap text-[15px] leading-6 text-white"
                 >
-                  {part.text}
+                  <LinkifiedText linkClassName="break-words text-white underline underline-offset-2 hover:text-violet-200">
+                    {part.text}
+                  </LinkifiedText>
                 </p>
               ) : (
                 <Streamdown

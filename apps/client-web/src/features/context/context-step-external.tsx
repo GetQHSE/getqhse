@@ -17,6 +17,7 @@ import {
 } from "@qhse/domain/smq/context/method";
 import { cn } from "@qhse/ui/lib/utils";
 
+import { ExternalLink, LinkifiedText } from "../../components/linkified-text.js";
 import { currentLanguage } from "../../app/i18n.js";
 import {
   AiBanner,
@@ -85,23 +86,24 @@ function Items({ items, empty }: { items: Item[]; empty: string }) {
     <>
       {items.map((item) => (
         <div key={item.id} className="gq-item">
-          <strong>{item.title}</strong>
-          {item.text ? <span>{item.text}</span> : null}
+          <strong>
+            <LinkifiedText>{item.title}</LinkifiedText>
+          </strong>
+          {item.text ? (
+            <span>
+              <LinkifiedText>{item.text}</LinkifiedText>
+            </span>
+          ) : null}
           {item.source ? (
             <small className="gq-item-source">
               {t("external.source")} ·{" "}
               {item.source.url ? (
-                <a
-                  href={item.source.url}
-                  target="_blank"
-                  rel="noreferrer noopener"
-                  className="gq-link"
-                >
+                <ExternalLink href={item.source.url} className="gq-link">
                   {item.source.label}
                   <ExternalLinkIcon className="size-3" aria-hidden />
-                </a>
+                </ExternalLink>
               ) : (
-                item.source.label
+                <LinkifiedText>{item.source.label}</LinkifiedText>
               )}
             </small>
           ) : null}

@@ -57,6 +57,8 @@ import type { TFunction } from "i18next";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { ExternalLink, LinkifiedText, externalHref } from "../../components/linkified-text.js";
+
 import { BrandLogo } from "@qhse/ui/components/brand-logo";
 
 /** Stable keys: labels come from the `regulatory` catalog at render time. */
@@ -120,6 +122,7 @@ export type RegulatoryEvaluation = {
   revision?: number;
   result?: "CONFORMING" | "PARTIAL" | "NON_CONFORMING" | "NOT_ASSESSED";
   source: string;
+  sourceUrl?: string | null;
   provision: string;
   requirement: string;
   citation?: string;
@@ -339,7 +342,11 @@ type EvaluationColumn = {
 };
 
 function textCell(value: string | undefined): React.ReactNode {
-  return <span className="line-clamp-3 block whitespace-pre-line">{value?.trim() || "—"}</span>;
+  return (
+    <span className="line-clamp-3 block whitespace-pre-line">
+      <LinkifiedText>{value?.trim() || "—"}</LinkifiedText>
+    </span>
+  );
 }
 
 function evidenceCell(evaluation: RegulatoryEvaluation): React.ReactNode {
@@ -347,24 +354,26 @@ function evidenceCell(evaluation: RegulatoryEvaluation): React.ReactNode {
   return (
     <div className="space-y-1">
       {evaluation.evidenceItems.map((item) => {
-        const url = item.url && /^https?:\/\//i.test(item.url) ? item.url : null;
+        const url = externalHref(item.url);
         return (
           <div key={item.id}>
             {url ? (
               <>
-                <a
-                  href={url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="block text-violet-700 underline"
-                  onClick={(event) => event.stopPropagation()}
-                >
+                <ExternalLink href={url} className="block text-violet-700 underline">
                   {item.label || url}
-                </a>
-                {item.note && <p>{item.note}</p>}
+                </ExternalLink>
+                {item.note && (
+                  <p>
+                    <LinkifiedText>{item.note}</LinkifiedText>
+                  </p>
+                )}
               </>
             ) : (
-              <p>{[item.label, item.note].filter(Boolean).join(" — ") || "—"}</p>
+              <p>
+                <LinkifiedText>
+                  {[item.label, item.note, item.url].filter(Boolean).join(" — ") || "—"}
+                </LinkifiedText>
+              </p>
             )}
           </div>
         );
@@ -593,16 +602,28 @@ export function DocumentList({
                       )}
                     </span>
                     <div>
-                      <p className="font-semibold text-slate-950">{document.reference}</p>
-                      <p className="mt-1 text-xs leading-5 text-slate-500">{document.title}</p>
+                      <p className="font-semibold text-slate-950">
+                        <LinkifiedText>{document.reference}</LinkifiedText>
+                      </p>
+                      <p className="mt-1 text-xs leading-5 text-slate-500">
+                        <LinkifiedText>{document.title}</LinkifiedText>
+                      </p>
                       <p className="mt-1.5 text-[11px] text-slate-400">
                         {t(`documentKind.${document.kind}`)} · {document.jurisdiction}
                       </p>
+                      {externalHref(document.sourceUrl) && (
+                        <ExternalLink
+                          href={document.sourceUrl}
+                          className="mt-2 inline-flex items-center gap-1 text-xs text-violet-700 underline underline-offset-2"
+                        >
+                          {t("lists.viewSource")} <ArrowUpRightIcon className="size-3" />
+                        </ExternalLink>
+                      )}
                     </div>
                   </div>
                 </TableCell>
                 <TableCell className="max-w-sm whitespace-normal px-4 py-5 text-xs leading-5 text-slate-600">
-                  {document.provisions}
+                  <LinkifiedText>{document.provisions}</LinkifiedText>
                 </TableCell>
                 <TableCell className="px-4 py-5">
                   <span className="font-semibold tabular-nums text-slate-900">
@@ -633,11 +654,10 @@ export function DocumentList({
 
       <div className="divide-y divide-slate-100 lg:hidden">
         {filteredDocuments.map((document) => (
-          <button
+          <article
             className="w-full p-4 text-start transition hover:bg-slate-50 sm:p-5"
             key={document.id}
             onClick={() => onOpen(document)}
-            type="button"
           >
             <div className="flex items-start gap-3">
               <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-violet-50 text-violet-700">
@@ -645,17 +665,31 @@ export function DocumentList({
               </span>
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="font-semibold text-slate-950">{document.reference}</p>
+                  <button className="text-start font-semibold text-slate-950" type="button">
+                    {document.reference}
+                  </button>
                   <DocumentBadge status={document.status} />
                 </div>
-                <p className="mt-1 text-xs leading-5 text-slate-500">{document.title}</p>
-                <p className="mt-3 text-xs leading-5 text-slate-700">{document.provisions}</p>
+                <p className="mt-1 text-xs leading-5 text-slate-500">
+                  <LinkifiedText>{document.title}</LinkifiedText>
+                </p>
+                <p className="mt-3 text-xs leading-5 text-slate-700">
+                  <LinkifiedText>{document.provisions}</LinkifiedText>
+                </p>
                 <p className="mt-2 text-[11px] font-medium text-violet-700">
                   {t("lists.requirementsIdentified", { count: document.requirements })}
                 </p>
+                {externalHref(document.sourceUrl) && (
+                  <ExternalLink
+                    href={document.sourceUrl}
+                    className="mt-2 inline-flex items-center gap-1 text-xs text-violet-700 underline underline-offset-2"
+                  >
+                    {t("lists.viewSource")} <ArrowUpRightIcon className="size-3" />
+                  </ExternalLink>
+                )}
               </div>
             </div>
-          </button>
+          </article>
         ))}
       </div>
 
@@ -882,8 +916,16 @@ export function EvaluationList({
                       {evaluation.source} · {evaluation.provision}
                     </p>
                     <p className="mt-1.5 line-clamp-2 text-xs leading-5 text-slate-700">
-                      {evaluation.requirement}
+                      <LinkifiedText>{evaluation.requirement}</LinkifiedText>
                     </p>
+                    {externalHref(evaluation.sourceUrl) && (
+                      <ExternalLink
+                        href={evaluation.sourceUrl}
+                        className="mt-2 inline-block text-xs text-violet-700 underline underline-offset-2"
+                      >
+                        {t("lists.viewSource")}
+                      </ExternalLink>
+                    )}
                   </TableCell>
                   {visibleColumns.map((column) => (
                     <TableCell
@@ -919,10 +961,14 @@ export function EvaluationList({
 
         <div className="divide-y divide-slate-100 xl:hidden">
           {filteredEvaluations.map((evaluation) => (
-            <article className="w-full p-4 text-start sm:p-5" key={evaluation.id}>
+            <article
+              className="w-full p-4 text-start sm:p-5"
+              key={evaluation.id}
+              onClick={() => onOpen(evaluation)}
+            >
               <button
+                aria-label={`${evaluation.source} · ${evaluation.provision} · ${evaluation.requirement}`}
                 className="w-full text-start"
-                onClick={() => onOpen(evaluation)}
                 type="button"
               >
                 <div className="flex flex-wrap items-center justify-between gap-2">
@@ -931,8 +977,18 @@ export function EvaluationList({
                   </p>
                   <EvaluationBadge status={evaluation.status} />
                 </div>
-                <p className="mt-3 text-sm leading-6 text-slate-800">{evaluation.requirement}</p>
               </button>
+              <p className="mt-3 text-sm leading-6 text-slate-800">
+                <LinkifiedText>{evaluation.requirement}</LinkifiedText>
+              </p>
+              {externalHref(evaluation.sourceUrl) && (
+                <ExternalLink
+                  href={evaluation.sourceUrl}
+                  className="mt-2 inline-block text-xs text-violet-700 underline underline-offset-2"
+                >
+                  {t("lists.viewSource")}
+                </ExternalLink>
+              )}
               {evaluation.status !== "CONFORMING" && (
                 <div className="mt-4 grid gap-3 rounded-2xl bg-slate-50 p-3 text-xs sm:grid-cols-2">
                   {[
@@ -958,7 +1014,9 @@ export function EvaluationList({
                         {field.label}
                       </p>
                       <div className="mt-1 whitespace-pre-line text-slate-600">
-                        {field.content ?? (field.value?.trim() || "—")}
+                        {field.content ?? (
+                          <LinkifiedText>{field.value?.trim() || "—"}</LinkifiedText>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -1005,8 +1063,12 @@ export function DetailSheet({
                 </Badge>
                 <DocumentBadge status={document.status} />
               </div>
-              <SheetTitle className="text-xl font-semibold">{document.reference}</SheetTitle>
-              <SheetDescription className="leading-5">{document.title}</SheetDescription>
+              <SheetTitle className="text-xl font-semibold">
+                <LinkifiedText>{document.reference}</LinkifiedText>
+              </SheetTitle>
+              <SheetDescription className="leading-5">
+                <LinkifiedText>{document.title}</LinkifiedText>
+              </SheetDescription>
             </SheetHeader>
             <div className="min-h-0 flex-1 overflow-y-auto p-6">
               <div className="space-y-6">
@@ -1014,7 +1076,9 @@ export function DetailSheet({
                   <div className="flex items-center gap-2 text-xs font-semibold text-violet-800">
                     <BotIcon className="size-4" /> {t("lists.whyProposed")}
                   </div>
-                  <p className="mt-2 text-sm leading-6 text-violet-950/80">{document.reason}</p>
+                  <p className="mt-2 text-sm leading-6 text-violet-950/80">
+                    <LinkifiedText>{document.reason}</LinkifiedText>
+                  </p>
                 </section>
                 <section>
                   <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400">
@@ -1034,26 +1098,26 @@ export function DetailSheet({
                       key={article.id}
                       className="mt-3 rounded-xl border border-slate-200 p-3"
                     >
-                      <h4 className="text-sm font-semibold text-slate-800">{article.reference}</h4>
+                      <h4 className="text-sm font-semibold text-slate-800">
+                        <LinkifiedText>{article.reference}</LinkifiedText>
+                      </h4>
                       {article.sourceText && (
                         <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-700">
-                          {article.sourceText}
+                          <LinkifiedText>{article.sourceText}</LinkifiedText>
                         </p>
                       )}
                       {article.text && article.text !== article.sourceText && (
                         <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-700">
-                          {article.text}
+                          <LinkifiedText>{article.text}</LinkifiedText>
                         </p>
                       )}
                       {article.sourceUrl && article.sourceUrl !== document.sourceUrl && (
-                        <a
+                        <ExternalLink
                           className="mt-2 inline-flex text-xs text-violet-700 underline"
                           href={article.sourceUrl}
-                          target="_blank"
-                          rel="noreferrer"
                         >
                           {t("lists.viewSource")}
-                        </a>
+                        </ExternalLink>
                       )}
                     </article>
                   ))}
@@ -1083,17 +1147,17 @@ export function DetailSheet({
                       <p className="text-xs font-semibold text-slate-800">
                         {t("lists.officialSource")}
                       </p>
-                      <p className="mt-1 text-xs leading-5 text-slate-500">{document.source}</p>
+                      <p className="mt-1 text-xs leading-5 text-slate-500">
+                        <LinkifiedText>{document.source}</LinkifiedText>
+                      </p>
                       {document.sourceUrl ? (
-                        <a
+                        <ExternalLink
                           className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-violet-700 underline underline-offset-2"
                           href={document.sourceUrl}
-                          rel="noreferrer"
-                          target="_blank"
                         >
                           {t("lists.viewSource")}{" "}
                           <ArrowUpRightIcon className="size-3 rtl:-scale-x-100" />
-                        </a>
+                        </ExternalLink>
                       ) : document.sourceNeedsReview ? (
                         <p className="mt-2 text-xs text-amber-700">
                           {t("lists.sourceUnavailable")}
@@ -1122,7 +1186,17 @@ export function DetailSheet({
                   <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
                     {t("sheet.requirement")}
                   </p>
-                  <p className="mt-2 text-sm leading-6 text-slate-800">{evaluation.requirement}</p>
+                  <p className="mt-2 text-sm leading-6 text-slate-800">
+                    <LinkifiedText>{evaluation.requirement}</LinkifiedText>
+                  </p>
+                  {externalHref(evaluation.sourceUrl) && (
+                    <ExternalLink
+                      href={evaluation.sourceUrl}
+                      className="mt-2 inline-block text-xs text-violet-700 underline underline-offset-2"
+                    >
+                      {t("lists.viewSource")}
+                    </ExternalLink>
+                  )}
                 </section>
                 {evaluation.officialSourceText && (
                   <section className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
@@ -1131,11 +1205,11 @@ export function DetailSheet({
                     </p>
                     {evaluation.citation && (
                       <p className="mt-2 text-xs font-semibold text-slate-700">
-                        {evaluation.citation}
+                        <LinkifiedText>{evaluation.citation}</LinkifiedText>
                       </p>
                     )}
                     <p className="mt-2 whitespace-pre-wrap text-xs leading-5 text-slate-600">
-                      {evaluation.officialSourceText}
+                      <LinkifiedText>{evaluation.officialSourceText}</LinkifiedText>
                     </p>
                   </section>
                 )}
@@ -1143,7 +1217,7 @@ export function DetailSheet({
                   <div className="flex items-center gap-2 text-xs font-semibold text-emerald-800">
                     <FileCheck2Icon className="size-4" /> {t("lists.linkedEvidence")}
                   </div>
-                  <p className="mt-2 text-sm text-emerald-950/80">{evaluation.evidence}</p>
+                  <div className="mt-2 text-sm text-emerald-950/80">{evidenceCell(evaluation)}</div>
                   <Button className="mt-3 bg-white" size="sm" variant="outline">
                     {t("lists.viewEvidence")}
                   </Button>
@@ -1152,11 +1226,15 @@ export function DetailSheet({
                   <div className="flex items-center gap-2 text-xs font-semibold text-slate-800">
                     <TargetIcon className="size-4 text-violet-600" /> {t("sheet.actionPlan")}
                   </div>
-                  <p className="mt-2 text-sm leading-6 text-slate-700">{evaluation.action}</p>
+                  <p className="mt-2 text-sm leading-6 text-slate-700">
+                    <LinkifiedText>{evaluation.action}</LinkifiedText>
+                  </p>
                   <div className="mt-4 grid grid-cols-2 gap-3 border-t border-slate-100 pt-4 text-xs">
                     <div>
                       <p className="text-slate-400">{t("sheet.owner")}</p>
-                      <p className="mt-1 font-medium text-slate-700">{evaluation.owner}</p>
+                      <p className="mt-1 font-medium text-slate-700">
+                        <LinkifiedText>{evaluation.owner}</LinkifiedText>
+                      </p>
                     </div>
                     <div>
                       <p className="text-slate-400">{t("sheet.dueDate")}</p>
@@ -1167,7 +1245,7 @@ export function DetailSheet({
                 <section className="rounded-2xl border border-slate-200 p-4">
                   <p className="text-[11px] text-slate-400">{t("lists.criterion")}</p>
                   <p className="mt-1 text-sm font-medium text-slate-800">
-                    {evaluation.effectiveness}
+                    <LinkifiedText>{evaluation.effectiveness}</LinkifiedText>
                   </p>
                 </section>
               </div>

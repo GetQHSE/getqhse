@@ -60,6 +60,7 @@ import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 import { Link, useParams } from "react-router-dom";
 
+import { LinkifiedText } from "../../components/linkified-text.js";
 import { clientApi } from "../../app/client-api.js";
 import { currentLanguage } from "../../app/i18n.js";
 import {
@@ -166,7 +167,11 @@ function ProfileValue({ field }: { field: ProjectProfileField | undefined }) {
       : displayValue(field.value, t);
   if (!values.length) return <p className="text-sm text-slate-500">{t("value.structured")}</p>;
   if (values.length === 1)
-    return <p className="line-clamp-3 text-sm leading-6 text-slate-700">{values[0]}</p>;
+    return (
+      <p className="line-clamp-3 text-sm leading-6 text-slate-700">
+        <LinkifiedText>{values[0]}</LinkifiedText>
+      </p>
+    );
   return (
     <div className="flex flex-wrap gap-1.5">
       {values.map((value, index) => (
@@ -174,7 +179,7 @@ function ProfileValue({ field }: { field: ProjectProfileField | undefined }) {
           key={`${value}-${index}`}
           className="rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-600"
         >
-          {value}
+          <LinkifiedText>{value}</LinkifiedText>
         </span>
       ))}
     </div>

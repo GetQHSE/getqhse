@@ -1437,6 +1437,56 @@ describe("RegulatoryWatchPage", () => {
     expect(clientApi.updateRegulatoryEvaluation).not.toHaveBeenCalled();
   });
 
+  it("opens saved and edited evidence links from the evaluation sheet", async () => {
+    vi.mocked(clientApi.regulatoryWatch).mockResolvedValue({
+      ...activeWatch,
+      currentBaseline: {
+        ...activeWatch.currentBaseline,
+        entries: activeWatch.currentBaseline.entries.map((entry) => ({
+          ...entry,
+          source: { ...entry.source, url: "https://example.ma/law" },
+          evaluation: {
+            ...entry.evaluation,
+            evidence: [
+              {
+                id: "evidence-1",
+                kind: "LINK",
+                fileId: null,
+                label: "Dossier partagé",
+                url: "https://example.ma/evidence",
+                note: null,
+                createdAt: "2026-08-10T12:00:00.000Z",
+              },
+            ],
+          },
+        })),
+      },
+    } as never);
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(
+      await screen.findByRole("tab", { name: /Évaluation réglementaire et normative/ }),
+    );
+    await user.click(screen.getAllByText(/L’organisme doit déterminer et fournir/)[0]!);
+    const sheet = within(await screen.findByRole("dialog"));
+    expect(sheet.getByRole("link", { name: "Consulter la source" })).toHaveAttribute(
+      "href",
+      "https://example.ma/law",
+    );
+    expect(sheet.getByRole("link", { name: "Voir la preuve" })).toHaveAttribute(
+      "href",
+      "https://example.ma/evidence",
+    );
+    const input = sheet.getByLabelText("Lien");
+    await user.clear(input);
+    await user.type(input, "www.example.ma/updated");
+    expect(sheet.getByRole("link", { name: "Voir la preuve" })).toHaveAttribute(
+      "href",
+      "https://www.example.ma/updated",
+    );
+    expect(clientApi.updateRegulatoryEvidence).not.toHaveBeenCalled();
+  });
+
   it("adds and removes preuves through the register sheet", async () => {
     vi.mocked(clientApi.regulatoryWatch).mockResolvedValue({
       ...activeWatch,

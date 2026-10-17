@@ -20,6 +20,7 @@ import type {
   PipAnswer,
   PipLaunch,
 } from "@qhse/contracts";
+import { ExternalLink, LinkifiedText } from "../../components/linkified-text.js";
 import { clientApi } from "../../app/client-api.js";
 import { notify } from "../context/context-ui.js";
 import { exportPip } from "./export.js";
@@ -377,21 +378,28 @@ function PipAnalysis({ projectId }: { projectId: string }) {
                     .filter((r) => r.content.kind === kind)
                     .map((item) => (
                       <div className="pip-item" key={item.id}>
-                        <p>{item.content.text}</p>
+                        <p>
+                          <LinkifiedText>{item.content.text}</LinkifiedText>
+                        </p>
                         <div className="pip-tags">
                           <Status status={item.reviewStatus} />
                           <span>{t(`sources.${item.content.sourceType}`)}</span>
                         </div>
                         <details>
                           <summary>{t("why")}</summary>
-                          <p>{item.content.reasoning}</p>
-                          {item.content.sourceLabel && <p>{item.content.sourceLabel}</p>}
-                          {item.content.sourceUrl &&
-                            /^https?:\/\//i.test(item.content.sourceUrl) && (
-                              <a href={item.content.sourceUrl} target="_blank" rel="noreferrer">
-                                {t("evidence")} ↗
-                              </a>
-                            )}
+                          <p>
+                            <LinkifiedText>{item.content.reasoning}</LinkifiedText>
+                          </p>
+                          {item.content.sourceLabel && (
+                            <p>
+                              <LinkifiedText>{item.content.sourceLabel}</LinkifiedText>
+                            </p>
+                          )}
+                          {item.content.sourceUrl && (
+                            <ExternalLink href={item.content.sourceUrl}>
+                              {t("evidence")} ↗
+                            </ExternalLink>
+                          )}
                         </details>
                         <div className="pip-actions">
                           <Button
@@ -452,7 +460,9 @@ function PipAnalysis({ projectId }: { projectId: string }) {
                         <span className="ok">✓ {t("statuses.VALIDATED")}</span>
                       )}
                     </div>
-                    <p>{item.content.text}</p>
+                    <p>
+                      <LinkifiedText>{item.content.text}</LinkifiedText>
+                    </p>
                     <div className="pip-tags">
                       {item.services.map((s) => (
                         <span key={s}>{s}</span>

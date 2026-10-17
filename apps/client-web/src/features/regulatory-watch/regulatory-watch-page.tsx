@@ -53,6 +53,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useParams } from "react-router-dom";
 
+import { ExternalLink, LinkifiedText, externalHref } from "../../components/linkified-text.js";
+
 import { AUTO_APPLICABLE } from "../../app/feature-flags.js";
 import { clientApi } from "../../app/client-api.js";
 import { formatters, useFormat, type Formatters } from "../../app/format.js";
@@ -279,6 +281,7 @@ export function regulatoryViewData(
       revision: entry.evaluation.revision,
       result: entry.evaluation.result,
       source: entry.source.referenceNumber ?? entry.source.documentTitle,
+      sourceUrl: entry.source.url,
       provision:
         entry.source.provisionIdentifier ?? entry.source.provisionType ?? t("view.fullText"),
       requirement: entry.requirement?.text ?? t("view.articlesUnavailable"),
@@ -660,16 +663,16 @@ export function SourceRequired({ watch }: { watch: RegulatoryWatch }) {
             <p className="text-sm font-medium">
               {lead.reference} — {lead.title}
             </p>
-            <p className="text-sm text-amber-900">{lead.reason}</p>
+            <p className="text-sm text-amber-900">
+              <LinkifiedText>{lead.reason}</LinkifiedText>
+            </p>
             {lead.sourceUrl && (
-              <a
+              <ExternalLink
                 className="mt-1 inline-block text-sm font-medium text-amber-950 underline underline-offset-2"
                 href={lead.sourceUrl}
-                rel="noreferrer"
-                target="_blank"
               >
                 {t("states.viewWebSource")}
-              </a>
+              </ExternalLink>
             )}
           </li>
         ))}
@@ -770,7 +773,7 @@ function AnalysisReviewState({
                   <p className="text-xs font-semibold text-slate-700">{t("discovery.why")}</p>
                   {discovery.reasons.map((reason) => (
                     <p className="mt-1 text-sm leading-6 text-slate-600" key={reason}>
-                      {reason}
+                      <LinkifiedText>{reason}</LinkifiedText>
                     </p>
                   ))}
                 </div>
@@ -789,7 +792,7 @@ function AnalysisReviewState({
                             </p>
                           )}
                           <p className="whitespace-pre-wrap text-sm leading-6 text-slate-700">
-                            {requirement.text}
+                            <LinkifiedText>{requirement.text}</LinkifiedText>
                           </p>
                         </div>
                       ))}
@@ -803,14 +806,12 @@ function AnalysisReviewState({
 
                 <div className="mt-4 border-t border-slate-100 pt-3">
                   {discovery.sourceUrl ? (
-                    <a
+                    <ExternalLink
                       className="text-xs font-semibold text-violet-700 underline underline-offset-2 hover:text-violet-900"
                       href={discovery.sourceUrl}
-                      rel="noreferrer"
-                      target="_blank"
                     >
                       {t("discovery.officialSource")}
-                    </a>
+                    </ExternalLink>
                   ) : discovery.sourceType === "PLATFORM_PROVISION" ? (
                     <p className="text-xs text-slate-500">
                       {t("discovery.platformSource", { citation: discovery.citationLabel })}
@@ -1040,7 +1041,7 @@ function ReviewState({
                       </p>
                       {candidate.changeSummary && (
                         <p className="mt-2 rounded-lg bg-slate-50 px-2.5 py-2 text-xs text-slate-600">
-                          {candidate.changeSummary}
+                          <LinkifiedText>{candidate.changeSummary}</LinkifiedText>
                         </p>
                       )}
                       <div className="mt-4 grid gap-3 lg:grid-cols-2">
@@ -1049,26 +1050,23 @@ function ReviewState({
                             {t("review.citation")}
                           </p>
                           <p className="mt-2 text-xs font-semibold text-slate-700">
-                            {candidate.source.citationLabel}
+                            <LinkifiedText>{candidate.source.citationLabel}</LinkifiedText>
                           </p>
-                          {candidate.source.type === "DISCOVERED_LAW" ? (
-                            candidate.source.url ? (
-                              <a
-                                className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-violet-700 underline underline-offset-2 hover:text-violet-900"
-                                href={candidate.source.url}
-                                rel="noreferrer"
-                                target="_blank"
-                              >
-                                {t("review.officialSource")}
-                              </a>
-                            ) : (
-                              <p className="mt-2 text-xs italic text-slate-400">
-                                {t("review.sourceToAttach")}
-                              </p>
-                            )
-                          ) : (
+                          {candidate.source.url ? (
+                            <ExternalLink
+                              className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-violet-700 underline underline-offset-2 hover:text-violet-900"
+                              href={candidate.source.url}
+                            >
+                              {t("review.officialSource")}
+                            </ExternalLink>
+                          ) : candidate.source.type === "DISCOVERED_LAW" ? (
+                            <p className="mt-2 text-xs italic text-slate-400">
+                              {t("review.sourceToAttach")}
+                            </p>
+                          ) : null}
+                          {candidate.source.type === "PLATFORM_PROVISION" && (
                             <p className="mt-2 max-h-36 overflow-y-auto whitespace-pre-wrap text-xs leading-5 text-slate-600">
-                              {candidate.source.excerpt}
+                              <LinkifiedText>{candidate.source.excerpt}</LinkifiedText>
                             </p>
                           )}
                         </section>
@@ -1083,7 +1081,7 @@ function ReviewState({
                           </p>
                           {candidate.requirement.text ? (
                             <p className="mt-2 max-h-28 overflow-y-auto whitespace-pre-wrap text-xs leading-5 text-slate-700">
-                              {candidate.requirement.text}
+                              <LinkifiedText>{candidate.requirement.text}</LinkifiedText>
                             </p>
                           ) : (
                             <p className="mt-2 text-xs italic text-slate-400">
@@ -1094,7 +1092,7 @@ function ReviewState({
                             {t("review.explanation")}
                           </p>
                           <p className="mt-2 whitespace-pre-wrap text-xs leading-5 text-slate-600">
-                            {candidate.rationale}
+                            <LinkifiedText>{candidate.rationale}</LinkifiedText>
                           </p>
                         </section>
                       </div>
@@ -1478,7 +1476,17 @@ function AiEvaluationSheet({
                 <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
                   {t("sheet.requirement")}
                 </p>
-                <p className="mt-2 text-sm leading-6 text-slate-800">{evaluation.requirement}</p>
+                <p className="mt-2 text-sm leading-6 text-slate-800">
+                  <LinkifiedText>{evaluation.requirement}</LinkifiedText>
+                </p>
+                {externalHref(evaluation.sourceUrl) && (
+                  <ExternalLink
+                    href={evaluation.sourceUrl}
+                    className="mt-2 inline-block text-xs text-violet-700 underline underline-offset-2"
+                  >
+                    {t("lists.viewSource")}
+                  </ExternalLink>
+                )}
               </section>
 
               {evaluation.officialSourceText && (
@@ -1488,11 +1496,11 @@ function AiEvaluationSheet({
                   </p>
                   {evaluation.citation && (
                     <p className="mt-2 text-xs font-semibold text-slate-700">
-                      {evaluation.citation}
+                      <LinkifiedText>{evaluation.citation}</LinkifiedText>
                     </p>
                   )}
                   <p className="mt-2 whitespace-pre-wrap text-xs leading-5 text-slate-600">
-                    {evaluation.officialSourceText}
+                    <LinkifiedText>{evaluation.officialSourceText}</LinkifiedText>
                   </p>
                 </section>
               )}
@@ -1604,6 +1612,19 @@ function AiEvaluationSheet({
                         ) : (
                           <p className="mt-3 text-xs text-slate-500">{t("sheet.attachedFile")}</p>
                         )}
+                        {draft.kind === "LINK" && externalHref(draft.url) && (
+                          <ExternalLink
+                            href={draft.url}
+                            className="mt-2 inline-block text-xs text-violet-700 underline underline-offset-2"
+                          >
+                            {t("lists.viewEvidence")}
+                          </ExternalLink>
+                        )}
+                        {draft.kind === "NOTE" && /(?:https?:\/\/|www\.)/i.test(draft.note) && (
+                          <p className="mt-2 whitespace-pre-wrap text-xs leading-5 text-slate-600">
+                            <LinkifiedText>{draft.note}</LinkifiedText>
+                          </p>
+                        )}
                       </div>
                     ),
                   )}
@@ -1628,7 +1649,7 @@ function AiEvaluationSheet({
                         <BotIcon className="size-4" /> {t("sheet.aiToValidate")}
                       </p>
                       <p className="mt-2 text-sm leading-6 text-violet-950/80">
-                        {evaluation.aiRationale}
+                        <LinkifiedText>{evaluation.aiRationale}</LinkifiedText>
                       </p>
                     </div>
                     {evaluation.aiConfidence !== null && evaluation.aiConfidence !== undefined && (
@@ -1662,7 +1683,9 @@ function AiEvaluationSheet({
                       </p>
                       <ul className="mt-2 list-disc space-y-1 ps-5 text-xs leading-5 text-slate-600">
                         {evaluation.aiMissingInformation?.map((item) => (
-                          <li key={item}>{item}</li>
+                          <li key={item}>
+                            <LinkifiedText>{item}</LinkifiedText>
+                          </li>
                         ))}
                       </ul>
                     </div>
@@ -1676,11 +1699,13 @@ function AiEvaluationSheet({
                     <TargetIcon className="size-4" /> {t("sheet.remediation")}
                   </p>
                   <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-amber-950/80">
-                    {evaluation.aiRemediationPlan}
+                    <LinkifiedText>{evaluation.aiRemediationPlan}</LinkifiedText>
                   </p>
                   {evaluation.aiAction?.title && (
                     <div className="mt-4 border-t border-amber-200 pt-4 text-xs text-slate-700">
-                      <p className="font-semibold">{evaluation.aiAction.title}</p>
+                      <p className="font-semibold">
+                        <LinkifiedText>{evaluation.aiAction.title}</LinkifiedText>
+                      </p>
                       <dl className="mt-3 grid gap-3 sm:grid-cols-2">
                         <div>
                           <dt className="text-slate-400">{t("sheet.proposedOwner")}</dt>
@@ -1688,7 +1713,9 @@ function AiEvaluationSheet({
                         </div>
                         <div>
                           <dt className="text-slate-400">{t("sheet.resources")}</dt>
-                          <dd className="mt-1">{evaluation.aiAction.resources ?? "—"}</dd>
+                          <dd className="mt-1">
+                            <LinkifiedText>{evaluation.aiAction.resources ?? "—"}</LinkifiedText>
+                          </dd>
                         </div>
                         <div>
                           <dt className="text-slate-400">{t("sheet.startDate")}</dt>
@@ -1706,7 +1733,7 @@ function AiEvaluationSheet({
                       {evaluation.aiAction.effectivenessCriteria && (
                         <p className="mt-3">
                           <span className="text-slate-400">{t("sheet.criterion")}</span>
-                          {evaluation.aiAction.effectivenessCriteria}
+                          <LinkifiedText>{evaluation.aiAction.effectivenessCriteria}</LinkifiedText>
                         </p>
                       )}
                     </div>
