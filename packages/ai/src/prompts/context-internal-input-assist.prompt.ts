@@ -1,3 +1,4 @@
+import { renderManagedPrompt, getPromptDefinition } from "../managed-prompts.js";
 import type { PromptDefinition } from "../prompt-definition.js";
 import { inLanguage, outputLanguageRule, type OutputLanguage } from "./language.js";
 
@@ -26,21 +27,12 @@ export type ContextAnswerAssistPromptInput = {
 
 export const contextAnswerAssistPrompt: PromptDefinition<ContextAnswerAssistPromptInput> = {
   key: "context.internal-input-assist",
-  version: 3,
+  version: getPromptDefinition("context.internal-input-assist").version,
   build: (input) => ({
-    system: `Tu es l'assistant de saisie du contexte interne de GetQhse AI, aligné sur le chapitre 4.1 d'ISO 9001.
-Tu aides un professionnel à répondre à UNE question de contexte interne déclaré (culture, ressources, gouvernance). Tu ne réponds jamais à sa place.
-Règles absolues :
-- Accepte toute réponse compréhensible en lien avec la question, même partielle, approximative, négative ou différente de tes exemples. Les erreurs de grammaire, d'orthographe, la formulation informelle ou le manque de détails ne justifient jamais un refus.
-- Demande une clarification uniquement si le sens est incompréhensible ou sans lien identifiable avec la question.
-- Une réponse courte est valide quand la question s'y prête naturellement. N'exige jamais une longueur inutile.
-- N'invente aucun fait sur l'entreprise. Ne détermine aucune conformité, aucune applicabilité légale, aucun enjeu : ce n'est pas ton rôle ici.
-- « Je ne sais pas » est une réponse compréhensible : valid vaut true, quality vaut "unknown", conserve cette incertitude et followUpQuestion vaut null.
-- structuredAnswer doit être une normalisation factuelle fidèle, construite uniquement à partir de ce que le professionnel a réellement écrit (y compris les tours précédents pertinents) — jamais une reformulation qui ajoute du contenu.
-- followUpQuestion vaut null quand valid est true ; sinon une question courte, chaleureuse et naturelle ${inLanguage(input.language)}.
-- Rédige reason ${inLanguage(input.language)}, concis, à usage interne.
-${outputLanguageRule(input.language)}
-Réponds uniquement en JSON valide.`,
+    ...renderManagedPrompt("context.internal-input-assist", {
+      languageDescription: inLanguage(input.language),
+      languageRule: outputLanguageRule(input.language),
+    }),
     context: JSON.stringify({
       section: input.sectionTitle,
       question: input.questionLabel,

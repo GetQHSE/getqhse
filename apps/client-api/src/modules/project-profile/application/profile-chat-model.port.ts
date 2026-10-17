@@ -34,6 +34,8 @@ export type ProfileChatModelResult = {
   model: string;
   promptKey: string;
   promptVersion: number;
+  promptRevisionId?: string | null;
+  promptHash?: string;
   inputTokens: number | null;
   outputTokens: number | null;
   toolNames: string[];

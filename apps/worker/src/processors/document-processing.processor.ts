@@ -1,3 +1,4 @@
+import { withPromptRun, promptRunKey } from "@qhse/ai";
 import { randomUUID } from "node:crypto";
 
 import { Processor, WorkerHost } from "@nestjs/bullmq";
@@ -194,6 +195,12 @@ export class DocumentProcessingProcessor extends WorkerHost {
   private readonly logger = createLogger({ base: { service: "qhse-worker" } });
 
   async process(queueJob: Job<PipelinePayload>) {
+    return withPromptRun(promptRunKey("document-processing", queueJob), () =>
+      this.processWithPrompts(queueJob),
+    );
+  }
+
+  async processWithPrompts(queueJob: Job<PipelinePayload>) {
     const { documentId, versionId, jobIds } = queueJob.data;
     try {
       await this.database.documentVersion.update({

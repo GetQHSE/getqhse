@@ -10,6 +10,7 @@ import { useAdminAuth } from "../../auth.js";
 import { adminApi } from "../../lib/admin-api.js";
 import { LlmSettingsTab } from "./llm-settings-tab.js";
 import { EmailSettingsTab } from "./email-settings-tab.js";
+import { AiPromptsTab } from "./ai-prompts-tab.js";
 
 type EmbeddingProfile = {
   id: string;
@@ -100,6 +101,7 @@ export function SettingsPage() {
           <TabsTrigger value="search-index">Search index</TabsTrigger>
           <TabsTrigger value="llm">LLM</TabsTrigger>
           <TabsTrigger value="emails">Emails</TabsTrigger>
+          <TabsTrigger value="ai-prompts">AI Prompts</TabsTrigger>
         </TabsList>
         <TabsContent value="search-index">
           <Card>
@@ -190,6 +192,9 @@ export function SettingsPage() {
         </TabsContent>
         <TabsContent value="emails">
           <EmailSettingsTab canManage={canManageEmails} />
+        </TabsContent>
+        <TabsContent value="ai-prompts">
+          <AiPromptsTab role={user?.platformRole} />
         </TabsContent>
       </Tabs>
     </section>

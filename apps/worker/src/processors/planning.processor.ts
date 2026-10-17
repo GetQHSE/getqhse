@@ -1,3 +1,4 @@
+import { withPromptRun, promptRunKey } from "@qhse/ai";
 import { Processor, WorkerHost } from "@nestjs/bullmq";
 import { buildPlanningPrompt, languageModel, languageProviderOptions, llmSettings } from "@qhse/ai";
 import {
@@ -67,6 +68,10 @@ export class PlanningProcessor extends WorkerHost {
     return { output: validatePlanningProposal(material, result.output), model };
   }
   async process(job: Job<{ organizationId: string; payload: { runId: string } }>) {
+    return withPromptRun(promptRunKey("planning", job), () => this.processWithPrompts(job));
+  }
+
+  async processWithPrompts(job: Job<{ organizationId: string; payload: { runId: string } }>) {
     const run = await this.db.planningRun.findFirst({
       where: {
         id: job.data.payload.runId,

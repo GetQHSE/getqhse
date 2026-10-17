@@ -522,12 +522,6 @@
             }
           },
           {
-            "name": "countryCode",
-            "required": false,
-            "in": "query",
-            "schema": {}
-          },
-          {
             "name": "status",
             "required": false,
             "in": "query",
@@ -1107,6 +1101,329 @@
           }
         ],
         "tags": ["llm-settings"]
+      }
+    },
+    "/v1/ai-prompts": {
+      "get": {
+        "operationId": "AiPromptsController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["ai-prompts"]
+      }
+    },
+    "/v1/ai-prompts/source": {
+      "get": {
+        "operationId": "AiPromptsController_source",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["ai-prompts"]
+      },
+      "post": {
+        "operationId": "AiPromptsController_updateSource",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["source", "expectedGeneration"],
+                "properties": {
+                  "source": {
+                    "type": "string",
+                    "enum": ["CODE", "DATABASE"]
+                  },
+                  "expectedGeneration": {
+                    "type": "integer",
+                    "minimum": 0
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["ai-prompts"]
+      }
+    },
+    "/v1/ai-prompts/{key}": {
+      "get": {
+        "operationId": "AiPromptsController_detail",
+        "parameters": [
+          {
+            "name": "key",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["ai-prompts"]
+      }
+    },
+    "/v1/ai-prompts/{key}/revisions": {
+      "post": {
+        "operationId": "AiPromptsController_create",
+        "parameters": [
+          {
+            "name": "key",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["template", "changeNote"],
+                "properties": {
+                  "template": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 30000
+                  },
+                  "changeNote": {
+                    "type": "string",
+                    "minLength": 3,
+                    "maxLength": 1000
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["ai-prompts"]
+      }
+    },
+    "/v1/ai-prompts/{key}/revisions/{id}/test": {
+      "post": {
+        "operationId": "AiPromptsController_test",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "key",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["language", "context"],
+                "properties": {
+                  "language": {
+                    "type": "string",
+                    "enum": ["fr", "en", "ar"]
+                  },
+                  "context": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 40000
+                  },
+                  "countries": {
+                    "type": "string",
+                    "pattern": "^[A-Z]{2}(, [A-Z]{2})*$",
+                    "maxLength": 100,
+                    "default": "MA"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["ai-prompts"]
+      }
+    },
+    "/v1/ai-prompts/{key}/revisions/{id}/validate": {
+      "post": {
+        "operationId": "AiPromptsController_validate",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "key",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["note"],
+                "properties": {
+                  "note": {
+                    "type": "string",
+                    "minLength": 8,
+                    "maxLength": 1000
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["ai-prompts"]
+      }
+    },
+    "/v1/ai-prompts/{key}/publish": {
+      "post": {
+        "operationId": "AiPromptsController_publish",
+        "parameters": [
+          {
+            "name": "key",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["revisionId", "expectedGeneration", "action", "note"],
+                "description": "RESET requires a null revisionId; PUBLISH and ROLLBACK require a validated revision.",
+                "properties": {
+                  "revisionId": {
+                    "type": "string",
+                    "nullable": true,
+                    "minLength": 1,
+                    "maxLength": 100
+                  },
+                  "expectedGeneration": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "action": {
+                    "type": "string",
+                    "enum": ["PUBLISH", "ROLLBACK", "RESET"]
+                  },
+                  "note": {
+                    "type": "string",
+                    "minLength": 3,
+                    "maxLength": 1000
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "cookie": []
+          }
+        ],
+        "tags": ["ai-prompts"]
       }
     },
     "/v1/knowledge/examples": {

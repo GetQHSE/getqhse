@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+import { withPromptRun } from "@qhse/ai";
 import { Injectable } from "@nestjs/common";
 import {
   contextAnswerAssistPrompt,
@@ -19,6 +21,12 @@ import {
 @Injectable()
 export class AiContextAnswerAssistAdapter extends ContextAnswerAssistModelPort {
   async assess(input: ContextAnswerAssistModelInput): Promise<ContextAnswerAssistResponse> {
+    return withPromptRun(`context-assist:${randomUUID()}`, () => this.assessWithPrompts(input));
+  }
+
+  private async assessWithPrompts(
+    input: ContextAnswerAssistModelInput,
+  ): Promise<ContextAnswerAssistResponse> {
     const provider = llmSettings().profileProvider;
     const model = llmSettings().profileModel;
     const prompt = contextAnswerAssistPrompt.build(input);

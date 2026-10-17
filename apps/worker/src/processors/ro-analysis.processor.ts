@@ -1,3 +1,4 @@
+import { withPromptRun, promptRunKey } from "@qhse/ai";
 import { createHash } from "node:crypto";
 import { Processor, WorkerHost } from "@nestjs/bullmq";
 import { buildRoPrompt, languageModel, languageProviderOptions, llmSettings } from "@qhse/ai";
@@ -74,6 +75,10 @@ export class RoAnalysisProcessor extends WorkerHost {
     return { output: schema.parse(result.output), model };
   }
   async process(job: Job<{ organizationId: string; payload: { runId: string } }>) {
+    return withPromptRun(promptRunKey("ro-analysis", job), () => this.processWithPrompts(job));
+  }
+
+  async processWithPrompts(job: Job<{ organizationId: string; payload: { runId: string } }>) {
     const run = await this.database.roRun.findFirst({
       where: {
         id: job.data.payload.runId,

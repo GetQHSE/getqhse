@@ -1,3 +1,4 @@
+import { renderManagedPrompt, getPromptDefinition } from "../managed-prompts.js";
 import type { PromptDefinition } from "../prompt-definition.js";
 import { inLanguage, outputLanguageRule, type OutputLanguage } from "./language.js";
 
@@ -9,12 +10,8 @@ import { inLanguage, outputLanguageRule, type OutputLanguage } from "./language.
  * searched here — it is reused from the veille (RegulatoryRegisterEntry).
  */
 
-/** Paraphrased ISO 9001:2015 guard-rails for the context module (§4.1, §9.3). */
-export const CONTEXT_ISO_GUIDANCE = [
-  "Repères paraphrasés ISO 9001:2015 (garde-fous, non le texte de la norme ; n'affirme jamais qu'une méthodologie GetQhse est exigée par l'ISO) :",
-  "- §4.1 Compréhension de l'organisme et de son contexte : Déterminer les enjeux externes et internes pertinents au regard de la finalité de l'organisation et de sa capacité à atteindre les résultats attendus de son système qualité ; ces enjeux sont à revoir périodiquement.",
-  "- §9.3 Revue de direction : La revue de direction prend notamment en entrée l'évolution des enjeux externes et internes, les informations sur les parties intéressées pertinentes et l'efficacité des actions face aux risques et opportunités.",
-].join("\n");
+import { CONTEXT_ISO_GUIDANCE } from "../policies/context-iso.policy.js";
+export { CONTEXT_ISO_GUIDANCE } from "../policies/context-iso.policy.js";
 
 export type ContextExternalPlanPromptInput = {
   digest: string;
@@ -24,23 +21,12 @@ export type ContextExternalPlanPromptInput = {
 
 export const contextExternalPlanPrompt: PromptDefinition<ContextExternalPlanPromptInput> = {
   key: "context.external-plan",
-  version: 4,
+  version: getPromptDefinition("context.external-plan").version,
   build: (input) => ({
-    system: `Tu es le moteur de planification de l'analyse du contexte EXTERNE de GetQhse AI.
-Objectif : identifier les recherches à mener pour comprendre les facteurs externes susceptibles d'influencer réellement
-la capacité de l'organisation à atteindre ses objectifs, à maintenir la qualité de ses produits/services,
-à satisfaire ses clients et à faire fonctionner son système de management de la qualité.
-Règles strictes :
-- Tu ne produis AUCUN facteur, AUCUN chiffre, AUCUNE conclusion : tu planifies uniquement des recherches.
-- Ce n'est PAS un générateur PESTEL automatique : ne retiens que les dimensions réellement justifiées par les faits fournis.
-  Toute dimension non pertinente doit être listée dans excludedDimensions avec son nom.
-- La dimension légale/réglementaire est DÉJÀ traitée par le module de veille réglementaire : ne planifie aucune recherche juridique.
-- La dimension politique n'est retenue que si elle influence concrètement l'activité décrite (marchés publics, subventions, importations, stabilité opérationnelle).
-- Chaque requête doit être concrète, ancrée sur le secteur et le pays réels de l'organisation, et vérifiable sur le web.
-- Rédige ${inLanguage(input.language)} ; les requêtes peuvent être dans la langue du pays concerné.
-- Le champ dimension reprend EXACTEMENT un nom de dimension français (ex. « Économique », « Légal ») quelle que soit la langue de sortie.
-${outputLanguageRule(input.language)}
-Réponds uniquement en JSON valide.`,
+    ...renderManagedPrompt("context.external-plan", {
+      languageDescription: inLanguage(input.language),
+      languageRule: outputLanguageRule(input.language),
+    }),
     context: [
       "CONTEXTE CANONIQUE DE L'ORGANISATION (seule source de faits) :",
       input.digest,
@@ -78,23 +64,13 @@ export type ContextExternalDiscoveryPromptInput = {
 export const contextExternalDiscoveryPrompt: PromptDefinition<ContextExternalDiscoveryPromptInput> =
   {
     key: "context.external-discovery",
-    version: 4,
+    version: getPromptDefinition("context.external-discovery").version,
     build: (input) => ({
-      system: `Tu es analyste de contexte externe pour un système de management de la qualité (ISO 9001, chapitre 4.1).
-Tu utilises la recherche web pour documenter des facteurs externes RÉELS et VÉRIFIABLES.
-Règles absolues :
-- N'invente jamais un chiffre, une date, une tendance, une entreprise, une source ou une URL.
-- Chaque élément avancé doit être rattaché à une source réellement consultée.
-- Privilégie les sources sérieuses : institutions publiques, statistiques officielles, organisations sectorielles, presse économique reconnue, rapports d'études.
-- Si une information n'est pas vérifiable, écris explicitement « non vérifiable dans les sources consultées ».
-- N'aborde pas la dimension juridique/réglementaire : elle est traitée ailleurs.
-- Ne produis pas encore de risque, d'opportunité, de criticité ni de score : tu documentes des faits externes et leur lien concret avec l'organisation.
-- Rédige ${inLanguage(input.language)}, un bloc par facteur externe, en précisant : dimension, intitulé, description factuelle,
-  lien concret avec l'activité de l'organisation, influence possible sur les objectifs / la qualité / la satisfaction client,
-  portée géographique, degré de solidité des preuves, et les URL consultées.
-${outputLanguageRule(input.language)}
-
-${CONTEXT_ISO_GUIDANCE}`,
+      ...renderManagedPrompt("context.external-discovery", {
+        languageDescription: inLanguage(input.language),
+        languageRule: outputLanguageRule(input.language),
+        isoGuidance: CONTEXT_ISO_GUIDANCE,
+      }),
       context: [
         "CONTEXTE CANONIQUE DE L'ORGANISATION (seule source de faits internes) :",
         input.digest,
@@ -121,22 +97,12 @@ export type ContextExternalStructurePromptInput = {
 export const contextExternalStructurePrompt: PromptDefinition<ContextExternalStructurePromptInput> =
   {
     key: "context.external-structure",
-    version: 5,
+    version: getPromptDefinition("context.external-structure").version,
     build: (input) => ({
-      system: `Tu convertis un dossier de recherche de contexte externe en JSON strict pour GetQhse AI.
-Règles absolues :
-- N'ajoute AUCUN élément absent du dossier de recherche fourni.
-- sourceUrls ne peut contenir que des URL EXACTEMENT présentes dans la liste des sources découvertes. Un facteur sans source doit être écarté.
-- N'inclus aucun facteur juridique ou réglementaire : cette dimension est traitée par le module de veille réglementaire.
-- orientation décrit le sens de l'influence potentielle : "favorable", "defavorable" ou "incertain". Ce n'est PAS encore un risque ni une opportunité formalisés.
-- evidenceStrength vaut "solide", "moderee" ou "faible" selon la qualité et la convergence des sources consultées.
-- confidence est une estimation interne entre 0 et 1 de la fiabilité de la documentation du facteur.
-- categoryKey est la dimension PESTEL du facteur, exactement l'une de : "politique", "economique", "social", "technologique", "environnemental" ; categoryLabel son libellé lisible rédigé ${inLanguage(input.language)}.
-- Pour relevanceToCompany et les champs influence, explique le lien causal entre le facteur documenté et le profil : activité/client/ressource exposé → effet possible sur la qualité ou les objectifs. Ne recopie pas les réponses du questionnaire ni une tendance générique. Ne transforme pas un effet possible en situation déjà constatée.
-- Ne produis ni score de criticité, ni probabilité, ni gravité.
-- Rédige tous les champs textuels ${inLanguage(input.language)}.
-${outputLanguageRule(input.language)}
-Réponds uniquement en JSON valide.`,
+      ...renderManagedPrompt("context.external-structure", {
+        languageDescription: inLanguage(input.language),
+        languageRule: outputLanguageRule(input.language),
+      }),
       context: [
         "CONTEXTE CANONIQUE DE L'ORGANISATION :",
         input.digest,

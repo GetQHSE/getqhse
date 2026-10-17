@@ -1,3 +1,4 @@
+import { withPromptRun, promptRunKey } from "@qhse/ai";
 import { Processor, WorkerHost } from "@nestjs/bullmq";
 import { buildScopePrompt, languageModel, languageProviderOptions, llmSettings } from "@qhse/ai";
 import {
@@ -46,6 +47,10 @@ export class ScopeStatementProcessor extends WorkerHost {
     return { output: scopeStatementContentSchema.parse(result.output), model };
   }
   async process(job: Job<{ organizationId: string; payload: { runId: string } }>) {
+    return withPromptRun(promptRunKey("scope-statement", job), () => this.processWithPrompts(job));
+  }
+
+  async processWithPrompts(job: Job<{ organizationId: string; payload: { runId: string } }>) {
     const run = await this.db.scopeRun.findFirst({
       where: {
         id: job.data.payload.runId,

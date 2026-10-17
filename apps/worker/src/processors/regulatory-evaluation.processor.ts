@@ -1,3 +1,4 @@
+import { withPromptRun, promptRunKey } from "@qhse/ai";
 import { Processor, WorkerHost } from "@nestjs/bullmq";
 import {
   isProviderConfigured,
@@ -274,6 +275,12 @@ export class RegulatoryEvaluationProcessor extends WorkerHost {
   }
 
   async process(job: Job<JobEnvelope>) {
+    return withPromptRun(promptRunKey("regulatory-evaluation", job), () =>
+      this.processWithPrompts(job),
+    );
+  }
+
+  async processWithPrompts(job: Job<JobEnvelope>) {
     const envelope = jobEnvelopeSchema.parse(job.data);
     const baselineId =
       typeof envelope.payload["baselineId"] === "string" ? envelope.payload["baselineId"] : null;

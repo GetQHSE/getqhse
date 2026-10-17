@@ -1710,6 +1710,8 @@ model ProjectProfileMessage {
   provider         String?
   promptKey        String?            @map("prompt_key")
   promptVersion    Int?               @map("prompt_version")
+  promptRevisionId String?            @map("prompt_revision_id")
+  promptHash       String?            @map("prompt_hash")
   inputTokens      Int?               @map("input_tokens")
   outputTokens     Int?               @map("output_tokens")
   createdAt        DateTime           @default(now()) @map("created_at")
@@ -1747,6 +1749,8 @@ model AiInvocation {
   task               String
   promptKey          String             @map("prompt_key")
   promptVersion      Int                @map("prompt_version")
+  promptRevisionId   String?            @map("prompt_revision_id")
+  promptHash         String?            @map("prompt_hash")
   model              String
   provider           String             @default("openai")
   inputSchemaVersion Int?               @map("input_schema_version")
@@ -2015,6 +2019,98 @@ model EmailDelivery {
   @@index([organizationId, createdAt])
   @@index([invitationId, createdAt])
   @@map("email_deliveries")
+}
+
+enum AiPromptSource {
+  CODE
+  DATABASE
+}
+
+/// Global prompt source. Switching to code preserves published database revisions.
+model AiPromptSetting {
+  id              String         @id @default("singleton")
+  source          AiPromptSource @default(DATABASE)
+  generation      Int            @default(0)
+  updatedByUserId String?        @map("updated_by_user_id")
+  updatedAt       DateTime       @updatedAt @map("updated_at")
+
+  @@map("ai_prompt_settings")
+}
+
+/// Platform-wide editorial configuration; immutable revisions preserve publication history.
+model AiPrompt {
+  key              String                @id
+  activeRevisionId String?               @unique @map("active_revision_id")
+  generation       Int                   @default(0)
+  activeRevision   AiPromptRevision?     @relation("ActivePromptRevision", fields: [activeRevisionId], references: [id], onDelete: Restrict)
+  revisions        AiPromptRevision[]    @relation("PromptRevisions")
+  publications     AiPromptPublication[]
+
+  @@map("ai_prompts")
+}
+
+model AiPromptRevision {
+  id             String         @id @default(cuid())
+  promptKey      String         @map("prompt_key")
+  baseVersion    Int            @map("base_version")
+  template       String
+  templateHash   String         @map("template_hash")
+  changeNote     String         @map("change_note")
+  status         String         @default("DRAFT")
+  createdById    String         @map("created_by_id")
+  createdAt      DateTime       @default(now()) @map("created_at")
+  validatedById  String?        @map("validated_by_id")
+  validatedAt    DateTime?      @map("validated_at")
+  validationNote String?        @map("validation_note")
+  prompt         AiPrompt       @relation("PromptRevisions", fields: [promptKey], references: [key], onDelete: Restrict)
+  activeFor      AiPrompt?      @relation("ActivePromptRevision")
+  tests          AiPromptTest[]
+
+  @@index([promptKey, createdAt])
+  @@map("ai_prompt_revisions")
+}
+
+model AiPromptTest {
+  id          String           @id @default(cuid())
+  revisionId  String           @map("revision_id")
+  language    String
+  inputHash   String           @map("input_hash")
+  output      String
+  model       String
+  provider    String
+  createdById String           @map("created_by_id")
+  createdAt   DateTime         @default(now()) @map("created_at")
+  revision    AiPromptRevision @relation(fields: [revisionId], references: [id], onDelete: Restrict)
+
+  @@index([revisionId, createdAt])
+  @@map("ai_prompt_tests")
+}
+
+/// A separate event is appended for publish, rollback and reset; revision contents never change.
+model AiPromptPublication {
+  id                 String   @id @default(cuid())
+  promptKey          String   @map("prompt_key")
+  revisionId         String?  @map("revision_id")
+  previousRevisionId String?  @map("previous_revision_id")
+  action             String
+  note               String
+  actorId            String   @map("actor_id")
+  createdAt          DateTime @default(now()) @map("created_at")
+  prompt             AiPrompt @relation(fields: [promptKey], references: [key], onDelete: Restrict)
+
+  @@index([promptKey, createdAt])
+  @@map("ai_prompt_publications")
+}
+
+/// Contains templates/revision identities only, never project material or example inputs.
+model AiPromptRunSnapshot {
+  runKey        String   @id @map("run_key")
+  policyVersion Int      @map("policy_version")
+  snapshot      Json
+  usedPrompts   Json     @default("{}") @map("used_prompts")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@map("ai_prompt_run_snapshots")
 }
 
 /// Platform-wide LLM configuration, edited from the administration workspace. Exactly one row

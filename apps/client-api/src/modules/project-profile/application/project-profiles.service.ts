@@ -1,3 +1,4 @@
+import { withPromptRun } from "@qhse/ai";
 import { createHash, randomUUID } from "node:crypto";
 import type { ServerResponse } from "node:http";
 
@@ -721,54 +722,56 @@ export class ProjectProfilesService {
     const rejected: Array<{ key: ProfileFieldKey; reason: string }> = [];
 
     try {
-      const result = await this.chatModel.runTurn({
-        language: profile.project.language,
-        userMessage: turnContext.modelMessage,
-        currentQuestion: profile.nextQuestion
-          ? { key: profile.nextQuestion.key, prompt: profile.nextQuestion.prompt }
-          : null,
-        profileRevision: profile.profile.revision,
-        completenessPercent: profile.completion.completenessPercent,
-        regulatoryReadiness: profile.completion.regulatoryReadiness,
-        knownFields: profile.fields
-          .filter((field) => field.status !== "UNANSWERED")
-          .map((field) => ({ key: field.key, value: field.value, status: field.status })),
-        history: turnContext.history,
-        attachments: turnContext.attachments,
-        recordAnswers: async (answers: ProfileToolAnswer[]): Promise<ProfileChatToolResult> => {
-          const valid: AnswerInput[] = [];
-          for (const answer of answers) {
-            const parsed = parseProfileToolAnswer(answer);
-            if (parsed.success) {
-              valid.push({
-                key: parsed.key,
-                value: parsed.value,
-                status: "ANSWERED",
-                confidence: parsed.confidence,
-              });
-              accepted.add(parsed.key);
-            } else {
-              rejected.push({ key: answer.key, reason: parsed.error });
+      const result = await withPromptRun(`profile:${invocation.id}`, async () =>
+        this.chatModel.runTurn({
+          language: profile.project.language,
+          userMessage: turnContext.modelMessage,
+          currentQuestion: profile.nextQuestion
+            ? { key: profile.nextQuestion.key, prompt: profile.nextQuestion.prompt }
+            : null,
+          profileRevision: profile.profile.revision,
+          completenessPercent: profile.completion.completenessPercent,
+          regulatoryReadiness: profile.completion.regulatoryReadiness,
+          knownFields: profile.fields
+            .filter((field) => field.status !== "UNANSWERED")
+            .map((field) => ({ key: field.key, value: field.value, status: field.status })),
+          history: turnContext.history,
+          attachments: turnContext.attachments,
+          recordAnswers: async (answers: ProfileToolAnswer[]): Promise<ProfileChatToolResult> => {
+            const valid: AnswerInput[] = [];
+            for (const answer of answers) {
+              const parsed = parseProfileToolAnswer(answer);
+              if (parsed.success) {
+                valid.push({
+                  key: parsed.key,
+                  value: parsed.value,
+                  status: "ANSWERED",
+                  confidence: parsed.confidence,
+                });
+                accepted.add(parsed.key);
+              } else {
+                rejected.push({ key: answer.key, reason: parsed.error });
+              }
             }
-          }
-          if (valid.length) {
-            profile = await this.applyAnswers(tenant, projectId, valid, {
-              source: "USER_CHAT",
-              sourceMessageId: userMessage.id,
-              language: profile.project.language,
-            });
-          }
-          return {
-            acceptedKeys: valid.map((answer) => answer.key),
-            rejectedAnswers: rejected,
-            nextQuestion: profile.nextQuestion
-              ? { key: profile.nextQuestion.key, prompt: profile.nextQuestion.prompt }
-              : null,
-            completenessPercent: profile.completion.completenessPercent,
-            regulatoryReadiness: profile.completion.regulatoryReadiness,
-          };
-        },
-      });
+            if (valid.length) {
+              profile = await this.applyAnswers(tenant, projectId, valid, {
+                source: "USER_CHAT",
+                sourceMessageId: userMessage.id,
+                language: profile.project.language,
+              });
+            }
+            return {
+              acceptedKeys: valid.map((answer) => answer.key),
+              rejectedAnswers: rejected,
+              nextQuestion: profile.nextQuestion
+                ? { key: profile.nextQuestion.key, prompt: profile.nextQuestion.prompt }
+                : null,
+              completenessPercent: profile.completion.completenessPercent,
+              regulatoryReadiness: profile.completion.regulatoryReadiness,
+            };
+          },
+        }),
+      );
       profile = await this.buildProfile(tenant, projectId, profile.project.language);
       const fallback = profile.nextQuestion
         ? `Merci. ${profile.nextQuestion.prompt}`
@@ -783,6 +786,8 @@ export class ProjectProfilesService {
           provider: result.provider,
           promptKey: result.promptKey,
           promptVersion: result.promptVersion,
+          promptRevisionId: result.promptRevisionId ?? null,
+          promptHash: result.promptHash ?? null,
           inputTokens: result.inputTokens,
           outputTokens: result.outputTokens,
         },
@@ -800,6 +805,8 @@ export class ProjectProfilesService {
             provider: result.provider,
             promptKey: result.promptKey,
             promptVersion: result.promptVersion,
+            promptRevisionId: result.promptRevisionId ?? null,
+            promptHash: result.promptHash ?? null,
             outputHash: sha256(assistantMessage.content),
             toolNames: result.toolNames,
             inputTokens: result.inputTokens,
@@ -913,109 +920,115 @@ export class ProjectProfilesService {
     });
     const startedAt = Date.now();
 
-    return this.chatModel.streamTurn({
-      language: profile.project.language,
-      userMessage: turnContext.modelMessage,
-      currentQuestion: profile.nextQuestion
-        ? { key: profile.nextQuestion.key, prompt: profile.nextQuestion.prompt }
-        : null,
-      profileRevision: profile.profile.revision,
-      completenessPercent: profile.completion.completenessPercent,
-      regulatoryReadiness: profile.completion.regulatoryReadiness,
-      knownFields: profile.fields
-        .filter((field) => field.status !== "UNANSWERED")
-        .map((field) => ({ key: field.key, value: field.value, status: field.status })),
-      history: turnContext.history,
-      attachments: turnContext.attachments,
-      responseMessageId: assistantMessageId,
-      recordAnswers: async (answers: ProfileToolAnswer[]): Promise<ProfileChatToolResult> => {
-        const valid: AnswerInput[] = [];
-        const rejectedAnswers: Array<{ key: ProfileFieldKey; reason: string }> = [];
-        for (const answer of answers) {
-          const parsed = parseProfileToolAnswer(answer);
-          if (parsed.success) {
-            valid.push({
-              key: parsed.key,
-              value: parsed.value,
-              status: "ANSWERED",
-              confidence: parsed.confidence,
-            });
-          } else {
-            rejectedAnswers.push({ key: answer.key, reason: parsed.error });
+    return withPromptRun(`profile:${invocation.id}`, async () =>
+      this.chatModel.streamTurn({
+        language: profile.project.language,
+        userMessage: turnContext.modelMessage,
+        currentQuestion: profile.nextQuestion
+          ? { key: profile.nextQuestion.key, prompt: profile.nextQuestion.prompt }
+          : null,
+        profileRevision: profile.profile.revision,
+        completenessPercent: profile.completion.completenessPercent,
+        regulatoryReadiness: profile.completion.regulatoryReadiness,
+        knownFields: profile.fields
+          .filter((field) => field.status !== "UNANSWERED")
+          .map((field) => ({ key: field.key, value: field.value, status: field.status })),
+        history: turnContext.history,
+        attachments: turnContext.attachments,
+        responseMessageId: assistantMessageId,
+        recordAnswers: async (answers: ProfileToolAnswer[]): Promise<ProfileChatToolResult> => {
+          const valid: AnswerInput[] = [];
+          const rejectedAnswers: Array<{ key: ProfileFieldKey; reason: string }> = [];
+          for (const answer of answers) {
+            const parsed = parseProfileToolAnswer(answer);
+            if (parsed.success) {
+              valid.push({
+                key: parsed.key,
+                value: parsed.value,
+                status: "ANSWERED",
+                confidence: parsed.confidence,
+              });
+            } else {
+              rejectedAnswers.push({ key: answer.key, reason: parsed.error });
+            }
           }
-        }
-        if (valid.length) {
-          profile = await this.applyAnswers(tenant, profile.project.id, valid, {
-            source: "USER_CHAT",
-            sourceMessageId: userMessage.id,
-            language: profile.project.language,
-          });
-        }
-        return {
-          acceptedKeys: valid.map((answer) => answer.key),
-          rejectedAnswers,
-          nextQuestion: profile.nextQuestion
-            ? { key: profile.nextQuestion.key, prompt: profile.nextQuestion.prompt }
-            : null,
-          completenessPercent: profile.completion.completenessPercent,
-          regulatoryReadiness: profile.completion.regulatoryReadiness,
-        };
-      },
-      onComplete: async (result) => {
-        profile = await this.buildProfile(tenant, profile.project.id, profile.project.language);
-        const fallback = profile.nextQuestion
-          ? `Merci. ${profile.nextQuestion.prompt}`
-          : "Merci. Votre profil est prêt à être vérifié et finalisé.";
-        const assistant = await this.database.projectProfileMessage.create({
-          data: {
-            id: assistantMessageId,
-            conversationId: conversation.id,
-            role: "ASSISTANT",
-            content: result.text || fallback,
-            replyToMessageId: userMessage.id,
-            model: result.model,
-            provider: result.provider,
-            promptKey: result.promptKey,
-            promptVersion: result.promptVersion,
-            inputTokens: result.inputTokens,
-            outputTokens: result.outputTokens,
-          },
-        });
-        await this.database.$transaction([
-          this.database.projectProfileConversation.update({
-            where: { id: conversation.id },
-            data: { currentQuestionKey: profile.nextQuestion?.key ?? null },
-          }),
-          this.database.aiInvocation.update({
-            where: { id: invocation.id },
+          if (valid.length) {
+            profile = await this.applyAnswers(tenant, profile.project.id, valid, {
+              source: "USER_CHAT",
+              sourceMessageId: userMessage.id,
+              language: profile.project.language,
+            });
+          }
+          return {
+            acceptedKeys: valid.map((answer) => answer.key),
+            rejectedAnswers,
+            nextQuestion: profile.nextQuestion
+              ? { key: profile.nextQuestion.key, prompt: profile.nextQuestion.prompt }
+              : null,
+            completenessPercent: profile.completion.completenessPercent,
+            regulatoryReadiness: profile.completion.regulatoryReadiness,
+          };
+        },
+        onComplete: async (result) => {
+          profile = await this.buildProfile(tenant, profile.project.id, profile.project.language);
+          const fallback = profile.nextQuestion
+            ? `Merci. ${profile.nextQuestion.prompt}`
+            : "Merci. Votre profil est prêt à être vérifié et finalisé.";
+          const assistant = await this.database.projectProfileMessage.create({
             data: {
-              status: "COMPLETED",
+              id: assistantMessageId,
+              conversationId: conversation.id,
+              role: "ASSISTANT",
+              content: result.text || fallback,
+              replyToMessageId: userMessage.id,
               model: result.model,
               provider: result.provider,
               promptKey: result.promptKey,
               promptVersion: result.promptVersion,
-              outputHash: sha256(assistant.content),
-              toolNames: result.toolNames,
+              promptRevisionId: result.promptRevisionId ?? null,
+              promptHash: result.promptHash ?? null,
               inputTokens: result.inputTokens,
               outputTokens: result.outputTokens,
+            },
+          });
+          await this.database.$transaction([
+            this.database.projectProfileConversation.update({
+              where: { id: conversation.id },
+              data: { currentQuestionKey: profile.nextQuestion?.key ?? null },
+            }),
+            this.database.aiInvocation.update({
+              where: { id: invocation.id },
+              data: {
+                status: "COMPLETED",
+                model: result.model,
+                provider: result.provider,
+                promptKey: result.promptKey,
+                promptVersion: result.promptVersion,
+                promptRevisionId: result.promptRevisionId ?? null,
+                promptHash: result.promptHash ?? null,
+                outputHash: sha256(assistant.content),
+                toolNames: result.toolNames,
+                inputTokens: result.inputTokens,
+                outputTokens: result.outputTokens,
+                latencyMs: Date.now() - startedAt,
+                completedAt: new Date(),
+              },
+            }),
+          ]);
+        },
+        onError: async (error) => {
+          await this.database.aiInvocation.updateMany({
+            where: { id: invocation.id, status: "RUNNING" },
+            data: {
+              status: "FAILED",
+              errorCode: error instanceof Error ? error.name : "UNKNOWN_ERROR",
               latencyMs: Date.now() - startedAt,
               completedAt: new Date(),
             },
-          }),
-        ]);
-      },
-      onError: async (error) => {
-        await this.database.aiInvocation.updateMany({
-          where: { id: invocation.id, status: "RUNNING" },
-          data: {
-            status: "FAILED",
-            errorCode: error instanceof Error ? error.name : "UNKNOWN_ERROR",
-            latencyMs: Date.now() - startedAt,
-            completedAt: new Date(),
-          },
-        });
-      },
-    });
+          });
+        },
+      }),
+    );
   }
 
   private replayStream(messageId: string, content: string) {

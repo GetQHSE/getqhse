@@ -1,3 +1,4 @@
+import { withPromptRun, promptRunKey } from "@qhse/ai";
 import { Processor, WorkerHost } from "@nestjs/bullmq";
 import {
   contextInternalIssuesPrompt,
@@ -143,7 +144,11 @@ export class ContextAnalysisProcessor extends WorkerHost {
   private readonly database: DatabaseClient = createPrismaClient();
   private readonly logger = createLogger({ base: { service: "qhse-worker" } });
 
-  async process(job: Job<{ payload: { runId: string } }>): Promise<void> {
+  async process(job: Job<{ payload: { runId: string } }>) {
+    return withPromptRun(promptRunKey("context-analysis", job), () => this.processWithPrompts(job));
+  }
+
+  async processWithPrompts(job: Job<{ payload: { runId: string } }>): Promise<void> {
     const runId = job.data.payload.runId;
     const run = await this.database.contextAnalysisRun.findUnique({ where: { id: runId } });
     if (!run) return;

@@ -1,3 +1,4 @@
+import { renderManagedPrompt, getPromptDefinition } from "../managed-prompts.js";
 import type { PromptDefinition } from "../prompt-definition.js";
 import { CONTEXT_ISO_GUIDANCE } from "./context-external-research.prompt.js";
 import { inLanguage, outputLanguageRule, type OutputLanguage } from "./language.js";
@@ -20,28 +21,13 @@ export type ContextSynthesisPromptInput = {
 
 export const contextSynthesisPrompt: PromptDefinition<ContextSynthesisPromptInput> = {
   key: "context.synthesis",
-  version: 5,
+  version: getPromptDefinition("context.synthesis").version,
   build: (input) => ({
-    system: `Tu es le moteur de synthèse des enjeux de GetQhse AI, aligné sur le chapitre 4.1 d'ISO 9001.
-Tu as deux tâches, sur des éléments DÉJÀ ÉTABLIS par la plateforme :
-1. Pré-évaluer chaque enjeu interne retenu par l'organisation (références I1, I2, …) dans internalRatings. Tu ne modifies, ne fusionnes et ne supprimes aucun de ces enjeux.
-2. Identifier les enjeux externes de l'organisation dans externalIssues, à partir des facteurs externes documentés et du contexte réglementaire établi, et les pré-évaluer de la même manière.
-Règles absolues :
-- N'utilise QUE le matériel fourni. N'invente aucun fait, aucun chiffre, aucune source, aucune tendance.
-- impact est un entier de 1 à 3 : impact de l'enjeu sur la qualité des produits/services et la satisfaction client (1 = faible, 2 = moyen, 3 = élevé).
-- mastery est un entier de 1 à 3 : capacité de l'organisation à maîtriser cet enjeu au vu du matériel fourni (1 = faible, 2 = moyenne, 3 = élevée). C'est une pré-évaluation que l'utilisateur ajustera.
-- Un enjeu externe est une opportunité ("opportunite") ou une menace ("menace") pour l'organisation, rattaché à au moins une preuve (evidence) copiée du matériel fourni, sans reformulation.
-- Déduis les enjeux externes en croisant chaque facteur documenté avec l'activité, la géographie, les clients, ressources et objectifs du profil : facteur externe → exposition spécifique de l'organisation → conséquence qualité/client. Décris ce mécanisme, au lieu de recopier le facteur ou les réponses utilisateur. Seule evidence est copiée.
-- SWOT : forces/faiblesses relèvent de l'interne ; opportunités/menaces relèvent de l'environnement externe. Une ambition interne n'est pas une opportunité externe, et un problème interne n'est pas une menace externe.
-- PESTEL : classe la cause externe dans la dimension appropriée ; n'invente pas un facteur pour remplir chaque dimension. Une même cause ne doit pas être répétée sous plusieurs dimensions. La dimension légale repose exclusivement sur la veille fournie.
-- Un enjeu doit être matériel et spécifique à cette organisation. Écarte les généralités, facteurs sans lien démontrable, doublons et contradictions avec le profil. Ne transforme pas une incertitude ou une absence de réponse en fait négatif.
-- confidence est une estimation interne entre 0 et 1 : elle ne remplace jamais la validation humaine.
-- Ne produis pas de plan d'action.
-- Rédige tous les champs textuels ${inLanguage(input.language)}.
-${outputLanguageRule(input.language)}
-Réponds uniquement en JSON valide.
-
-${CONTEXT_ISO_GUIDANCE}`,
+    ...renderManagedPrompt("context.synthesis", {
+      languageDescription: inLanguage(input.language),
+      languageRule: outputLanguageRule(input.language),
+      isoGuidance: CONTEXT_ISO_GUIDANCE,
+    }),
     context: [
       "MATÉRIEL INTERNE ÉTABLI :",
       input.digest,

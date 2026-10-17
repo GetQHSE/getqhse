@@ -1,3 +1,4 @@
+import { withPromptRun, promptRunKey } from "@qhse/ai";
 import { Processor, WorkerHost } from "@nestjs/bullmq";
 import {
   buildPipPrompt,
@@ -132,7 +133,13 @@ export class PipAnalysisProcessor extends WorkerHost {
     });
     return { output: schema.parse(result.output), model };
   }
-  async process(job: Job<{ organizationId: string; payload: { runId: string } }>): Promise<void> {
+  async process(job: Job<{ organizationId: string; payload: { runId: string } }>) {
+    return withPromptRun(promptRunKey("pip-analysis", job), () => this.processWithPrompts(job));
+  }
+
+  async processWithPrompts(
+    job: Job<{ organizationId: string; payload: { runId: string } }>,
+  ): Promise<void> {
     const runId = job.data.payload.runId;
     const run = await this.database.pipRun.findFirst({
       where: { id: runId, project: { organizationId: job.data.organizationId, archivedAt: null } },

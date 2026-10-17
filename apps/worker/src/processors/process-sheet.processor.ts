@@ -1,3 +1,4 @@
+import { withPromptRun, promptRunKey } from "@qhse/ai";
 import { Processor, WorkerHost } from "@nestjs/bullmq";
 import {
   buildProcessSheetPrompt,
@@ -44,6 +45,10 @@ export class ProcessSheetProcessor extends WorkerHost {
     return { output: processSheetProposalSchema.parse(result.output), model };
   }
   async process(job: Job<{ organizationId: string; payload: { runId: string } }>) {
+    return withPromptRun(promptRunKey("process-sheet", job), () => this.processWithPrompts(job));
+  }
+
+  async processWithPrompts(job: Job<{ organizationId: string; payload: { runId: string } }>) {
     const run = await this.db.processSheetRun.findFirst({
       where: {
         id: job.data.payload.runId,

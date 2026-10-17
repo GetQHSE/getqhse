@@ -1,3 +1,4 @@
+import { withPromptRun, promptRunKey } from "@qhse/ai";
 import { Processor, WorkerHost } from "@nestjs/bullmq";
 import {
   contextExternalDiscoveryPrompt,
@@ -167,7 +168,13 @@ export class ContextExternalResearchProcessor extends WorkerHost {
   private readonly database: DatabaseClient = createPrismaClient();
   private readonly logger = createLogger({ base: { service: "qhse-worker" } });
 
-  async process(job: Job<{ payload: { runId: string } }>): Promise<void> {
+  async process(job: Job<{ payload: { runId: string } }>) {
+    return withPromptRun(promptRunKey("context-external-research", job), () =>
+      this.processWithPrompts(job),
+    );
+  }
+
+  async processWithPrompts(job: Job<{ payload: { runId: string } }>): Promise<void> {
     const runId = job.data.payload.runId;
     const run = await this.database.contextExternalResearchRun.findUnique({
       where: { id: runId },
