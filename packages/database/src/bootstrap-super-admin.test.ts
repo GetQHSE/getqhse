@@ -47,12 +47,13 @@ describe("ensureBootstrapSuperAdmin", () => {
         database,
         {
           email: " ADMIN@example.test ",
-          password: "secure-password",
+          password: "bootstrap1",
         },
         passwordHasher,
       ),
     ).resolves.toEqual({ created: true, email: "admin@example.test" });
 
+    expect(passwordHasher).toHaveBeenCalledWith("bootstrap1");
     expect(database.user.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { email: "admin@example.test" },
@@ -84,5 +85,23 @@ describe("ensureBootstrapSuperAdmin", () => {
     await expect(ensureBootstrapSuperAdmin(database, {})).rejects.toThrow(
       "BOOTSTRAP_SUPER_ADMIN_EMAIL and BOOTSTRAP_SUPER_ADMIN_PASSWORD are required",
     );
+  });
+
+  it("rejects bootstrap passwords shorter than 10 characters before creating credentials", async () => {
+    const database = databaseMock();
+    vi.mocked(database.user.findFirst).mockResolvedValue(null);
+    const passwordHasher = vi.fn();
+
+    await expect(
+      ensureBootstrapSuperAdmin(
+        database,
+        { email: "admin@example.test", password: "short1234" },
+        passwordHasher,
+      ),
+    ).rejects.toThrow("BOOTSTRAP_SUPER_ADMIN_PASSWORD must contain at least 10 characters");
+
+    expect(passwordHasher).not.toHaveBeenCalled();
+    expect(database.user.upsert).not.toHaveBeenCalled();
+    expect(database.account.upsert).not.toHaveBeenCalled();
   });
 });

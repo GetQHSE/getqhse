@@ -69,9 +69,25 @@ services:
     restart: "no"
     networks:
       - app-internal
+      - dokploy-network
 
   client-api:
     <<: *service-defaults
+    networks:
+      - app-internal
+      - dokploy-network
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: dokploy-network
+      traefik.http.routers.qhse-client-api.rule: Host(`api.${BASE_DOMAIN:-getqhse.com}`)
+      traefik.http.routers.qhse-client-api.entrypoints: websecure
+      traefik.http.routers.qhse-client-api.service: qhse-client-api
+      traefik.http.routers.qhse-client-api.tls.certresolver: letsencrypt
+      traefik.http.routers.qhse-client-api-http.rule: Host(`api.${BASE_DOMAIN:-getqhse.com}`)
+      traefik.http.routers.qhse-client-api-http.entrypoints: web
+      traefik.http.routers.qhse-client-api-http.middlewares: redirect-to-https@file
+      traefik.http.routers.qhse-client-api-http.service: qhse-client-api
+      traefik.http.services.qhse-client-api.loadbalancer.server.port: "4000"
 
     build:
       context: .
@@ -107,6 +123,21 @@ services:
 
   admin-api:
     <<: *service-defaults
+    networks:
+      - app-internal
+      - dokploy-network
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: dokploy-network
+      traefik.http.routers.qhse-admin-api.rule: Host(`admin-api.${BASE_DOMAIN:-getqhse.com}`)
+      traefik.http.routers.qhse-admin-api.entrypoints: websecure
+      traefik.http.routers.qhse-admin-api.service: qhse-admin-api
+      traefik.http.routers.qhse-admin-api.tls.certresolver: letsencrypt
+      traefik.http.routers.qhse-admin-api-http.rule: Host(`admin-api.${BASE_DOMAIN:-getqhse.com}`)
+      traefik.http.routers.qhse-admin-api-http.entrypoints: web
+      traefik.http.routers.qhse-admin-api-http.middlewares: redirect-to-https@file
+      traefik.http.routers.qhse-admin-api-http.service: qhse-admin-api
+      traefik.http.services.qhse-admin-api.loadbalancer.server.port: "4001"
 
     build:
       context: .
@@ -146,6 +177,9 @@ services:
 
   worker:
     <<: *service-defaults
+    networks:
+      - app-internal
+      - dokploy-network
 
     build:
       context: .
@@ -223,6 +257,21 @@ services:
 
   client-web:
     <<: *service-defaults
+    networks:
+      - app-internal
+      - dokploy-network
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: dokploy-network
+      traefik.http.routers.qhse-client-web.rule: Host(`app.${BASE_DOMAIN:-getqhse.com}`)
+      traefik.http.routers.qhse-client-web.entrypoints: websecure
+      traefik.http.routers.qhse-client-web.service: qhse-client-web
+      traefik.http.routers.qhse-client-web.tls.certresolver: letsencrypt
+      traefik.http.routers.qhse-client-web-http.rule: Host(`app.${BASE_DOMAIN:-getqhse.com}`)
+      traefik.http.routers.qhse-client-web-http.entrypoints: web
+      traefik.http.routers.qhse-client-web-http.middlewares: redirect-to-https@file
+      traefik.http.routers.qhse-client-web-http.service: qhse-client-web
+      traefik.http.services.qhse-client-web.loadbalancer.server.port: "80"
 
     build:
       context: .
@@ -246,6 +295,21 @@ services:
 
   admin-web:
     <<: *service-defaults
+    networks:
+      - app-internal
+      - dokploy-network
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: dokploy-network
+      traefik.http.routers.qhse-admin-web.rule: Host(`admin.${BASE_DOMAIN:-getqhse.com}`)
+      traefik.http.routers.qhse-admin-web.entrypoints: websecure
+      traefik.http.routers.qhse-admin-web.service: qhse-admin-web
+      traefik.http.routers.qhse-admin-web.tls.certresolver: letsencrypt
+      traefik.http.routers.qhse-admin-web-http.rule: Host(`admin.${BASE_DOMAIN:-getqhse.com}`)
+      traefik.http.routers.qhse-admin-web-http.entrypoints: web
+      traefik.http.routers.qhse-admin-web-http.middlewares: redirect-to-https@file
+      traefik.http.routers.qhse-admin-web-http.service: qhse-admin-web
+      traefik.http.services.qhse-admin-web.loadbalancer.server.port: "80"
 
     build:
       context: .
@@ -269,6 +333,8 @@ services:
 networks:
   app-internal:
     driver: bridge
+  dokploy-network:
+    external: true
 
 # volumes:
 #   docling-cache:

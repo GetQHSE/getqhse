@@ -39,8 +39,8 @@ export async function ensureBootstrapSuperAdmin(
   if (!/^\S+@\S+\.\S+$/.test(email)) {
     throw new Error("BOOTSTRAP_SUPER_ADMIN_EMAIL must be a valid email address");
   }
-  if (password.length < 12) {
-    throw new Error("BOOTSTRAP_SUPER_ADMIN_PASSWORD must contain at least 12 characters");
+  if (password.length < 10) {
+    throw new Error("BOOTSTRAP_SUPER_ADMIN_PASSWORD must contain at least 10 characters");
   }
 
   const passwordHash = await passwordHasher(password);
