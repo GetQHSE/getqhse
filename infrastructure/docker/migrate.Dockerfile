@@ -15,7 +15,7 @@ RUN pnpm --filter @qhse/database db:generate
 
 RUN pnpm --filter @qhse/database build
 
-RUN pnpm deploy --legacy --filter @qhse/database /out
+RUN pnpm deploy --legacy --package-import-method=copy --filter @qhse/database /out
 
 
 FROM node:24.17.0-alpine

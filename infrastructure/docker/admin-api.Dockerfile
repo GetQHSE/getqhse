@@ -6,7 +6,7 @@ COPY . .
 RUN pnpm install --frozen-lockfile
 RUN pnpm --filter @qhse/database db:generate
 RUN pnpm --filter @qhse/admin-api... build
-RUN pnpm deploy --legacy --filter @qhse/admin-api --prod /out
+RUN pnpm deploy --legacy --package-import-method=copy --filter @qhse/admin-api --prod /out
 
 FROM node:24.17.0-alpine
 ENV NODE_ENV=production
