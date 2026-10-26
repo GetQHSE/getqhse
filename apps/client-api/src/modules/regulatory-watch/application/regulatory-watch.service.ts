@@ -152,6 +152,13 @@ function safeKnowledgeText(value: string | null | undefined, fallback: string, m
   return (sanitized || fallback).slice(0, maximum);
 }
 
+function humanEvaluationResult(evaluation: {
+  result: "CONFORMING" | "PARTIAL" | "NON_CONFORMING" | "NOT_ASSESSED";
+  evaluatedAt: Date | null;
+}) {
+  return evaluation.evaluatedAt ? evaluation.result : ("NOT_ASSESSED" as const);
+}
+
 export function evaluationCarryForward(
   changeType: "ADDED" | "UNCHANGED" | "MODIFIED" | "REMOVAL_PROPOSED",
   previous: {
@@ -170,7 +177,7 @@ export function evaluationCarryForward(
     data: {
       previousEvaluationId: previous?.id ?? null,
       requiresReevaluation: modified,
-      result: unchanged ? previous.result : ("NOT_ASSESSED" as const),
+      result: unchanged ? humanEvaluationResult(previous) : ("NOT_ASSESSED" as const),
       comment: unchanged ? previous.comment : null,
       revision: unchanged ? previous.revision : 1,
       evaluatedById: unchanged ? previous.evaluatedById : null,
@@ -436,7 +443,7 @@ export class RegulatoryWatchService {
               evaluation: {
                 id: entry.evaluation.id,
                 revision: entry.evaluation.revision,
-                result: entry.evaluation.result,
+                result: humanEvaluationResult(entry.evaluation),
                 comment: entry.evaluation.comment,
                 evaluatedAt: dateTime(entry.evaluation.evaluatedAt),
                 requiresReevaluation: entry.evaluation.requiresReevaluation,
@@ -946,16 +953,17 @@ export class RegulatoryWatchService {
     // only retried once it is stale enough that no worker can still be holding it.
     const retryable: Prisma.RegulatoryEvaluationWhereInput = {
       entry: { baselineId: watch.currentBaselineId },
-      evaluatedAt: null,
+      evaluatedAt: { not: null },
+      result: { in: ["PARTIAL", "NON_CONFORMING"] },
       OR: [
         { aiStatus: { in: ["PENDING", "FAILED"] } },
         { aiStatus: "RUNNING", updatedAt: { lt: new Date(Date.now() - staleAiEvaluationMs) } },
       ],
     };
-    await this.database.regulatoryEvaluation.updateMany({
+    const reset = await this.database.regulatoryEvaluation.updateMany({
       where: retryable,
       data: {
-        aiStatus: "PENDING",
+        aiStatus: "RUNNING",
         aiSuggestedResult: null,
         aiRationale: null,
         aiConfidence: null,
@@ -972,6 +980,8 @@ export class RegulatoryWatchService {
         aiErrorMessage: null,
       },
     });
+    if (reset.count === 0)
+      throw new BadRequestException("No human-assessed conformity gap needs an action proposal");
     try {
       return await this.queue.enqueue("regulatory-evaluation", "evaluate-regulatory-baseline", {
         organizationId: tenant.organizationId,
@@ -986,8 +996,9 @@ export class RegulatoryWatchService {
       await this.database.regulatoryEvaluation.updateMany({
         where: {
           entry: { baselineId: watch.currentBaselineId },
-          evaluatedAt: null,
-          aiStatus: "PENDING",
+          evaluatedAt: { not: null },
+          result: { in: ["PARTIAL", "NON_CONFORMING"] },
+          aiStatus: "RUNNING",
         },
         data: { aiStatus: "FAILED", aiErrorMessage: message.slice(0, 2_000) },
       });
@@ -1088,7 +1099,7 @@ export class RegulatoryWatchService {
       );
     }
 
-    const publishedBaselineId = await this.database.$transaction(async (tx) => {
+    const publishBaseline = async (tx: Prisma.TransactionClient) => {
       const claimed = await tx.projectRegulatoryWatch.updateMany({
         where: {
           id: watch.id,
@@ -1238,7 +1249,8 @@ export class RegulatoryWatchService {
         },
       });
       return baseline.id;
-    });
+    };
+    await this.database.$transaction(publishBaseline, { timeout: 30_000 });
     if (run.review?.outcome === "SUBMITTED") {
       const includedLaws = run.candidates
         .filter((candidate) => candidate.decision === "APPLICABLE")
@@ -1275,25 +1287,8 @@ export class RegulatoryWatchService {
         },
       });
     }
-    try {
-      await this.queue.assertWorkerAvailable("regulatory-evaluation");
-      await this.queue.enqueue("regulatory-evaluation", "evaluate-regulatory-baseline", {
-        organizationId: tenant.organizationId,
-        correlationId: randomUUID(),
-        idempotencyKey: `${publishedBaselineId}:initial-evaluation`,
-        payload: { baselineId: publishedBaselineId },
-      });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Evaluation queue unavailable";
-      await this.database.regulatoryEvaluation.updateMany({
-        where: {
-          entry: { baselineId: publishedBaselineId },
-          evaluatedAt: null,
-          aiStatus: "PENDING",
-        },
-        data: { aiStatus: "FAILED", aiErrorMessage: message.slice(0, 2_000) },
-      });
-    }
+    // Publishing establishes applicability only. A person assesses conformity before asking
+    // for AI action proposals; no evaluation or corrective action runs on publication.
     return this.get(tenant, projectIdOrSlug);
   }
 
@@ -1347,6 +1342,16 @@ export class RegulatoryWatchService {
       where: { id: evaluationId, revision: input.revision },
       data: {
         result: input.result,
+        ...(evaluation.result !== input.result
+          ? {
+              aiStatus: "PENDING" as const,
+              aiSuggestedResult: null,
+              aiRationale: null,
+              aiRemediationPlan: null,
+              aiActionTitle: null,
+              aiEvaluatedAt: null,
+            }
+          : {}),
         comment: input.comment ?? null,
         evaluatedById: tenant.userId,
         evaluatedAt: input.result === "NOT_ASSESSED" ? null : new Date(),
@@ -1611,7 +1616,7 @@ export class RegulatoryWatchService {
           entry.provision?.content ??
           (entry.requirementSupportingExcerpts?.join("\n\n") || labels.sourceToAttach),
         requirement: entry.requirementText ?? entry.applicabilityRationale,
-        result: entry.evaluation.result,
+        result: humanEvaluationResult(entry.evaluation),
         aiRationale: entry.evaluation.aiRationale,
         aiRemediationPlan: entry.evaluation.aiRemediationPlan,
         evidence: entry.evaluation.evidence.map(

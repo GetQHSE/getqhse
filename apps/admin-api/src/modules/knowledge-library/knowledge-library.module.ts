@@ -12,6 +12,7 @@ const redisUrl = new URL(process.env["REDIS_URL"] ?? "redis://localhost:6379");
   imports: [
     AuthModule,
     BullModule.forRoot({
+      prefix: process.env["WORK_QUEUE_PREFIX"] ?? "bull",
       connection: {
         host: redisUrl.hostname,
         port: Number(redisUrl.port || 6379),

@@ -19,6 +19,7 @@
         "DATABASE_URL",
         "SHADOW_DATABASE_URL",
         "REDIS_URL",
+        "WORK_QUEUE_PREFIX",
         "S3_ENDPOINT",
         "S3_REGION",
         "S3_BUCKET",

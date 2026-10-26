@@ -14,6 +14,20 @@ describe("sanitizeSynthesizedIssues", () => {
     expect(sanitizeSynthesizedIssues([base])).toHaveLength(1);
   });
 
+  it("drops invented citations even when their text is non-empty", () => {
+    expect(sanitizeSynthesizedIssues([base], "Effectif stable de 25 personnes.")).toEqual([]);
+  });
+
+  it("keeps only citations grounded in the supplied material, allowing whitespace differences", () => {
+    const mixed = {
+      ...base,
+      evidence: [{ excerpt: "Turnover de 24%\nsur douze mois." }, { excerpt: "Contrat inventé" }],
+    };
+    expect(sanitizeSynthesizedIssues([mixed], "Turnover de 24% sur douze mois.")).toEqual([
+      { ...mixed, evidence: [mixed.evidence[0]] },
+    ]);
+  });
+
   it("drops an issue with no evidence at all", () => {
     expect(sanitizeSynthesizedIssues([{ ...base, evidence: [] }])).toHaveLength(0);
   });

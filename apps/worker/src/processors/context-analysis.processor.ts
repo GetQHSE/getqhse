@@ -109,13 +109,17 @@ function categoryKeyOf(value: string): string {
  * than persisted unsupported. */
 export function sanitizeSynthesizedIssues<
   T extends { title: string; description: string; evidence: { excerpt: string }[] },
->(issues: T[]): T[] {
-  return issues.filter(
-    (issue) =>
-      issue.title.trim() &&
-      issue.description.trim() &&
-      issue.evidence.some((item) => item.excerpt.trim()),
-  );
+>(issues: T[], material?: string): T[] {
+  const normalize = (value: string) => value.normalize("NFC").replace(/\s+/gu, " ").trim();
+  const corpus = material === undefined ? undefined : normalize(material);
+  return issues.flatMap((issue) => {
+    if (!issue.title.trim() || !issue.description.trim()) return [];
+    const evidence = issue.evidence.filter((item) => {
+      const excerpt = normalize(item.excerpt);
+      return excerpt.length > 0 && (corpus === undefined || corpus.includes(excerpt));
+    });
+    return evidence.length ? [{ ...issue, evidence }] : [];
+  });
 }
 
 type RetainedIssue = {
@@ -224,7 +228,7 @@ export class ContextAnalysisProcessor extends WorkerHost {
         internalIssuesSchema,
         4_000,
       );
-      const sanitized = sanitizeSynthesizedIssues(output.issues);
+      const sanitized = sanitizeSynthesizedIssues(output.issues, digest);
       if (sanitized.length === 0) {
         return this.fail(
           runId,
@@ -271,11 +275,7 @@ export class ContextAnalysisProcessor extends WorkerHost {
         issuesCreated += 1;
 
         // The declared fact comes first: it is what the card shows as "Fait utilisé".
-        const fact = issue.fact.trim();
-        const evidence = [
-          ...(fact ? [{ sourceType: "declared_fact", reference: null, excerpt: fact }] : []),
-          ...issue.evidence.slice(0, 6),
-        ];
+        const evidence = issue.evidence.slice(0, 6);
         for (const item of evidence) {
           const excerpt = item.excerpt.trim();
           if (!excerpt) continue;
@@ -417,7 +417,7 @@ export class ContextAnalysisProcessor extends WorkerHost {
       const ratings = new Map(
         output.internalRatings.map((rating) => [rating.ref.trim().toUpperCase(), rating]),
       );
-      const external = sanitizeSynthesizedIssues(output.externalIssues);
+      const external = sanitizeSynthesizedIssues(output.externalIssues, externalMaterial);
 
       const factorByKey = new Map<string, string>();
       for (const factor of factors) {

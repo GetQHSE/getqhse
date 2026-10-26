@@ -10,9 +10,6 @@
  * not rewrite past identities.
  */
 
-import { webcrypto } from "node:crypto";
-import { TextEncoder } from "node:util";
-
 const STOP_WORDS = new Set([
   "le",
   "la",
@@ -83,7 +80,7 @@ export function canonicalKey(...parts: (string | null | undefined)[]): string {
  * sha256-hex so identities remain byte-identical to those already persisted.
  */
 async function sha256(value: string): Promise<string> {
-  const digest = await webcrypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
+  const digest = await globalThis.crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
   return Array.from(new Uint8Array(digest))
     .map((byte) => byte.toString(16).padStart(2, "0"))
     .join("");

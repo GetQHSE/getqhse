@@ -18,3 +18,11 @@ published at law level while its article wording and source remain visibly subje
 Automatic publication is the default. Deployments can explicitly set both
 `REGULATORY_AUTO_APPLICABLE=false` and `VITE_REGULATORY_AUTO_APPLICABLE=false` to retain the manual
 review workflow. Manual decisions and the analysis-quality review remain available in that mode.
+
+## Amendment: human conformity decisions before action proposals
+
+Publishing the applicable register creates unassessed evaluations and never starts an AI conformity
+pass. The reviewer saves evidence independently and explicitly chooses the conformity result.
+Only then can they request AI action proposals for partial or non-conforming evaluations.
+The worker preserves that decision and stores proposals without creating actions; accepting a
+proposal in the evaluation editor is the step that adds it to the action plan.

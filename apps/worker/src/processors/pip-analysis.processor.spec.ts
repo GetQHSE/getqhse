@@ -7,6 +7,7 @@ const { database, generateText } = vi.hoisted(() => ({
     pipRun: { findFirst: vi.fn(), update: vi.fn(), findUniqueOrThrow: vi.fn() },
     pipState: { findUniqueOrThrow: vi.fn(), update: vi.fn() },
     pipParty: { upsert: vi.fn() },
+    pipRequirement: { createMany: vi.fn() },
     pipClarification: { upsert: vi.fn() },
     pipEvaluation: { updateMany: vi.fn() },
     $queryRaw: vi.fn(),
@@ -133,6 +134,7 @@ const proposedParty = {
 describe("PIP inventory processing", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    generateText.mockReset();
     const run = {
       id: "run-1",
       projectId: "project-1",
@@ -213,6 +215,57 @@ describe("PIP inventory processing", () => {
       expect.objectContaining({ data: expect.objectContaining({ status: "FAILED" }) }),
     );
   });
+  it("recovers omitted parties by generating only the missing requirements", async () => {
+    const input = {
+      ...material,
+      parties: [
+        {
+          id: "party-1",
+          origin: "ai",
+          content: proposedParty,
+          aiProposal: null,
+          reviewStatus: "VALIDATED",
+          requirements: [],
+          evaluation: null,
+        },
+        {
+          id: "party-2",
+          origin: "ai",
+          content: { ...proposedParty, name: "Suppliers" },
+          aiProposal: null,
+          reviewStatus: "VALIDATED",
+          requirements: [],
+          evaluation: null,
+        },
+      ],
+    };
+    database.pipRun.findFirst.mockResolvedValue({
+      id: "run-1",
+      projectId: "project-1",
+      stage: "REQUIREMENTS",
+      status: "DRAFT",
+      revision: 1,
+      contextFingerprint: "context-1",
+      inputSnapshot: input,
+    });
+    generateText
+      .mockResolvedValueOnce({ output: { parties: [{ partyId: "party-1", items: [item] }] } })
+      .mockResolvedValueOnce({ output: { parties: [{ partyId: "party-2", items: [item] }] } });
+    await new PipAnalysisProcessor().process(job as never);
+    expect(generateText).toHaveBeenCalledTimes(2);
+    expect(JSON.parse(generateText.mock.calls[1]![0].prompt).parties).toEqual([input.parties[1]]);
+    expect(database.pipRequirement.createMany).toHaveBeenCalledWith({
+      data: expect.arrayContaining([
+        expect.objectContaining({ partyId: "party-1" }),
+        expect.objectContaining({ partyId: "party-2" }),
+      ]),
+      skipDuplicates: true,
+    });
+    expect(database.pipRun.update).toHaveBeenLastCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ status: "COMPLETED" }) }),
+    );
+  });
+
   it("still fails without publishing an entirely fabricated inventory", async () => {
     generateText.mockResolvedValue({
       output: {

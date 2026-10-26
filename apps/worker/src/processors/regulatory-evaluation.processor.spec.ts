@@ -160,8 +160,9 @@ function baselineWith(entries: Array<{ id: string; aiStatus: AiStatus }>) {
       },
       evaluation: {
         id: entry.id,
-        evaluatedAt: null,
-        result: "NOT_ASSESSED",
+        evaluatedAt: new Date("2026-10-26T10:00:00Z"),
+        revision: 2,
+        result: "NON_CONFORMING",
         aiStatus: entry.aiStatus,
         evidence: [],
         actions: [],
@@ -235,6 +236,16 @@ describe("regulatory conformity evaluation pass", () => {
     delete process.env["REGULATORY_EVALUATION_BUDGET_MICRO_USD"];
   });
 
+  it("does not ask AI to assess a requirement before a human decision", async () => {
+    const baseline = baselineWith([{ id: "evaluation-1", aiStatus: "RUNNING" }]);
+    baseline.entries[0]!.evaluation.evaluatedAt = null as never;
+    baseline.entries[0]!.evaluation.result = "NOT_ASSESSED";
+    const { processor, job, actionCreate } = harness(baseline);
+    await processor.process(job as never);
+    expect(generated).not.toHaveBeenCalled();
+    expect(actionCreate).not.toHaveBeenCalled();
+  });
+
   it("keeps evaluating the baseline after one requirement fails", async () => {
     generated
       .mockResolvedValueOnce(conformityOutput())
@@ -242,9 +253,9 @@ describe("regulatory conformity evaluation pass", () => {
       .mockResolvedValueOnce(conformityOutput("NON_CONFORMING"));
     const { processor, job, statusFor } = harness(
       baselineWith([
-        { id: "evaluation-1", aiStatus: "PENDING" },
-        { id: "evaluation-2", aiStatus: "PENDING" },
-        { id: "evaluation-3", aiStatus: "PENDING" },
+        { id: "evaluation-1", aiStatus: "RUNNING" },
+        { id: "evaluation-2", aiStatus: "RUNNING" },
+        { id: "evaluation-3", aiStatus: "RUNNING" },
       ]),
     );
 
@@ -264,7 +275,7 @@ describe("regulatory conformity evaluation pass", () => {
       baselineWith([
         { id: "evaluation-1", aiStatus: "FAILED" },
         { id: "evaluation-2", aiStatus: "COMPLETED" },
-        { id: "evaluation-3", aiStatus: "PENDING" },
+        { id: "evaluation-3", aiStatus: "RUNNING" },
       ]),
     );
 
@@ -276,12 +287,12 @@ describe("regulatory conformity evaluation pass", () => {
     expect(statusFor("evaluation-3")).toContain("COMPLETED");
   });
 
-  it("writes the assessment into the evaluation result and creates the proposed action", async () => {
+  it("proposes an action after the human assessment without changing the result or creating an action", async () => {
     generated.mockResolvedValue(
       conformityOutput("NON_CONFORMING", "Compléter le registre de métrologie"),
     );
     const { processor, job, database, actionCreate } = harness(
-      baselineWith([{ id: "evaluation-1", aiStatus: "PENDING" }]),
+      baselineWith([{ id: "evaluation-1", aiStatus: "RUNNING" }]),
     );
 
     await processor.process(job as never);
@@ -289,27 +300,23 @@ describe("regulatory conformity evaluation pass", () => {
     expect(database.regulatoryEvaluation.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
-          result: "NON_CONFORMING",
           aiStatus: "COMPLETED",
-          revision: { increment: 1 },
+          aiActionTitle: "Compléter le registre de métrologie",
         }),
       }),
     );
-    expect(actionCreate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({
-          evaluationId: "evaluation-1",
-          title: "Compléter le registre de métrologie",
-          status: "OPEN",
-        }),
-      }),
-    );
+    const completed = database.regulatoryEvaluation.updateMany.mock.calls.find(
+      ([args]) => args.data.aiStatus === "COMPLETED",
+    )![0];
+    expect(completed.data).not.toHaveProperty("result");
+    expect(completed.where).toMatchObject({ revision: 2, result: "NON_CONFORMING" });
+    expect(actionCreate).not.toHaveBeenCalled();
   });
 
   it("adds only approved conformity knowledge to the model context", async () => {
     generated.mockResolvedValue(conformityOutput());
     const { processor, job, database } = harness(
-      baselineWith([{ id: "evaluation-1", aiStatus: "PENDING" }]),
+      baselineWith([{ id: "evaluation-1", aiStatus: "RUNNING" }]),
     );
     database.aiKnowledgeExample.findMany.mockResolvedValue([
       {
@@ -345,7 +352,7 @@ describe("regulatory conformity evaluation pass", () => {
 
   it("evaluates a discovered law without an attached provision or extracted requirement", async () => {
     generated.mockResolvedValue(conformityOutput());
-    const baseline = baselineWith([{ id: "evaluation-1", aiStatus: "PENDING" }]);
+    const baseline = baselineWith([{ id: "evaluation-1", aiStatus: "RUNNING" }]);
     baseline.entries[0] = {
       ...baseline.entries[0]!,
       provisionId: null,
@@ -372,10 +379,10 @@ describe("regulatory conformity evaluation pass", () => {
   it("leaves a requirement a human signed off on during the call alone", async () => {
     generated.mockResolvedValue(conformityOutput("NON_CONFORMING", "Compléter le registre"));
     const { processor, job, database, actionCreate } = harness(
-      baselineWith([{ id: "evaluation-1", aiStatus: "PENDING" }]),
+      baselineWith([{ id: "evaluation-1", aiStatus: "RUNNING" }]),
     );
     database.regulatoryEvaluation.updateMany.mockImplementation(async (args: { data: object }) =>
-      "result" in args.data ? { count: 0 } : { count: 1 },
+      "aiActionTitle" in args.data ? { count: 0 } : { count: 1 },
     );
 
     await processor.process(job as never);
@@ -388,8 +395,8 @@ describe("regulatory conformity evaluation pass", () => {
     generated.mockResolvedValue(conformityOutput());
     const { processor, job, database, statusFor } = harness(
       baselineWith([
-        { id: "evaluation-1", aiStatus: "PENDING" },
-        { id: "evaluation-2", aiStatus: "PENDING" },
+        { id: "evaluation-1", aiStatus: "RUNNING" },
+        { id: "evaluation-2", aiStatus: "RUNNING" },
       ]),
     );
 
@@ -407,7 +414,7 @@ describe("regulatory conformity evaluation pass", () => {
   it("reserves and settles a ledger entry for each evaluated requirement", async () => {
     generated.mockResolvedValue(conformityOutput());
     const { processor, job, database } = harness(
-      baselineWith([{ id: "evaluation-1", aiStatus: "PENDING" }]),
+      baselineWith([{ id: "evaluation-1", aiStatus: "RUNNING" }]),
     );
 
     await processor.process(job as never);

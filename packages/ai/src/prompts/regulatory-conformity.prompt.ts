@@ -4,6 +4,7 @@ import { inLanguage, outputLanguageRule, type OutputLanguage } from "./language.
 
 export type RegulatoryConformityPromptInput = {
   profileContext: unknown;
+  humanDecision?: { result: string; comment?: string | null };
   requirement: {
     text: string;
     applicabilityRationale: string;
@@ -21,11 +22,17 @@ export type RegulatoryConformityPromptInput = {
 export const regulatoryConformityPrompt: PromptDefinition<RegulatoryConformityPromptInput> = {
   key: "regulatory.conformity-assessment",
   version: getPromptDefinition("regulatory.conformity-assessment").version,
-  build: (input) => ({
-    ...renderManagedPrompt("regulatory.conformity-assessment", {
+  build: (input) => {
+    const prompt = renderManagedPrompt("regulatory.conformity-assessment", {
       languageDescription: inLanguage(input.language),
       languageRule: outputLanguageRule(input.language),
-    }),
-    context: JSON.stringify({ ...input, language: undefined }),
-  }),
+    });
+    return {
+      ...prompt,
+      system: input.humanDecision
+        ? `${prompt.system}\nThe humanDecision is the authoritative conformity decision. Do not assess or change conformity. Propose a concrete remediation action addressing the human finding and supplied evidence. Return suggestedResult equal to humanDecision.result. Never treat a missing proof as a legal violation or invent organizational facts.`
+        : prompt.system,
+      context: JSON.stringify({ ...input, language: undefined }),
+    };
+  },
 };

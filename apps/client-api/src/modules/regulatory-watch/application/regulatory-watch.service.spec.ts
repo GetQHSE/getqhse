@@ -55,8 +55,9 @@ describe("retrieved regulatory article visibility", () => {
             evaluation: {
               id: "evaluation",
               revision: 1,
-              result: "NOT_ASSESSED",
-              aiStatus: "PENDING",
+              result: "NON_CONFORMING",
+              evaluatedAt: null,
+              aiStatus: "COMPLETED",
               aiConfidence: null,
               aiMatchedProfileKeys: [],
               aiMissingInformation: [],
@@ -72,6 +73,7 @@ describe("retrieved regulatory article visibility", () => {
       { organizationId: "org", userId: "user", role: "owner" },
       "project",
     );
+    expect(watch.currentBaseline?.entries[0]?.evaluation.result).toBe("NOT_ASSESSED");
     expect(watch.currentBaseline?.entries[0]?.requirement).toEqual({
       text: "Article 12 : Protéger les données.",
       source: "AI",
@@ -142,9 +144,10 @@ describe("automatic regulatory applicability", () => {
     const previousFlag = process.env["REGULATORY_AUTO_APPLICABLE"];
     process.env["REGULATORY_AUTO_APPLICABLE"] = "true";
     try {
+      const enqueue = vi.fn().mockResolvedValue({});
       const service = new RegulatoryWatchService({
         assertWorkerAvailable: vi.fn().mockResolvedValue(undefined),
-        enqueue: vi.fn().mockResolvedValue({}),
+        enqueue,
       } as never);
       const candidate = {
         id: "candidate-1",
@@ -226,6 +229,7 @@ describe("automatic regulatory applicability", () => {
       expect(tx.regulatoryBaseline.create).toHaveBeenCalledWith({
         data: expect.objectContaining({ publishedById: "initiator-1" }),
       });
+      expect(enqueue).not.toHaveBeenCalled();
     } finally {
       if (previousFlag === undefined) delete process.env["REGULATORY_AUTO_APPLICABLE"];
       else process.env["REGULATORY_AUTO_APPLICABLE"] = previousFlag;
@@ -357,6 +361,13 @@ describe("regulatory baseline carry-forward", () => {
     });
   });
 
+  it("does not carry an old AI-only result forward as a human conformity decision", () => {
+    expect(
+      evaluationCarryForward("UNCHANGED", { ...previous, evaluatedAt: null, evaluatedById: null })
+        .data.result,
+    ).toBe("NOT_ASSESSED");
+  });
+
   it("starts additions with an empty evaluation", () => {
     expect(evaluationCarryForward("ADDED", null)).toMatchObject({
       carryContext: false,
@@ -389,8 +400,11 @@ describe("AI-assisted conformity evaluation", () => {
     expect(assertWorkerAvailable).toHaveBeenCalledWith("regulatory-evaluation");
     expect(updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: expect.objectContaining({ evaluatedAt: null }),
-        data: expect.objectContaining({ aiStatus: "PENDING", aiSuggestedResult: null }),
+        where: expect.objectContaining({
+          evaluatedAt: { not: null },
+          result: { in: ["PARTIAL", "NON_CONFORMING"] },
+        }),
+        data: expect.objectContaining({ aiStatus: "RUNNING", aiSuggestedResult: null }),
       }),
     );
     expect(enqueue).toHaveBeenCalledWith(
@@ -449,8 +463,9 @@ describe("AI-assisted conformity evaluation", () => {
     expect(updateMany).toHaveBeenLastCalledWith({
       where: {
         entry: { baselineId: "baseline-1" },
-        evaluatedAt: null,
-        aiStatus: "PENDING",
+        evaluatedAt: { not: null },
+        result: { in: ["PARTIAL", "NON_CONFORMING"] },
+        aiStatus: "RUNNING",
       },
       data: { aiStatus: "FAILED", aiErrorMessage: "Evaluation worker is unavailable" },
     });

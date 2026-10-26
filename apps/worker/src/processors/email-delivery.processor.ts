@@ -133,6 +133,7 @@ export class EmailDeliveryProcessor extends WorkerHost {
 export class EmailOutboxReconciler implements OnModuleInit, OnModuleDestroy {
   private readonly database: DatabaseClient = createPrismaClient();
   private readonly queue = new Queue<JobEnvelope>(queueNames.notifications, {
+    prefix: process.env["WORK_QUEUE_PREFIX"] ?? "bull",
     connection: {
       host: redisUrl.hostname,
       port: Number(redisUrl.port || 6379),

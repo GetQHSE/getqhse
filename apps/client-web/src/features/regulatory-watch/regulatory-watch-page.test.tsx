@@ -569,7 +569,7 @@ describe("RegulatoryWatchPage", () => {
     expect(screen.queryByText(/régénérer|Article à confirmer/)).not.toBeInTheDocument();
   });
 
-  it("shows and validates an AI conformity recommendation", async () => {
+  it("requires a human choice even when a legacy AI recommendation exists", async () => {
     const pendingWatch = {
       ...activeWatch,
       currentBaseline: {
@@ -599,10 +599,14 @@ describe("RegulatoryWatchPage", () => {
       await screen.findByRole("tab", { name: /Évaluation réglementaire et normative/ }),
     );
     await user.click(screen.getAllByText(/L’organisme doit déterminer et fournir/)[0]!);
-    expect(await screen.findByText("Analyse IA à valider")).toBeInTheDocument();
+    expect(await screen.findByText("Proposition d’action à valider")).toBeInTheDocument();
     expect(screen.getByText("La preuve d’étalonnage n’est pas disponible.")).toBeInTheDocument();
-    expect(screen.getByText(/Créer et tenir à jour un registre/)).toBeInTheDocument();
+    expect(screen.queryByText(/Créer et tenir à jour un registre/)).not.toBeInTheDocument();
 
+    expect(screen.getByLabelText("Résultat")).toHaveValue("");
+    await user.click(screen.getByRole("button", { name: "Valider l’évaluation" }));
+    expect(clientApi.updateRegulatoryEvaluation).not.toHaveBeenCalled();
+    await user.selectOptions(screen.getByLabelText("Résultat"), "NON_CONFORMING");
     await user.click(screen.getByRole("button", { name: "Valider l’évaluation" }));
     await waitFor(() =>
       expect(clientApi.updateRegulatoryEvaluation).toHaveBeenCalledWith(
@@ -622,8 +626,8 @@ describe("RegulatoryWatchPage", () => {
           ...entry,
           evaluation: {
             ...entry.evaluation,
-            result: "NOT_ASSESSED",
-            evaluatedAt: null,
+            result: "PARTIAL",
+            evaluatedAt: "2026-10-26T10:00:00Z",
             aiAssessment: {
               ...entry.evaluation.aiAssessment,
               status: "PENDING",
@@ -639,7 +643,7 @@ describe("RegulatoryWatchPage", () => {
     const user = userEvent.setup();
     renderPage();
 
-    const retry = await screen.findByRole("button", { name: /Relancer l’évaluation IA/ });
+    const retry = await screen.findByRole("button", { name: /Proposer des actions IA/ });
     expect(retry).toBeEnabled();
     await user.click(retry);
     await waitFor(() => expect(clientApi.startRegulatoryEvaluation).toHaveBeenCalled());
@@ -654,8 +658,8 @@ describe("RegulatoryWatchPage", () => {
           ...entry,
           evaluation: {
             ...entry.evaluation,
-            result: "NOT_ASSESSED",
-            evaluatedAt: null,
+            result: "PARTIAL",
+            evaluatedAt: "2026-10-26T10:00:00Z",
             aiAssessment: {
               ...entry.evaluation.aiAssessment,
               status: "RUNNING",
@@ -669,7 +673,9 @@ describe("RegulatoryWatchPage", () => {
     vi.mocked(clientApi.regulatoryWatch).mockResolvedValue(runningWatch as never);
     renderPage();
 
-    expect(await screen.findByRole("button", { name: /Évaluation IA en cours/ })).toBeDisabled();
+    expect(
+      await screen.findByRole("button", { name: /Propositions d’actions IA en cours/ }),
+    ).toBeDisabled();
   });
 
   it("shows the AI assessment as the requirement's own result and action", async () => {
@@ -1485,6 +1491,66 @@ describe("RegulatoryWatchPage", () => {
       "https://www.example.ma/updated",
     );
     expect(clientApi.updateRegulatoryEvidence).not.toHaveBeenCalled();
+  });
+
+  it("saves and displays evidence before the user makes a conformity decision", async () => {
+    const pending = {
+      ...activeWatch,
+      currentBaseline: {
+        ...activeWatch.currentBaseline,
+        entries: activeWatch.currentBaseline.entries.map((entry) => ({
+          ...entry,
+          evaluation: {
+            ...entry.evaluation,
+            result: "NOT_ASSESSED",
+            evaluatedAt: null,
+            actions: [],
+            aiAssessment: {
+              ...entry.evaluation.aiAssessment,
+              status: "PENDING",
+              suggestedResult: null,
+            },
+          },
+        })),
+      },
+    };
+    const saved = {
+      ...pending,
+      currentBaseline: {
+        ...pending.currentBaseline,
+        entries: pending.currentBaseline.entries.map((entry) => ({
+          ...entry,
+          evaluation: {
+            ...entry.evaluation,
+            evidence: [
+              {
+                id: "proof-new",
+                kind: "NOTE",
+                fileId: null,
+                label: null,
+                url: null,
+                note: "Preuve QA conservée",
+                createdAt: "2026-10-26T12:00:00Z",
+              },
+            ],
+          },
+        })),
+      },
+    };
+    vi.mocked(clientApi.regulatoryWatch).mockResolvedValue(pending as never);
+    vi.mocked(clientApi.addRegulatoryEvidence).mockResolvedValue(saved as never);
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(await screen.findByRole("tab", { name: /Évaluation réglementaire/ }));
+    await user.click(screen.getAllByText(/L’organisme doit déterminer et fournir/)[0]!);
+    expect(screen.queryByText("Propositions d’actions IA en cours")).not.toBeInTheDocument();
+    await user.click(await screen.findByRole("button", { name: /Ajouter/ }));
+    await user.type(screen.getByLabelText("Note"), "Preuve QA conservée");
+    await user.click(screen.getByRole("button", { name: "Enregistrer les preuves" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(screen.getAllByText("Preuve QA conservée").length).toBeGreaterThan(0);
+    expect(clientApi.updateRegulatoryEvaluation).not.toHaveBeenCalled();
+    expect(clientApi.addRegulatoryAction).not.toHaveBeenCalled();
   });
 
   it("adds and removes preuves through the register sheet", async () => {

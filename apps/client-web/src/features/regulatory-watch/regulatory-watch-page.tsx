@@ -79,9 +79,9 @@ const activeAnalysisStatuses = new Set(["QUEUED", "RUNNING"]);
  *  pin the poller at 2s forever — exactly when the user needs to recover. */
 function aiEvaluationActive(watch: RegulatoryWatch | undefined): boolean {
   const rows = (watch?.currentBaseline?.entries ?? [])
-    .filter((entry) => entry.evaluation.result === "NOT_ASSESSED")
+    .filter((entry) => entry.evaluation.evaluatedAt !== null)
     .map((entry) => entry.evaluation.aiAssessment)
-    .filter((assessment) => assessment.status === "PENDING" || assessment.status === "RUNNING");
+    .filter((assessment) => assessment.status === "RUNNING");
   if (!rows.length) return false;
   const lastActivity = Math.max(...rows.map((row) => Date.parse(row.updatedAt)));
   return Number.isFinite(lastActivity) && Date.now() - lastActivity < staleAiEvaluationMs;
@@ -1223,7 +1223,8 @@ type EvidenceDraft = {
 export type EvaluationSaveInput = {
   evaluationId: string;
   revision: number;
-  result: "CONFORMING" | "PARTIAL" | "NON_CONFORMING";
+  result: "CONFORMING" | "PARTIAL" | "NON_CONFORMING" | "NOT_ASSESSED";
+  evidenceOnly?: boolean;
   comment: string | null;
   /** `null` when the action block was left untouched — the save then skips the action call. */
   action: {
@@ -1317,31 +1318,20 @@ function AiEvaluationSheet({
 }) {
   const { t } = useTranslation("regulatory");
   const format = useFormat();
-  const [result, setResult] = useState<"CONFORMING" | "PARTIAL" | "NON_CONFORMING">(
-    "NON_CONFORMING",
-  );
+  const [result, setResult] = useState<"" | "CONFORMING" | "PARTIAL" | "NON_CONFORMING">("");
   const [comment, setComment] = useState("");
   const [actionDraft, setActionDraft] = useState<ActionDraft>(emptyActionDraft);
   const [evidenceDrafts, setEvidenceDrafts] = useState<EvidenceDraft[]>([]);
   const [validationError, setValidationError] = useState<string>();
   const evaluationId = evaluation?.id;
-  const suggestedResult = evaluation?.aiSuggestedResult;
   const humanResult = evaluation?.result;
 
-  // Seeded from the identity and the assessment rather than from the object, because the sheet
-  // now reads live data: a plain `[evaluation]` dependency would reset the reviewer's choice on
-  // every 2s poll. Re-seeding when the suggestion lands is intentional — it is what the sheet
-  // was waiting for — but the comment survives it.
+  // Polling must not overwrite an unfinished human decision. AI action proposals never
+  // preselect a conformity result; only an already saved human decision seeds this editor.
   useEffect(() => {
     if (!evaluationId) return;
-    setResult(
-      humanResult && humanResult !== "NOT_ASSESSED"
-        ? humanResult
-        : suggestedResult && suggestedResult !== "NOT_ASSESSED"
-          ? suggestedResult
-          : "NON_CONFORMING",
-    );
-  }, [evaluationId, suggestedResult, humanResult]);
+    setResult(humanResult && humanResult !== "NOT_ASSESSED" ? humanResult : "");
+  }, [evaluationId, humanResult]);
 
   // Keyed on the row identity only: the action and evidence editors must never be reseeded by the
   // 2s poll, or a reviewer's half-typed plan would vanish under them.
@@ -1372,7 +1362,9 @@ function AiEvaluationSheet({
     );
   }
 
-  function buildSaveInput(): EvaluationSaveInput | string {
+  function buildSaveInput(evidenceOnly = false): EvaluationSaveInput | string {
+    const savedResult = evidenceOnly ? (evaluation?.result ?? "NOT_ASSESSED") : result;
+    if (!savedResult) return t("sheet.chooseResult");
     const title = actionDraft.title.trim();
     const hasOtherActionValues = Boolean(
       actionDraft.responsibleName.trim() ||
@@ -1384,9 +1376,10 @@ function AiEvaluationSheet({
       actionDraft.effectiveness !== "PENDING" ||
       actionDraft.status !== "OPEN",
     );
-    if (result !== "CONFORMING" && !title && hasOtherActionValues)
+    if (!evidenceOnly && result !== "CONFORMING" && !title && hasOtherActionValues)
       return t("sheet.actionTitleRequired");
-    if (result !== "CONFORMING" && title && title.length < 2) return t("sheet.actionTitleShort");
+    if (!evidenceOnly && result !== "CONFORMING" && title && title.length < 2)
+      return t("sheet.actionTitleShort");
 
     const created: EvaluationSaveInput["evidence"]["created"] = [];
     const updated: EvaluationSaveInput["evidence"]["updated"] = [];
@@ -1426,10 +1419,11 @@ function AiEvaluationSheet({
     return {
       evaluationId: evaluation!.id,
       revision: evaluation!.revision ?? 1,
-      result,
+      result: savedResult,
+      ...(evidenceOnly ? { evidenceOnly: true } : {}),
       comment: trimmedOrNull(comment),
       action:
-        result !== "CONFORMING" && actionDirty && title
+        !evidenceOnly && result !== "CONFORMING" && actionDirty && title
           ? {
               id: seededAction?.id ?? null,
               title,
@@ -1631,7 +1625,7 @@ function AiEvaluationSheet({
                 </div>
               </section>
 
-              {(ai === "PENDING" || ai === "RUNNING") && (
+              {ai === "RUNNING" && (
                 <section className="flex items-center gap-3 rounded-2xl border border-violet-200 bg-violet-50 p-4 text-sm text-violet-800">
                   <LoaderCircleIcon className="size-4 animate-spin" /> {t("sheet.aiRunning")}
                 </section>
@@ -1693,7 +1687,7 @@ function AiEvaluationSheet({
                 </section>
               )}
 
-              {result !== "CONFORMING" && evaluation.aiRemediationPlan && (
+              {result && result !== "CONFORMING" && evaluation.aiRemediationPlan && (
                 <section className="rounded-2xl border border-amber-200 bg-amber-50/70 p-4">
                   <p className="flex items-center gap-2 text-xs font-semibold text-amber-900">
                     <TargetIcon className="size-4" /> {t("sheet.remediation")}
@@ -1706,6 +1700,22 @@ function AiEvaluationSheet({
                       <p className="font-semibold">
                         <LinkifiedText>{evaluation.aiAction.title}</LinkifiedText>
                       </p>
+                      <Button
+                        className="mt-3"
+                        variant="outline"
+                        onClick={() =>
+                          setActionDraft({
+                            ...actionDraft,
+                            title: evaluation.aiAction!.title ?? "",
+                            responsibleName: evaluation.aiAction!.responsible ?? "",
+                            resources: evaluation.aiAction!.resources ?? "",
+                            dueDate: evaluation.aiAction!.dueDate ?? "",
+                            effectivenessCriteria: evaluation.aiAction!.effectivenessCriteria ?? "",
+                          })
+                        }
+                      >
+                        {t("sheet.useProposal")}
+                      </Button>
                       <dl className="mt-3 grid gap-3 sm:grid-cols-2">
                         <div>
                           <dt className="text-slate-400">{t("sheet.proposedOwner")}</dt>
@@ -1741,7 +1751,7 @@ function AiEvaluationSheet({
                 </section>
               )}
 
-              {result !== "CONFORMING" && (
+              {result && result !== "CONFORMING" && (
                 <section className="rounded-2xl border border-slate-200 p-4">
                   <p className="flex items-center gap-2 text-xs font-semibold text-slate-900">
                     <TargetIcon className="size-4" /> {t("sheet.actionPlan")}
@@ -1881,10 +1891,15 @@ function AiEvaluationSheet({
                   className="mt-1 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm"
                   id="evaluation-result"
                   onChange={(event) =>
-                    setResult(event.target.value as "CONFORMING" | "PARTIAL" | "NON_CONFORMING")
+                    setResult(
+                      event.target.value as "" | "CONFORMING" | "PARTIAL" | "NON_CONFORMING",
+                    )
                   }
                   value={result}
                 >
+                  <option value="" disabled>
+                    {t("sheet.chooseResult")}
+                  </option>
                   <option value="CONFORMING">{t("resultOptions.CONFORMING")}</option>
                   <option value="PARTIAL">{t("resultOptions.PARTIAL")}</option>
                   <option value="NON_CONFORMING">{t("resultOptions.NON_CONFORMING")}</option>
@@ -1908,6 +1923,21 @@ function AiEvaluationSheet({
                 </p>
               )}
               <Button
+                variant="outline"
+                disabled={saving || evidenceDrafts.length === 0}
+                onClick={() => {
+                  const input = buildSaveInput(true);
+                  if (typeof input === "string") {
+                    setValidationError(input);
+                    return;
+                  }
+                  setValidationError(undefined);
+                  void onSave(input).catch(() => setValidationError(t("page.evaluationFailed")));
+                }}
+              >
+                {t("sheet.saveEvidence")}
+              </Button>
+              <Button
                 className="h-10 rounded-xl bg-slate-950 hover:bg-slate-800"
                 disabled={saving || !evaluation.revision}
                 onClick={() => {
@@ -1917,7 +1947,7 @@ function AiEvaluationSheet({
                     return;
                   }
                   setValidationError(undefined);
-                  void onSave(input);
+                  void onSave(input).catch(() => setValidationError(t("page.evaluationFailed")));
                 }}
               >
                 {saving ? <LoaderCircleIcon className="animate-spin" /> : <CheckIcon />}{" "}
@@ -2000,7 +2030,19 @@ export function DataPage({
         <div className="flex flex-wrap gap-2">
           <Button
             className="h-10 rounded-xl bg-white"
-            disabled={evaluationBusy || analysisActive}
+            disabled={
+              evaluationBusy ||
+              analysisActive ||
+              !watch.currentBaseline?.entries.some(
+                (entry) =>
+                  entry.evaluation.evaluatedAt !== null &&
+                  ["PARTIAL", "NON_CONFORMING"].includes(entry.evaluation.result) &&
+                  (["PENDING", "FAILED"].includes(entry.evaluation.aiAssessment.status) ||
+                    (entry.evaluation.aiAssessment.status === "RUNNING" &&
+                      Date.now() - Date.parse(entry.evaluation.aiAssessment.updatedAt) >=
+                        staleAiEvaluationMs)),
+              )
+            }
             onClick={onStartEvaluation}
             variant="outline"
           >
@@ -2384,21 +2426,23 @@ export function RegulatoryWatchPage() {
     // the cache. The evaluation goes last: it is the only revision-guarded write, so it must not
     // burn its revision before the rest has landed.
     mutationFn: async (input: EvaluationSaveInput) => {
+      let savedWatch = watchQuery.data;
       for (const evidenceId of input.evidence.deletedIds) {
-        await clientApi.deleteRegulatoryEvidence(projectId, evidenceId);
+        savedWatch = await clientApi.deleteRegulatoryEvidence(projectId, evidenceId);
       }
       for (const evidence of input.evidence.updated) {
         const { id, ...patch } = evidence;
-        await clientApi.updateRegulatoryEvidence(projectId, id, patch);
+        savedWatch = await clientApi.updateRegulatoryEvidence(projectId, id, patch);
       }
       for (const evidence of input.evidence.created) {
-        await clientApi.addRegulatoryEvidence(projectId, input.evaluationId, evidence);
+        savedWatch = await clientApi.addRegulatoryEvidence(projectId, input.evaluationId, evidence);
       }
       if (input.action) {
         const { id, ...payload } = input.action;
         if (id) await clientApi.updateRegulatoryAction(projectId, id, payload);
         else await clientApi.addRegulatoryAction(projectId, input.evaluationId, payload);
       }
+      if (input.evidenceOnly && savedWatch) return savedWatch;
       return clientApi.updateRegulatoryEvaluation(projectId, input.evaluationId, {
         revision: input.revision,
         result: input.result,
@@ -2407,8 +2451,10 @@ export function RegulatoryWatchPage() {
     },
     onMutate: () => setActionError(undefined),
     onSuccess: (watch) => queryClient.setQueryData(["regulatory-watch", projectId], watch),
-    onError: (error) =>
-      setActionError(error instanceof Error ? error.message : t("page.evaluationFailed")),
+    onError: (error) => {
+      setActionError(error instanceof Error ? error.message : t("page.evaluationFailed"));
+      void watchQuery.refetch();
+    },
   });
 
   if ((profileQuery.isPending && !profileQuery.data) || (watchQuery.isPending && !watchQuery.data))

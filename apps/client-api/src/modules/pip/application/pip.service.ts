@@ -50,6 +50,11 @@ export class PipService {
     if (!project) throw new NotFoundException("Project not found");
     return project;
   }
+  /** A PIP change reads and writes several related rows under one project lock. Allow for
+   * remote PostgreSQL latency while keeping model calls outside the bounded transaction. */
+  private transaction<T>(work: (tx: Prisma.TransactionClient) => Promise<T>): Promise<T> {
+    return this.database.$transaction(work, { timeout: 30_000 });
+  }
   private async lock(tx: Prisma.TransactionClient, projectId: string) {
     await tx.$queryRaw`SELECT id FROM projects WHERE id = ${projectId} FOR UPDATE`;
     return tx.pipState.upsert({ where: { projectId }, create: { projectId }, update: {} });
@@ -129,7 +134,7 @@ export class PipService {
     };
     if (validatedProfileAnswers(snapshot.fields ?? {}).length === 0)
       throw new BadRequestException("PIP_PROFILE_REQUIRED");
-    const run = await this.database.$transaction(async (tx) => {
+    const run = await this.transaction(async (tx) => {
       let state = await this.lock(tx, projectId);
       const active = await tx.pipRun.findFirst({
         where: { projectId, status: { in: ["DRAFT", "RUNNING"] } },
@@ -195,7 +200,7 @@ export class PipService {
   }
   async review(tenant: TenantContext, id: string, input: PipReview) {
     const { id: projectId } = await this.project(tenant, id);
-    await this.database.$transaction(async (tx) => {
+    await this.transaction(async (tx) => {
       const state = await this.lock(tx, projectId);
       if (input.entityType === "party") {
         const row = await tx.pipParty.findFirst({ where: { id: input.entityId, projectId } });
@@ -313,7 +318,7 @@ export class PipService {
   }
   async addParty(tenant: TenantContext, id: string, input: PipAddParty) {
     const { id: projectId } = await this.project(tenant, id);
-    await this.database.$transaction(async (tx) => {
+    await this.transaction(async (tx) => {
       await this.lock(tx, projectId);
       const key = smqPip.canonicalPipKey(input.name);
       if (!key) throw new BadRequestException("PIP_PARTY_NAME_INVALID");
@@ -343,7 +348,7 @@ export class PipService {
   }
   async addRequirement(tenant: TenantContext, id: string, input: PipAddRequirement) {
     const { id: projectId } = await this.project(tenant, id);
-    await this.database.$transaction(async (tx) => {
+    await this.transaction(async (tx) => {
       await this.lock(tx, projectId);
       const party = await tx.pipParty.findFirst({
         where: { id: input.partyId, projectId, reviewStatus: { in: ["VALIDATED", "MODIFIED"] } },
@@ -382,7 +387,7 @@ export class PipService {
   }
   async allocate(tenant: TenantContext, id: string, input: PipAllocation) {
     const { id: projectId } = await this.project(tenant, id);
-    await this.database.$transaction(async (tx) => {
+    await this.transaction(async (tx) => {
       await this.lock(tx, projectId);
       const row = await tx.pipRequirement.findFirst({
         where: {
@@ -420,7 +425,7 @@ export class PipService {
   }
   async answer(tenant: TenantContext, id: string, input: PipAnswer) {
     const { id: projectId } = await this.project(tenant, id);
-    await this.database.$transaction(async (tx) => {
+    await this.transaction(async (tx) => {
       await this.lock(tx, projectId);
       const row = await tx.pipClarification.findFirst({ where: { id: input.id, projectId } });
       if (!row) throw new NotFoundException("Clarification not found");
@@ -445,7 +450,7 @@ export class PipService {
   async validate(tenant: TenantContext, id: string) {
     const { id: projectId } = await this.project(tenant, id);
     const { fingerprint } = await loadPipMaterial(this.database, projectId);
-    await this.database.$transaction(async (tx) => {
+    await this.transaction(async (tx) => {
       const state = await this.lock(tx, projectId);
       const parties = (
         await tx.pipParty.findMany({ where: { projectId }, include: pipPartyInclude })

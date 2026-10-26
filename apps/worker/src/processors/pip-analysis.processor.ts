@@ -133,6 +133,43 @@ export class PipAnalysisProcessor extends WorkerHost {
     });
     return { output: schema.parse(result.output), model };
   }
+  /** Recover incomplete model coverage before writing anything. Unknown or duplicate IDs still
+   * fail closed; omitted parties are retried once in bounded batches with their original IDs. */
+  private async generateCovered(stage: "REQUIREMENTS" | "EVALUATION", material: PipMaterial) {
+    const expected = new Set(material.parties.map((party) => party.id));
+    const requirements: z.infer<typeof pipRequirementsOutputSchema>["parties"] = [];
+    const evaluations: z.infer<typeof pipEvaluationOutputSchema>["evaluations"] = [];
+    const seen = new Set<string>();
+    let model = "";
+    const collect = async (input: PipMaterial) => {
+      const generated =
+        stage === "REQUIREMENTS"
+          ? await this.generate(stage, input, pipRequirementsOutputSchema)
+          : await this.generate(stage, input, pipEvaluationOutputSchema);
+      model = generated.model;
+      const output = generated.output;
+      const rows = "parties" in output ? output.parties : output.evaluations;
+      const requested = new Set(input.parties.map((party) => party.id));
+      for (const row of rows) {
+        if (!expected.has(row.partyId) || !requested.has(row.partyId) || seen.has(row.partyId))
+          throw new Error("PIP_PARTY_COVERAGE_INVALID");
+        seen.add(row.partyId);
+      }
+      if ("parties" in output) requirements.push(...output.parties);
+      else evaluations.push(...output.evaluations);
+    };
+    // Keep each response comfortably below the output limit, including large inventories.
+    for (let index = 0; index < material.parties.length; index += 4)
+      await collect({ ...material, parties: material.parties.slice(index, index + 4) });
+    for (const party of material.parties.filter((item) => !seen.has(item.id)))
+      await collect({ ...material, parties: [party] });
+    this.assertCoverage([...seen], material);
+    return {
+      model,
+      output: stage === "REQUIREMENTS" ? { parties: requirements } : { evaluations },
+    };
+  }
+
   async process(job: Job<{ organizationId: string; payload: { runId: string } }>) {
     return withPromptRun(promptRunKey("pip-analysis", job), () => this.processWithPrompts(job));
   }
@@ -154,14 +191,14 @@ export class PipAnalysisProcessor extends WorkerHost {
       const generated =
         run.stage === "INVENTORY"
           ? await this.generate(run.stage, material, pipInventoryOutputSchema)
-          : run.stage === "REQUIREMENTS"
-            ? await this.generate(run.stage, material, pipRequirementsOutputSchema)
-            : await this.generate(run.stage, material, pipEvaluationOutputSchema);
-      await this.database.$transaction(async (tx) => {
+          : await this.generateCovered(run.stage, material);
+      const persist = async (tx: Prisma.TransactionClient) => {
         await tx.$queryRaw`SELECT id FROM projects WHERE id = ${run.projectId} FOR UPDATE`;
         const current = await tx.pipRun.findUniqueOrThrow({ where: { id: run.id } });
         if (current.status === "COMPLETED") return;
-        const state = await tx.pipState.findUniqueOrThrow({ where: { projectId: run.projectId } });
+        const state = await tx.pipState.findUniqueOrThrow({
+          where: { projectId: run.projectId },
+        });
         if (state.revision !== run.revision) throw new Error("PIP_INPUT_CHANGED");
         if (run.stage === "INVENTORY") {
           const output = pipInventoryOutputSchema.parse(generated.output);
@@ -189,7 +226,10 @@ export class PipAnalysisProcessor extends WorkerHost {
           for (const clarification of output.clarifications)
             await tx.pipClarification.upsert({
               where: {
-                projectId_question: { projectId: run.projectId, question: clarification.question },
+                projectId_question: {
+                  projectId: run.projectId,
+                  question: clarification.question,
+                },
               },
               create: { projectId: run.projectId, runId: run.id, ...clarification },
               update: {},
@@ -232,23 +272,24 @@ export class PipAnalysisProcessor extends WorkerHost {
             output.parties.map((p) => p.partyId),
             material,
           );
-          for (const block of output.parties)
-            for (const item of block.items) {
-              const { content, services } = groundedPipRequirement(item, material);
-              const canonicalKey = `${content.kind}:${smqPip.canonicalPipKey(content.text)}`;
-              await tx.pipRequirement.upsert({
-                where: { partyId_canonicalKey: { partyId: block.partyId, canonicalKey } },
-                create: {
+          // Existing rows, including human edits, remain immutable on regeneration. A single
+          // insert avoids one remote round trip per item exhausting Prisma's transaction timeout.
+          await tx.pipRequirement.createMany({
+            data: output.parties.flatMap((block) =>
+              block.items.map((item) => {
+                const { content, services } = groundedPipRequirement(item, material);
+                return {
                   partyId: block.partyId,
                   runId: run.id,
-                  canonicalKey,
+                  canonicalKey: `${content.kind}:${smqPip.canonicalPipKey(content.text)}`,
                   aiProposal: json(content),
                   effective: json(content),
                   services: content.kind === "need" ? [] : services,
-                },
-                update: {},
-              });
-            }
+                };
+              }),
+            ),
+            skipDuplicates: true,
+          });
           await tx.pipEvaluation.updateMany({
             where: { party: { projectId: run.projectId } },
             data: { reviewStatus: "PENDING" },
@@ -302,7 +343,8 @@ export class PipAnalysisProcessor extends WorkerHost {
             outputSnapshot: json(generated.output),
           },
         });
-      });
+      };
+      await this.database.$transaction(persist, { timeout: 30_000 });
     } catch (error) {
       // Let BullMQ retry transport/rate-limit failures; a swallowed exception marks
       // the queue job completed and prevents every configured retry.
@@ -321,7 +363,21 @@ export class PipAnalysisProcessor extends WorkerHost {
               : retryableProviderError(error)
                 ? "PIP_PROVIDER_UNAVAILABLE"
                 : "PIP_ANALYSIS_FAILED";
-      this.logger.error({ runId, errorCode }, "PIP analysis failed");
+      this.logger.error(
+        {
+          runId,
+          errorCode,
+          errorType: error instanceof Error ? error.name : "UnknownError",
+          statusCode:
+            error &&
+            typeof error === "object" &&
+            "statusCode" in error &&
+            typeof error.statusCode === "number"
+              ? error.statusCode
+              : undefined,
+        },
+        "PIP analysis failed",
+      );
       await this.database.pipRun.update({
         where: { id: run.id },
         data: {

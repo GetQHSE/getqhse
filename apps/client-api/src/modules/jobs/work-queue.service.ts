@@ -24,6 +24,7 @@ export class WorkQueueService implements OnModuleDestroy {
     const existing = this.queues.get(queueName);
     if (existing) return existing;
     const queue = new Queue<JobEnvelope>(queueName, {
+      prefix: process.env["WORK_QUEUE_PREFIX"] ?? "bull",
       connection: {
         host: redisUrl.hostname,
         port: Number(redisUrl.port || 6379),

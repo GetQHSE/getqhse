@@ -190,6 +190,48 @@ describe("MVP applicable-law discovery", () => {
     );
   });
 
+  it("retains URLs and articles returned by provider web-search tools without text annotations", async () => {
+    const { run } = harness();
+    const url = "https://adala.justice.gov.ma/official";
+    const toolResults = [
+      {
+        toolName: "web_search",
+        providerExecuted: true,
+        output: { action: { type: "search" }, sources: [{ type: "url", url }] },
+      },
+    ];
+    generated
+      .mockResolvedValueOnce({
+        output: { laws: [{ ...lead, sourceUrl: url }] },
+        totalUsage: {},
+        sources: [],
+        toolResults,
+      })
+      .mockResolvedValueOnce({
+        output: {
+          sourceUrl: url,
+          articles: [
+            {
+              reference: "Article 12",
+              requirement: "Protéger les données.",
+              sourceText: "Toute personne doit protéger les données collectées.",
+            },
+          ],
+        },
+        totalUsage: {},
+        sources: [],
+        toolResults,
+      });
+    expect(await run()).toMatchObject({
+      discoveredLaws: [
+        {
+          sourceUrl: url,
+          sourceExcerpts: ["Article 12\nToute personne doit protéger les données collectées."],
+        },
+      ],
+    });
+  });
+
   it("discards article content when its claimed source was not cited by web search", async () => {
     const { run } = harness();
     generated

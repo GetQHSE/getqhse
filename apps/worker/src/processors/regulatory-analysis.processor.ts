@@ -373,6 +373,31 @@ function sourceUrlKey(value: string): string | null {
   }
 }
 
+/** Structured JSON responses may have no inline citation annotations. The provider's
+ * web-search tool results still carry the actual consulted URLs. Never trust model output URLs. */
+function consultedWebSources(result: {
+  sources?: Array<{ sourceType: string; url?: string }>;
+  toolResults?: Array<{ toolName: string; providerExecuted?: boolean; output: unknown }>;
+}): Array<{ sourceType: "url"; url: string }> {
+  const urls = new Set<string>();
+  const add = (url: unknown) => {
+    if (typeof url === "string" && sourceUrlKey(url)) urls.add(url);
+  };
+  for (const source of result.sources ?? []) if (source.sourceType === "url") add(source.url);
+  for (const tool of result.toolResults ?? []) {
+    if (tool.toolName !== "web_search" || tool.providerExecuted !== true) continue;
+    const output = tool.output as {
+      sources?: Array<{ type?: string; url?: string }>;
+      action?: { type?: string; url?: string };
+    } | null;
+    if (!output || typeof output !== "object") continue;
+    for (const source of output.sources ?? []) if (source.type === "url") add(source.url);
+    if (output.action?.type === "openPage" || output.action?.type === "findInPage")
+      add(output.action.url);
+  }
+  return [...urls].map((url) => ({ sourceType: "url", url }));
+}
+
 // The drafting prompt requires requirementText to be lifted verbatim from candidate.content,
 // with only layout artefacts (line breaks, OCR hyphenation) cleaned up. When the model complies
 // exactly, the independent verifier has nothing left to check: there is no paraphrase to
@@ -1314,7 +1339,7 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
       const output = lawArticlesSchema.parse(result.output);
       const sourceKey = output.sourceUrl ? sourceUrlKey(output.sourceUrl) : null;
       const citedUrl = sourceKey
-        ? result.sources.find(
+        ? consultedWebSources(result).find(
             (source) => source.sourceType === "url" && sourceUrlKey(source.url) === sourceKey,
           )
         : undefined;
@@ -1457,7 +1482,7 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
       });
       const discovery = applicableLawDiscoverySchema.parse(result.output);
       const citedUrls = new Map(
-        result.sources.flatMap((source) => {
+        consultedWebSources(result).flatMap((source) => {
           if (source.sourceType !== "url") return [];
           const key = sourceUrlKey(source.url);
           return key ? [[key, source.url] as const] : [];

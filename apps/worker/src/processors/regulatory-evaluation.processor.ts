@@ -102,9 +102,11 @@ function explicitDate(
 export function normalizeConformityAssessment(
   assessment: GeneratedConformityAssessment,
   sourceContext: string,
+  humanResult?: "CONFORMING" | "PARTIAL" | "NON_CONFORMING",
 ) {
   const uncertain = assessment.confidence < 0.7;
-  const suggestedResult = uncertain ? ("NON_CONFORMING" as const) : assessment.suggestedResult;
+  const suggestedResult =
+    humanResult ?? (uncertain ? ("NON_CONFORMING" as const) : assessment.suggestedResult);
   const conforming = suggestedResult === "CONFORMING";
   const missingInformation =
     uncertain && assessment.missingInformation.length === 0
@@ -269,7 +271,7 @@ export class RegulatoryEvaluationProcessor extends WorkerHost {
   private async failEvaluations(evaluationIds: string[], message: string): Promise<void> {
     if (!evaluationIds.length) return;
     await this.database.regulatoryEvaluation.updateMany({
-      where: { id: { in: evaluationIds }, evaluatedAt: null },
+      where: { id: { in: evaluationIds }, evaluatedAt: { not: null }, aiStatus: "RUNNING" },
       data: { aiStatus: "FAILED", aiErrorMessage: message.slice(0, 2_000) },
     });
   }
@@ -315,8 +317,9 @@ export class RegulatoryEvaluationProcessor extends WorkerHost {
     const pending = baseline.entries.filter(
       (entry) =>
         entry.evaluation &&
-        entry.evaluation.evaluatedAt === null &&
-        (entry.evaluation.aiStatus === "PENDING" || entry.evaluation.aiStatus === "RUNNING"),
+        entry.evaluation.evaluatedAt !== null &&
+        (entry.evaluation.result === "PARTIAL" || entry.evaluation.result === "NON_CONFORMING") &&
+        entry.evaluation.aiStatus === "RUNNING",
     );
     const model = regulatoryPrimaryModel();
     const reasoningEffort = llmSettings().regulatoryReasoningEffort;
@@ -363,12 +366,18 @@ export class RegulatoryEvaluationProcessor extends WorkerHost {
         evaluationId: evaluation.id,
       });
       await this.database.regulatoryEvaluation.updateMany({
-        where: { id: evaluation.id, evaluatedAt: null },
+        where: {
+          id: evaluation.id,
+          revision: evaluation.revision,
+          result: evaluation.result,
+          evaluatedAt: evaluation.evaluatedAt,
+        },
         data: { aiStatus: "RUNNING", aiErrorMessage: null },
       });
 
       const promptInput = {
         profileContext: baseline.profileSnapshot.data,
+        humanDecision: { result: evaluation.result, comment: evaluation.comment },
         requirement: {
           text: requirementText,
           applicabilityRationale: entry.applicabilityRationale,
@@ -447,17 +456,20 @@ export class RegulatoryEvaluationProcessor extends WorkerHost {
             profileContext: promptInput.profileContext,
             evidence: promptInput.evidence,
           }),
+          evaluation.result as "PARTIAL" | "NON_CONFORMING",
         );
         await this.database.$transaction(async (tx) => {
-          const claimed = await tx.regulatoryEvaluation.updateMany({
-            where: { id: evaluation.id, evaluatedAt: null },
+          await tx.regulatoryEvaluation.updateMany({
+            where: {
+              id: evaluation.id,
+              revision: evaluation.revision,
+              result: evaluation.result,
+              evaluatedAt: evaluation.evaluatedAt,
+            },
             data: {
-              // The assessment is written straight into the evaluation's own result. A reviewer
-              // opens the requirement to change it, not to transcribe it.
-              result: normalized.suggestedResult,
-              revision: { increment: 1 },
+              // The saved human decision remains authoritative. Only action proposals change.
               aiStatus: "COMPLETED",
-              aiSuggestedResult: normalized.suggestedResult,
+              aiSuggestedResult: null,
               aiRationale: normalized.rationale,
               aiConfidence: normalized.confidence,
               aiMatchedProfileKeys: normalized.matchedProfileKeys,
@@ -479,26 +491,6 @@ export class RegulatoryEvaluationProcessor extends WorkerHost {
               aiPromptVersion: regulatoryConformityPrompt.version,
               aiEvaluatedAt: new Date(),
               aiErrorMessage: null,
-            },
-          });
-          // A human may have signed the requirement off while the model call was in flight; that
-          // decision wins, and no proposed action is created behind it.
-          if (claimed.count !== 1 || !normalized.action.title) return;
-          if (await tx.regulatoryEvaluationAction.count({ where: { evaluationId: evaluation.id } }))
-            return;
-          await tx.regulatoryEvaluationAction.create({
-            data: {
-              evaluationId: evaluation.id,
-              title: normalized.action.title,
-              assigneeId: null,
-              responsibleName: normalized.action.responsible,
-              resources: normalized.action.resources,
-              dueDate: normalized.action.dueDate
-                ? new Date(`${normalized.action.dueDate}T00:00:00.000Z`)
-                : null,
-              status: "OPEN",
-              effectivenessCriteria: normalized.action.effectivenessCriteria,
-              effectiveness: "PENDING",
             },
           });
         });
