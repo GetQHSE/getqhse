@@ -5,6 +5,7 @@ import {
   languageModel,
   languageProviderOptions,
   LlmNotConfiguredError,
+  openAiPromptCacheKey,
 } from "./llm-provider.js";
 import { resetLlmSettingsSnapshot, setLlmSettingsSnapshot } from "./llm-settings-store.js";
 
@@ -58,5 +59,16 @@ describe("multi-provider model resolution", () => {
     expect(embeddingProviderOptions("google", "document")).toEqual({
       google: { outputDimensionality: 768, taskType: "RETRIEVAL_DOCUMENT" },
     });
+  });
+
+  it("keeps OpenAI prompt cache keys within the 64-character limit", () => {
+    expect(openAiPromptCacheKey("law-articles:run-1")).toBe("law-articles:run-1");
+    const long = "law-articles:cmvsier3y004101qho46rw4gr:Décret exécutif n° 06-198 du 31 mai 2006";
+    const other = `${long} modifié`;
+    const key = openAiPromptCacheKey(long);
+    expect(Buffer.byteLength(key, "utf8")).toBeLessThanOrEqual(64);
+    expect(key.startsWith("law-articles:cmvsier3y004101qho46rw4gr:")).toBe(true);
+    expect(openAiPromptCacheKey(long)).toBe(key);
+    expect(openAiPromptCacheKey(other)).not.toBe(key);
   });
 });

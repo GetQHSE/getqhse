@@ -1332,7 +1332,9 @@ export class RegulatoryAnalysisProcessor extends WorkerHost {
           provider,
           model,
           reasoningEffort: "low",
-          promptCacheKey: `law-articles:${run.id}:${law.reference}`,
+          // OpenAI rejects prompt_cache_key values over 64 chars, so unbounded law references
+          // must stay out of the key; only the system prompt is shared across laws anyway.
+          promptCacheKey: `law-articles:${run.id}`,
         }),
         telemetry: { isEnabled: false },
       });

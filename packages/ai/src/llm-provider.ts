@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 import { createAnthropic, type AnthropicProvider } from "@ai-sdk/anthropic";
 import { createGoogleGenerativeAI, type GoogleGenerativeAIProvider } from "@ai-sdk/google";
 import { createOpenAI, type OpenAIProvider } from "@ai-sdk/openai";
@@ -84,6 +86,21 @@ export function embeddingProviderOptions(
       };
 }
 
+// OpenAI rejects prompt_cache_key values over 64 characters (string_above_max_length), and
+// callers build keys from data such as law references whose length is unbounded. Oversized keys
+// keep a readable ASCII prefix plus a hash of the full key, so distinct keys stay distinct and the
+// result fits even if the limit is counted in bytes.
+const OPENAI_PROMPT_CACHE_KEY_MAX = 64;
+
+export function openAiPromptCacheKey(key: string): string {
+  if (Buffer.byteLength(key, "utf8") <= OPENAI_PROMPT_CACHE_KEY_MAX) return key;
+  const hash = createHash("sha256").update(key).digest("hex").slice(0, 16);
+  const prefix = key
+    .replace(/[^\x20-\x7e]/g, "")
+    .slice(0, OPENAI_PROMPT_CACHE_KEY_MAX - hash.length - 1);
+  return `${prefix}:${hash}`;
+}
+
 export function languageProviderOptions(
   provider: LanguageProvider,
   input: { model?: string; reasoningEffort?: string; promptCacheKey?: string } = {},
@@ -107,7 +124,7 @@ export function languageProviderOptions(
           : {}),
         ...(input.promptCacheKey && (controls?.has("cacheRetention") ?? true)
           ? {
-              promptCacheKey: input.promptCacheKey,
+              promptCacheKey: openAiPromptCacheKey(input.promptCacheKey),
               promptCacheRetention: settings.regulatoryPromptCacheRetention,
             }
           : {}),
